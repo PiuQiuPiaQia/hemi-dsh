@@ -12,10 +12,12 @@ const entry = (path: string) => ({
 })
 
 /**
- * Build self-contained Loader entries: the preset-scope tool plugin and the
- * root-scope settings service exposed at `./settings`.
+ * Build self-contained Loader entries: the preset-scope tool plugin, the
+ * root-scope settings/Remote service at `./settings`, and the client-safe
+ * type module at `./client`.
  */
 export default defineConfig([
   entry('lib/types/index.js'),
   entry('lib/types/settings.js'),
+  entry('lib/types/client.js'),
 ])

@@ -1,0 +1,9 @@
+{
+  "name": "@hemi/model-routing-test-provider",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "0.2.2-alpha.3"
+  }
+}

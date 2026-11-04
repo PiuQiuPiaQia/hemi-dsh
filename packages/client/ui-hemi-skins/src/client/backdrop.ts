@@ -1,9 +1,4 @@
-/**
- * Hemi skin backdrop: one fixed, click-through layer showing the ported
- * character artwork plus the skin's lettering, kept in step with the
- * selected skin. The layer sits behind the app content (`z-index: -1`);
- * `classic` carries no artwork and hides it.
- */
+/** Hemi character artwork behind the app; classic has no artwork. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { HemiSkin } from './skins.ts'
 import css from './Backdrop.module.css'
@@ -30,27 +25,19 @@ const ART: Record<string, string> = {
 export function installBackdrop(ctx: Context): (skin: HemiSkin) => void {
   const layer = document.createElement('div')
   layer.className = css.layer ?? ''
-  const lettering = document.createElement('div')
-  lettering.className = css.lettering ?? ''
-  const headline = document.createElement('span')
-  headline.className = css.headline ?? ''
-  const subline = document.createElement('span')
-  subline.className = css.subline ?? ''
-  lettering.append(headline, subline)
-  layer.append(lettering)
+  layer.setAttribute('aria-hidden', 'true')
+  const actor = document.createElement('img')
+  actor.className = css.actor ?? ''
+  actor.alt = ''
+  layer.append(actor)
   document.body.append(layer)
   ctx.effect(() => () => { layer.remove() }, 'ui-hemi-skins: backdrop layer')
 
   const update = (skin: HemiSkin): void => {
     const art = ART[skin.id]
-    layer.style.backgroundImage = art === undefined ? 'none' : `url(${art})`
-    const text = skin.lettering
-    lettering.style.display = text === null || art === undefined ? 'none' : ''
-    if (text !== null && art !== undefined) {
-      headline.textContent = text.headline
-      subline.textContent = text.subline
-      lettering.style.color = text.color
-    }
+    layer.hidden = art === undefined
+    if (art === undefined) actor.removeAttribute('src')
+    else actor.src = art
   }
   return update
 }

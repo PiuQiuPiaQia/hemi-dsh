@@ -65,11 +65,10 @@ describe.skipIf(MODE === 'record')('web e2e: catalog model badges', () => {
     expect(await trigger.getByText('新', { exact: true }).getAttribute('data-tone')).toBe('success')
     try {
       await trigger.click()
-      const current = page.getByRole('menuitem', { name: /^模型/ })
+      const current = page.getByRole('menuitemradio', { checked: true })
       expect(await current.getByText('新', { exact: true }).count()).toBe(1)
-      await current.click()
-      const menu = page.getByRole('menu', { name: '模型', exact: true })
-      await compareOrRefreshGolden(EXPECTED, await captureStableAria(page, '[role="menu"][aria-label="模型"]', scaffold.workspaceCwd), MODE)
+      const menu = page.getByRole('group', { name: '模型', exact: true })
+      await compareOrRefreshGolden(EXPECTED, await captureStableAria(page, '[role="group"][aria-label="模型"]', scaffold.workspaceCwd), MODE)
       expect(await menu.getByRole('group', { name: 'External', exact: true }).locator('[data-tone]').count()).toBe(0)
       expect(await menu.getByRole('menuitemradio', { name: 'Invalid badge model', exact: true }).locator('[data-tone]').count()).toBe(0)
       expect(await menu.getByRole('menuitemradio', { name: `${LONG_NAME} Preview`, exact: true }).locator('[data-tone]').getAttribute('data-tone')).toBe('neutral')
@@ -100,11 +99,9 @@ describe.skipIf(MODE === 'record')('web e2e: catalog model badges', () => {
     const trigger = page.getByRole('button', { name: /^选择模型/ })
     try {
       await trigger.click()
-      await page.getByRole('menuitem', { name: /^模型/ }).click()
       await page.getByRole('menuitemradio', { name: 'Live model New', exact: true }).click()
       await expect.poll(() => trigger.textContent()).toContain('New Live model')
       await trigger.click()
-      await page.getByRole('menuitem', { name: /^模型/ }).click()
       adapter.badge = { text: 'Updated', tone: 'success' }
       scaffold.ctx.emit('llm/models-updated', provider)
       await expect.poll(() => trigger.textContent()).toContain('Updated Live model')
@@ -121,7 +118,6 @@ describe.skipIf(MODE === 'record')('web e2e: catalog model badges', () => {
       await page.keyboard.press('Escape')
       await page.keyboard.press('Escape')
       await trigger.click()
-      await page.getByRole('menuitem', { name: /^模型/ }).click()
       await page.getByRole('menuitemradio', { name: `${NAME} 1017`, exact: true }).click()
       unregister()
     }
@@ -131,7 +127,6 @@ describe.skipIf(MODE === 'record')('web e2e: catalog model badges', () => {
     const trigger = page.getByRole('button', { name: /^选择模型/ })
     try {
       await trigger.click()
-      await page.getByRole('menuitem', { name: /^模型/ }).click()
       await page.getByRole('menuitemradio', { name: `${LONG_NAME} Preview`, exact: true }).click()
       await expect.poll(() => trigger.textContent()).toBe(`Preview ${LONG_NAME}`)
       const triggerBadge = trigger.getByText('Preview', { exact: true })
@@ -144,14 +139,13 @@ describe.skipIf(MODE === 'record')('web e2e: catalog model badges', () => {
 
       await page.setViewportSize({ width: 390, height: 844 })
       await trigger.click()
-      const current = page.getByRole('menuitem', { name: /^模型/ })
+      const current = page.getByRole('menuitemradio', { checked: true })
       const rootBadgeBox = (await current.getByText('Preview', { exact: true }).boundingBox())!
       const rootBox = (await current.boundingBox())!
       expect(rootBadgeBox.x).toBeGreaterThanOrEqual(rootBox.x)
       expect(rootBadgeBox.x + rootBadgeBox.width).toBeLessThanOrEqual(rootBox.x + rootBox.width)
       expect(await current.getByText(LONG_NAME, { exact: true }).evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true)
-      await current.click()
-      const menu = page.getByRole('menu', { name: '模型', exact: true })
+      const menu = page.getByRole('group', { name: '模型', exact: true })
       const option = menu.getByRole('menuitemradio', { name: `${LONG_NAME} Preview`, exact: true })
       const badge = option.getByText('Preview', { exact: true })
       const box = await badge.boundingBox()

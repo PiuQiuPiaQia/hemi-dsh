@@ -1,7 +1,12 @@
-- group "模型与推理等级":
+- menu "模型与推理等级":
+  - menuitemradio "自动路由" [disabled]: 自动路由 请先配置主模型
+  - menuitem "配置模型路由"
   - searchbox "搜索模型…": ACMLG
   - button "清除搜索"
-  - menu "模型":
+  - group "模型":
     - group "Acme Gateway":
       - text: Acme Gateway
       - menuitemradio "Acme Large"
+  - text: 启用智能体团队协作
+  - button "关于智能体团队协作"
+  - switch "启用智能体团队协作"

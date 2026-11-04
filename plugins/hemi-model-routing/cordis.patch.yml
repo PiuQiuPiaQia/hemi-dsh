@@ -1,0 +1,13 @@
+# Install into a profile without the older built-in Hemi routing rows.
+# Host settings and per-session mode belong at root scope. The delegation
+# function contributes through the scoped registries without a preset edit.
+- insert:
+    - id: hemi-routing-settings
+      name: '@deepseek-ai/dsh-hemi-routing/settings'
+      config:
+        main: null
+        roles: {}
+    - id: hemi-routing
+      name: '@deepseek-ai/dsh-hemi-routing'
+    - id: hemi-routing-ui
+      name: '@deepseek-ai/dsh-hemi-routing-ui'

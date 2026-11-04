@@ -497,6 +497,15 @@ afterEach(async () => {
 })
 
 describe('desktop main startup', () => {
+  it.each([undefined, '1'])('opens DevTools at startup only when explicitly enabled (%s)', async (openDevTools) => {
+    harness.app.isPackaged = false
+    vi.stubEnv('DSH_DESKTOP_OPEN_DEVTOOLS', openDevTools)
+    await readyWorkspace()
+    const open = harness.windows[0]!.webContents.openDevTools
+    if (openDevTools === '1') expect(open).toHaveBeenCalledWith({ mode: 'detach' })
+    else expect(open).not.toHaveBeenCalled()
+  })
+
   it.each([true, false])('selects the package manager before Host startup (packaged=%s)', async (packaged) => {
     harness.app.isPackaged = packaged
     await readyForUpdate()

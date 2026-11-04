@@ -1,36 +1,28 @@
-/* Hemi skin backdrop: the ported character artwork as a fixed, click-through
- * layer behind the app content, plus the lettering overlay. Classic carries
- * no artwork and the updater hides the layer. */
-
+/* Match Hemi's height-based character framing without affecting app layout. */
 .layer {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-repeat: no-repeat;
-  background-position: 100% 100%;
-  background-size: min(68vw, 1000px) auto;
+  overflow: hidden;
 }
 
-.lettering {
+.actor {
   position: absolute;
-  left: 48px;
-  bottom: 18%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  line-height: 1.1;
-  user-select: none;
+  height: 104%;
+  width: auto;
+  max-width: none;
+  bottom: -13%;
+  right: -12%;
+  opacity: 0.94;
+  mask-image: linear-gradient(#000 0% 72%, #0000 100%);
 }
 
-.headline {
-  font-size: 56px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
-}
-
-.subline {
-  font-size: 24px;
-  font-weight: 400;
-  opacity: 0.9;
+@media (max-width: 880px) {
+  .actor {
+    height: 90%;
+    bottom: -8%;
+    right: -40%;
+    opacity: 0.55;
+  }
 }

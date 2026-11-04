@@ -1,0 +1,106 @@
+.row {
+  position: relative;
+  border-radius: var(--dsw-radius-md);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 8px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding-block: 4px;
+}
+
+.hint {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.row .gear,
+.choiceRow .gear {
+  flex: none;
+  width: 28px;
+  padding: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.choiceRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.choice {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.choice:disabled {
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+}
+
+.choice:focus-visible,
+.choice[aria-checked='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.choiceCheck {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  .choice:enabled:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+@media (pointer: coarse) {
+  .row .gear,
+  .choiceRow .gear {
+    width: 36px;
+    height: 36px;
+  }
+
+  .state {
+    padding-block: 8px;
+  }
+}

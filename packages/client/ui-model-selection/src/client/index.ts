@@ -25,8 +25,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
-import type { ModelSelectInjected } from './slots.ts'
-import { ModelSelect } from './ModelSelect.tsx'
+import { HemiModelSelect, type HemiModelSelectInjected } from './hemi/ModelSelect.tsx'
 import { en, ja, es, fr, de, ru, pt, zh, type ModelKey } from './locales.ts'
 import { orderModelProviders } from './provider-order.ts'
 
@@ -175,13 +174,14 @@ export function apply(ctx: ClientContext): void {
       children: {
         'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
         'conversation.input.model.options': { kind: 'list', scope: 'session' },
+        'conversation.input.model.alternative': { kind: 'single', scope: 'session' },
       },
-      inject: (sessionId): ModelSelectInjected => {
+      inject: (sessionId): HemiModelSelectInjected => {
         const directory = models.directoryFor(sessionId)
         const available = sessions.subagentAddress(sessionId) === undefined
         return {
           available,
-          directory: directory.store,
+          hooks: { directory: directory.store, menuMode: models.menuMode.state },
           load: () => {
             if (available) directory.load().catch(() => { /* surfaced on the store */ })
           },
@@ -191,6 +191,6 @@ export function apply(ctx: ClientContext): void {
             : Promise.resolve(undefined),
         }
       },
-    }, ModelSelect))
+    }, HemiModelSelect))
   })
 }

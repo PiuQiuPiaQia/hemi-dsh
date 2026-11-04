@@ -159,6 +159,7 @@ export class SessionCommandController {
             : { reasoningEffort: ReasoningEffortId(request.reasoningEffort) }),
         }
         await this.ctx.llm.resolveCallConfig(selected)
+        await this.ctx.serial('agent/before-user-model-selection', agent)
         agent.model.select(selected)
         void this.ctx.agentDefaultModel.saveSelection(selected).catch((error: unknown) => {
           this.ctx.logger.warn(

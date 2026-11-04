@@ -1,0 +1,11 @@
+[
+  { "case": "auto-explorer", "role": "explorer", "main": "main", "child": "explorer" },
+  { "case": "auto-oracle", "role": "oracle", "main": "main", "child": "oracle" },
+  { "case": "auto-fixer", "role": "fixer", "main": "main", "child": "fixer" },
+  { "case": "auto-designer", "role": "designer", "main": "main", "child": "designer" },
+  { "case": "auto-follow-main", "role": "designer", "main": "main", "child": "main" },
+  { "case": "fixed-current-model", "role": "explorer", "main": "main", "child": "main" },
+  { "case": "fixed-new-model", "role": "oracle", "main": "fixed", "child": "fixed" },
+  { "case": "auto-before-restart", "role": "explorer", "main": "main", "child": "explorer" },
+  { "case": "auto-after-restart", "role": "explorer", "main": "main", "child": "explorer" }
+]

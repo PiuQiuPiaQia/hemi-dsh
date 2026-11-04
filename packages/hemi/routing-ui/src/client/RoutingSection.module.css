@@ -1,112 +1,241 @@
-/* Hemi role model routing card. Rendered in the Models page footer, so it
- * follows the settings card material instead of owning panel chrome. */
-
-.section {
+/* The settings shell and Modal own outer padding, surface material and Close. */
+.entry {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 8px 0;
-  font-size: 13px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 14px;
   border: 0.5px solid var(--dsw-alias-settings-card-stroke);
   border-radius: var(--dsw-radius-xl);
   background: var(--dsw-alias-settings-card-fill);
+  color: var(--dsw-alias-label-primary);
 }
 
-.title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 22px;
-}
-
-.description {
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
-  margin: 0;
-}
-
-.rows {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(220px, 1.4fr);
-  gap: 12px;
-  align-items: center;
-}
-
+.entryCopy,
 .roleCell {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
-.roleLabel {
+.entryTitle,
+.groupTitle {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.dialog {
+  width: min(640px, 100%);
+  max-height: 100%;
+}
+
+.dialogContent {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
   font-size: 13px;
   line-height: 20px;
-  color: var(--dsw-alias-label-primary);
 }
 
-.roleHelp {
+.main {
+  padding-bottom: 16px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.roles .groupTitle {
+  margin-bottom: -4px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.fieldLabel {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.help,
+.routeDetail,
+.warning,
+.error,
+.notice,
+.notes p {
+  margin: 0;
+  overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 18px;
+}
+
+.help,
+.routeDetail,
+.notice,
+.notes {
   color: var(--dsw-alias-label-secondary);
 }
 
-.select {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 6px 10px;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
-  background: transparent;
-  font-size: 13px;
-  line-height: 20px;
+.warning {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.error,
+.writeError {
   color: var(--dsw-alias-label-primary);
 }
 
-.footer {
+.warningIcon,
+.errorIcon {
+  display: inline;
+  flex: none;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+.warningIcon {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.errorIcon {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.pickerCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.picker {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.picker .pickerButton {
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  height: auto;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+}
+
+.pickerButton svg {
+  flex: none;
+}
+
+.pickerText,
+.optionText {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pickerMenu {
+  max-width: min(360px, var(--dsh-anchored-max-width, 100vw));
+}
+
+.catalogNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.catalogNotice p {
+  flex: 1 1 240px;
+}
+
+.loading {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
+  justify-content: center;
+  min-height: 220px;
 }
 
-.status {
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
+.dialogFooter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
-.save {
-  border: none;
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-button-primary-fill);
-  color: var(--dsw-alias-button-contrast-fill);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 6px 16px;
+.dialogFooter button {
+  flex: none;
 }
 
-.save:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.restartNote {
+.writeStatus,
+.writeError {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 18px;
+}
+
+.writeStatus {
   color: var(--dsw-alias-label-secondary);
-  margin: 0;
+}
+
+.writeStatus svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (max-width: 600px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
+
+@media (min-width: 601px) {
+  .row > .roleCell {
+    padding-top: 8px;
+  }
+}
+
+@media (pointer: coarse) {
+  .picker .pickerButton {
+    min-height: 40px;
+  }
 }

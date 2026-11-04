@@ -1,0 +1,13 @@
+html, body, #root { margin: 0; min-height: 100%; }
+body { font-family: var(--dsw-font-family); color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); }
+.preview-grid { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 20px; padding: 16px; }
+.preview-panel { margin: 0; }
+.preview-panel figcaption { margin-bottom: 6px; font-size: 13px; line-height: 20px; }
+.preview-panel iframe { display: block; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 8px; }
+.preview-panel output { display: block; max-width: 390px; margin-top: 6px; font-size: 12px; line-height: 18px; }
+.preview-menu { box-sizing: border-box; width: 100%; max-width: 340px; padding: 24px 12px; }
+.preview-menu h2 { margin: 20px 0 8px; font-size: 13px; line-height: 20px; font-weight: 500; }
+.preview-menu-surface { padding: 4px; border: 0; box-shadow: var(--dsw-elevation-prominent); }
+.preview-caption { display: inline-flex; align-items: center; min-height: 36px; font-size: 13px; line-height: 20px; }
+.preview-menu-footer { margin-top: 24px; }
+.preview-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }

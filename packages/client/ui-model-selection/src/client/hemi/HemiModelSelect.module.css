@@ -1,0 +1,37 @@
+.menu[role='menu'] {
+  min-width: min(272px, calc(100vw - 32px), var(--dsh-anchored-max-width, 100vw));
+  max-height: min(480px, calc(100vh - 48px), var(--dsh-anchored-max-height, 100vh));
+}
+
+.alternative {
+  flex: none;
+}
+
+.alternative:empty,
+.utilities:empty {
+  display: none;
+}
+
+.body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.utilities:not(:empty) {
+  min-height: 0;
+  max-height: min(176px, calc(var(--dsh-anchored-max-height, 100vh) * 0.6));
+  overflow-y: auto;
+  margin-block-start: 4px;
+  padding-block-start: 4px;
+  border-block-start: 1px solid var(--dsw-alias-border-l1);
+}
+
+.menuWithEffort[role='menu'] {
+  overflow-y: auto;
+}
+
+.menuWithEffort .utilities {
+  flex: none;
+}

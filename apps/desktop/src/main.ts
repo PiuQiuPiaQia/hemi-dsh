@@ -1334,7 +1334,7 @@ async function main(): Promise<void> {
       window.moveTop()
       window.focus()
     }
-    if (activate && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
+    if (activate && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS === '1') {
       window.webContents.openDevTools({ mode: 'detach' })
     }
   }
@@ -1542,7 +1542,7 @@ async function main(): Promise<void> {
   // Window lifecycle callbacks run while backend startup is pending.
   if (isQuitting()) return
   const window = currentMainWindow()
-  if (window !== undefined && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS !== '0') {
+  if (window !== undefined && development && process.env.DSH_DESKTOP_OPEN_DEVTOOLS === '1') {
     window.webContents.openDevTools({ mode: 'detach' })
   }
   publishUpdate(updateState)

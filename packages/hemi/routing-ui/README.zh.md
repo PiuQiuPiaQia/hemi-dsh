@@ -1,0 +1,101 @@
+---
+description: "从会话模型菜单或模型设置配置 Hemi 的主模型与角色模型；说明自动路由开关、保存行为和当前界面边界。"
+kind: "package-reference"
+---
+
+# @deepseek-ai/dsh-hemi-routing-ui
+
+[English](README.md) | 中文
+
+## Summary
+
+从已配置的模型目录中选择主模型，以及研究、评审、执行、设计四个角色的模型。每个普通会话都可单独开启或关闭自动路由。模型菜单和“设置 → 模型”打开同一份配置表单；每次选择自动保存，已接受的值通过设置镜像回显。正在进行的请求不受影响。
+
+## Table of Contents
+
+- [使用本包](#use-this-package)
+- [实现说明](#understand-the-implementation)
+- [延伸阅读](#further-exploration)
+- [Model Experience](#model-experience)
+- [已知限制与暂缓工作](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
+
+-----
+
+<a id="use-this-package"></a>
+## 使用本包
+
+打开会话的模型菜单，点击“自动路由”旁的齿轮；也可从“设置 → 模型 → 配置模型路由”进入。开启自动路由前需先选择主模型。角色设为“跟随主模型”时使用配置的主模型；用户不能创建角色，也不能手填供应商或型号标识。
+
+模型选择逐项保存。加载中、只读设置、保存失败、供应商目录加载失败、已配置型号不可用均有可见反馈。不可用的原配置会保留供应商、型号和推理强度，只有明确替换时才会改变。修改其他字段不会移除它。主模型与角色配置改动对后续回合生效。选择具体型号会退出自动路由，并从下一步开始使用该型号。
+
+将此普通界面插件与路由后台插件，以及标准模型选择、设置、语言和布局提供方一同挂载。本包没有声明 bundle，也不修改随产品交付的 Web 组合。插件先挂载自己生成的路由 Remote 贡献，再在该命名空间与目录可用时激活控件；设置命名空间缺失会在编辑器内提示。编辑器不新增独立设置标签或页面外框。
+
+-----
+
+<a id="understand-the-implementation"></a>
+## 实现说明
+
+<details>
+<summary>实现细节 — 点击展开</summary>
+
+本插件通过 `conversation.input.model.alternative` 提供首项单选，并注册 `conversation.input.model.options`、`conversation.input.model.label`、`settings.models.footer` 和 `shell.overlay`。模型菜单拥有者先关闭菜单并将焦点还给触发器，再由齿轮打开共用弹窗。子会话继承根会话的路由模式。模式以插件设置中的 `sessionModes` 为准。控件通过共用设置镜像订阅所属会话保存的偏好；开启或关闭失败时通过模型菜单的失败提示报告，不乐观切换模式。
+
+编辑器通过 ConfigForms 读取 `hemi-routing-settings`。每次修改都带上本次选择所读取的准确修订号。角色修改保留其他当前路由，并原子替换角色表；并发或过期写入会被拒绝，而不是覆盖其他已接受的改动。编辑器串行执行自身写入，关闭后再打开仍保留失败反馈。每次进入都会刷新模型目录，加载失败后可重试。
+
+插件先移除控件，再卸载自己的 Remote 贡献；控件注册失败时会回滚该贡献。
+
+源码归属：[注册](src/client/mount.ts)、[编辑器操作](src/client/editor-state.ts)、[配置表单](src/client/RoutingSection.tsx)、[模式开关](src/client/RoutingModeToggle.tsx)、[行内标签](src/client/RoutingModelLabel.tsx)。本包测试使用真实基础组件与插槽注册器，不替代完整应用的冒烟测试。
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## 延伸阅读
+
+- [模型选择](../../client/ui-model-selection/README.zh.md) — 模型菜单归属与标签位置。
+- [设置](../../client/ui-settings/README.zh.md) — 共用设置镜像与修订号保护的写入。
+- [UI 基础组件](../../client/ui-primitives/README.zh.md) — 弹窗、菜单、按钮、开关与徽标行为。
+
+-----
+
+<a id="model-experience"></a>
+## Model Experience
+
+### 路由选择
+
+#### What the model sees
+
+此界面不增加提示词或工具，只提交保存的主模型与角色模型选择，以及会话级 `hemiRoutingSettings.setEnabled` 命令；路由后台插件将偏好保存在自身设置中，负责将其应用于后续模型请求，不新增自定义 Session 事件。
+
+#### Token effect
+
+控件和配置文案不消耗模型上下文 token；路由指令由后台插件负责。
+
+#### KV Cache effect
+
+界面不修改提示词前缀。选择其他模型可能改变后续请求的供应商缓存复用。
+
+## 已知限制与暂缓工作
+
+<a id="known-limitations-and-deferred-work"></a>
+
+当前界面只使用已有模型菜单扩展插槽。
+
+- 旧版 DSH 客户端显示独立开关。通过该开关可固定使用当前型号。
+- 模式偏好属于当前 profile，导出或分叉 Session 历史不会复制该偏好。
+- 在 Hemi 中，所选模式同步更新触发器的名称、无障碍标签和悬浮提示。模型菜单各行保留目录名称和徽标。
+- 只能编辑四个预置角色。不提供备用模型、跨模型重试或手填推理强度；重新选择未改变的型号会保留原推理强度。
+- 主模型没有清除操作：其选择列表只列出目录中的模型，因此只能替换而不能删除；角色通过各自的“跟随主模型”回到继承状态。
+- 本包组件预览和测试不验证真实供应商执行、最终分发接线或完整应用的会话回放。
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>维护者工作上下文 — 点击展开</summary>
+
+`pnpm exec vite --config packages/hemi/routing-ui/tests/preview/vite.config.ts` 用固定测试数据渲染真实组件，便于核对主题与宽度；它不连接后台，也不验证 Remote 流程。
+
+</details>

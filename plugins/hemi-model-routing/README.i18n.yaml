@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write plugins/hemi-model-routing/README.md
+/:
+  en: fb36dbfdc4ac7dae
+  zh: 50c52279ce0ed9bc
+/hemi-model-routing:
+  en: 1c87981038757ebd
+  zh: 3e2078c245b09566
+/hemi-model-routing/summary:
+  en: f9d79c8d9138d157
+  zh: 00426c737186a4fd
+/hemi-model-routing/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 5816aa5e70f1e34e
+/hemi-model-routing/use-this-package:
+  en: bbff250eba0f1b89
+  zh: 0a618f05cc88ee2b
+/hemi-model-routing/use-this-package/install-into-a-profile:
+  en: 36363e2a80dc9385
+  zh: 9f606f99e01004f8
+/hemi-model-routing/use-this-package/what-you-get:
+  en: 05d35155d6682690
+  zh: 468976a2edf5d5bf
+/hemi-model-routing/understand-the-implementation:
+  en: ed270634cdd999d2
+  zh: 7e872723e90ddbee
+/hemi-model-routing/further-exploration:
+  en: e42efc696132e309
+  zh: 984d977e54016930
+/hemi-model-routing/model-experience:
+  en: e8da598f26793589
+  zh: 329ffd2b9af173e4
+/hemi-model-routing/model-experience/kv-cache-effect:
+  en: e2dcf65f5e5fa869
+  zh: a0aff7d29fcbc88f
+/hemi-model-routing/known-limitations-and-deferred-work:
+  en: 07addaf29c78f01b
+  zh: 0bc78cd6d758413c
+/hemi-model-routing/known-limitations-and-deferred-work/dev-note:
+  en: e5d9c5c82c20193d
+  zh: db8c064526fe93ad

@@ -1,0 +1,24 @@
+# REAL Loader composition fixture for the Hemi routing host entries.
+# The composition test loads this file through the Cordis Loader with the
+# workspace modules mapped from source; `main: null`, the legacy
+# `research` key, and one saved per-Session mode exercise schema-level null
+# handling, legacy survival, and mode-table loading.
+- id: hemi-routing-settings
+  name: '@deepseek-ai/dsh-hemi-routing/settings'
+  config:
+    main: null
+    sessionModes:
+      loader-session: true
+    roles:
+      research:
+        provider: mock
+        model: legacy-explorer
+      oracle:
+        provider: mock
+        model: oracle-model
+        reasoningEffort: ''
+
+- id: hemi-routing
+  name: '@deepseek-ai/dsh-hemi-routing'
+  config:
+    provider: spawn

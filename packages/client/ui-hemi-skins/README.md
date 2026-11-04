@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Register the six Hemi desktop-assistant skins (classic plus the five character skins) as selectable alias-token themes, apply the chosen skin through a durable `overrideTokens` layer, and render the ported character artwork as a fixed backdrop with each skin's lettering. The built-in theme preference schema accepts only light/dark/system, so a third-party `setTheme` call is reverted by the next settings adopt; the override layer keeps the skin live across preference changes. Idle animations and portraits are deferred.
+Register the six Hemi desktop-assistant skins (classic plus the five character skins) as selectable alias-token themes, apply the chosen skin through a durable `overrideTokens` layer, and render the ported character artwork as a fixed backdrop without lettering. Artwork keeps its intrinsic aspect ratio and uses Hemi's height-based framing: 104% height, -12% right, -13% bottom; at widths up to 880px, 90% height, -40% right, -8% bottom. The built-in theme preference schema accepts only light/dark/system, so a third-party `setTheme` call is reverted by the next settings adopt; the override layer keeps the skin live across preference changes. Idle animations and portraits are deferred.
 
 ## Table of Contents
 

@@ -12,10 +12,31 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
       "path": "../../client/locale/tsconfig.client.json"
     },
     {
+      "path": "../../client/store"
+    },
+    {
+      "path": "../../client/ui-layout"
+    },
+    {
+      "path": "../../client/ui-model-selection"
+    },
+    {
+      "path": "../../client/ui-primitives"
+    },
+    {
       "path": "../../client/ui-renderer"
+    },
+    {
+      "path": "../../client/ui-session"
     },
     {
       "path": "../../client/ui-settings/tsconfig.client.json"
@@ -25,6 +46,15 @@
     },
     {
       "path": "../../client/ui-slots"
+    },
+    {
+      "path": "../routing"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../typert/protocol"
     }
   ]
 }

@@ -107,10 +107,7 @@ describe('web e2e: the composer model switch is the default for later sessions',
     await expect.poll(() => readLabels(trigger)).toEqual([current])
     try {
       await trigger.click()
-      const cell = page.getByRole('menuitem', { name: /^模型/ })
-      expect(await readLabels(cell)).toEqual([current])
-      await cell.click()
-      const menu = page.getByRole('menu', { name: '模型', exact: true })
+      const menu = page.getByRole('group', { name: '模型', exact: true })
       await compareOrRefreshGolden(
         fileURLToPath(new URL('./expected/default-model/model-labels.expected.md', import.meta.url)),
         JSON.stringify(await readLabels(menu), null, 2),
@@ -122,14 +119,13 @@ describe('web e2e: the composer model switch is the default for later sessions',
     }
   })
 
-  it.each(['root', 'model'])('reanchors the %s menu when a label grows and shrinks without a window resize', async (pane) => {
+  it('reanchors the menu when a label grows and shrinks without a window resize', async () => {
     const viewport = page.viewportSize()!
     const trigger = page.getByRole('button', { name: /^选择模型/ })
     try {
       await page.setViewportSize({ width: 390, height: 844 })
       await trigger.click()
-      if (pane === 'model') await page.getByRole('menuitem', { name: /^模型/ }).click()
-      const surface = page.getByRole(pane === 'model' ? 'group' : 'menu', { name: '模型与推理等级', exact: true })
+      const surface = page.getByRole('menu', { name: '模型与推理等级', exact: true })
       const label = surface.locator('[data-provider-id="origin-gateway"][data-model-id="origin-large"]')
       await label.waitFor()
       const original = await surface.boundingBox()
@@ -267,19 +263,18 @@ describe('web e2e: the composer model switch is the default for later sessions',
       await expect.poll(() => trigger.evaluate(element => document.activeElement === element)).toBe(true)
       await observeFocus('Open')
       await devicePage.keyboard.press('ArrowDown')
-      await devicePage.keyboard.press('Enter')
-      const model = devicePage.getByRole('menuitemradio', { name: 'Origin Large', exact: true })
-      await expect.poll(() => model.evaluate(element => document.activeElement === element)).toBe(true)
-      await observeFocus('Enter model pane')
+      const gear = devicePage.getByRole('menuitem', { name: '配置模型路由', exact: true })
+      await expect.poll(() => gear.evaluate(element => document.activeElement === element)).toBe(true)
       await devicePage.keyboard.press('ArrowDown')
+      const model = devicePage.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').first()
+      await expect.poll(() => model.evaluate(element => document.activeElement === element)).toBe(true)
+      await observeFocus('First model')
+      await trigger.focus()
+      await devicePage.keyboard.press('Tab')
       const search = devicePage.getByRole('searchbox', { name: '搜索模型…' })
       expect(await search.evaluate(input => getComputedStyle(input).fontSize)).toBe('16px')
       await expect.poll(() => search.evaluate(element => document.activeElement === element)).toBe(true)
       await observeFocus('Navigate models')
-      await devicePage.keyboard.press('Escape')
-      const modelCell = devicePage.getByRole('menuitem', { name: /^模型/ })
-      await expect.poll(() => modelCell.evaluate(element => document.activeElement === element)).toBe(true)
-      await observeFocus('Return to root')
       await devicePage.keyboard.press('Escape')
       await expect.poll(() => trigger.evaluate(element => document.activeElement === element)).toBe(true)
       await observeFocus('Close')
@@ -319,11 +314,10 @@ describe('web e2e: the composer model switch is the default for later sessions',
     }
     try {
       await page.getByRole('button', { name: /^选择模型/ }).click()
-      await page.getByRole('menuitem', { name: /^模型/ }).click()
-      const menu = page.getByRole('group', { name: '模型与推理等级', exact: true })
+      const menu = page.getByRole('menu', { name: '模型与推理等级', exact: true })
       const menuSearch = page.getByRole('searchbox', { name: '搜索模型…' })
       const order = await readGroups(menu, 'menuitemradio')
-      const sticky = await checkSticky(menu, menu.getByRole('menu', { name: '模型', exact: true }))
+      const sticky = await checkSticky(menu, menu.getByRole('group', { name: '模型', exact: true }))
       await menuSearch.fill('  ACMLG  ')
       const filtered = await readGroups(menu, 'menuitemradio')
       await menuSearch.press('Escape')
@@ -358,14 +352,15 @@ describe('web e2e: the composer model switch is the default for later sessions',
     try {
       await setModels(false)
       await trigger.click()
-      await page.getByRole('menuitem', { name: /模型/ }).click()
-      await expect.poll(() => page.getByRole('menuitemradio').count()).toBe(4)
+      await expect.poll(() => page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').count()).toBe(4)
       expect(await search.count()).toBe(0)
       const current = page.getByRole('menuitemradio', { name: 'Origin Large', exact: true })
+      await trigger.press('Tab')
       await expect.poll(() => current.evaluate(node => node === node.ownerDocument.activeElement)).toBe(true)
-      const rows = page.getByRole('menuitemradio')
+      const rows = page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio')
       const currentId = await current.getAttribute('id')
-      for (let index = 0; index < 4; index++) await page.keyboard.press('ArrowDown')
+      const selectable = page.locator('[role="menu"] button:is([role="menuitem"], [role="menuitemradio"], [role="switch"]):enabled')
+      for (let index = 0, count = await selectable.count(); index < count; index++) await page.keyboard.press('ArrowDown')
       expect(await page.evaluate(() => document.activeElement?.id)).toBe(currentId)
       await page.keyboard.press('Enter')
       await expect.poll(() => trigger.evaluate(node => node === node.ownerDocument.activeElement)).toBe(true)
@@ -383,8 +378,7 @@ describe('web e2e: the composer model switch is the default for later sessions',
       await page.keyboard.press('Escape')
       await setModels(true)
       await trigger.click()
-      await page.getByRole('menuitem', { name: /模型/ }).click()
-      await expect.poll(() => page.getByRole('menuitemradio').count()).toBe(5)
+      await expect.poll(() => page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').count()).toBe(5)
       await search.waitFor()
       await search.press('Escape')
       await page.keyboard.press('Escape')
@@ -398,14 +392,14 @@ describe('web e2e: the composer model switch is the default for later sessions',
       platform: document.documentElement.getAttribute('data-platform'),
       theme: document.body.getAttribute('data-ds-dark-theme'),
     }))
-    const surface = page.getByRole('group', { name: '模型与推理等级', exact: true })
+    const surface = page.getByRole('group', { name: '模型', exact: true })
     const trigger = page.getByRole('button', { name: /^选择模型/ })
     const search = page.getByRole('searchbox', { name: '搜索模型…' })
     try {
       await page.setViewportSize({ width: 1680, height: 220 })
       await trigger.click()
-      await page.getByRole('menuitem', { name: /模型/ }).click()
-      const scroller = page.getByRole('menu', { name: '模型', exact: true })
+      const scroller = surface
+      await scroller.evaluate((node) => { node.style.maxHeight = '80px' })
       const headings = surface.locator('section[role="group"] > div')
       const readPinned = () => headings.evaluateAll(nodes => nodes.map(node => node.hasAttribute('data-stuck')))
       const resetScroll = async (): Promise<void> => {
@@ -452,11 +446,10 @@ describe('web e2e: the composer model switch is the default for later sessions',
       await search.press('Escape')
       await page.keyboard.press('Escape')
       await trigger.click()
-      await page.getByRole('menuitem', { name: /模型/ }).click()
       expect(await search.inputValue()).toBe('')
       await resetScroll()
     } finally {
-      if (await surface.count()) await search.press('Escape')
+      if (await surface.count()) await page.keyboard.press('Escape')
       if (await trigger.getAttribute('aria-expanded') === 'true') await page.keyboard.press('Escape')
       await page.setViewportSize(originalViewport)
       await page.evaluate(({ platform, theme }) => {
@@ -485,17 +478,15 @@ describe('web e2e: the composer model switch is the default for later sessions',
     const modelMenuBounds = await page.getByRole('menu', { name: '模型与推理等级', exact: true }).boundingBox()
     const composerBounds = await page.locator('[data-composer-card]').first().boundingBox()
     expect(modelMenuBounds!.width).toBeLessThan(composerBounds!.width)
-    const modelCell = page.getByRole('menuitem', { name: /模型/ })
+    const firstModel = page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').first()
     await trigger.press('ArrowDown')
-    expect(await modelCell.evaluate(element => element.matches(':focus-visible'))).toBe(true)
-    expect(await modelCell.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('none')
-    const focusedBackground = await modelCell.evaluate(element => getComputedStyle(element).backgroundColor)
+    await page.keyboard.press('ArrowDown')
+    expect(await firstModel.evaluate(element => element.matches(':focus-visible'))).toBe(true)
+    expect(await firstModel.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('none')
     await trigger.focus()
-    await modelCell.hover()
-    expect(await modelCell.evaluate(element => getComputedStyle(element).backgroundColor)).toBe(focusedBackground)
-    await modelCell.click()
+    await trigger.press('Tab')
     const search = page.getByRole('searchbox', { name: '搜索模型…' })
-    const rowIds = await page.getByRole('menuitemradio').evaluateAll(rows => rows.map(row => row.id))
+    const rowIds = await page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').evaluateAll(rows => rows.map(row => row.id))
     const initialHighlight = rowIds.indexOf(await search.getAttribute('aria-activedescendant') ?? '')
     expect(initialHighlight).toBeGreaterThanOrEqual(0)
     for (let step = 1; step <= rowIds.length + 1; step++) {
@@ -530,11 +521,11 @@ describe('web e2e: the composer model switch is the default for later sessions',
     expect(searchStyle.radius).toBe('12px')
     expect(searchStyle.padding).toBe('5px 7px')
     expect(searchStyle.fontSize).toBe('12px')
-    const modelWeights = await page.getByRole('menuitemradio').evaluateAll(rows => rows.map(row =>
+    const modelWeights = await page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').evaluateAll(rows => rows.map(row =>
       getComputedStyle(row.querySelector('span span')!).fontWeight,
     ))
     expect(new Set(modelWeights)).toEqual(new Set(['400']))
-    const headingPalettes = await page.getByRole('group', { name: '模型与推理等级', exact: true }).evaluate((menu) => {
+    const headingPalettes = await page.getByRole('menu', { name: '模型与推理等级', exact: true }).evaluate((menu) => {
       const html = menu.ownerDocument.documentElement
       const body = menu.ownerDocument.body
       const previousPlatform = html.getAttribute('data-platform')
@@ -575,14 +566,14 @@ describe('web e2e: the composer model switch is the default for later sessions',
     await page.getByRole('button', { name: '清除搜索', exact: true }).click()
     expect(await search.inputValue()).toBe('')
     expect(await search.evaluate(input => input === input.ownerDocument.activeElement)).toBe(true)
-    expect(await page.getByRole('menuitemradio').count()).toBe(modelWeights.length)
+    expect(await page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').count()).toBe(modelWeights.length)
     expect(await page.getByRole('button', { name: '清除搜索', exact: true }).count()).toBe(0)
     await search.fill('  ACMLG  ')
-    expect(await page.getByRole('menuitemradio').allTextContents()).toEqual(['Acme Large'])
+    expect(await page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').allTextContents()).toEqual(['Acme Large'])
     expect(await page.getByRole('group', { name: 'Origin Gateway', exact: true }).count()).toBe(0)
     await compareOrRefreshGolden(
       fileURLToPath(new URL('./expected/default-model/search.expected.md', import.meta.url)),
-      await captureStableAria(page, '[role="group"][aria-label="模型与推理等级"]', scaffold.workspaceCwd),
+      await captureStableAria(page, '[role="menu"][aria-label="模型与推理等级"]', scaffold.workspaceCwd),
       webSnapshotMode(),
     )
     const entered = Promise.withResolvers<undefined>()
@@ -653,7 +644,7 @@ describe('web e2e: the composer model switch is the default for later sessions',
     const aria = await captureStableAria(page, '[data-composer-card]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(fileURLToPath(new URL('./expected/default-model/unselected.expected.md', import.meta.url)), aria, webSnapshotMode())
     await seat.click()
-    await page.getByRole('menuitemradio').first().click()
+    await page.getByRole('group', { name: '模型', exact: true }).getByRole('menuitemradio').first().click()
     await expect.poll(async () => box.isEnabled(), { timeout: 15_000 }).toBe(true)
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)

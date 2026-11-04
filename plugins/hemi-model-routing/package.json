@@ -1,0 +1,28 @@
+{
+  "name": "@hemi/model-routing",
+  "version": "0.1.0",
+  "description": "Hemi model routing profile layer for DeepSeek Harness",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "dsh": "0.2.2-alpha.3"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-hemi-routing": "0.2.2-alpha.3",
+    "@deepseek-ai/dsh-hemi-routing-ui": "0.2.2-alpha.3"
+  }
+}

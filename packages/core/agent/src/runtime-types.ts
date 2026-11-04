@@ -273,6 +273,14 @@ declare module './types.ts' {
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
+    /**
+     * A validated explicit model choice is about to replace the current route.
+     * Listeners finish before selection is applied, even for the same model.
+     * Rejection stops the selection. Programmatic selection does not emit this event.
+     * @param agent - live Agent receiving the user's choice.
+     * @mode serial
+     */
+    'agent/before-user-model-selection'(agent: Agent): undefined | Promise<undefined>
     // ---- lifecycle ----
     /**
      * An entered agent is ready for per-agent initialization after factory setup.

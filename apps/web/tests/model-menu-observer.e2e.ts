@@ -150,18 +150,19 @@ describe.skipIf(webSnapshotMode() === 'record').each([
     for (const entry of ['button', 'command'] as const) {
       const composer = page.locator('[data-composer-input]').first()
       const surface = entry === 'button'
-        ? page.getByRole('group', { name: '模型与推理等级', exact: true })
+        ? page.getByRole('menu', { name: '模型与推理等级', exact: true })
         : page.locator('[aria-label="/model 选项"]')
       const viewport = entry === 'button'
-        ? surface.getByRole('menu', { name: '模型', exact: true })
+        ? surface.getByRole('group', { name: '模型', exact: true })
         : surface.getByRole('listbox')
       const search = entry === 'button'
         ? page.getByRole('searchbox', { name: '搜索模型…', exact: true })
         : page.getByRole('textbox', { name: '筛选选项', exact: true })
       const open = async (): Promise<void> => {
         if (entry === 'button') {
-          await page.getByRole('button', { name: /^选择模型/ }).click()
-          await page.getByRole('menuitem', { name: /^模型/ }).click()
+          const trigger = page.getByRole('button', { name: /^选择模型/ })
+          await trigger.click()
+          await trigger.press('Tab')
         } else {
           await page.getByRole('button', { name: '添加文件或调用指令', exact: true }).click()
           await page.getByRole('option', { name: /^模型/ }).click()
@@ -295,18 +296,17 @@ describe.skipIf(webSnapshotMode() === 'record').each([
     try {
       await page.setViewportSize({ width: 402, height: 874 })
       await page.getByRole('button', { name: /^选择模型/ }).click()
-      await page.getByRole('menuitem', { name: /^模型/ }).click()
       await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2.5 })
       for (const height of [874, 500]) {
         await page.setViewportSize({ width: 402, height })
-        await expect.poll(() => page.getByRole('group', { name: '模型与推理等级', exact: true }).evaluate((panel) => {
+        await expect.poll(() => page.getByRole('menu', { name: '模型与推理等级', exact: true }).evaluate((panel) => {
           const viewport = window.visualViewport!
           const rect = panel.getBoundingClientRect()
           return Math.min(rect.left - viewport.offsetLeft, rect.top - viewport.offsetTop,
             viewport.offsetLeft + viewport.width - rect.right, viewport.offsetTop + viewport.height - rect.bottom)
         })).toBeGreaterThanOrEqual(11.5)
         expect(await page.evaluate(() => window.visualViewport!.scale)).toBeGreaterThan(2)
-        const models = page.getByRole('menu', { name: '模型', exact: true })
+        const models = page.getByRole('group', { name: '模型', exact: true })
         const names = models.locator('[data-model-id]').locator('..')
         expect(await names.evaluateAll(labels => labels.every(label =>
           getComputedStyle(label).textOverflow === 'ellipsis'))).toBe(true)
@@ -395,28 +395,19 @@ describe.skipIf(webSnapshotMode() === 'record').each([
       await page.getByRole('button', { name: /^选择模型/ }).click()
       await page.getByRole('menuitem', { name: /^推理等级/ }).click()
       await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2.5 })
-      const menu = page.getByRole('menu', { name: '模型与推理等级', exact: true })
+      const menu = page.getByRole('group', { name: '推理等级', exact: true })
       const last = menu.getByRole('menuitemradio').last()
       expect(await menu.getByRole('menuitemradio').count()).toBeGreaterThanOrEqual(7)
+      await expect.poll(() => page.evaluate(() => window.visualViewport!.scale)).toBe(2.5)
+      await frames(page)
       await expect.poll(() => last.evaluate((row) => {
-        const scroller = row.parentElement!
-        scroller.scrollTop = scroller.scrollHeight
-        return { overflow: getComputedStyle(scroller).overflowY, moved: scroller.scrollTop > 0 }
-      })).toEqual({ overflow: 'auto', moved: true })
-      await expect.poll(() => last.evaluate((row) => {
+        row.scrollIntoView({ block: 'end' })
+        const scroller = row.parentElement!.parentElement!
         const rect = row.getBoundingClientRect()
-        const viewport = row.parentElement!.getBoundingClientRect()
-        return rect.top >= viewport.top - 1 && rect.bottom <= viewport.bottom + 1
-      })).toBe(true)
-      // Dispatch the touch at the now-visible row; locator.click would auto-scroll even hidden overflow.
-      const point = await last.evaluate((row) => {
-        const rect = row.getBoundingClientRect()
-        const viewport = window.visualViewport!
-        return { x: rect.left + rect.width / 2 - viewport.offsetLeft,
-          y: rect.top + rect.height / 2 - viewport.offsetTop }
-      })
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] })
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+        return { overflow: getComputedStyle(scroller).overflowY, moved: scroller.scrollTop > 0, visible: row.contains(hit) }
+      })).toEqual({ overflow: 'auto', moved: true, visible: true })
+      await last.click()
       await expect.poll(() => scaffold.ctx.agentDefaultModel.currentSelection()).toMatchObject({ reasoningEffort: 'max' })
     } finally {
       await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 })
