@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-hemi-skins/README.md
+/:
+  en: e2b7a53edfcbbc14
+  zh: 91d8798c2b88862e
+/deepseek-ai-dsh-client-ui-hemi-skins:
+  en: fa7d363c9cc7edb2
+  zh: 62c0ba9c882c389d
+/deepseek-ai-dsh-client-ui-hemi-skins/summary:
+  en: 71d3b3f29920a406
+  zh: 97df74ee4f246614
+/deepseek-ai-dsh-client-ui-hemi-skins/table-of-contents:
+  en: 71b8023dfa886aba
+  zh: a8c15e823b4c303d
+/deepseek-ai-dsh-client-ui-hemi-skins/use-this-package:
+  en: e0eac6f166b6f7e2
+  zh: 21b12ab2cb7842b6
+/deepseek-ai-dsh-client-ui-hemi-skins/understand-the-implementation:
+  en: 94ded3f5058b1115
+  zh: 3060f5597684baec
+/deepseek-ai-dsh-client-ui-hemi-skins/further-exploration:
+  en: 418bc9816f478e04
+  zh: c1c0d3ba85deafc8
+/deepseek-ai-dsh-client-ui-hemi-skins/known-limitations-and-deferred-work:
+  en: bb150a645fa27464
+  zh: af8b6c91aa8a0e83
+/deepseek-ai-dsh-client-ui-hemi-skins/dev-note:
+  en: c7ce2d13bdfbac33
+  zh: 59031935b2206530

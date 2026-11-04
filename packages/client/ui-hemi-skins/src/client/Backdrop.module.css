@@ -1,0 +1,36 @@
+/* Hemi skin backdrop: the ported character artwork as a fixed, click-through
+ * layer behind the app content, plus the lettering overlay. Classic carries
+ * no artwork and the updater hides the layer. */
+
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: 100% 100%;
+  background-size: min(68vw, 1000px) auto;
+}
+
+.lettering {
+  position: absolute;
+  left: 48px;
+  bottom: 18%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.1;
+  user-select: none;
+}
+
+.headline {
+  font-size: 56px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+}
+
+.subline {
+  font-size: 24px;
+  font-weight: 400;
+  opacity: 0.9;
+}

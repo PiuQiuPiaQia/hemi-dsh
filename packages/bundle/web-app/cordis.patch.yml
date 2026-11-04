@@ -343,6 +343,10 @@
     - id: ui-brand-official
       name: '@deepseek-ai/dsh-client-ui-brand-official'
 
+    # Hemi fork addition: character skin themes over the alias-token palette.
+    - id: ui-hemi-skins
+      name: '@deepseek-ai/dsh-client-ui-hemi-skins'
+
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
 
