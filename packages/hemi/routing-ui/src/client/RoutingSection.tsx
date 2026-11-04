@@ -38,10 +38,10 @@ export interface RoutingSectionInjected {
 }
 
 /** Full component props: runtime share + locale seat + injected face + shell close. */
-export type RoutingSectionProps = PropsRuntime<'settings.section'>
+export type RoutingSectionProps = PropsRuntime<'settings.models.footer'>
   & PropsLocale<'hemi-routing'>
   & InjectFace<RoutingSectionInjected>
-  & { close: () => void }
+  & { close?: () => void }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed'
 

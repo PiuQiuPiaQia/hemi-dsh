@@ -2,84 +2,25 @@
  * Hemi cross-session memory plugin. Stores durable facts, dated daily
  * logs, and a working scratchpad as markdown files under
  * `$DSH_HOME/hemi-memory/`, and registers model-facing tools to read,
- * write, search, and forget entries. Files stay user-editable; every
- * tool is line-oriented so the model never rewrites unrelated content.
+ * write, search, and forget entries plus the Remote service backing the
+ * memory settings section. Files stay user-editable; every tool is
+ * line-oriented so the model never rewrites unrelated content.
  * @module @deepseek-ai/dsh-hemi-memory
  */
 
-import { mkdir, readFile, readdir, writeFile, appendFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
+import {
+  allStores, appendBlock, readStore, storePath, writeStore, type StoreTarget,
+} from './store.ts'
 
 /** Cordis plugin name. */
 export const name = 'hemi-memory'
-/** Services used by the tools. */
+/** Services used by the tools and the remote registration. */
 export const inject = ['tools']
 
-/** Memory root under the harness home; each store is one markdown file. */
-const MEMORY_DIR = dshHomePath('hemi-memory')
-const LONG_TERM_PATH = join(MEMORY_DIR, 'MEMORY.md')
-const SCRATCHPAD_PATH = join(MEMORY_DIR, 'SCRATCHPAD.md')
-const DAILY_DIR = join(MEMORY_DIR, 'daily')
-
-/** Local calendar date (YYYY-MM-DD) naming today's daily log. */
-function todayStamp(): string {
-  const now = new Date()
-  const month = `${now.getMonth() + 1}`.padStart(2, '0')
-  const day = `${now.getDate()}`.padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
-}
-
-/** Daily log path for a calendar date; empty resolves today. */
-function dailyPath(date: string | undefined): string {
-  return join(DAILY_DIR, `${date === undefined || date === '' ? todayStamp() : date}.md`)
-}
-
-/** Read a store file; missing files read as empty. */
-async function readStore(path: string): Promise<string> {
-  if (!existsSync(path)) return ''
-  return readFile(path, 'utf8')
-}
-
-/** Append one block to a store file, keeping a separating blank line. */
-async function appendBlock(path: string, content: string): Promise<void> {
-  await mkdir(join(path, '..'), { recursive: true })
-  const existing = await readStore(path)
-  const separator = existing === '' || existing.endsWith('\n\n') ? '' : existing.endsWith('\n') ? '\n' : '\n\n'
-  await appendFile(path, `${separator}${content}\n`)
-}
-
-/** Overwrite a store file, creating the parent directory. */
-async function writeStore(path: string, content: string): Promise<void> {
-  await mkdir(join(path, '..'), { recursive: true })
-  await writeFile(path, content)
-}
-
-/** Target store selector shared by the tools. */
-type StoreTarget = 'long_term' | 'daily' | 'scratchpad'
-
-/** Resolve a target selector to its store file path. */
-function storePath(target: StoreTarget, date: string | undefined): string {
-  if (target === 'long_term') return LONG_TERM_PATH
-  if (target === 'scratchpad') return SCRATCHPAD_PATH
-  return dailyPath(date)
-}
-
-/** All existing store files with display names. */
-async function allStores(): Promise<readonly { readonly label: string; readonly path: string }[]> {
-  const stores = [
-    { label: 'MEMORY.md (long-term)', path: LONG_TERM_PATH },
-    { label: 'SCRATCHPAD.md', path: SCRATCHPAD_PATH },
-  ]
-  if (existsSync(DAILY_DIR)) {
-    for (const entry of (await readdir(DAILY_DIR)).sort().reverse()) {
-      if (entry.endsWith('.md')) stores.push({ label: `daily/${entry}`, path: join(DAILY_DIR, entry) })
-    }
-  }
-  return stores
+function isStoreTarget(value: string): value is StoreTarget {
+  return value === 'long_term' || value === 'daily' || value === 'scratchpad'
 }
 
 /** Cordis plugin body: register the memory tools. */
@@ -108,18 +49,15 @@ export function apply(ctx: Context): void {
       render: (_args, value) => [{ type: 'text', text: `${value.action}: ${value.path}` }],
     },
     async execute(args) {
-      const target = args.target as StoreTarget
-      if (target !== 'long_term' && target !== 'daily' && target !== 'scratchpad') {
-        throw new Error(`memory_write target must be long_term, daily, or scratchpad; got ${args.target}`)
-      }
-      const path = storePath(target, args.date as string | undefined)
+      if (!isStoreTarget(args.target)) throw new Error(`memory_write target must be long_term, daily, or scratchpad; got ${args.target}`)
+      const path = storePath(args.target, args.date)
       if (args.mode === 'overwrite') {
-        if (target === 'daily') throw new Error('daily logs only append; omit mode or use append')
+        if (args.target === 'daily') throw new Error('daily logs only append; omit mode or use append')
         await writeStore(path, args.content.endsWith('\n') ? args.content : `${args.content}\n`)
-        return { path, action: `overwrote ${target} store` }
+        return { path, action: `overwrote ${args.target} store` }
       }
       await appendBlock(path, args.content)
-      return { path, action: `appended to ${target} store` }
+      return { path, action: `appended to ${args.target} store` }
     },
   }))
 
@@ -139,11 +77,8 @@ export function apply(ctx: Context): void {
       render: (_args, value) => [{ type: 'text', text: value.content === '' ? `(empty store: ${value.path})` : value.content }],
     },
     async execute(args) {
-      const target = args.target as StoreTarget
-      if (target !== 'long_term' && target !== 'daily' && target !== 'scratchpad') {
-        throw new Error(`memory_read target must be long_term, daily, or scratchpad; got ${args.target}`)
-      }
-      const path = storePath(target, args.date as string | undefined)
+      if (!isStoreTarget(args.target)) throw new Error(`memory_read target must be long_term, daily, or scratchpad; got ${args.target}`)
+      const path = storePath(args.target, args.date)
       return { path, content: await readStore(path) }
     },
   }))
@@ -163,12 +98,12 @@ export function apply(ctx: Context): void {
       render: (_args, value) => [{ type: 'text', text: value.hits === '' ? '(no memory matches)' : value.hits }],
     },
     async execute(args) {
-      const query = args.query.toLowerCase()
+      const needle = args.query.toLowerCase()
       const hits: string[] = []
       for (const store of await allStores()) {
         const lines = (await readStore(store.path)).split('\n')
         for (const [index, line] of lines.entries()) {
-          if (line.toLowerCase().includes(query) && hits.length < 40) {
+          if (line.toLowerCase().includes(needle) && hits.length < 40) {
             hits.push(`${store.label}:${index + 1}: ${line.slice(0, 300)}`)
           }
         }
@@ -194,11 +129,8 @@ export function apply(ctx: Context): void {
       render: (_args, value) => [{ type: 'text', text: value.removed }],
     },
     async execute(args) {
-      const target = args.target as StoreTarget
-      if (target !== 'long_term' && target !== 'daily' && target !== 'scratchpad') {
-        throw new Error(`memory_forget target must be long_term, daily, or scratchpad; got ${args.target}`)
-      }
-      const path = storePath(target, args.date as string | undefined)
+      if (!isStoreTarget(args.target)) throw new Error(`memory_forget target must be long_term, daily, or scratchpad; got ${args.target}`)
+      const path = storePath(args.target, args.date)
       const content = await readStore(path)
       if (content === '') return { removed: `store ${path} is already empty` }
       const match = args.match.toLowerCase()
@@ -213,4 +145,5 @@ export function apply(ctx: Context): void {
       return { removed: `removed ${removed} line(s) from ${path}` }
     },
   }))
+
 }

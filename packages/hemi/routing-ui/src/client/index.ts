@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-models/client'
 import type { RoutingSectionInjected } from './RoutingSection.tsx'
 import { RoutingSection } from './RoutingSection.tsx'
 import { en, zh, type RoutingLocaleKey } from './locales.ts'
@@ -33,13 +34,11 @@ export const inject = ['slots', 'locale', 'configForms', 'remote']
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register('hemi-routing', { en, zh }), 'hemi-routing-ui: dictionaries')
-  const t = ctx.locale.bind('hemi-routing')
   const form = ctx.configForms.get(ROUTING_NS)
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
+  ctx.slots.inject('settings.models.footer', () => ctx.slots.register({
+    name: 'settings.models.footer',
     id: 'hemi-routing',
     order: 60,
-    label: () => t('nav'),
     locale: 'hemi-routing',
     inject: (): RoutingSectionInjected => ({
       getRoutes: () => {

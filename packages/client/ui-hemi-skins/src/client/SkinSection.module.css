@@ -1,19 +1,40 @@
-/* Hemi skin row: title + cube row, following the Appearance row metrics
- * (column gap 8, pad 16/0, hairline separator). */
+/* Hemi skin settings section: title + cube row, following the settings
+ * section metrics (pad 16, hairline separator, column gap 12). */
 
-.group {
+.section {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 16px 0;
-  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .title {
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 22px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 24px;
   color: var(--dsw-alias-label-primary);
+}
+
+.close {
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.description {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .cubeRow {
@@ -23,7 +44,6 @@
   flex-wrap: wrap;
 }
 
-/* One skin cube: accent dot over the Chinese skin name. */
 .skinCube {
   box-sizing: border-box;
   flex: 1 1 120px;
@@ -34,7 +54,7 @@
   gap: 6px;
   padding: 14px 20px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-xl);
+  border-radius: var(--dsw-radius-md);
   background: transparent;
   font-size: 13px;
   line-height: 20px;
