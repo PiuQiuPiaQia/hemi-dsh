@@ -54,7 +54,7 @@ export class HemiRoutingSettingsService extends Service {
   private config: { roles: { get(): unknown } }
 
   constructor(ctx: Context, config: { roles: { get(): unknown } }) {
-    super(ctx, name)
+    super(ctx, 'hemiRoutingSettings')
     this.config = config
   }
 
