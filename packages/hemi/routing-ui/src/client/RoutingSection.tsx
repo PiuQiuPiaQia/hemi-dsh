@@ -107,47 +107,46 @@ export function RoutingSection(props: RoutingSectionProps) {
   }
 
   return (
-    <div className={css.section}>
-      <div className={css.header}>
+    <section className={css.section} aria-label={t('title')}>
+      <div className={css.card}>
         <span className={css.title}>{t('title')}</span>
-        {props.close !== undefined ? <button type="button" aria-label="close" onClick={props.close} className={css.close}>✕</button> : null}
-      </div>
-      <p className={css.description}>{t('description')}</p>
-      <div className={css.rows}>
-        {ROLES.map(role => (
-          <div key={role.id} className={css.row}>
-            <div className={css.roleCell}>
-              <span className={css.roleLabel}>{t(role.labelKey)}</span>
-              <span className={css.roleHelp}>{t(role.helpKey)}</span>
+        <p className={css.description}>{t('description')}</p>
+        <div className={css.rows}>
+          {ROLES.map(role => (
+            <div key={role.id} className={css.row}>
+              <div className={css.roleCell}>
+                <span className={css.roleLabel}>{t(role.labelKey)}</span>
+                <span className={css.roleHelp}>{t(role.helpKey)}</span>
+              </div>
+              <select
+                className={css.select}
+                value={values[role.id] ?? ''}
+                aria-label={t(role.labelKey)}
+                onChange={e => setValue(role.id, e.target.value)}
+              >
+                <option value="">{t('followMain')}</option>
+                {catalogState === 'failed' ? <option disabled>{t('catalogError')}</option> : null}
+                {groups.map(group => (
+                  <optgroup key={group.id} label={group.name}>
+                    {group.models.map(model => (
+                      <option key={`${model.provider}/${model.model}`} value={`${model.provider}/${model.model}`}>{model.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </div>
-            <select
-              className={css.select}
-              value={values[role.id] ?? ''}
-              aria-label={t(role.labelKey)}
-              onChange={e => setValue(role.id, e.target.value)}
-            >
-              <option value="">{t('followMain')}</option>
-              {catalogState === 'failed' ? <option disabled>{t('catalogError')}</option> : null}
-              {groups.map(group => (
-                <optgroup key={group.id} label={group.name}>
-                  {group.models.map(model => (
-                    <option key={`${model.provider}/${model.model}`} value={`${model.provider}/${model.model}`}>{model.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-        ))}
+          ))}
+        </div>
+        <div className={css.footer}>
+          <span className={css.status}>
+            {saveState === 'saving' ? t('saving') : saveState === 'saved' ? t('saved') : saveState === 'failed' ? t('saveFailed') : catalogState === 'failed' ? t('catalogError') : ''}
+          </span>
+          <button type="button" className={css.save} disabled={saveState === 'saving'} onClick={() => { void save() }}>
+            {saveState === 'saving' ? t('saving') : t('save')}
+          </button>
+        </div>
+        <p className={css.restartNote}>{t('restartNote')}</p>
       </div>
-      <div className={css.footer}>
-        <span className={css.status}>
-          {saveState === 'saving' ? t('saving') : saveState === 'saved' ? t('saved') : saveState === 'failed' ? t('saveFailed') : catalogState === 'failed' ? t('catalogError') : ''}
-        </span>
-        <button type="button" className={css.save} disabled={saveState === 'saving'} onClick={() => { void save() }}>
-          {saveState === 'saving' ? t('saving') : t('save')}
-        </button>
-      </div>
-      <p className={css.restartNote}>{t('restartNote')}</p>
-    </div>
+    </section>
   )
 }

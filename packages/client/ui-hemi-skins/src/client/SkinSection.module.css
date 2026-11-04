@@ -1,34 +1,32 @@
-/* Hemi skin settings section: title + cube row, following the settings
- * section metrics (pad 16, hairline separator, column gap 12). */
+/* Hemi skin settings section. The panel shell owns the outer padding
+ * (.options: 0 24px 24px) and the close control, so the section only adds
+ * its own vertical rhythm and renders content on a standard settings card. */
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.title {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 24px;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 22px;
   color: var(--dsw-alias-label-primary);
 }
 
-.close {
-  border: none;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 4px 8px;
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-alias-settings-card-fill);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
 }
 
 .description {
@@ -48,13 +46,12 @@
   box-sizing: border-box;
   flex: 1 1 120px;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 14px 20px;
+  gap: 8px;
+  padding: 10px 16px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-xl);
   background: transparent;
   font-size: 13px;
   line-height: 20px;
@@ -70,9 +67,13 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+.cubeLabel {
+  white-space: nowrap;
+}
+
 .dot {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 0.5px solid var(--dsw-alias-border-l4);
 }
