@@ -1,0 +1,33 @@
+{
+  "name": "@deepseek-ai/dsh-hemi-memory",
+  "description": "Hemi cross-session memory: persistent markdown stores (long-term, daily log, scratchpad) with model-facing read, write, search, and forget tools",
+  "version": "0.2.2-alpha.3",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PiuQiuPiaQia/hemi-dsh.git",
+    "directory": "packages/hemi/memory"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": null,
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-tools": "workspace:*"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-home-paths": "workspace:*"
+  }
+}

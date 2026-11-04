@@ -37,6 +37,9 @@
             name: '@deepseek-ai/dsh-tool-jobs'
           - id: tool-schedule
             name: '@deepseek-ai/dsh-tool-schedule'
+          # Hemi fork addition: cross-session memory stores and tools.
+          - id: hemi-memory
+            name: '@deepseek-ai/dsh-hemi-memory'
           - id: skill-filesystem
             name: '@deepseek-ai/dsh-skill-filesystem'
           - id: tool-skill

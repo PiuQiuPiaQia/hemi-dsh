@@ -1,6 +1,19 @@
 # Hemi fork 改动账本（hemi-fork-changes）
 
-纪律：所有对上游拥有文件的改动逐条登记，便于 `git merge upstream/master` 时定位冲突面。我们自己的新文件（packages/client/ui-hemi-skins/** 等）不算上游改动，但登记在建包记录里。
+纪律：所有对上游拥有文件的改动逐条登记，便于 `git merge upstream/master` 时定位冲突面。我们自己的新文件（packages/client/ui-hemi-skins/**、packages/hemi/memory/** 等）不算上游改动，但登记在建包记录里。
+
+## 2026-11-04 · 跨会话记忆插件（hemi-memory）
+
+新增自有包：
+- `packages/hemi/memory/`：host 工具插件。存储=markdown 文件（`$DSH_HOME/hemi-memory/` 下 `MEMORY.md` 长期 / `daily/YYYY-MM-DD.md` 日志 / `SCRATCHPAD.md` 便签，用户可直接编辑）；工具=`memory_write`（append/overwrite，daily 只追加）、`memory_read`、`memory_search`（全库大小写不敏感逐行检索，40 行上限）、`memory_forget`（按子串删行并收拢空行）。路径用 `@deepseek-ai/dsh-home-paths` 直连库依赖。
+
+改动的上游文件（2 处，均为单行登记）：
+1. `tsconfig.host.json`：references 增加 `{ "path": "./packages/hemi/memory" }`。
+2. `packages/bundle/web-app/presets/standard.patch.yml`：agent preset plugins 列表在 tool-schedule 后新增 `hemi-memory` 行（带 fork 注释）。
+
+验证：包级单元脚本全生命周期通过（临时 DSH_HOME 下注册 4 工具、三存储写入、搜索命中、读取、删行、非法目标拒绝，磁盘布局正确）；dev 新会话创建无报错（preset 组合通过，组合失败会响亮报错）。语义检索/每日自动摘要延期。
+
+语音（hemi-voice）：按用户决定砍掉不做，需求原文留档。
 
 ## 2026-11-04 · 外部插件抽离试点（结论：部分可行，dev 运行时有墙）
 
