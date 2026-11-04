@@ -1,6 +1,22 @@
 # Hemi fork 改动账本（hemi-fork-changes）
 
-纪律：所有对上游拥有文件的改动逐条登记，便于 `git merge upstream/master` 时定位冲突面。我们自己的新文件（packages/client/ui-hemi-skins/**、packages/hemi/memory/** 等）不算上游改动，但登记在建包记录里。
+纪律：所有对上游拥有文件的改动逐条登记，便于 `git merge upstream/master` 时定位冲突面。我们自己的新文件（packages/client/ui-hemi-skins/**、packages/hemi/memory/**、packages/hemi/routing/** 等）不算上游改动，但登记在建包记录里。
+
+**⚠️ 关键规则（踩坑实证）：凡通过 preset 行 / patch 行引用的插件（含 host 工具包），其包名必须出现在 `packages/bundle/web-app/package.json` 的 dependencies（resolver manifest）里，否则行解析失败、会话创建报 `agent-preset/invalid: <id>: never started`（构建门禁不拦此错，只在运行期暴露）。**
+
+## 2026-11-04 · 角色路由插件（hemi-routing）
+
+新增自有包：
+- `packages/hemi/routing/`：host 提示词插件。Config = `roles: {角色名 → {provider, model, reasoningEffort?}}`；apply 把角色→路由表渲染成系统提示词段（锚定 TOOL_SUBAGENT 段序），指导主代理在 subagent 委派时按角色显式传 provider/model，未列角色继承父路由，路由被会话策略拒绝时回退。路由权威仍在 Plugins 页"子代理"设置（allowedModels 会话策略），本插件只做角色语义层。
+
+改动的上游文件（2 处）：
+1. `tsconfig.host.json`：references 增加 `{ "path": "./packages/hemi/routing" }`。
+2. `packages/bundle/web-app/presets/standard.patch.yml`：persona 行后新增 `hemi-routing` 行（示例角色表指向当前默认路由，用户按需改）。
+3. `packages/bundle/web-app/package.json`：dependencies 增加 `@deepseek-ai/dsh-hemi-routing: workspace:*`（resolver manifest——必需，见顶部规则）。
+
+同时补记：hemi-memory 的 resolver manifest 行（`@deepseek-ai/dsh-hemi-memory: workspace:*`）——之前提交 bcee7f495c 漏了它，导致该插件的 preset 行一直 "never started"（本次发现并修复）。
+
+验证：单元渲染（role 表→提示词段文本、空表不出段）+ 全量构建 10 gates + dev 新会话零报错。
 
 ## 2026-11-04 · 跨会话记忆插件（hemi-memory）
 

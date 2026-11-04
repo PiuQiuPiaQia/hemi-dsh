@@ -12,6 +12,21 @@
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: You are a coding agent powered by the {{model}} model.
+          # Hemi fork addition: role-based delegation route guidance on top of
+          # subagent model selection (routes must stay within the allowed
+          # subagent models chosen on the Plugins page).
+          - id: hemi-routing
+            name: '@deepseek-ai/dsh-hemi-routing'
+            config:
+              # Sample role table: edit routes to your providers/models; each
+              # route must also be an allowed subagent model (Plugins page).
+              roles:
+                research:
+                  provider: deepseek-account
+                  model: deepseek-flash
+                review:
+                  provider: deepseek-account
+                  model: deepseek-flash
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:

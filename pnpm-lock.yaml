@@ -3212,6 +3212,12 @@ importers:
       '@deepseek-ai/dsh-harness-dev-context':
         specifier: workspace:*
         version: link:../../context/harness-dev-context
+      '@deepseek-ai/dsh-hemi-memory':
+        specifier: workspace:*
+        version: link:../../hemi/memory
+      '@deepseek-ai/dsh-hemi-routing':
+        specifier: workspace:*
+        version: link:../../hemi/routing
       '@deepseek-ai/dsh-host-directory-picker-auto':
         specifier: workspace:*
         version: link:../../host/directory-picker-auto
@@ -12509,6 +12515,18 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+
+  packages/hemi/routing:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
 
   packages/host/directory-picker:
     devDependencies:
