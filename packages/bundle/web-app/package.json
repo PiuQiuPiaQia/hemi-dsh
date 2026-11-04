@@ -83,6 +83,7 @@
     "@deepseek-ai/dsh-client-ui-hemi-skins": "workspace:*",
     "@deepseek-ai/dsh-hemi-memory": "workspace:*",
     "@deepseek-ai/dsh-hemi-routing": "workspace:*",
+    "@deepseek-ai/dsh-hemi-routing-ui": "workspace:*",
     "@deepseek-ai/dsh-message-quotes": "workspace:*",
     "@deepseek-ai/dsh-client-ui-chat": "workspace:*",
     "@deepseek-ai/dsh-client-ui-commands": "workspace:*",
