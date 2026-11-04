@@ -62,6 +62,7 @@
     { "path": "./packages/client/ui-file-drag" },
     { "path": "./packages/client/ui-hemi-skins" },
     { "path": "./packages/hemi/routing-ui" },
+    { "path": "./packages/hemi/backup-ui" },
     { "path": "./packages/session/message-quotes" },
     { "path": "./packages/experimental/client-ui-cot-translation/tsconfig.client.json" },
     { "path": "./packages/client/product-analytics/tsconfig.client.json" },

@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/backup-ui/README.md
+/:
+  en: d1fd35640eb7490c
+  zh: bb3781b85e5b623d
+/deepseek-ai-dsh-hemi-backup-ui:
+  en: 6464c109ce0d4417
+  zh: cf32f47e64d4c245
+/deepseek-ai-dsh-hemi-backup-ui/summary:
+  en: afde9c4ec2734f5a
+  zh: 240fc9f9754b6d82
+/deepseek-ai-dsh-hemi-backup-ui/table-of-contents:
+  en: c4479aff7e4a7a3c
+  zh: c4479aff7e4a7a3c
+/deepseek-ai-dsh-hemi-backup-ui/use-this-package:
+  en: 0baf48ba9d2bb4db
+  zh: bf60e3b4d4980140
+/deepseek-ai-dsh-hemi-backup-ui/understand-the-implementation:
+  en: 72a3ef60b9b1872f
+  zh: d313f8c9a7d15967
+/deepseek-ai-dsh-hemi-backup-ui/known-limitations-and-deferred-work:
+  en: b8fd3bba4e662d96
+  zh: 462a76bfb49f3bb9

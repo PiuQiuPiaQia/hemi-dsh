@@ -62,6 +62,10 @@
     - id: hemi-routing-settings
       name: '@deepseek-ai/dsh-hemi-routing/settings'
 
+    # Hemi fork addition: data backup orchestrator (hemiBackup Remote namespace).
+    - id: hemi-backup
+      name: '@deepseek-ai/dsh-hemi-backup'
+
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
       config:
@@ -354,6 +358,10 @@
     # Hemi fork addition: settings section for the role routing table.
     - id: hemi-routing-ui
       name: '@deepseek-ai/dsh-hemi-routing-ui'
+
+    # Hemi fork addition: settings section for data backup and restore.
+    - id: hemi-backup-ui
+      name: '@deepseek-ai/dsh-hemi-backup-ui'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'

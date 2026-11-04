@@ -1,0 +1,163 @@
+/* Hemi data backup card. Rendered on the general settings page, so it
+ * follows the settings card material instead of owning panel chrome. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.description {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-alias-settings-card-fill);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.key {
+  flex: 0 0 160px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 10px;
+  border: 0.5px solid var(--dsw-alias-field-stroke, var(--dsw-alias-settings-card-stroke));
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-field-fill, transparent);
+  color: inherit;
+  font: inherit;
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 10px;
+  border: 0.5px solid var(--dsw-alias-field-stroke, var(--dsw-alias-settings-card-stroke));
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-field-fill, transparent);
+  color: inherit;
+  font: inherit;
+}
+
+.help {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.button {
+  padding: 4px 14px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-md, 8px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.buttonPrimary {
+  padding: 4px 14px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-md, 8px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-color: var(--dsw-alias-accent, #4c6ef5);
+  background: var(--dsw-alias-accent, #4c6ef5);
+  color: var(--dsw-alias-accent-contrast, #fff);
+}
+
+.listHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.listMain {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listAside {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.noticeOk {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.noticeBad {
+  margin: 0;
+  color: var(--dsw-alias-danger, #d5496a);
+}
