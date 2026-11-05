@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/customizations/release/README.md
+/:
+  en: 523125d70bd95659
+  zh: 5a441ebed406b88c
+/hemi-desktop-github-releases:
+  en: 35d7c93463c3a707
+  zh: 9d63201d3c04fd04
+/hemi-desktop-github-releases/summary:
+  en: c17dc46f43516575
+  zh: 36e61afa282034e9
+/hemi-desktop-github-releases/table-of-contents:
+  en: 83f3aa6f46da4453
+  zh: d202e346699e3040
+/hemi-desktop-github-releases/configure-community-releases:
+  en: d6d6a04a2c3ac58d
+  zh: b8757d3254f0d9cf
+/hemi-desktop-github-releases/signing-and-installation:
+  en: 5119e722ce2be754
+  zh: dcdfb9c3ffe03679
+/hemi-desktop-github-releases/select-and-publish-a-version:
+  en: a8b39dacdbcf97b1
+  zh: c06f5c5e15445cf2
+/hemi-desktop-github-releases/feeds-and-compatibility:
+  en: b9a4dd51469eeb2b
+  zh: 531e83cfea8628a2
+/hemi-desktop-github-releases/failures-and-recovery:
+  en: e9171c2ed2bb0ecd
+  zh: e68dfc52213a0a3f
+/hemi-desktop-github-releases/verification:
+  en: b69b4e2f38ec40ce
+  zh: 3e22990f832103e2

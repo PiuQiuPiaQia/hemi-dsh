@@ -1,0 +1,183 @@
+# Hemi fork: independent GitHub distribution; DSH signing and COS workflows retain their own routing.
+name: Release Hemi Desktop · GitHub
+
+on:
+  push:
+    tags: ['hemi-desktop-v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '完整版本号：须符合当前源码的 Desktop build-version 规则'
+        type: string
+        required: true
+      channel:
+        description: '客户端更新渠道；stable 仅接受正式版本号'
+        type: choice
+        options: [nightly, stable]
+        default: nightly
+        required: true
+      signing_mode:
+        description: 'community：macOS 固定自签名、Windows 未签名；official：现有正式证书流程'
+        type: choice
+        options: [community, official]
+        default: community
+        required: true
+      targets:
+        description: '本次发布的目标；其他平台和渠道的更新清单保持原值'
+        type: choice
+        options: [mac-arm64, mac-all, win-x64, all]
+        default: mac-arm64
+        required: true
+
+permissions:
+  contents: read
+
+# All channels share one branch. Never cancel an in-flight publication.
+concurrency:
+  group: hemi-desktop-github-release
+  cancel-in-progress: false
+
+env:
+  HEMI_RELEASE_SIGNING_MODE: ${{ inputs.signing_mode || vars.HEMI_DESKTOP_SIGNING_MODE || 'community' }}
+  HEMI_RELEASE_VERSION: ${{ inputs.version }}
+  HEMI_RELEASE_CHANNEL: ${{ inputs.channel }}
+  HEMI_RELEASE_TARGETS: ${{ inputs.targets || vars.HEMI_DESKTOP_RELEASE_TARGETS || 'mac-arm64' }}
+  HEMI_DESKTOP_FEED_BRANCH: ${{ vars.HEMI_DESKTOP_FEED_BRANCH || 'desktop-update-feeds' }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      signing_mode: ${{ steps.selection.outputs.signing_mode }}
+      version: ${{ steps.selection.outputs.version }}
+      channel: ${{ steps.selection.outputs.channel }}
+      targets: ${{ steps.selection.outputs.targets }}
+      matrix: ${{ steps.selection.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+      - name: Validate source version and select signing machines
+        id: selection
+        env:
+          HEMI_DESKTOP_MAC_RUNNER: ${{ vars.HEMI_DESKTOP_MAC_RUNNER }}
+          HEMI_DESKTOP_WINDOWS_RUNNER: ${{ vars.HEMI_DESKTOP_WINDOWS_RUNNER }}
+          HEMI_DESKTOP_MAC_CONFIG_DIR: ${{ vars.HEMI_DESKTOP_MAC_CONFIG_DIR }}
+          HEMI_DESKTOP_WINDOWS_CONFIG_DIR: ${{ vars.HEMI_DESKTOP_WINDOWS_CONFIG_DIR }}
+        run: pnpm --dir apps/desktop run github:release prepare
+
+  package:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    env:
+      HEMI_RELEASE_SIGNING_MODE: ${{ needs.prepare.outputs.signing_mode }}
+      HEMI_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      HEMI_RELEASE_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      HEMI_RELEASE_TARGETS: ${{ needs.prepare.outputs.targets }}
+      HEMI_RELEASE_ARTIFACTS: ${{ github.workspace }}/.artifacts/hemi-desktop-release
+      DSH_DESKTOP_UPDATE_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      DSH_PACKAGING_PRESET: production
+      DSH_PACKAGING_CONFIG_DIR: ${{ matrix.configDirectory }}
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          dest: ${{ runner.temp }}/hemi-pnpm-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.target }}
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare fixed Hemi signing inputs on the hosted runner
+        if: needs.prepare.outputs.signing_mode == 'community'
+        env:
+          HEMI_DESKTOP_APP_ID: ${{ vars.HEMI_DESKTOP_APP_ID }}
+          HEMI_MAC_SIGNING_P12: ${{ secrets.HEMI_MAC_SIGNING_P12 }}
+          HEMI_MAC_SIGNING_PASSWORD: ${{ secrets.HEMI_MAC_SIGNING_PASSWORD }}
+        run: node packages/hemi/customizations/release/setup.mjs setup --target '${{ matrix.target }}'
+      - name: Verify file-owned GitHub destination
+        run: pnpm --dir apps/desktop run github:release check --target '${{ matrix.target }}'
+      - name: Build and stage notarized Computer Use helpers
+        if: runner.os == 'macOS' && needs.prepare.outputs.signing_mode == 'official'
+        shell: bash
+        run: |
+          if ! node -e "process.exit(require('./apps/cli/package.json').dependencies?.['@deepseek-ai/dsh-cua-bundle'] ? 0 : 1)"; then
+            exit 0
+          fi
+          pnpm exec tsx scripts/cua-helper/package.ts --out dist/cua-helper
+          mkdir -p dist/cua-helper/extracted
+          tar -xzf dist/cua-helper/cua-helper.tgz -C dist/cua-helper/extracted
+          pnpm exec tsx scripts/cua-helper/stage.ts --from dist/cua-helper/extracted
+      - name: Build fixed-certificate Computer Use helpers
+        if: runner.os == 'macOS' && needs.prepare.outputs.signing_mode == 'community'
+        run: pnpm --dir apps/desktop run github:release cua
+      - name: Build installers with the selected signing mode
+        run: pnpm --dir apps/desktop run package '${{ matrix.target }}' --build-version '${{ needs.prepare.outputs.version }}'
+      - name: Verify and stage completed package
+        run: pnpm --dir apps/desktop run github:release stage --target '${{ matrix.target }}'
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: hemi-desktop-package-${{ matrix.target }}-${{ github.run_id }}
+          path: ${{ env.HEMI_RELEASE_ARTIFACTS }}/
+          overwrite: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Remove owned hosted-runner signing inputs
+        if: always() && needs.prepare.outputs.signing_mode == 'community'
+        run: node packages/hemi/customizations/release/setup.mjs cleanup --target '${{ matrix.target }}'
+
+  publish:
+    needs: [prepare, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: hemi-desktop-production
+    permissions:
+      contents: write
+      actions: read
+    env:
+      HEMI_RELEASE_SIGNING_MODE: ${{ needs.prepare.outputs.signing_mode }}
+      HEMI_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      HEMI_RELEASE_CHANNEL: ${{ needs.prepare.outputs.channel }}
+      HEMI_RELEASE_TARGETS: ${{ needs.prepare.outputs.targets }}
+      HEMI_RELEASE_ARTIFACTS: ${{ github.workspace }}/.artifacts/hemi-desktop-release
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: hemi-desktop-package-*-${{ github.run_id }}
+          path: ${{ env.HEMI_RELEASE_ARTIFACTS }}
+          merge-multiple: true
+      - name: Preview validated package and feed changes
+        run: pnpm --dir apps/desktop run github:release preview
+      - name: Publish verified Release, then advance feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm --dir apps/desktop run github:release publish
+      - name: Retain local publication plan
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: hemi-desktop-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.HEMI_RELEASE_ARTIFACTS }}/release-plan.json
+          if-no-files-found: warn
+          retention-days: 30

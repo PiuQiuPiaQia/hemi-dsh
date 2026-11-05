@@ -23,11 +23,14 @@ kind: "package-reference"
 <a id="build-and-service"></a>
 ## 构建与服务
 
-运行 `pnpm --dir packages/experimental/cua-macos run build:native`，在 `native/bin/darwin-<arch>` 下生成带签名的 `DSH Computer Use.app`，`current.json` 选择完整的内容摘要目录。默认使用临时签名；正式打包可传入 `--identity` 指定 Developer ID，并由发布流程完成公证。Host 运行应用内的 `--ensure-shared` 入口，经 LaunchServices 后台启动服务。最后一条连接完成清理后，服务退出。 helper 嵌套在另一个 `.app` 内时，启动器先把完整的已签名应用复制到 `~/Library/Application Support/DeepSeek Harness/Computer Use/<runtime-key>/`，再启动它。每个不可变目录都校验可执行文件哈希和应用签名，旧目录保留给仍在运行的安装版本使用，使两项 macOS 权限都归属于 helper。校验失败会中止启动；删除报错中指定的缓存目录后再重试。
+运行 `pnpm --dir packages/experimental/cua-macos run build:native`，在 `native/bin/darwin-<arch>` 下生成带签名的 `DSH Computer Use.app`，`current.json` 选择完整的内容摘要目录。默认使用临时签名；DSH 官方发布打包传入 `--identity` 指定 Developer ID，并由发布流程完成公证。Host 运行应用内的 `--ensure-shared` 入口，经 LaunchServices 后台启动服务。最后一条连接完成清理后，服务退出。 helper 嵌套在另一个 `.app` 内时，启动器先把完整的已签名应用复制到 `~/Library/Application Support/DeepSeek Harness/Computer Use/<runtime-key>/`，再启动它。每个不可变目录都校验可执行文件哈希和应用签名，旧目录保留给仍在运行的安装版本使用，使两项 macOS 权限都归属于 helper。校验失败会中止启动；删除报错中指定的缓存目录后再重试。
 
 源码检出以 `--variant dev` 构建，应用包为 `DSH Computer Use Dev.app`，Bundle ID 为 `com.deepseek.harness.computer-use.dev`。开发版和正式版默认临时签名。临时签名的指定要求包含代码哈希，二进制变化后可能需要重新授权。
 
 源码 provider 的 `sourceSigning: { identity, keychain }` 选择已有证书及其钥匙串绝对路径。构建 CLI 使用 `--identity <证书名称或 SHA-1 指纹>` 和 `--keychain <绝对路径>`；正式打包也可省略 `--keychain`，使用用户搜索列表。构建不生成、解锁或移除签名身份；所选证书不可用时签名失败。
+
+`--timestamp none` 为固定自签名的 release 构建关闭时间戳服务访问；省略或使用 `auto` 时保留现有 release 时间戳策略。`--requirements` 在发布前传入显式的 codesign 要求，必须同时指定证书身份。[Hemi GitHub 打包](../../../hemi/customizations/release/README.zh.md)拥有独立的证书校验和分发流程。
+
 
 仓库的[开发者签名 skill](../../../../.agents/skills/dsh-cua-macos-signing/SKILL.md)负责 Agent 操作流程：在 `~/.cua-macos-keys/` 生成独立身份，将指向它的配置写入 DSH home，并按需解锁或移除。私钥和密码由开发者单独维护，删除 DSH home 不会删除它们。同一用户的进程可以读取保存的密码并使用该身份签名。
 

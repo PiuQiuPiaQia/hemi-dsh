@@ -11,6 +11,10 @@
 
 功能与组件优先放入 `packages/hemi/` 的所属插件。非插件的 Electron 适配集中在 `packages/hemi/customizations/`，桌面壳通过包入口导入；皮肤继续由 `packages/client/ui-hemi-skins/` 插件提供，独立安装层保留在 `plugins/`。详见[目录规则](packages/hemi/README.md)。
 
+GitHub 桌面分发由 `packages/hemi/customizations/release/` 拥有，参考原 Hemi 的公开 generic 清单与单一 publisher，保留 DSH 原生渠道、任务停止确认和安装。Releases 存放固定版本附件，独立分支按目标和渠道保存清单，因此单平台发布无需跨架构合并或中继。`apps/desktop/scripts/desktop-auto-update-environment.mjs` 在统一解析入口调用 Hemi 适配并拒绝误用 COS；`desktop-package-environment.mjs` 只增加文件管理的 Hemi 配置，过滤父进程重定向；`desktop-policy-environment.mjs` 及声明文件允许显式关闭独立策略服务。没有现成的分发 provider 注册入口，因此保留这些窄打包接入，客户端主进程与更新状态机不修改。`scripts/check-workspace-constraints.ts` 仅为该私有适配包登记预编译阶段使用的 `.mjs` 发布工具、声明文件与公开证书，不放宽其他包的文件规则。新的薄 CLI `hemi-github-release.ts` 和 `apps/desktop/package.json` 接入自有发布器，`.github/workflows/hemi-desktop-release.yml` 默认使用 GitHub 托管 runner 和社区签名，可选正式证书机器，独立于上游 COS 工作流。验证涵盖原生清单解析、完成记录与哈希、失败恢复及工作流顺序；真实签名发版、公网下载和已安装升级仍由发布操作者验收。合并上游时核对分发解析、dotenv 隔离、显式策略关闭、完整打包记录、非强制分支写入，以及上游是否已有可替代的配置入口。
+
+GitHub 社区签名由自有 `release/signing.mjs`、`setup.mjs`、`cua.mjs` 管理，复用原 Hemi 固定证书的公开部分，私钥仅由现有 P12 secrets 提供。macOS 使用固定叶证书要求、无时间戳、不公证；Windows 明确未签名。桌面 `electron-builder-config.mjs`、声明文件、`macos-signing-keychain.mjs`、`package-target.ts` 和环境加载器仅按文件中显式模式接入，不改变 DSH 默认正式签名和 COS 流程。原生 CUA `build_app.py` 增加可选时间戳及 requirements 参数，在写入内容摘要清单前签名，默认行为不变；社区 helper 不伪造官方 npm 公证清单。私有配置与临时钥匙串只清理自有路径，不修改证书信任，也不生成或轮换 Hemi 密钥。隔离证书的真实 Electron 验证已通过 Squirrel.Mac 接受变更应用；正式安装、系统权限延续和公网升级仍需实际发版验收。合并上游时核对自定义 signer 调用、证书固定要求、凭据生命周期、helper 清单、完成记录模式和签名验证开关。
+
 模型菜单的组件、样式、替代选型状态和注册现由 `routing-ui/src/client/model-picker/` 拥有。原生 `ui-model-selection` 恢复自己的组件和目录服务，保留 `/model`；通用 `showComposer` 配置默认开启，Hemi 组合显式关闭并由路由 UI 插件注册菜单。菜单共用原生目录，不复制目录控制器。定制菜单样式和排序随所属组件维护。推理强度在模型按钮右侧独立展示，沿用原生能力判断和选型保存，自动路由在同一位置展示按会话保存的四档选择器；此布局只修改 Hemi 自有组件。
 
 推理能力缺失时，由 `hemi/model-access/src/protocol-reasoning.ts` 提供协议默认档位；`llm/llm-pi-ai` 提供通用的临时配置瀑布和型号默认档位解析，目录、设置校验和请求共用同一结果，无 Hemi 插件时保持上游行为。自动路由的四档、会话保存与型号映射归 `hemi/routing`，界面归 `hemi/routing-ui`；现有同步选型钩子无法等待型号能力，因此映射放在已有等待式 pre-step，保留原生子任务绑定和生命周期。合并上游须核对未知能力、显式禁用、默认值与实际字段发送，以及四档选择不退出自动路由。

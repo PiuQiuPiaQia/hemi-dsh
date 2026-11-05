@@ -59,7 +59,7 @@ def select(output, temporary, key, name):
     return output / key / name / "Contents/MacOS/dsh-cua-native"
 
 
-def publish(binary, output, identity, plist, variant="release", keychain=None):
+def publish(binary, output, identity, plist, variant="release", keychain=None, timestamp="auto", requirements=None):
     """Publish a complete signed bundle before atomically selecting its generation.
 
     Certificate signatures embed a signing time, so development builds record which generation
@@ -81,16 +81,21 @@ def publish(binary, output, identity, plist, variant="release", keychain=None):
         index = None
         # Names can resolve to a renewed certificate; only fingerprints identify a stable signing key.
         if variant == "dev" and (identity == "-" or re.fullmatch(r"[0-9a-fA-F]{40}", identity)):
-            source = hashlib.sha256(f"{bundle_digest(staged)}\0{identity}".encode()).hexdigest()
+            source_input = f"{bundle_digest(staged)}\0{identity}"
+            if requirements is not None:
+                source_input += f"\0{requirements}"
+            source = hashlib.sha256(source_input.encode()).hexdigest()
             index = output / "sources" / source
             if index.is_file():
                 key = index.read_text().strip()
                 if retained(output, key, name) is not None:
                     return select(output, temporary, key, name)
         command = ["/usr/bin/codesign", "--force", "--sign", identity, "--options", "runtime",
-                   "--timestamp=none" if identity == "-" or variant == "dev" else "--timestamp"]
+                   "--timestamp=none" if identity == "-" or variant == "dev" or timestamp == "none" else "--timestamp"]
         if keychain is not None:
             command += ["--keychain", str(keychain)]
+        if requirements is not None:
+            command += ["--requirements", requirements]
         subprocess.run([*command, str(staged)], check=True)
         subprocess.run(["/usr/bin/codesign", "--verify", "--strict", str(staged)], check=True)
         key = bundle_digest(staged)
@@ -122,18 +127,24 @@ def main():
                         help="dev uses a separate bundle identifier")
     parser.add_argument("--identity", default="-", help="existing codesign certificate name or SHA-1 fingerprint; defaults to ad-hoc (-)")
     parser.add_argument("--keychain", type=Path, help="absolute keychain path for --identity; the user owns unlocking it")
+    # Hemi fork: fixed self-signed release helpers use no timestamp service; default DSH behavior is unchanged.
+    parser.add_argument("--timestamp", choices=["auto", "none"], default="auto",
+                        help="none disables the timestamp service for fixed self-signed builds")
+    parser.add_argument("--requirements", help="explicit codesign requirements for a certificate-signed helper")
     args = parser.parse_args()
     if not args.identity.strip():
         parser.error("--identity must name an existing certificate")
     if args.keychain is not None and (args.identity == "-" or not args.keychain.is_absolute()):
         parser.error("--keychain requires --identity and an absolute path")
+    if args.requirements is not None and (args.identity == "-" or not args.requirements.strip()):
+        parser.error("--requirements requires an existing certificate and a nonempty requirement")
     architecture = "x64" if args.arch == "x86_64" else "arm64"
     scratch = args.scratch_path or root / ".build" / f"runtime-{architecture}"
     output = args.output_directory or root / "bin" / f"darwin-{architecture}"
     subprocess.run(["/usr/bin/xcrun", "swift", "build", "--package-path", str(root),
                     "--scratch-path", str(scratch), "--configuration", "release",
                     "--product", "dsh-cua-native", "--arch", args.arch], check=True)
-    executable = publish(scratch / "release/dsh-cua-native", output, args.identity, root / "Info.plist", args.variant, args.keychain)
+    executable = publish(scratch / "release/dsh-cua-native", output, args.identity, root / "Info.plist", args.variant, args.keychain, args.timestamp, args.requirements)
     print(executable)
 
 

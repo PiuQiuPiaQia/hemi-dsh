@@ -1,3 +1,4 @@
+import { ok } from 'node:assert/strict'
 import { expect, it } from 'vitest'
 import { resolveDesktopPolicyEnvironment } from '../scripts/desktop-policy-environment.mjs'
 import { validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
@@ -13,6 +14,8 @@ it.each(['test', 'production'] as const)('selects the %s policy and authenticati
   expect(policy).toEqual({ origin, allowedPageOrigins: [origin],
     ...(deployment === 'test' ? { allowedAuthOrigins: ['https://login.example.com'] } : {}),
     authentication: deployment === 'test' ? 'feishu-test' : 'anonymous' })
+  // Hemi fork: the optional policy type must not weaken required DSH policy checks.
+  ok(policy)
   expect(resolveDesktopPolicyConfig(policy)).toMatchObject(policy)
 })
 

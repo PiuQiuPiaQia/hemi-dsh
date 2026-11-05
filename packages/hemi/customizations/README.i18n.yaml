@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/hemi/customizations/README.md
 /:
-  en: c0217b8a99420573
-  zh: bbbde08d9956b3fb
+  en: a4403a69ec72bf10
+  zh: 617f4d2fc515a419
 /deepseek-ai-dsh-hemi-customizations:
   en: 9121a60c3e77a26f
   zh: da7b632285a04b86
@@ -12,8 +12,11 @@
   en: a465753dc8cbe642
   zh: b6c53560d9c13261
 /deepseek-ai-dsh-hemi-customizations/table-of-contents:
-  en: 638dd73bc5b9dc7a
-  zh: e21f8f10127ba8c4
+  en: 167347a54f77930f
+  zh: c830a909288b29f9
+/deepseek-ai-dsh-hemi-customizations/github-releases:
+  en: 4692372f742485c7
+  zh: a05045693d4e24d2
 /deepseek-ai-dsh-hemi-customizations/model-experience:
   en: 215e7ba838619b7b
   zh: e61c78b7d37628ed

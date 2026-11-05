@@ -1,5 +1,5 @@
 ---
-description: "供桌面壳导入的 Hemi Electron 专用适配。"
+description: "Hemi Electron 适配与独立的 GitHub Desktop 发布工具。"
 kind: "package-library"
 ---
 
@@ -15,9 +15,16 @@ kind: "package-library"
 
 ## 目录
 
+- [GitHub 发布](#github-releases)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="github-releases"></a>
+
+## GitHub 发布
+
+构建时入口 `/github-distribution`、`/github-release` 和 `/github-release-command` 提供独立的 GitHub Desktop 分发。社区签名、runner 配置和 Computer Use 适配分别由 `/github-community-signing`、`/github-community-setup` 和 `/github-community-cua` 提供。参见 [GitHub 发布配置与恢复](release/README.zh.md)。这些入口不加载 Electron，也不改变客户端更新器。
 
 ## 模型体验
 

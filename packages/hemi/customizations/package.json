@@ -15,11 +15,38 @@
       "default": "./lib/preload.js"
     },
     "./src/*": "./src/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./github-distribution": {
+      "types": "./release/config.d.mts",
+      "default": "./release/config.mjs"
+    },
+    "./github-release": {
+      "types": "./release/publish.d.mts",
+      "default": "./release/publish.mjs"
+    },
+    "./github-release-command": {
+      "types": "./release/command.d.mts",
+      "default": "./release/command.mjs"
+    },
+    "./github-community-signing": {
+      "types": "./release/signing.d.mts",
+      "default": "./release/signing.mjs"
+    },
+    "./github-community-cua": {
+      "types": "./release/cua.d.mts",
+      "default": "./release/cua.mjs"
+    },
+    "./github-community-setup": {
+      "types": "./release/setup.d.mts",
+      "default": "./release/setup.mjs"
+    }
   },
   "files": [
     "lib/index.js",
     "lib/preload.js",
+    "release/*.mjs",
+    "release/*.d.mts",
+    "release/*.cer",
     "lib/types/**/*.d.ts"
   ],
   "dsh": null,
@@ -43,5 +70,11 @@
     "bundle": "tsdown",
     "watch": "tsdown --watch"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "js-yaml": "^4.3.2",
+    "semver": "^7.8.5",
+    "@electron/osx-sign": "1.3.3",
+    "execa": "^10.0.1"
+  }
 }

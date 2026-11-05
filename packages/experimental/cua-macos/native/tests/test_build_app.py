@@ -94,6 +94,13 @@ class ReleasePublicationTests(PublicationCases, unittest.TestCase):
         self.assertIn("--timestamp", self.commands.call_args_list[0].args[0])
         self.assertNotIn("--timestamp=none", self.commands.call_args_list[0].args[0])
 
+    def test_fixed_self_signed_release_can_explicitly_disable_timestamp_access(self):
+        builder.publish(self.binary, self.output, "0123456789ABCDEF0123456789ABCDEF01234567", self.plist,
+                        timestamp="none", requirements='=designated => identifier "com.example.helper"')
+        self.assertIn('=designated => identifier "com.example.helper"', self.commands.call_args_list[0].args[0])
+        self.assertIn("--timestamp=none", self.commands.call_args_list[0].args[0])
+        self.assertNotIn("--timestamp", self.commands.call_args_list[0].args[0])
+
     def test_release_publication_keeps_info_plist_bytes_and_records_no_sources(self):
         first = self.publish()
         self.assertEqual(first.parents[2].name, "DSH Computer Use.app")
@@ -114,8 +121,8 @@ class DevelopmentPublicationTests(PublicationCases, unittest.TestCase):
                 signature.write_bytes(secrets.token_bytes(16))
         self.commands.side_effect = sign
 
-    def publish(self, identity="0123456789ABCDEF0123456789ABCDEF01234567"):
-        return builder.publish(self.binary, self.output, identity, self.plist, "dev", Path("/keychains/dev.keychain-db"))
+    def publish(self, identity="0123456789ABCDEF0123456789ABCDEF01234567", requirements=None):
+        return builder.publish(self.binary, self.output, identity, self.plist, "dev", Path("/keychains/dev.keychain-db"), requirements=requirements)
 
     def signings(self):
         return [call.args[0] for call in self.commands.call_args_list if call.args[0][1] == "--force"]
@@ -164,6 +171,13 @@ class DevelopmentPublicationTests(PublicationCases, unittest.TestCase):
         self.assertEqual(json.loads((self.output / "current.json").read_text())["bundle"], first.parents[3].name)
         self.assertNotEqual(second, first)
 
+    def test_changing_requirements_does_not_reuse_a_previous_signed_generation(self):
+        first = self.publish(requirements='=designated => identifier "first"')
+        second = self.publish(requirements='=designated => identifier "second"')
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.publish(requirements='=designated => identifier "first"'), first)
+        self.assertEqual(len(self.signings()), 2)
+
     def test_named_identities_are_resigned_in_case_the_certificate_was_renewed(self):
         first = self.publish("Apple Development: Example")
         self.assertNotEqual(self.publish("Apple Development: Example"), first)
@@ -194,7 +208,7 @@ class SigningOptionsTests(unittest.TestCase):
             self.assertEqual(len(run.call_args_list), 1)
             self.assertEqual(run.call_args.args[0][:3], ["/usr/bin/xcrun", "swift", "build"])
             self.assertEqual(publish.call_args.args[2], "-")
-            self.assertEqual(publish.call_args.args[4:], (variant, None))
+            self.assertEqual(publish.call_args.args[4:], (variant, None, "auto", None))
 
     def test_custom_certificate_and_keychain_reach_the_signer(self):
         for flags, keychain in (([], None), (["--keychain", "/keychains/user.keychain-db"], Path("/keychains/user.keychain-db"))):
@@ -203,10 +217,18 @@ class SigningOptionsTests(unittest.TestCase):
                  contextlib.redirect_stdout(io.StringIO()):
                 builder.main()
             self.assertEqual(publish.call_args.args[2], "Example")
-            self.assertEqual(publish.call_args.args[4:], ("dev", keychain))
+            self.assertEqual(publish.call_args.args[4:], ("dev", keychain, "auto", None))
+
+    def test_explicit_requirements_reach_publication_before_the_receipt_is_written(self):
+        requirement = '=designated => identifier "com.example.helper"'
+        with patch.object(sys, "argv", ["build_app.py", "--identity", "Example", "--requirements", requirement]), \
+             patch.object(builder.subprocess, "run"), patch.object(builder, "publish", return_value="helper") as publish, \
+             contextlib.redirect_stdout(io.StringIO()):
+            builder.main()
+        self.assertEqual(publish.call_args.args[-1], requirement)
 
     def test_invalid_or_retired_signing_options_fail_before_building(self):
-        for flags in (["--signing", "local-identity"], ["--dsh-home", "/home/example"],
+        for flags in (["--requirements", "identifier example"], ["--identity", "Example", "--requirements", " "], ["--timestamp", "invalid"], ["--signing", "local-identity"], ["--dsh-home", "/home/example"],
                       ["--keychain", "/keychains/user"], ["--identity", "Example", "--keychain", "relative"], ["--identity", " "]):
             with self.subTest(flags=flags), patch.object(sys, "argv", ["build_app.py", *flags]), \
                  patch.object(builder.subprocess, "run") as run, contextlib.redirect_stderr(io.StringIO()):

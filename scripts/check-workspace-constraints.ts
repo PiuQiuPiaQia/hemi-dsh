@@ -189,7 +189,8 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-hemi-routing': ['lib/settings.js', 'lib/usage.js'],
   '@deepseek-ai/dsh-hemi-memory': ['lib/remote.js'],
   '@deepseek-ai/dsh-hemi-model-access': ['lib/desktop-import.js', 'HEMI-LICENSE'],
-  '@deepseek-ai/dsh-hemi-customizations': ['lib/preload.js'],
+  // Hemi fork: plain-Node release tooling is imported before compiling or bundling the desktop shell.
+  '@deepseek-ai/dsh-hemi-customizations': ['lib/preload.js', 'release/*.mjs', 'release/*.d.mts', 'release/*.cer'],
   // Tools entry points share error classes and invocation stages through runtime chunks.
   '@deepseek-ai/dsh-tools': ['lib/pipeline.js', 'lib/shared-*.js'],
   // The embedded OAR implementation retains its upstream license.

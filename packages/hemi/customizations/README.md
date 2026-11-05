@@ -1,5 +1,5 @@
 ---
-description: "Electron-only Hemi adapters imported by the desktop shell."
+description: "Hemi Electron adapters and independent GitHub Desktop release tooling."
 kind: "package-library"
 ---
 
@@ -15,9 +15,16 @@ The main adapter creates the isolated New API login window and registers the she
 
 ## Table of Contents
 
+- [GitHub releases](#github-releases)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="github-releases"></a>
+
+## GitHub releases
+
+The `/github-distribution`, `/github-release` and `/github-release-command` build-time entries enable independent GitHub Desktop distribution. The community signing, runner setup and Computer Use adapters use `/github-community-signing`, `/github-community-setup` and `/github-community-cua`. See [GitHub release configuration and recovery](release/README.md). These entries do not load Electron or change the client updater.
 
 ## Model Experience
 

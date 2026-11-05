@@ -1,4 +1,6 @@
 import type { AfterPackContext, BeforePackContext } from 'app-builder-lib'
+// Hemi fork: declarations include the explicit community signer selected by the factory.
+import type { signHemiMacApplication } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
 
 /** Electron-builder fields asserted by the Desktop release tests. */
 export interface DesktopElectronBuilderConfig {
@@ -14,7 +16,10 @@ export interface DesktopElectronBuilderConfig {
     { readonly from: string, readonly to: 'dsh', readonly filter: readonly ['**/*'] },
     { readonly from: string, readonly to: 'dsh/node_modules', readonly filter: readonly ['**/*'] },
   ]
-  readonly extraMetadata: { readonly dshDesktopAppId: string }
+  readonly extraMetadata: {
+    readonly dshDesktopAppId: string
+    readonly hemiDesktopSigning?: 'mac-self-signed' | 'windows-unsigned'
+  }
   readonly asarUnpack: readonly string[]
   readonly extraResources: readonly [
     { readonly from: string, readonly to: 'runtime' },
@@ -22,6 +27,8 @@ export interface DesktopElectronBuilderConfig {
     ...{ readonly from: string, readonly to: 'tray.ico' }[],
   ]
   readonly mac: {
+    readonly sign?: (options: Parameters<typeof signHemiMacApplication>[0]) => Promise<void>
+    readonly target: readonly ('dmg' | 'zip')[]
     readonly extendInfo: {
       readonly CFBundleLocalizations: readonly string[]
       readonly NSMicrophoneUsageDescription: string
@@ -39,6 +46,7 @@ export interface DesktopElectronBuilderConfig {
     readonly writeUpdateInfo: boolean
   }
   readonly win: {
+    readonly verifyUpdateCodeSignature?: false
     readonly forceCodeSigning: boolean
     readonly signtoolOptions: {
       readonly publisherName: string | undefined

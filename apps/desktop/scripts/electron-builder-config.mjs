@@ -1,3 +1,5 @@
+// Hemi fork: community signing is scoped to GitHub builds; ordinary DSH release checks remain mandatory.
+import { resolveHemiCommunitySigning, signHemiMacApplication, verifyHemiMacApplication, signHemiMacDiskImage } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
 import { readInstallerLocales, renderInstallerStrings } from './installer-locales.mjs'
 import { officePackageDirectories } from '../../../scripts/libreoffice-packages.mjs'
 import { X509Certificate } from 'node:crypto'
@@ -66,10 +68,11 @@ export function createElectronBuilderConfig(
   if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = resolvedPlatform === 'win32'
+  const community = resolveHemiCommunitySigning(env, resolvedPlatform)
   const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
   if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
-  const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
-  if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
+  const macOSSigning = packagesMacOS && !unsigned && community === undefined ? resolveMacOSSigningEnvironment(env) : undefined
+  if (packagesMacOS && !unsigned && !skipNotarization && community === undefined) resolveMacOSNotarizationEnvironment(env)
   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch), env)
   const output = desktopArtifactOutput(buildPaths, { unsigned, skipNotarization })
   let primaryRuntimeDestination
@@ -80,7 +83,7 @@ export function createElectronBuilderConfig(
     // LaunchServices opens the Computer Use helper as an application, so every file of its bundles stays on disk.
     // Both architectures ship: they form one notarized payload whose manifest staging verifies as a whole.
     '**/node_modules/@deepseek-ai/dsh-experimental-cua-macos/native/bin/**/*']
-  const windowsSigner = packagesWindows && !unsigned
+  const windowsSigner = packagesWindows && !unsigned && community === undefined
     ? createWindowsTokenSigner({
         certificateFile: env.DSH_DESKTOP_WINDOWS_CER_FILE,
         signTool: env.DSH_DESKTOP_WINDOWS_SIGNTOOL,
@@ -112,6 +115,7 @@ export function createElectronBuilderConfig(
     protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
     extraMetadata: {
       dshDesktopAppId: appId,
+      ...(community === undefined ? {} : { hemiDesktopSigning: community.kind }),
       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
       ...buildVersion === productVersion ? {} : { version: buildVersion },
@@ -173,19 +177,21 @@ export function createElectronBuilderConfig(
         NSMicrophoneUsageDescription: 'DeepSeek Harness uses your microphone to transcribe speech into message drafts.',
       },
       // Ad-hoc signing keeps the modified Electron executable runnable without a Developer ID.
-      identity: unsigned ? '-' : macOSSigning?.signingIdentity,
+      // The custom signer requires the pinned key; '-' avoids Apple's trusted-identity discovery only.
+      identity: unsigned || community?.kind === 'mac-self-signed' ? '-' : macOSSigning?.signingIdentity,
+      ...(community?.kind === 'mac-self-signed' ? { sign: options => signHemiMacApplication(options, community, appId) } : {}),
       forceCodeSigning: !unsigned,
       hardenedRuntime: true,
       entitlements: fileURLToPath(new URL('./macos-entitlements.plist', import.meta.url)),
       entitlementsInherit: fileURLToPath(new URL('./macos-entitlements.plist', import.meta.url)),
       // Prepared runtime files retain their signatures; PAK resources are sealed by their enclosing bundle.
       signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
-      notarize: !unsigned && !skipNotarization,
+      notarize: !unsigned && !skipNotarization && community === undefined,
       target: unsigned ? ['dmg'] : ['dmg', 'zip'],
     },
     dmg: {
       format: 'ULMO',
-      sign: !unsigned,
+      sign: !unsigned && community === undefined,
       writeUpdateInfo: false,
     },
     beforePack: async context => {
@@ -213,8 +219,8 @@ export function createElectronBuilderConfig(
       // release, and a rewritten one for installed-update qualification.
       await verifyDesktopRuntime(buildPaths.dsh,
         preparedRuntimeVersion ?? productVersion, { platform: resolvedPlatform, arch: resolvedArch })
-      // Unsigned Windows builds skip electron-builder's afterSign hook.
-      if (packagesWindows && unsigned) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
+      // Unsigned Windows builds skip electron-builder's afterSign hook, including the Hemi community mode.
+      if (packagesWindows && (unsigned || community?.kind === 'windows-unsigned')) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
     },
     afterSign: async context => {
       if (windowsSigner !== undefined) {
@@ -231,10 +237,18 @@ export function createElectronBuilderConfig(
         await verifyMacOSAppUpdateConfig(appPath, resolveMacOSAppUpdateFeed(context.packager.config.publish),
           context.packager.appInfo.updaterCacheDirName)
       }
+      if (community?.kind === 'mac-self-signed') {
+        verifyHemiMacApplication(appPath, community, appId)
+        return
+      }
       verifyMacOSSignatureAfterSign(context, macOSSigning ?? resolveMacOSSigningEnvironment(env))
     },
     artifactBuildCompleted: artifact => {
       if (unsigned || !artifact.file.endsWith('.dmg')) return
+      if (community?.kind === 'mac-self-signed') {
+        signHemiMacDiskImage(artifact.file, community, env.CSC_KEYCHAIN)
+        return
+      }
       if (skipNotarization) {
         verifyMacOSDiskImageSignature(artifact.file, macOSSigning ?? resolveMacOSSigningEnvironment(env))
         return
@@ -247,7 +261,8 @@ export function createElectronBuilderConfig(
     },
     win: {
       icon: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
-      forceCodeSigning: !unsigned,
+      forceCodeSigning: !unsigned && community === undefined,
+      ...(community?.kind === 'windows-unsigned' ? { verifyUpdateCodeSignature: false } : {}),
       signtoolOptions: {
         sign: windowsSigner,
         publisherName: windowsSigner === undefined ? undefined : resolveWindowsUpdatePublisher(env.DSH_DESKTOP_WINDOWS_CER_FILE),

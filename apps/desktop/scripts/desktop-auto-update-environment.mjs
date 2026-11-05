@@ -1,6 +1,8 @@
 /** Resolve the Desktop auto-update channel and its Tencent COS destination. */
 
 import { valid } from 'semver'
+// Hemi fork: keep GitHub feed policy in the adapter; every packaging consumer uses this resolver.
+import { resolveHemiGitHubUpdate, resolveHemiGitHubDistribution } from '@deepseek-ai/dsh-hemi-customizations/github-distribution'
 
 /** Environment variable that selects the Desktop update deployment. */
 export const DESKTOP_AUTO_UPDATE_ENV = 'DSH_DESKTOP_AUTO_UPDATE_ENV'
@@ -155,6 +157,8 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const channel = resolveDesktopUpdateChannel(env)
   const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
+  const hemi = resolveHemiGitHubUpdate(env, target, channel)
+  if (hemi !== undefined) return hemi
   const deployment = UPDATE_ENVIRONMENTS[environment]
   let origin = deployment.fixedOrigin
   if (origin === undefined) {
@@ -191,6 +195,8 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
  * @throws {Error} When the selected deployment lacks a bucket or valid updater configuration.
  */
 export function resolveDesktopUploadConfig(env, platform, arch) {
+  // Hemi fork: a GitHub package must never reach the COS uploader or its credentials.
+  if (resolveHemiGitHubDistribution(env) !== undefined) throw new Error('Hemi Desktop: use the GitHub release workflow instead of COS upload')
   const update = resolveDesktopAutoUpdateConfig(env, platform, arch)
   const deployment = UPDATE_ENVIRONMENTS[update.environment]
   return {

@@ -1,4 +1,6 @@
 /** Own a temporary PKCS#12 signing identity for one macOS packaging invocation. */
+// Hemi fork: reuse the scoped keychain lifecycle while selecting the pinned self-signed identity.
+import { resolveHemiCommunitySigning } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
 import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -69,7 +71,10 @@ export async function withMacOSSigningKeychain(environment, action, run = execut
     security(['list-keychains', '-d', 'user', '-s', keychain, ...previousKeychains])
     const probe = join(directory, 'probe')
     run('/bin/cp', ['/usr/bin/true', probe])
-    run('/usr/bin/codesign', ['--force', '--sign', `Developer ID Application: ${environment.DSH_DESKTOP_MACOS_SIGNING_IDENTITY}`, '--keychain', keychain, '--timestamp', '--options', 'runtime', probe])
+    const community = resolveHemiCommunitySigning(environment, 'darwin')
+    const identity = community?.kind === 'mac-self-signed' ? community.identity : `Developer ID Application: ${environment.DSH_DESKTOP_MACOS_SIGNING_IDENTITY}`
+    run('/usr/bin/codesign', ['--force', '--sign', identity, '--keychain', keychain,
+      community === undefined ? '--timestamp' : '--timestamp=none', '--options', 'runtime', probe])
     run('/usr/bin/codesign', ['--verify', '--strict', probe])
     const childEnvironment = { ...environment, CSC_KEYCHAIN: keychain, DSH_DESKTOP_MACOS_SIGNING_PROBE: probe }
     delete childEnvironment.CSC_LINK

@@ -1,5 +1,7 @@
 /** Build one release target with matching Electron and dsh architecture. */
 
+// Hemi fork: GitHub community packages retain official composition without commercial signing or notarization.
+import { resolveHemiCommunitySigning } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
 import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
@@ -144,6 +146,7 @@ function writeReleaseRecord(
   if (desktopVersion !== dshVersion) {
     throw new Error(`desktop package: desktop version ${desktopVersion} does not match dsh version ${dshVersion}`)
   }
+  const community = resolveHemiCommunitySigning(environment, target.platform)
   const buildVersion = resolveDesktopBuildVersion(environment, dshVersion)
   const packaged = resolveDesktopBuildCommit(environment)
   const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
@@ -156,6 +159,8 @@ function writeReleaseRecord(
     environment: update.environment,
     channel: update.channel,
     publicUrl: update.publicUrl,
+    ...community === undefined ? {} : { hemiSigning: community.kind,
+      ...(community.kind === 'mac-self-signed' ? { hemiSigningSha256: community.sha256 } : {}) },
     // Upload reads this to tag the commit a production release was packaged from.
     ...packaged === undefined ? {} : { commit: packaged.commit, dirty: packaged.dirty },
   }, null, 2)}\n`)
@@ -420,6 +425,7 @@ export async function packageTarget(
   run: ReturnType<typeof createPackagingRun> | undefined,
 ): Promise<void> {
   const { target } = invocation
+  const community = resolveHemiCommunitySigning(environment, target.platform)
   const execute = (args: readonly string[], env: NodeJS.ProcessEnv, cwd: string = APP_ROOT) => runPnpm(args, env, cwd, run)
   const journal = target.platform === 'darwin' ? process.env.DSH_DESKTOP_PACKAGING_RUN_DIR : undefined
   const proxyEvent = (status: string) => { if (journal) recordPackagingEvent(journal, { type: 'notarization-proxy', status }) }
@@ -447,9 +453,9 @@ export async function packageTarget(
     electronBuilderEnv.ELECTRON_BUILDER_COMPRESSION_LEVEL = String(resolveWindowsPackageSettings(environment).compressionLevel)
   }
   for (const name of WINDOWS_SIGNING_ENV_NAMES) {
-    if (!invocation.unsigned && environment[name] !== undefined) electronBuilderEnv[name] = environment[name]
+    if (!invocation.unsigned && community === undefined && environment[name] !== undefined) electronBuilderEnv[name] = environment[name]
   }
-  const signPrimaryRuntime = target.platform === 'win32' && !invocation.unsigned && !invocation.prepareOnly
+  const signPrimaryRuntime = target.platform === 'win32' && !invocation.unsigned && !invocation.prepareOnly && community === undefined
   const signedStage = async (stage: string, operation: () => Promise<void>): Promise<void> => {
     if (!signPrimaryRuntime) return operation()
     if (run === undefined) throw new Error('desktop package: signed Windows packaging requires a supervised run')
@@ -529,7 +535,7 @@ export async function packageTarget(
     desktopElectronBuilderArguments(target, false, artifact), artifact.format === 'zip'
       ? { ...electronBuilderEnv, ELECTRON_BUILDER_COMPRESSION_LEVEL: String(mac?.zipCompressionLevel) }
       : electronBuilderEnv)
-  if (target.platform === 'darwin' && !invocation.unsigned && !invocation.skipNotarization && !invocation.directory) {
+  if (target.platform === 'darwin' && !invocation.unsigned && !invocation.skipNotarization && !invocation.directory && community === undefined) {
     await execute([
       ...desktopElectronBuilderArguments(target, true),
       '--config.mac.notarize=false',
@@ -542,7 +548,7 @@ export async function packageTarget(
       artifactsRoot: buildPaths.artifacts,
       environment: electronBuilderEnv,
     }, buildMacArtifact), undefined, undefined, proxyEvent)
-  } else if (target.platform === 'darwin' && !invocation.unsigned && !invocation.skipNotarization) {
+  } else if (target.platform === 'darwin' && !invocation.unsigned && !invocation.skipNotarization && community === undefined) {
     await execute([...desktopElectronBuilderArguments(target, true), '--config.mac.notarize=false'], electronBuilderEnv)
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts'], targetEnv)
     const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
@@ -559,7 +565,7 @@ export async function packageTarget(
       await signedStage('artifacts', () => execute(desktopElectronBuilderArguments(target, invocation.directory), electronBuilderEnv))
     }
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts',
-      ...(invocation.unsigned ? ['--unsigned'] : []), ...(invocation.skipNotarization ? ['--skip-notarization'] : [])], targetEnv)
+      ...(invocation.unsigned || community?.kind === 'windows-unsigned' ? ['--unsigned'] : []), ...(invocation.skipNotarization ? ['--skip-notarization'] : [])], targetEnv)
   }
   if (!invocation.directory && !invocation.unsigned && !invocation.skipNotarization) {
     writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)

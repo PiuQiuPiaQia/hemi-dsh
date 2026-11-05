@@ -1,0 +1,27 @@
+{
+  "tag": "hemi-desktop-stable-v1.2.3",
+  "assets": [
+    "deepseek-harness-1.2.3-mac-arm64.zip",
+    "deepseek-harness-1.2.3-mac-arm64.zip.blockmap",
+    "deepseek-harness-1.2.3-mac-arm64.dmg",
+    "deepseek-harness-1.2.3-mac-x64.zip",
+    "deepseek-harness-1.2.3-mac-x64.zip.blockmap",
+    "deepseek-harness-1.2.3-mac-x64.dmg",
+    "deepseek-harness-1.2.3-win-x64.exe",
+    "deepseek-harness-1.2.3-win-x64.exe.blockmap"
+  ],
+  "feeds": [
+    {
+      "path": "feeds/mac-arm64/stable-mac.yml",
+      "contents": "version: 1.2.3\nfiles:\n  - url: https://github.com/example/hemi-dsh/releases/download/hemi-desktop-stable-v1.2.3/deepseek-harness-1.2.3-mac-arm64.zip\n    sha512: OeRfEvlaXZwCDYJYLsyQFR3HwTcq66b0Dq62YvL2aBjht5VrIW0JoTOMXaC+1eQh73uPT3FGV8CZbjFDfYR7Ng==\n    size: 30\npath: https://github.com/example/hemi-dsh/releases/download/hemi-desktop-stable-v1.2.3/deepseek-harness-1.2.3-mac-arm64.zip\nsha512: OeRfEvlaXZwCDYJYLsyQFR3HwTcq66b0Dq62YvL2aBjht5VrIW0JoTOMXaC+1eQh73uPT3FGV8CZbjFDfYR7Ng==\n"
+    },
+    {
+      "path": "feeds/mac-x64/stable-mac.yml",
+      "contents": "version: 1.2.3\nfiles:\n  - url: https://github.com/example/hemi-dsh/releases/download/hemi-desktop-stable-v1.2.3/deepseek-harness-1.2.3-mac-x64.zip\n    sha512: JLr7bxfGyx5xXSajG0suIt9vhMqkY1MWF1/IXQiQDjWL2K/UleColXPL9YydgteCXNAEueqmNMFQpupD31GOSA==\n    size: 28\npath: https://github.com/example/hemi-dsh/releases/download/hemi-desktop-stable-v1.2.3/deepseek-harness-1.2.3-mac-x64.zip\nsha512: JLr7bxfGyx5xXSajG0suIt9vhMqkY1MWF1/IXQiQDjWL2K/UleColXPL9YydgteCXNAEueqmNMFQpupD31GOSA==\n"
+    },
+    {
+      "path": "feeds/win-x64/stable.yml",
+      "contents": "version: 1.2.3\nfiles:\n  - url: https://github.com/example/hemi-dsh/releases/download/hemi-desktop-stable-v1.2.3/deepseek-harness-1.2.3-win-x64.exe\n    sha512: dISXjksgOvuWBEBBWYp1upZrOLy/DBZspN/DNEcQG9CeJLhEqpyHfIxhHXzNOthZ/K9DeylAkFiJuExfjah1wA==\n    size: 28\npath: https://github.com/example/hemi-dsh/releases/download/hemi-desktop-stable-v1.2.3/deepseek-harness-1.2.3-win-x64.exe\nsha512: dISXjksgOvuWBEBBWYp1upZrOLy/DBZspN/DNEcQG9CeJLhEqpyHfIxhHXzNOthZ/K9DeylAkFiJuExfjah1wA==\n"
+    }
+  ]
+}
