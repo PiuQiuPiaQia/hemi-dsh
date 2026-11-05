@@ -8,6 +8,10 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  /* Hemi fork: pure visual body portal must not subtract the native drag region
+     while shown; `initial` is uncollected and `!important` beats the shell's
+     id-specific `body > :not(#root)` rule (see ui-hemi-skins Backdrop). */
+  -webkit-app-region: initial !important;
   background-color: var(--dsw-alias-bg-mask-drop);
   backdrop-filter: blur(10px);
   animation: fade-in 160ms ease-out;

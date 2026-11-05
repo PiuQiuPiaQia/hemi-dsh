@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/model-settings/README.md
+/:
+  en: 8543d913c206706c
+  zh: c612137baf32a971
+/deepseek-ai-dsh-hemi-model-settings:
+  en: b31dcc452731d792
+  zh: 583010fdefc35aec
+/deepseek-ai-dsh-hemi-model-settings/summary:
+  en: 1488d1f09e9ced01
+  zh: 70c14449076932ec
+/deepseek-ai-dsh-hemi-model-settings/table-of-contents:
+  en: 638dd73bc5b9dc7a
+  zh: e21f8f10127ba8c4
+/deepseek-ai-dsh-hemi-model-settings/model-experience:
+  en: 215e7ba838619b7b
+  zh: e61c78b7d37628ed
+/deepseek-ai-dsh-hemi-model-settings/model-experience/explicit-connection-test:
+  en: c1831f236cbd305f
+  zh: f0f0f1f0310196ee
+/deepseek-ai-dsh-hemi-model-settings/model-experience/explicit-connection-test/what-the-model-sees:
+  en: d458678d3b631195
+  zh: eaf0ec92f6ae77e5
+/deepseek-ai-dsh-hemi-model-settings/model-experience/explicit-connection-test/token-effect:
+  en: ea133575de3b312a
+  zh: 7b11c5d287829487
+/deepseek-ai-dsh-hemi-model-settings/model-experience/explicit-connection-test/kv-cache-effect:
+  en: fba97807b23a51f1
+  zh: 98c58ff842e3546a
+/deepseek-ai-dsh-hemi-model-settings/known-limitations-and-deferred-work:
+  en: d806f2e294c5f915
+  zh: 9ea681b67bf33a00
+/deepseek-ai-dsh-hemi-model-settings/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 754c49ec538c164c

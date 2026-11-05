@@ -22,12 +22,7 @@ export interface TokenUsageProjection {
 /**
  * Approximate context occupancy for a status display.
  *
- * The fields, when present, are deliberately NOT one atomic request
- * observation: each is a last-wins record of a different moment. Switching
- * models can therefore pair a fresh capacity with the previous route's
- * pressure until the next request reports usage. This is an intentional trade
- * — the value is a user-facing reference, not a billing or gating input. See
- * the token-meter README for the full rationale.
+ * A provider or model change clears the previous pressure sample.
  */
 export interface ContextPressureProjection {
   /**

@@ -59,10 +59,12 @@ export async function mountBackup(ctx: Context, contribution: TypertRemoteContri
 /** Register the backup settings section while the Remote namespace is available. */
 function registerBackup(ctx: Context): void {
   ctx.effect(() => ctx.locale.register('hemi-backup', { en, zh }), 'hemi-backup-ui: dictionaries')
-  ctx.effect(() => ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
+  const t = ctx.locale.bind('hemi-backup')
+  ctx.effect(() => ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
     id: 'hemi-backup',
-    order: 30,
+    order: 70,
+    label: () => t('nav'),
     locale: 'hemi-backup',
     inject: (): BackupSectionInjected => {
       const remote = ctx.remote.hemiBackup

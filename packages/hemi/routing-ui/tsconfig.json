@@ -24,6 +24,15 @@
       "path": "../../client/store"
     },
     {
+      "path": "../../client/ui-chat/tsconfig.client.json"
+    },
+    {
+      "path": "../../client/ui-conversation/tsconfig.client.json"
+    },
+    {
+      "path": "../../llm/token-meter"
+    },
+    {
       "path": "../../client/ui-layout"
     },
     {
@@ -55,6 +64,9 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../model-settings-ui"
     }
   ]
 }

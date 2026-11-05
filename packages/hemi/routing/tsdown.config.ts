@@ -20,4 +20,5 @@ export default defineConfig([
   entry('lib/types/index.js'),
   entry('lib/types/settings.js'),
   entry('lib/types/client.js'),
+  entry('lib/types/usage.js'),
 ])

@@ -9,6 +9,9 @@
   ],
   "references": [
     {
+      "path": "../../packages/hemi/model-access"
+    },
+    {
       "path": "../../packages/boot/app-boot"
     },
     {
@@ -46,6 +49,9 @@
     },
     {
       "path": "../../packages/client/ui-file-actions"
+    },
+    {
+      "path": "../../packages/hemi/customizations"
     }
   ],
   "exclude": [

@@ -159,13 +159,13 @@ async function sendProbe(page, state, role, caseId, main, child) {
   const stop = page.getByRole('button', { name: '停止生成', exact: true })
   if (caseId === 'auto-fixer') {
     try {
-      await stop.waitFor()
-      assert.equal(calls(state).filter(entry => entry.caseId === caseId && entry.kind === 'parent').length, 1)
+      await stop.waitFor({ state: 'hidden' })
+      assert.equal(calls(state).filter(entry => entry.caseId === caseId && entry.kind === 'parent').length, 2)
     } finally {
       writeFileSync(`${state.calls}.release-fixer`, '', { mode: 0o600 })
     }
     await page.getByText(`路由验证：主请求使用 routing-probe/${main}，已收到 fixer 子任务结果`, { exact: true }).waitFor()
-    note('foreground fixer keeps the composer running until the parent receives its tool result')
+    note('native fixer returns before child completion and resumes through its completion notice')
   }
   await stop.waitFor({ state: 'hidden' })
   const matching = calls(state).filter(entry => entry.caseId === caseId)
@@ -205,10 +205,13 @@ async function main() {
     const packed = join(area, 'packages')
     await run([join(root, 'plugins/hemi-model-routing/pack.mjs'), packed])
     const archives = JSON.parse(readFileSync(join(packed, 'packages.json'), 'utf8')).packages.map(entry => join(packed, entry.file))
-    await run(['--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'plugin', '--profile', 'web', 'add', state.cleanBundle, ...archives, '--offline', '--ignore-scripts'], { ...process.env, DSH_HOME: state.home })
+    // Install the base composition first: role and composer patches must follow their target rows.
+    await run(['--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'plugin', '--profile', 'web', 'add', state.cleanBundle, '--offline', '--ignore-scripts'], { ...process.env, DSH_HOME: state.home })
+    await run(['--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'plugin', '--profile', 'web', 'add', ...archives, '--offline', '--ignore-scripts'], { ...process.env, DSH_HOME: state.home })
   }
   const profile = JSON.parse(readFileSync(join(state.profile, 'package.json'), 'utf8'))
-  assert.ok(profile.dsh.profile.bundles.includes('@hemi/model-routing'))
+  assert.ok(profile.dsh.profile.bundles.indexOf('@hemi/model-routing')
+    > profile.dsh.profile.bundles.indexOf('@hemi/test-clean-official-web'))
   assert.ok(!profile.dsh.profile.bundles.includes('@deepseek-ai/dsh-web-app'))
   note('independent bundle installation without legacy Hemi rows')
   let server
@@ -234,7 +237,7 @@ async function main() {
     await page.getByRole('menuitem', { name: '配置模型路由', exact: true }).click()
     let dialog = page.getByRole('dialog', { name: '模型路由', exact: true })
     await dialog.locator('[data-routing-editor]').waitFor()
-    for (const [field, label] of [['主模型', '主模型'], ['研究', '研究模型'], ['评审', '评审模型'], ['执行', '执行模型'], ['设计', '设计模型']]) {
+    for (const [field, label] of [['主智能体', '主模型'], ['研究', '研究模型'], ['评审', '评审模型'], ['执行', '执行模型'], ['设计', '设计模型']]) {
       await selectRoute(page, dialog, field, `验证 · ${label}`)
     }
     await captureDialog(page, 'configuration-light-1280')
@@ -245,13 +248,12 @@ async function main() {
     await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'))
     await page.setViewportSize({ width: 1280, height: 900 })
     await dialog.getByRole('button', { name: '完成', exact: true }).click()
-    await page.getByRole('button', { name: '账号菜单', exact: true }).click()
-    await page.getByRole('menuitem', { name: '设置', exact: true }).click()
+    await page.getByRole('button', { name: '设置', exact: true }).click()
     const settingsDialog = page.getByRole('dialog', { name: '设置', exact: true })
     await settingsDialog.getByRole('button', { name: '模型', exact: true }).click()
     await settingsDialog.getByRole('button', { name: '配置模型路由', exact: true }).click()
     dialog = page.getByRole('dialog', { name: '模型路由', exact: true })
-    await dialog.getByRole('button', { name: '主模型：验证 · 主模型', exact: true }).waitFor()
+    await dialog.getByRole('button', { name: '主智能体：验证 · 主模型', exact: true }).waitFor()
     await captureDialog(page, 'configuration-over-settings')
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'detached' })
@@ -336,7 +338,7 @@ async function main() {
     assert.equal(await page.locator('[data-conversation-session]:visible').first().getAttribute('data-conversation-session'), rootId)
     await sendProbe(page, state, 'explorer', 'auto-after-restart', 'main', 'explorer')
     dialog = await configure(page)
-    await dialog.getByRole('button', { name: '主模型：验证 · 主模型', exact: true }).waitFor()
+    await dialog.getByRole('button', { name: '主智能体：验证 · 主模型', exact: true }).waitFor()
     await dialog.getByRole('button', { name: '研究：验证 · 研究模型', exact: true }).waitFor()
     await dialog.getByRole('button', { name: '设计：跟随主模型', exact: true }).waitFor()
     await dialog.getByRole('button', { name: '完成', exact: true }).click()

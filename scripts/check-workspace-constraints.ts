@@ -185,6 +185,11 @@ export function readWorkspaceManifests(repositoryRoot: string): WorkspaceManifes
 }
 
 const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
+  // Hemi fork: separately bundled settings, usage, native import and preload entries.
+  '@deepseek-ai/dsh-hemi-routing': ['lib/settings.js', 'lib/usage.js'],
+  '@deepseek-ai/dsh-hemi-memory': ['lib/remote.js'],
+  '@deepseek-ai/dsh-hemi-model-access': ['lib/desktop-import.js', 'HEMI-LICENSE'],
+  '@deepseek-ai/dsh-hemi-customizations': ['lib/preload.js'],
   // Tools entry points share error classes and invocation stages through runtime chunks.
   '@deepseek-ai/dsh-tools': ['lib/pipeline.js', 'lib/shared-*.js'],
   // The embedded OAR implementation retains its upstream license.
@@ -458,6 +463,8 @@ export function checkExperimentalNameExceptions(manifests: readonly WorkspaceMan
 function isReleaseMemberDirectory(dir: string): boolean {
   // The SSH carrier is distributed as executable archives, never as an npm application.
   if (dir === 'packages/ssh/ssh-helper-runtime') return false
+  // Hemi fork: Electron adapters are private desktop dependencies, not npm release members.
+  if (dir === 'packages/hemi/customizations') return false
   return standardReleaseMemberDirectory.test(dir) || isPublicExperimentalPackageDirectory(dir)
 }
 
@@ -512,6 +519,9 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
       errors.push(`${label}: published Landlock package repository must use ${publishedRepositoryUrl} with directory ${expectedDirectory}`)
     }
   } else if (isReleaseMemberDirectory(dir)) {
+    // Hemi fork: fork-owned packages point consumers to their actual source repository.
+    const expectedRepository = dir.startsWith('packages/hemi/') || dir === 'packages/client/ui-hemi-skins'
+      ? 'git+https://github.com/PiuQiuPiaQia/hemi-dsh.git' : publishedRepositoryUrl
     // Release members state that they are publishable: npm refuses a private
     // package, and the repository field is how a consumer finds the source of
     // the package it installed.
@@ -528,9 +538,9 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
       errors.push(`${label}: release member must set publishConfig.access to "public"`)
     }
     if (manifest.repository?.type !== 'git'
-      || manifest.repository.url !== publishedRepositoryUrl
+      || manifest.repository.url !== expectedRepository
       || manifest.repository.directory !== dir) {
-      errors.push(`${label}: release member repository must use ${publishedRepositoryUrl} with directory ${dir}`)
+      errors.push(`${label}: release member repository must use ${expectedRepository} with directory ${dir}`)
     }
   } else if (!experimentalPackageDirectory.test(dir) && manifest.private !== true) {
     errors.push(`${label}: package.json must set "private": true`)

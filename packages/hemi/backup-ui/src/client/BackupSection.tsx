@@ -49,7 +49,7 @@ export interface BackupSectionInjected {
 }
 
 /** Full component props: runtime share + locale seat + injected face. */
-export type BackupSectionProps = PropsRuntime<'settings.general.item'>
+export type BackupSectionProps = PropsRuntime<'settings.section'>
   & PropsLocale<'hemi-backup'>
   & InjectFace<BackupSectionInjected>
 
@@ -183,7 +183,7 @@ export function BackupSection(props: BackupSectionProps) {
   const hasTarget = state?.settings.target != null
 
   return (
-    <section className={css.section}>
+    <section className={css.section} aria-label={t('nav')}>
       <header className={css.header}>
         <h3 className={css.title}>{t('title')}</h3>
         <p className={css.description}>{t('description')}</p>
@@ -220,7 +220,7 @@ export function BackupSection(props: BackupSectionProps) {
               id="hemi-backup-dir"
               className={css.input}
               value={draft.dir}
-              placeholder="~/.dsh-backups"
+              placeholder={t('localPathHint')}
               onChange={bindDraft((previous, value) => ({ ...previous, dir: value }))}
             />
           </div>
@@ -228,7 +228,7 @@ export function BackupSection(props: BackupSectionProps) {
           <>
             <div className={css.row}>
               <label className={css.key} htmlFor="hemi-backup-url">{t('targetUrl')}</label>
-              <input id="hemi-backup-url" className={css.input} value={draft.url} placeholder="https://dav.jianguoyun.com/dav/" onChange={bindDraft((previous, value) => ({ ...previous, url: value }))} />
+              <input id="hemi-backup-url" className={css.input} value={draft.url} placeholder={t('webdavUrlHint')} onChange={bindDraft((previous, value) => ({ ...previous, url: value }))} />
             </div>
             <div className={css.row}>
               <label className={css.key} htmlFor="hemi-backup-user">{t('targetUsername')}</label>

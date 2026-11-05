@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { syncConfig } from './sync-config.mjs'
 
 const bundleDir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(bundleDir, '../..')
@@ -15,6 +16,7 @@ const packages = [
 ]
 
 function main() {
+  syncConfig(false)
   for (const { directory, required } of packages) {
     for (const file of required) {
       if (!existsSync(join(directory, file))) {

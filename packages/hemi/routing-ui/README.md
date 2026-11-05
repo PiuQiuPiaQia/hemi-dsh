@@ -7,6 +7,8 @@ kind: "package-reference"
 
 English | [中文](README.zh.md)
 
+The Hemi composer picker, its styles and alternative-selection state belong to `src/client/model-picker/`. Configure the native model-selection plugin with `showComposer: false`; this plugin owns the composer and child slots while reusing native model directories and the `model` dictionary. Do not mount two composer owners in the same composition.
+
 ## Summary
 
 Choose a main model and models for the Research, Review, Execution, and Design roles from the configured model catalog. Enable or disable automatic routing separately for each ordinary conversation. The model menu and Settings → Models open the same editor; each choice saves automatically and accepted values return through the settings mirror. Existing requests are unchanged.
@@ -24,6 +26,8 @@ Choose a main model and models for the Research, Review, Execution, and Design r
 
 <a id="use-this-package"></a>
 ## Use this package
+
+Hemi uses the [custom model picker](src/client/model-picker/ModelSelect.tsx) with provider groups and plugin controls in one menu. When the routing plugin is installed, Automatic routing appears first as an alternative to a concrete model. In fixed mode, the current model’s reasoning effort expands in place. Opening keeps focus on the trigger. Tab enters search or the current option, arrow keys browse rows, and Escape returns to the trigger.
 
 Open the conversation's model menu and choose the gear beside Automatic routing, or open Settings → Models → Configure model routing. Choose the main model before enabling automatic routing. A role set to Follow main model uses the configured main model; users cannot create roles or enter arbitrary provider/model ids.
 
@@ -81,7 +85,7 @@ The UI does not change prompt prefixes. Selecting another model can change provi
 
 <a id="known-limitations-and-deferred-work"></a>
 
-The current UI stays within the existing model-menu extension slots.
+- The current UI stays within the existing model-menu extension slots.
 
 - On an older DSH client, the menu uses the legacy routing switch. Use that switch to pin the current model.
 - Mode preferences belong to the current profile. Exporting or forking Session history does not copy them.
@@ -99,3 +103,5 @@ The current UI stays within the existing model-menu extension slots.
 `pnpm exec vite --config packages/hemi/routing-ui/tests/preview/vite.config.ts` serves the real components over inert data for theme and width checks; it connects to no Host and proves no Remote flow.
 
 </details>
+
+The turn usage panel shows the current agent and historical direct synchronous role calls, retaining their custom-tool receipts. The custom composer component in `src/client/usage/SessionUsage.tsx` reads Hemi’s `hemiModelUsage` projection and recursively follows native child catalogs. It groups recorded calls by provider/model across the conversation tree, showing model (provider), call count, total input, output, cache hit rate and cache reads/writes. The cache rate requires complete input and cache-read counters; unavailable values render as a dash. The collapsed indicator shows the whole-conversation cache hit rate, weighted by input tokens as in Hemi; background children refresh it while the panel is closed. Fork-inherited calls are excluded, retries are counted, and recorded compaction/memory summaries are included. It preserves provider totals even without a cache breakdown. Missing reports and inaccessible branches remain visible; opening the panel never resumes agents or calls a model. The detail panel refreshes while open and supports narrow screens. Redundant uncached-input subrows, per-model totals and provider subrows are omitted.

@@ -55,16 +55,18 @@ function props(options: {
   } as RoutingDialogProps
 }
 
-it('renders the main model, four preset roles, automatic save and the same-model limitation', () => {
+it('renders the main model, four preset roles and same-model limitation without idle hints', () => {
   render(<RoutingDialog {...props()} />)
   expect(screen.getByRole('dialog', { name: '模型路由' })).toBeTruthy()
-  expect(screen.getAllByRole('button', { name: /^(主模型|研究|评审|执行|设计)：/ })).toHaveLength(5)
+  expect(screen.getAllByRole('button', { name: /^(主智能体|研究|评审|执行|设计)：/ })).toHaveLength(5)
   expect(screen.getByRole('button', { name: '评审：retired/model' })).toBeTruthy()
   expect(screen.getByText('removed · retired/model')).toBeTruthy()
   expect(screen.getByText('当前目录中找不到此型号，原配置已保留，选择新模型后才会替换')).toBeTruthy()
   expect(screen.getByText('推理强度：low')).toBeTruthy()
   expect(screen.getByText('要固定使用当前同一型号，请先关闭自动路由')).toBeTruthy()
-  expect(screen.getByText('每次选择都会自动保存')).toBeTruthy()
+  expect(screen.queryByText('每次选择都会自动保存')).toBeNull()
+  expect(screen.queryByText('主模型与角色模型改动从下一回合生效；已准备的请求和已派出的子任务不变')).toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
   expect(screen.queryByRole('textbox')).toBeNull()
 })
 
@@ -84,7 +86,7 @@ it('selects only catalog models and allows a role to follow the main model', asy
 it('offers no follow-main or clear choice for the main model and never writes a null main route', async () => {
   const p = props()
   render(<RoutingDialog {...p} />)
-  fireEvent.click(screen.getByRole('button', { name: '主模型：Main catalog model' }))
+  fireEvent.click(screen.getByRole('button', { name: '主智能体：Main catalog model' }))
   const menu = await screen.findByRole('menu')
   expect(within(menu).queryByRole('menuitem', { name: '跟随主模型' })).toBeNull()
   expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Main catalog model', 'Alternative model'])
@@ -96,7 +98,7 @@ it('offers no follow-main or clear choice for the main model and never writes a 
 it('retains the effort when reselecting the same catalog model', async () => {
   const p = props()
   render(<RoutingDialog {...p} />)
-  fireEvent.click(screen.getByRole('button', { name: '主模型：Main catalog model' }))
+  fireEvent.click(screen.getByRole('button', { name: '主智能体：Main catalog model' }))
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Main catalog model' }))
   expect(p.saveRoute).toHaveBeenCalledWith('main', main)
 })
@@ -116,16 +118,16 @@ it('displays saved values only after the Host mirror accepts a field change', as
     useRoutingCatalog={bindSnapshotSelector(editor.injected.hooks.routingCatalog)}
     useRoutingWrite={bindSnapshotSelector(editor.injected.hooks.routingWrite)}
     saveRoute={editor.injected.saveRoute} />)
-  fireEvent.click(screen.getByRole('button', { name: '主模型：Main catalog model' }))
+  fireEvent.click(screen.getByRole('button', { name: '主智能体：Main catalog model' }))
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Alternative model' }))
-  expect(screen.getByRole('button', { name: '主模型：Main catalog model' }).hasAttribute('disabled')).toBe(true)
-  expect(screen.getByText('正在保存主模型…')).toBeTruthy()
+  expect(screen.getByRole('button', { name: '主智能体：Main catalog model' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByText('正在保存主智能体…')).toBeTruthy()
   await act(async () => {
     form.publish({ revision: 2, value: { ...initial, main: alternative } })
     operation.resolve(true)
   })
-  expect(screen.getByRole('button', { name: '主模型：Alternative model' }).hasAttribute('disabled')).toBe(false)
-  expect(screen.getByText('主模型已保存，从下一回合生效')).toBeTruthy()
+  expect(screen.getByRole('button', { name: '主智能体：Alternative model' }).hasAttribute('disabled')).toBe(false)
+  expect(screen.getByText('主智能体已保存，从下一回合生效')).toBeTruthy()
   view.unmount()
   await editor.dispose()
 })
@@ -135,7 +137,7 @@ it.each(['readOnly', 'saving', 'catalogFailed'] as const)('blocks model changes 
     : state === 'saving' ? { write: { status: 'saving', field: 'main' } }
       : { catalog: { status: 'failed', error: 'offline' } })
   render(<RoutingDialog {...p} />)
-  const buttons = screen.getAllByRole('button', { name: /^(主模型|研究|评审|执行|设计)：/ })
+  const buttons = screen.getAllByRole('button', { name: /^(主智能体|研究|评审|执行|设计)：/ })
   expect(buttons.every(button => button.hasAttribute('disabled'))).toBe(true)
   if (state === 'readOnly') expect(screen.getByText('当前设置仅可查看')).toBeTruthy()
   if (state === 'catalogFailed') {
@@ -166,7 +168,7 @@ it('gives an open picker Escape first, then closes the dialog and restores its i
   const open = createSnapshotStore(true)
   const close = vi.fn(() => { open.set(false) })
   const view = render(<RoutingDialog {...props()} useRoutingOpen={bindSnapshotSelector(open)} closeConfiguration={close} />)
-  const picker = screen.getByRole('button', { name: '主模型：Main catalog model' })
+  const picker = screen.getByRole('button', { name: '主智能体：Main catalog model' })
   fireEvent.click(picker)
   await screen.findByRole('menu')
   fireEvent.keyDown(document, { key: 'ArrowDown' })

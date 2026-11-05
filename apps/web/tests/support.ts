@@ -389,14 +389,14 @@ export function conversationContextKey(kind: string, id: string): string {
   return `${kind.length}:${kind}${id}`
 }
 
-/** Open Settings through the sidebar account menu.
+/** Open Settings through the sidebar settings button.
  * @param page - browser page with the mounted sidebar.
  * @param locale - current UI language.
  */
 export async function openSettings(page: Page, locale: 'en' | 'zh' | 'ja'): Promise<void> {
-  const labels = { en: ['Account menu', 'Settings'], zh: ['账号菜单', '设置'], ja: ['アカウントメニュー', '設定'] } as const
+  const labels = { en: 'Settings', zh: '设置', ja: '設定' } as const
   const trigger = page.getByRole('button', {
-    name: labels[locale][0], exact: true, includeHidden: true,
+    name: labels[locale], exact: true, includeHidden: true,
   })
   await trigger.waitFor({ state: 'attached' })
   await revealNavigationDrawer(page, locale)
@@ -404,5 +404,4 @@ export async function openSettings(page: Page, locale: 'en' | 'zh' | 'ja'): Prom
     await page.getByRole('button', { name: { en: 'Open sidebar', zh: '打开侧边栏', ja: 'サイドバーを開く' }[locale], exact: true }).click()
   }
   await trigger.click()
-  await page.getByRole('menuitem', { name: labels[locale][1], exact: true }).click()
 }

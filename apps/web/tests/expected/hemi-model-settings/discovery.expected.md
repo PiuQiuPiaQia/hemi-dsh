@@ -1,0 +1,12 @@
+- dialog "选择模型":
+  - heading "选择模型" [level=2]
+  - button "关闭"
+  - paragraph: 从服务端获取当前型号列表，保留已有接入
+  - text: 搜索模型
+  - searchbox "搜索模型": hemi-test
+  - button "取消全选"
+  - button "刷新"
+  - checkbox "hemi-test-model" [checked]
+  - text: hemi-test-model
+  - button "取消"
+  - button "添加选中型号"

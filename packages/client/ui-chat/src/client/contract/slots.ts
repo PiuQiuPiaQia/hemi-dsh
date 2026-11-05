@@ -27,7 +27,7 @@ import type { createChatStore } from '../stores.ts'
 import type { ChatPresentationPolicy } from '../presentation-policy.ts'
 import type { FlowMotionRows } from '../chat/flow-motion.ts'
 import type { ToolCallId } from './store.ts'
-import type { ChatConversationViewNode, ChatNode, ChatNodeKind } from './chat-nodes.ts'
+import type { ChatConversationViewNode, ChatNode, ChatNodeKind, TurnTokenUsage } from './chat-nodes.ts'
 import type {
   ChatNodeProcessSource, ChatNodeSource, ChatSnapshot, ChatTurnProcessPresentation,
 } from './snapshot.ts'
@@ -479,6 +479,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * values replace it. Contributions must preserve access to untranslated display text.
      */
     'conversation.chat.reasoning.body': { kind: 'single'; scope: 'session'; owner: ReasoningBodyOwnerProps }
+    /** Optional replacement for the detailed turn usage action. */
+    'conversation.chat.turnUsage': {
+      kind: 'single'
+      scope: 'session'
+      owner: { readonly usage: TurnTokenUsage | undefined; readonly turn: number; readonly useChat: UseChat }
+    }
     /**
      * Ordered feature contributions before a completed Turn's action row. Each
      * entry receives the Turn, closing sequence, and file opener. A fresh `id`

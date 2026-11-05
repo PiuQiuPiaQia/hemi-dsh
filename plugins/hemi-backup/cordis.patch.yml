@@ -1,6 +1,6 @@
 # Install into a profile without the built-in Hemi backup rows. The backup
 # orchestrator belongs at root scope; the settings section contributes through
-# the general settings slot. skillMaxBytes keeps its plugin default (5 MB).
+# the independent settings page slot. skillMaxBytes keeps its plugin default (5 MB).
 - insert:
     - id: hemi-backup
       name: '@deepseek-ai/dsh-hemi-backup'

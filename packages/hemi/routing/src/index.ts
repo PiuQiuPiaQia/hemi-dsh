@@ -1,7 +1,7 @@
 /**
  * Hemi role-based delegation routing. Ships four preset delegation roles
- * (explorer, oracle, fixer, designer), one `hemi_delegate` tool that binds
- * each role to the user-chosen route, and a prompt section describing the
+ * (explorer, oracle, fixer, designer), native agent presets bound
+ * to the user-chosen routes, and a prompt section describing the
  * preset roles. In auto mode the plugin selects the configured main model at
  * each new turn and binds every role to its configured route (or main); in
  * fixed mode nothing is routed and children inherit the parent's actual
@@ -12,15 +12,11 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { HarnessError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { assertSubagentMaxDepth } from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { HemiRoleId } from './types.ts'
-import { HEMI_ROLE_IDS } from './types.ts'
 
 /** Cordis plugin name. */
 export const name = 'hemi-routing'
@@ -28,15 +24,11 @@ export const name = 'hemi-routing'
 /** Services: tool registry, subagent seam, prompt registry, and the settings owner. */
 export const inject = ['tools', 'subagents', 'systemPrompt', 'hemiRoutingSettings']
 
-/** Config: which subagent provider receives delegations, plus the depth policy. */
+/** Legacy delegation fields retained so existing profile patches keep loading. */
 export interface Config {
-  /** The `ctx.subagents` provider name delegations start on. */
-  provider: string
-  /**
-   * Maximum child depth: a non-negative safe integer (`0` forbids
-   * delegation), or `'provider-managed'` to send no cap. Omission reads the
-   * current Host subagent depth setting at each delegation.
-   */
+  /** Legacy backend name, retained for profile compatibility. Configure the native subagent tool instead. */
+  provider?: string
+  /** Legacy depth preference; configure the native subagent tool for enforcement. */
   maxDepth?: number | 'provider-managed'
 }
 
@@ -47,7 +39,7 @@ export const Config: z<Config> = z.object({
 
 /** One preset delegation role with its fixed duty. */
 export interface HemiRole {
-  /** Stable role id used by the `hemi_delegate` tool. */
+  /** Native child agent preset ID. */
   id: HemiRoleId
   /** Chinese display name. */
   label: string
@@ -93,10 +85,10 @@ const ROLE_DISPATCH = [
   ...HEMI_ROLES.map(role => `- \`${role.id}\` — ${role.routing}`),
   'Give each child a standalone goal, scope, constraints, known evidence, and completion criteria. '
     + 'Verify and integrate the results needed for the final answer.',
-].join('\n')
+].join('\n\n')
 
 /**
- * Register the `hemi_delegate` tool, the preset-roles prompt section, the
+ * Register the native role guidance, the
  * per-turn auto-routing plan, and the per-step mode capture. The plan runs on
  * the first claimed message of every turn, before the loop reads the step's
  * model; the step capture runs in the `agent/pre-step` waterfall, so a manual
@@ -107,7 +99,6 @@ const ROLE_DISPATCH = [
  */
 export function apply(ctx: Context, config: Config): void {
   if (config.maxDepth !== 'provider-managed') assertSubagentMaxDepth(config.maxDepth)
-  const provider = config.provider
   const lastPreparedTurn = new WeakMap<Agent, number>()
   ctx.effect(() => ctx.on('agent/inbox/claimed', ({ agent, turn }) => {
     if (lastPreparedTurn.get(agent) === turn) return
@@ -125,131 +116,17 @@ export function apply(ctx: Context, config: Config): void {
     ctx.logger.error(`hemi-routing: ${reason} (session ${agent.id})`)
     return { kind: 'reject' as const }
   }), 'hemi-routing: step capture and fail-closed pre-step')
-  const delegate = defineDelegateTool(ctx, provider, config.maxDepth)
-  ctx.effect(() => ctx.tools.register(delegate), 'hemi-routing: hemi_delegate tool')
   ctx.effect(() => ctx.systemPrompt.section({
     name: 'hemi:role-routing',
     order: ctx.systemPrompt.getSectionOrder('TOOL_SUBAGENT'),
     text: ({ agent, scope, toolSet }) => {
-      const available = toolSet === undefined ? ctx.tools.get(delegate.name, scope) : toolSet.view(scope).get(delegate.name)
-      if (available !== delegate || ctx.subagents.resolveMaxDepth(config.maxDepth) === 0) return ''
-      const roles = 'Use `hemi_delegate` for Hemi roles. For independent role tasks, issue the tool calls together. '
+      const available = toolSet === undefined ? ctx.tools.get('subagent', scope) : toolSet.view(scope).get('subagent')
+      if (available === undefined || ctx.subagents.resolveMaxDepth() === 0) return ''
+      const roles = 'Use the native `subagent` tool with `agent_preset` set to explorer, oracle, fixer, or designer for Hemi roles. '
+        + 'For independent role tasks, issue the tool calls together. '
         + 'Use `subagent` for work outside these roles.'
       if (agent === undefined || agent.session.header.origin === 'subagent') return roles
       return `${roles}\n\n${ROLE_DISPATCH}`
     },
   }), 'hemi-routing: role prompt section')
-}
-
-/**
- * Build the `hemi_delegate` tool definition.
- * @param ctx - the preset scope context.
- * @param provider - the `ctx.subagents` provider delegations start on.
- * @param maxDepth - configured depth policy; omitted reads the Host setting.
- * @returns the tool definition.
- */
-function defineDelegateTool(ctx: Context, provider: string, maxDepthConfig: Config['maxDepth']) {
-  return defineTool({
-    name: 'hemi_delegate',
-    description: 'Delegate a task to a Hemi role using its configured model. Returns the child’s result in the current turn by default.',
-    parameters: {
-      role: {
-        type: 'string',
-        enum: HEMI_ROLE_IDS,
-        required: true,
-        description: 'Delegation role. explorer gathers read-only context and reports; oracle analyzes independently; fixer makes the changes; designer works on the interface.',
-      },
-      description: {
-        type: 'string',
-        required: true,
-        description: 'A short (3-5 word) description of the delegated task, for display. Use the language of the user\'s current request.',
-      },
-      prompt: {
-        type: 'string',
-        required: true,
-        description: 'The complete standalone task for the subagent, including every constraint and the expected deliverable. The role\'s duty is prepended automatically.',
-      },
-      background: {
-        type: 'boolean',
-        description: 'Set true only when the user requests background execution. Returns an ID immediately and delivers the result later.',
-      },
-    },
-    output: {
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          kind: { type: 'string', required: true, enum: ['activation', 'result'] },
-          subagentId: { type: 'string', required: true },
-          role: { type: 'string', required: true },
-          answer: { type: 'string' },
-        },
-      },
-      render: (_args, value) => [{
-        type: 'text',
-        text: value.kind === 'activation'
-          ? `started ${value.role} subagent ${value.subagentId}`
-          : `${value.role} subagent ${value.subagentId} completed.\n${value.answer || 'It left no text report.'}`,
-      }],
-      presentationMeta: (_args, value) => ({ kind: value.kind, subagentId: value.subagentId, role: value.role }),
-    },
-    presentCall: args => ({ card: 'generic', title: `${args.role} · ${args.description}` }),
-    isConcurrencySafe: () => true,
-    async execute(args, exec) {
-      const parent = exec.agent
-      if (!parent) throw new Error('hemi_delegate requires a calling agent (exec.agent was undefined)')
-      const role = HEMI_ROLES.find(entry => entry.id === args.role)
-      if (role === undefined) throw new Error(`unknown delegation role ${args.role}`)
-      const routing = ctx.hemiRoutingSettings.routeForDelegation(parent, role.id)
-      const maxDepth = ctx.subagents.resolveMaxDepth(maxDepthConfig)
-      exec.signal.throwIfAborted()
-      const prompt: ContentBlock[] = [{ type: 'text', text: `${role.duty}\n\n${args.prompt}` }]
-      const started = await ctx.subagents.startActivation({
-        provider,
-        label: args.description,
-        prompt,
-        parent,
-        ...routing.kind === 'bound'
-          ? {
-            agentOptions: {
-              provider: routing.route.provider,
-              model: routing.route.model,
-              ...routing.route.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(routing.route.reasoningEffort) },
-            },
-          }
-          : {},
-        ...maxDepth === undefined ? {} : { maxDepth },
-        signal: exec.signal,
-        delivery: args.background === true ? 'parent' : 'caller',
-      })
-      if (args.background === true) return { kind: 'activation' as const, subagentId: started.childId, role: role.id }
-
-      // The startup signal only owns unpublished work. Stop this exact child
-      // if the parent is cancelled after the activation has been accepted.
-      let disposal: Promise<void> | undefined
-      const onAbort = (): void => {
-        disposal = started.dispose().catch((error: unknown) => {
-          ctx.logger.warn(`hemi-routing: could not stop subagent ${started.childId}: ${String(error)}`)
-        })
-      }
-      exec.signal.addEventListener('abort', onAbort, { once: true })
-      if (exec.signal.aborted) onAbort()
-      try {
-        const result = await started.result
-        exec.signal.throwIfAborted()
-        if (result.stopReason !== 'completed') {
-          const diagnostic = result.diagnostic === undefined ? '' : ` (${result.diagnostic})`
-          throw new HarnessError(
-            `${role.id} subagent ${started.childId} ended with ${result.stopReason}${diagnostic}`,
-            'HEMI_DELEGATION_FAILED',
-          )
-        }
-        const answer = result.output.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
-        return { kind: 'result' as const, subagentId: started.childId, role: role.id, answer }
-      } finally {
-        exec.signal.removeEventListener('abort', onAbort)
-        await disposal
-      }
-    },
-  })
 }

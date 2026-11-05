@@ -273,6 +273,7 @@ declare module './types.ts' {
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
+    // Hemi fork: routing plugins must persist fixed mode before an explicit selection (hemi-fork-changes.md#hemi-customization-isolation).
     /**
      * A validated explicit model choice is about to replace the current route.
      * Listeners finish before selection is applied, even for the same model.

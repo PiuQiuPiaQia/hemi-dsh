@@ -1,9 +1,17 @@
-/**
- * Model selection plugin, node half. Pure UI plugin: the empty apply exists
- * so the plugin appears in the host cordis.yml / Loader; the browser half
- * ships via exports["./client"], discovered through the package.json
- * dsh.client declaration.
- */
+/** Hemi fork: publish composer ownership options while retaining native model directories and /model. */
+import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-host-webserver'
+import { type Config, MODEL_SELECTION_CONFIG_GLOBAL } from './config.ts'
 
-/** Host plugin body — no host-side behavior for this surface plugin. */
-export function apply(): void {}
+export { Config } from './config.ts'
+
+/**
+ * Publish native picker composition options before Client plugins activate.
+ * @param ctx - Host collecting page initialization data.
+ * @param config - Loader-validated composition options.
+ */
+export function apply(ctx: Context, config: Config): void {
+  ctx.on('webserver/index-inject', (table) => {
+    table.push({ kind: 'global', name: MODEL_SELECTION_CONFIG_GLOBAL, value: config })
+  })
+}

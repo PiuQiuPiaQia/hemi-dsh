@@ -47,11 +47,11 @@ dsh plugin --profile <name> add \
 
 准确文件名以 `<destination>/packages.json` 为准。`@hemi/model-routing` 以匹配的版本声明两个路由包为 peer dependencies；一条命令同时加入三个包即可满足。
 
-只在不含内置 Hemi 路由行的组合上安装本层：本检出的 web-app bundle 已接线 `hemi-routing-settings`、`hemi-routing` 与 `hemi-routing-ui`，再叠加本层会重复插入这些行。由官方上游 bundle 组成的 profile 不含这些行。
+本版本适用于版本匹配的官方 Web 组合及其 standard preset，应在用户 preset 覆盖之前应用。只在不含内置 Hemi 路由行的组合上安装本层：本检出的 web-app bundle 已接线 `hemi-routing-settings`、`hemi-routing` 与 `hemi-routing-ui`，再叠加本层会重复插入这些行。由官方上游 bundle 组成的 profile 不含这些行。
 
 ### 安装后得到什么
 
-本层插入三个 profile 行：`hemi-routing-settings`（根作用域设置服务 `@deepseek-ai/dsh-hemi-routing/settings`，以空的 `main` 与 `roles` 初始化）、`hemi-routing`（委派插件 `@deepseek-ai/dsh-hemi-routing`）与 `hemi-routing-ui`（客户端插件 `@deepseek-ai/dsh-hemi-routing-ui`）。它不编辑 preset：委派工具经由 scoped registries 贡献。
+本层插入两个根作用域 profile 行：`hemi-routing-settings`（根作用域设置服务 `@deepseek-ai/dsh-hemi-routing/settings`，以空的 `main` 与 `roles` 初始化）与 `hemi-routing-ui`（客户端插件 `@deepseek-ai/dsh-hemi-routing-ui`）。它以 fork 的标准能力配置替换 standard preset，但不包含单独的记忆插件，并开启原生 `subagent` 的角色选择白名单。四个原生 preset（`explorer`、`oracle`、`fixer`、`designer`）提供角色 persona 与共用工具；模型路由挂载在 standard 内。等待、取消及结果通知保持原生行为。
 
 从会话模型菜单“自动路由”旁的齿轮，或“设置 → 模型 → 配置模型路由”进入，从已配置的模型目录为主模型和四个角色——研究、评审、执行、设计（`explorer`、`oracle`、`fixer`、`designer`）——各选一个模型。角色保持“跟随主模型”时使用主模型；不能手填供应商或型号标识。
 
@@ -65,7 +65,7 @@ dsh plugin --profile <name> add \
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-全部载荷在 [cordis.patch.yml](cordis.patch.yml)：一个 `insert` 列表插入上述三行。[pack.mjs](pack.mjs) 把本包与 `packages/hemi/routing`、`packages/hemi/routing-ui` 一起打包；测试在 [tests/installed-smoke.mjs](tests/installed-smoke.mjs)。
+载荷包含 [cordis.patch.yml](cordis.patch.yml)、[standard.patch.yml](standard.patch.yml) 与 [roles.patch.yml](roles.patch.yml)。修改所属标准 preset 或 `packages/hemi/routing/roles.patch.yml` 后，运行 `node plugins/hemi-model-routing/sync-config.mjs --write`；打包会拒绝过期的生成配置。Hemi 输入框使用更低的插槽优先级覆盖不支持 `showComposer` 的官方客户端。[pack.mjs](pack.mjs) 把本包与 `packages/hemi/routing`、`packages/hemi/routing-ui` 一起打包；测试在 [tests/installed-smoke.mjs](tests/installed-smoke.mjs)。
 
 回合与 step 语义概要，归路由包所有：每个回合第一条被认领的消息捕获一份模式、main 与角色路由的计划；auto 下插件在 loop 读取该步选择之前选用配置的 main 模型，委派绑定计划中的角色路由。手动选型从下一个 step 生效而非下一个回合；已准备的 step 保留其捕获的路由，已派发的委派保留其绑定路由。
 

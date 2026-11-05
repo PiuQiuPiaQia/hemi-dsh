@@ -39,6 +39,8 @@ export const KNOWN_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set([
   'feedback/message-put',
   'feedback/record',
   'goal/change',
+  'hemi-memory/summary-request',
+  'hemi-memory/summary-result',
   'hook/invoked',
   'hook/result',
   'image/offload',

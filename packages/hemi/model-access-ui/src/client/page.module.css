@@ -1,0 +1,314 @@
+.page,
+.section,
+.card,
+.form {
+  display: grid;
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page {
+  gap: 20px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.page h2,
+.page h3,
+.page p {
+  margin: 0;
+}
+
+.page h2 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.page h3 {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.card {
+  gap: 6px;
+  padding: 12px 14px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-alias-settings-card-fill);
+}
+
+.row,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.row {
+  justify-content: space-between;
+}
+
+.card p,
+.quotaInline small {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.card label {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+.card input,
+.card select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-settings-card-fill);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.card button,
+.card a {
+  justify-self: start;
+}
+
+.candidates {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  padding-bottom: 12px;
+}
+
+.providerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 12px;
+  border-bottom: 0.5px solid var(--dsw-alias-settings-card-stroke);
+}
+
+.providerRow p,
+.providerRow small {
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.card .modelChoice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelChoice input {
+  width: auto;
+  accent-color: var(--dsw-alias-label-primary);
+}
+
+.page :focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: 3px;
+}
+
+.providerGroup {
+  min-width: 0;
+}
+
+.modelTestRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 2px;
+  min-height: 30px;
+}
+
+.modelName {
+  overflow-wrap: anywhere;
+}
+
+.modelTestRow small {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.modelIconButton {
+  width: 28px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.dangerAction {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.subscriptionHeader,
+.subscriptionIdentity,
+.quotaInline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.subscriptionHeader {
+  justify-content: space-between;
+}
+
+.subscriptionIdentity {
+  gap: 12px;
+}
+
+.quotaInline {
+  gap: 8px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.quotaBars {
+  display: grid;
+  gap: 4px;
+  width: 150px;
+}
+
+.quotaLine {
+  display: grid;
+  grid-template-columns: 24px minmax(36px, 1fr) 62px;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.quotaLine progress,
+.quotaTrack {
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  overflow: hidden;
+  background: var(--dsw-alias-settings-card-stroke);
+}
+
+.quotaLine progress {
+  appearance: none;
+  accent-color: var(--dsw-alias-label-secondary);
+}
+
+.quotaLine progress::-webkit-progress-bar {
+  background: var(--dsw-alias-settings-card-stroke);
+}
+
+.quotaLine progress::-webkit-progress-value {
+  background: var(--dsw-alias-label-secondary);
+  border-radius: var(--dsw-radius-md);
+}
+
+.modelPicker {
+  display: grid;
+  gap: 6px;
+}
+
+.modelPicker > button {
+  justify-self: start;
+}
+
+.modelPicker .modelChoice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelDialog {
+  width: min(600px, calc(100vw - 32px));
+  max-width: 100%;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.dialogContent {
+  max-height: calc(100dvh - var(--dsh-frame-top-clearance, 0px) - 120px);
+  overflow-y: auto;
+}
+
+.dialogForm {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dialogForm label,
+.searchField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dialogForm input:not([type='checkbox']) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-settings-card-fill);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.dialogForm .modelChoice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.searchField {
+  flex: 1;
+}
+
+.capacityFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 12px;
+}
+
+.inputTypes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  padding: 8px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-md);
+}
+
+.help {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (pointer: coarse) {
+  .dialogForm input:not([type='checkbox']) {
+    font-size: 16px;
+  }
+}

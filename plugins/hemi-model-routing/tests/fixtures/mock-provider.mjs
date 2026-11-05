@@ -52,7 +52,7 @@ class RoutingProbeAdapter extends LlmAdapter {
     const childMatch = agent?.session.header.origin !== 'subagent' || childTask === undefined
       ? null : /ROUTING_CHILD_ONLY:([a-z]+):([\w-]+)/.exec(childTask)
     const parentTask = userMessages.map(textOf).findLast(text => /ROUTING_SMOKE:([a-z]+):([\w-]+)/.test(text))
-    const roleToolAvailable = options.tools?.some(tool => tool.name === 'hemi_delegate') === true
+    const roleToolAvailable = options.tools?.some(tool => tool.name === 'subagent') === true
     const parentMatch = agent === undefined || !roleToolAvailable || parentTask === undefined
       ? null : /ROUTING_SMOKE:([a-z]+):([\w-]+)/.exec(parentTask)
     const observed = {
@@ -68,7 +68,7 @@ class RoutingProbeAdapter extends LlmAdapter {
       if (childMatch[2] === 'auto-fixer') {
         const deadline = Date.now() + 15000
         while (!existsSync(`${this.logPath}.release-fixer`)) {
-          if (Date.now() >= deadline) throw new Error('The foreground fixer probe was not released')
+          if (Date.now() >= deadline) throw new Error('The native fixer probe was not released')
           await sleep(50, undefined, { signal: options.signal })
         }
       }
@@ -81,16 +81,15 @@ class RoutingProbeAdapter extends LlmAdapter {
       const alreadyCalled = options.messages.some(message => message.role === 'assistant'
         && message.content.some(block => block.type === 'tool-call' && block.id === callId))
       if (!alreadyCalled) {
-        const args = JSON.stringify({ role, description: `验证${role}模型绑定`, prompt: `ROUTING_CHILD_ONLY:${role}:${caseId}\n只报告当前模型，不调用任何工具` })
+        const args = JSON.stringify({ agent_preset: role, description: `验证${role}模型绑定`, prompt: `ROUTING_CHILD_ONLY:${role}:${caseId}\n只报告当前模型，不调用任何工具` })
         yield { type: 'block-start', index: 0, blockType: 'tool-call' }
-        yield { type: 'tool-call-delta', index: 0, id: callId, name: 'hemi_delegate', argumentsDelta: args }
-        yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: callId, name: 'hemi_delegate', arguments: args } }
+        yield { type: 'tool-call-delta', index: 0, id: callId, name: 'subagent', argumentsDelta: args }
+        yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: callId, name: 'subagent', arguments: args } }
         yield { type: 'usage', usage: { inputTokens: 10, outputTokens: 8 } }
         yield { type: 'finish', reason: { kind: 'tool-calls' } }
         return
       }
-      const received = options.messages.some(message => message.role === 'tool'
-        && message.toolCallId === callId && textOf(message).includes(`路由验证：${role} 子任务实际使用`))
+      const received = userMessages.some(message => textOf(message).includes(`路由验证：${role} 子任务实际使用`))
       yield* textChunks(`路由验证：主请求使用 ${options.provider}/${options.model}，${received ? '已收到' : '等待'} ${role} 子任务结果`)
       return
     }

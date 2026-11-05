@@ -626,6 +626,27 @@ A provider left the registry. Accepted runs remain holder-owned.
 
 Source: [`packages/subagent/subagent/src/index.ts`](../../packages/subagent/subagent/src/index.ts)
 
+<a id="subagentresolve-agent-options--waterfall"></a>
+
+#### `subagent/resolve-agent-options` — waterfall
+
+Resolve trusted deployment-owned child model defaults before capability validation and identity publication. Listeners may bind a selected preset to a model; task, parent and delivery remain caller-owned.
+
+```ts cordis-catalog
+/**
+ * Resolve trusted deployment-owned child model defaults before capability validation and identity publication.
+ * Listeners may bind a selected preset to a model; task, parent and delivery remain caller-owned.
+ * @param spec - requested child identity and execution options.
+ * @param next - remaining option resolvers and the caller defaults.
+ * @mode waterfall
+ */
+'subagent/resolve-agent-options'(spec: Readonly<SubagentActivationSpec>, next: () => AgentOptions | undefined): AgentOptions | undefined
+```
+
+Types: [AgentOptions](core.zh.md)
+
+Source: [`packages/subagent/subagent/src/index.ts`](../../packages/subagent/subagent/src/index.ts)
+
 <a id="subagentstart--emit"></a>
 
 #### `subagent/start` — emit

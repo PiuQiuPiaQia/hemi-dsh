@@ -1,7 +1,7 @@
 /** Session mode reported by an optional alternative to a concrete model. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ModelLabelOwner } from '../slots.ts'
+import type { ModelLabelOwner } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 
 /** Localized caption shared by the alternative and the model trigger. */
 export type ModelMenuModeLabel = NonNullable<ModelLabelOwner['model']['badge']>['text']

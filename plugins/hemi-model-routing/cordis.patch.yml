@@ -1,13 +1,15 @@
+# The Hemi UI owns the composer, while the native plugin keeps /model and directories.
+- id: ui-model-selection
+  config:
+    showComposer: false
+
 # Install into a profile without the older built-in Hemi routing rows.
-# Host settings and per-session mode belong at root scope. The delegation
-# function contributes through the scoped registries without a preset edit.
+# Settings belong at root scope; standard.patch.yml mounts routing in the preset.
 - insert:
     - id: hemi-routing-settings
       name: '@deepseek-ai/dsh-hemi-routing/settings'
       config:
         main: null
         roles: {}
-    - id: hemi-routing
-      name: '@deepseek-ai/dsh-hemi-routing'
     - id: hemi-routing-ui
       name: '@deepseek-ai/dsh-hemi-routing-ui'

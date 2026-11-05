@@ -46,7 +46,7 @@ The account menu's Feedback entry opens the Feishu questionnaire in the system b
 
 Account profile and balance cards share the [settings card material and radius](../../../docs/web-styling.md#corner-radii-and-settings-cards). Usage and top-up links match standard Button geometry; authorization actions use the shared Button.
 
-The sidebar account menu uses the shared Menu surface and backdrop blur. The signed-in menu keeps the shared row typography; the signed-out menu carries its own wider rows. Both menus label the questionnaire entry Feedback. Its Settings row shows the effective key combination supplied by the shell. Closing Settings returns focus to the sidebar account launcher.
+The sidebar account menu uses the shared Menu surface and backdrop blur. The signed-in menu keeps the shared row typography; the signed-out menu carries its own wider rows. Both menus label the questionnaire entry Feedback and keep Sign out or Sign in as their second entry. Settings is not a menu entry: an independent gear button at the account row's trailing edge opens Settings directly, labeled with the localized Settings name, and its tooltip shows the effective key combination supplied by the shell through `aria-keyshortcuts` and keycaps. In the collapsed rail the row stacks the 36px account and Settings boxes vertically.
 
 The account card’s More account information link has no underline and opens the root of the Host-provided Platform usage URL in the system browser, following `platformOrigin`.
 

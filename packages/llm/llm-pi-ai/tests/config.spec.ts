@@ -107,3 +107,17 @@ describe('request image policy bounds', () => {
     }).toThrow(message)
   })
 })
+
+describe('explicitly removed model IDs', () => {
+  it('retains the connection and restores its catalog when the exclusion is cleared', () => {
+    const connection = {
+      api: 'openai-completions' as const, baseURL: 'https://models.example.test/v1',
+      apiKeyEnv: 'PRIVATE_TEST_KEY', models: [{ id: 'one' }, { id: 'two' }],
+    }
+    const hidden = resolveProfiles({ gateway: { ...connection, hiddenModels: ['one', 'two'] } }).get('gateway')
+    expect(hidden?.piProvider?.getModels()).toEqual([])
+    expect(hidden?.apiKeyEnv).toBe('PRIVATE_TEST_KEY')
+    const restored = resolveProfiles({ gateway: { ...connection, hiddenModels: [] } }).get('gateway')
+    expect(restored?.piProvider?.getModels().map(model => model.id)).toEqual(['one', 'two'])
+  })
+})

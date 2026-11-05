@@ -25,14 +25,16 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
-import { HemiModelSelect, type HemiModelSelectInjected } from './hemi/ModelSelect.tsx'
+import type { ModelSelectInjected } from './slots.ts'
+import { ModelSelect } from './ModelSelect.tsx'
+import { Config, MODEL_SELECTION_CONFIG_GLOBAL } from '../config.ts'
 import { en, ja, es, fr, de, ru, pt, zh, type ModelKey } from './locales.ts'
 import { orderModelProviders } from './provider-order.ts'
 
 export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
 export { ModelDirectoryResolver } from './service.ts'
-export type { ModelLabelOwner, ModelSelectInjected } from './slots.ts'
+export type { ModelLabelOwner, ModelOptionsOwner, ModelSelectInjected } from './slots.ts'
 export type { ModelKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -164,6 +166,12 @@ export function apply(ctx: ClientContext): void {
     }), 'ui-model-selection: /model contribution')
   })
 
+  // Hemi fork: another UI plugin may own the composer; /model and directories remain native.
+  // See hemi-fork-changes.md#hemi-customization-isolation.
+  const page = globalThis as Partial<Record<typeof MODEL_SELECTION_CONFIG_GLOBAL, unknown>>
+  const configured = Config(page[MODEL_SELECTION_CONFIG_GLOBAL] ?? {})
+  if (!configured.showComposer) return
+
   // Entry 2: the composer's named model seat over the SAME directory.
   ctx.inject(['slots', 'modelDirectories'], (scope: ClientContext) => {
     const models = scope.modelDirectories
@@ -174,14 +182,13 @@ export function apply(ctx: ClientContext): void {
       children: {
         'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
         'conversation.input.model.options': { kind: 'list', scope: 'session' },
-        'conversation.input.model.alternative': { kind: 'single', scope: 'session' },
       },
-      inject: (sessionId): HemiModelSelectInjected => {
+      inject: (sessionId): ModelSelectInjected => {
         const directory = models.directoryFor(sessionId)
         const available = sessions.subagentAddress(sessionId) === undefined
         return {
           available,
-          hooks: { directory: directory.store, menuMode: models.menuMode.state },
+          directory: directory.store,
           load: () => {
             if (available) directory.load().catch(() => { /* surfaced on the store */ })
           },
@@ -191,6 +198,6 @@ export function apply(ctx: ClientContext): void {
             : Promise.resolve(undefined),
         }
       },
-    }, HemiModelSelect))
+    }, ModelSelect))
   })
 }

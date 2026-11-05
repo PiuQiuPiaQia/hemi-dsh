@@ -12,11 +12,13 @@ import {
   IconDataOutlineRegular, IconWarningOutlineRegular, Input, rankByName, StateDot, Tag, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ModelLabelOwner, ModelSelectInjected } from '../slots.ts'
-import css from '../ModelSelect.module.css'
+import type { ModelLabelOwner, ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
+import css from './ModelSelect.module.css'
 import flat from './HemiModelSelect.module.css'
 import type { ModelMenuModeSnapshot } from './menu-mode.ts'
-import { orderModelProviders } from '../provider-order.ts'
+
+/** Hemi's catalog order, independent of upstream picker presentation changes. */
+const providerRanks: Readonly<Record<string, number>> = { 'deepseek-account': 0, 'deepseek-official': 1 }
 
 /** The inherited model directory and the alternative's saved selection source. */
 export interface HemiModelSelectInjected extends Omit<ModelSelectInjected, 'directory'> {
@@ -83,13 +85,14 @@ export function HemiModelSelect(
   const id = useId()
 
   const accountProviderName = t('provider.account')
-  const groups = useMemo(() => orderModelProviders(state.groups).map(group => ({
-    ...group,
-    provider: {
-      id: group.id,
-      name: group.id === 'deepseek-account' ? accountProviderName : group.name,
-    },
-  })), [state.groups, accountProviderName])
+  const groups = useMemo(() => state.groups
+    .toSorted((left, right) => (providerRanks[left.id] ?? 2) - (providerRanks[right.id] ?? 2)).map(group => ({
+      ...group,
+      provider: {
+        id: group.id,
+        name: group.id === 'deepseek-account' ? accountProviderName : group.name,
+      },
+    })), [state.groups, accountProviderName])
   const choices = useMemo(() => groups.flatMap(group =>
     group.models.map(model => ({
       group,

@@ -396,7 +396,7 @@ describe('contextPressure session projection', () => {
     expect(pressure(ctx, session).pressureTokens).toBe(250)
   })
 
-  it('carries the newest recorded capacity and replaces it on a model switch', async () => {
+  it('waits for a fresh usage sample after a model switch', async () => {
     const { ctx, session } = await harness()
     startStep(session, 1, 1)
     recordContext(session, 'small', 64_000)
@@ -405,8 +405,10 @@ describe('contextPressure session projection', () => {
       pressureTokens: 100, projectedTokens: 100, contextWindow: 64_000,
     })
     recordContext(session, 'large', 256_000)
+    expect(pressure(ctx, session)).toEqual({ contextWindow: 256_000 })
+    usageChunk(session, { inputTokens: 120, outputTokens: 10 }, 1, 1)
     expect(pressure(ctx, session)).toEqual({
-      pressureTokens: 100, projectedTokens: 100, contextWindow: 256_000,
+      pressureTokens: 120, projectedTokens: 120, contextWindow: 256_000,
     })
   })
 
@@ -416,7 +418,7 @@ describe('contextPressure session projection', () => {
     recordContext(session, 'small', 64_000)
     usageChunk(session, { inputTokens: 100, outputTokens: 10 }, 1, 1)
     recordContext(session, 'unknown')
-    expect(pressure(ctx, session)).toEqual({ pressureTokens: 100, projectedTokens: 100 })
+    expect(pressure(ctx, session)).toEqual({})
   })
 
   it('pushes no change for unrelated events or a restated capacity', async () => {
@@ -447,7 +449,7 @@ describe('contextPressure session projection', () => {
     const checkpoint = JSON.parse(JSON.stringify(
       ctx.sessionProjections.checkpoint(session),
     )) as ReturnType<typeof ctx.sessionProjections.checkpoint>
-    expect(checkpoint.contextPressure?.ver).toBe(5)
+    expect(checkpoint.contextPressure?.ver).toBe(6)
 
     await meterFiber.dispose()
     expect(ctx.sessionProjections.snapshot(session).values).not.toHaveProperty('contextPressure')

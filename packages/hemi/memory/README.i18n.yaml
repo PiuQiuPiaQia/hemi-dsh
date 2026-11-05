@@ -1,0 +1,52 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/memory/README.md
+/:
+  en: 2e9b39354446ccf8
+  zh: 1e42e672856e7495
+/deepseek-ai-dsh-hemi-memory:
+  en: 525501bd33bf8069
+  zh: 0b25197896ccce40
+/deepseek-ai-dsh-hemi-memory/summary:
+  en: 4578b896e21eccf3
+  zh: 8e6c1c8a32cbf2c5
+/deepseek-ai-dsh-hemi-memory/automatic-memory:
+  en: 20a6e872b2a89292
+  zh: 93bbd6f504687705
+/deepseek-ai-dsh-hemi-memory/table-of-contents:
+  en: adbc0c7d6156d97d
+  zh: e8e7402ef844c3ae
+/deepseek-ai-dsh-hemi-memory/model-experience:
+  en: 215e7ba838619b7b
+  zh: e61c78b7d37628ed
+/deepseek-ai-dsh-hemi-memory/model-experience/memory-tool-calls:
+  en: d6fae23e0f6c654b
+  zh: ba23397d369f09eb
+/deepseek-ai-dsh-hemi-memory/model-experience/memory-tool-calls/what-the-model-sees:
+  en: 40ddc338d6a72cf2
+  zh: 99cd5bb4a13dec52
+/deepseek-ai-dsh-hemi-memory/model-experience/memory-tool-calls/token-effect:
+  en: d3ae3504d06e9846
+  zh: 9822ff9b85d9cb49
+/deepseek-ai-dsh-hemi-memory/model-experience/memory-tool-calls/kv-cache-effect:
+  en: f1d729874a164ab4
+  zh: bdbe2a30a4ebed4e
+/deepseek-ai-dsh-hemi-memory/model-experience/automatic-context-and-exit-summary:
+  en: 076365d58a544b64
+  zh: 97cdb2e4923b3da7
+/deepseek-ai-dsh-hemi-memory/model-experience/automatic-context-and-exit-summary/what-the-model-sees:
+  en: f1cb87b2eb50c27b
+  zh: 5d7b9c644489537e
+/deepseek-ai-dsh-hemi-memory/model-experience/automatic-context-and-exit-summary/token-effect:
+  en: e203ba7a183bc8c3
+  zh: fff5075825dba732
+/deepseek-ai-dsh-hemi-memory/model-experience/automatic-context-and-exit-summary/kv-cache-effect:
+  en: 18b5592acc51778a
+  zh: 584402a2d75800c5
+/deepseek-ai-dsh-hemi-memory/known-limitations-and-deferred-work:
+  en: 7a7fafe28e80fff3
+  zh: 7e1f21ce3c8183a8
+/deepseek-ai-dsh-hemi-memory/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 754c49ec538c164c

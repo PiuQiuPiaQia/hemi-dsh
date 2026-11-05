@@ -1,7 +1,8 @@
+// Hemi fork: retain the workspace runtime and signing identity for source Desktop launches.
 /** macOS development bundle that loads the current workspace through Electron. */
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 /** Workspace and runtime settings captured for Launch Services cold starts. */
@@ -10,6 +11,7 @@ export interface DevelopmentAppOptions {
   readonly appRoot: string
   readonly directory: string
   readonly home: string
+  readonly primaryRuntime: string
   readonly userData: string
   readonly mainPort: number
   readonly rendererPort: number
@@ -31,9 +33,12 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
   const stamp = join(bundle, 'Contents', 'Resources', 'dsh-development.json')
   const launcher = developmentLauncher(options, bundle)
   const identity = JSON.stringify({ ...options, launcher, plist: readFileSync(join(source, 'Contents', 'Info.plist'), 'utf8') })
-  if (!existsSync(stamp) || readFileSync(stamp, 'utf8') !== identity) {
+  const reusable = existsSync(stamp) && readFileSync(stamp, 'utf8') === identity
+    && spawnSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle]).status === 0
+  if (!reusable) {
+    mkdirSync(options.directory, { recursive: true })
     rmSync(bundle, { recursive: true, force: true })
-    execFileSync('/usr/bin/ditto', [source, bundle])
+    execFileSync('/usr/bin/ditto', ['--norsrc', '--noextattr', source, bundle])
     const plist = join(bundle, 'Contents', 'Info.plist')
     const values = {
       CFBundleIdentifier: `com.deepseek.harness.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
@@ -47,7 +52,12 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
     }
     writeFileSync(executable, launcher, { mode: 0o755 })
     writeFileSync(stamp, identity, { mode: 0o600 })
-    execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', bundle], { stdio: 'pipe' })
+    try {
+      execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', bundle], { stdio: 'pipe' })
+    } catch (error) {
+      rmSync(stamp, { force: true })
+      throw error
+    }
   }
   execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister', ['-f', bundle])
   return executable
@@ -62,6 +72,7 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
 export function developmentLauncher(options: DevelopmentAppOptions, bundle: string): string {
   const environment = {
     DSH_HOME: options.home,
+    DSH_DESKTOP_PRIMARY_RUNTIME_DIR: options.primaryRuntime,
     DSH_DESKTOP_DEV_APP: '1',
     DSH_DESKTOP_HOST_INSPECT_PORT: String(options.hostPort),
     DSH_DESKTOP_OPEN_DEVTOOLS: options.openDevtools,

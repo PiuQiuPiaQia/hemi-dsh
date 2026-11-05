@@ -1,12 +1,29 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { DropOverlay } from '../src/DropOverlay.tsx'
 
+const overlayCss = readFileSync(join(process.cwd(), 'packages/client/ui-attachment/src/DropOverlay.module.css'), 'utf8')
+
 afterEach(cleanup)
 
 describe('DropOverlay', () => {
+  it('opts out of app-region collection so the macOS drag surface survives the invitation', () => {
+    // The mask portals to document.body beside #root and covers the whole
+    // window; the shell's darwin `body > :not(#root)` no-drag rule would
+    // otherwise erase every drag row, including the titlebar's native
+    // double-click zoom, for as long as the overlay is mounted. The opt-out
+    // lives in CSS because that shell selector carries id specificity, so only
+    // `!important` beats it; hit testing is untouched below.
+    const rule = /\.mask\s*\{[^}]*\}/.exec(overlayCss)?.[0]
+    expect(rule, 'the .mask rule exists').toBeDefined()
+    expect(rule).toMatch(/-webkit-app-region:\s*initial\s*!important/)
+    expect(rule).toMatch(/pointer-events:\s*none/)
+  })
+
   it('portals the invitation with its title and limits desc to the body', () => {
     const view = render(
       <DropOverlay disabled={false} labels={{ title: '图片拖动到此处即可添加', desc: '最多 20 张，每张 5MB' }} />,

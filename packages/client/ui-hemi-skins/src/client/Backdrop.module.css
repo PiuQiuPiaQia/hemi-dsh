@@ -5,6 +5,13 @@
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
+  /* This backdrop is visual only, but the shell's darwin rule subtracts every
+     body-level overlay (`body > :not(#root)`, an id-specific selector) from the
+     window drag surface, and a full-viewport no-drag box would disable
+     titlebar dragging and its native double-click zoom. `initial` computes to
+     `none`, which Blink does not collect as a drag-region box, and
+     `!important` is the only cascade step over that selector. */
+  -webkit-app-region: initial !important;
 }
 
 .actor {

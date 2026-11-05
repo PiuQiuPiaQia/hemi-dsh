@@ -111,7 +111,7 @@ it('merges a restore: new files land, identical files skip, conflicts keep the n
   // Local mutations after the backup: one newer file, one identical file.
   write(join(dshHome, 'memory/MEMORY.md'), 'changed after backup')
   utimesSync(join(dshHome, 'memory/MEMORY.md'), new Date('2030-01-01T00:00:00Z'), new Date('2030-01-01T00:00:00Z'))
-  rmSync(join(dshHome, 'sessions/--ws--/session-1/session.v4.jsonl.zstd'))
+  rmSync(join(dshHome, 'sessions/--ws--/session-1'), { recursive: true })
   const safeCopy = join(root, 'safe-5')
   const roots = { dsh: dshHome, agents: agentsHome }
   const estimate = await estimateMerge(staging, roots)

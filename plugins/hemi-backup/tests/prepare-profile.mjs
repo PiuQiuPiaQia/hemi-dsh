@@ -39,6 +39,9 @@ writeFileSync(join(cleanBundle, 'package.json'), JSON.stringify({
 
 const backupsDir = join(home, 'backups')
 mkdirSync(backupsDir, { recursive: true })
-const state = { root, baseline, home, profile, cleanBundle, backupsDir }
+const agentsHome = join(home, 'agents')
+mkdirSync(join(agentsHome, 'skills/fixture'), { recursive: true })
+writeFileSync(join(agentsHome, 'skills/fixture/SKILL.md'), '# Isolated backup fixture\n')
+const state = { root, baseline, home, agentsHome, profile, cleanBundle, backupsDir }
 writeFileSync(join(area, 'state.json'), JSON.stringify(state, null, 2) + '\n')
 console.log(JSON.stringify(state, null, 2))

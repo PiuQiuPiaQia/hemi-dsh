@@ -52,7 +52,10 @@ export const ROUTING_NS = 'hemi-routing-settings'
  * @param fetchCatalog - Existing Session Remote catalog operation.
  * @returns the editor's injectable reads/actions and asynchronous teardown.
  */
-export function createRoutingEditor(form: ConfigForm<RoutingConfig>, fetchCatalog: () => Promise<ModelCatalog>) {
+export function createRoutingEditor(form: ConfigForm<RoutingConfig>, fetchCatalog: () => Promise<ModelCatalog>): {
+  injected: RoutingEditorInjected
+  dispose(): Promise<void>
+} {
   const catalog = createSnapshotStore<RoutingCatalog>({ status: 'idle', groups: [], failures: [], error: null })
   const write = createSnapshotStore<RoutingWrite>({ status: 'idle' })
   let disposed = false

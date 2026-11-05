@@ -12,6 +12,9 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
+import { mountNativeRoles } from './native-roles.ts'
+import { HEMI_ROLE_IDS } from '../src/types.ts'
 import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { ScriptedAdapter, textResponse, toolCallResponse } from './mock-llm.ts'
@@ -75,6 +78,7 @@ async function setupHost(
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentService)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+  await mountNativeRoles(ctx)
   const settings = new MutableRoutingSettings(options.initial ?? {})
   const service = mountService(ctx, settings)
   const adapter = new ScriptedAdapter([...script])
@@ -83,7 +87,11 @@ async function setupHost(
     sessionId: SessionId('lead'),
     agentOptions: options.agentOptions ?? { provider: 'mock', model: 'mock' },
     setup: async (agentCtx: Context) => {
-      await agentCtx.plugin(routingPlugin, { provider: 'spawn', ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }) })
+      await agentCtx.plugin(ToolSubagent, {
+        provider: 'spawn', allowedAgentPresets: [...HEMI_ROLE_IDS],
+        ...options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth },
+      })
+      await agentCtx.plugin(routingPlugin, {})
     },
   })
   return { ctx, service, settings, adapter, lead: handle.agent }
@@ -95,82 +103,84 @@ async function runTurn(agent: Agent, text = 'go'): Promise<void> {
   await agent.whenIdle()
 }
 
-function delegateCall(id: string, role: string, background?: boolean): StreamChunk[] {
-  return toolCallResponse(id, 'hemi_delegate', {
-    role, description: 'task', prompt: 'go',
-    ...background === undefined ? {} : { background },
+function delegateCall(id: string, role: string): StreamChunk[] {
+  return toolCallResponse(id, 'subagent', {
+    agent_preset: role, description: 'task', prompt: 'go',
   })
 }
 
 const MAIN: Route = { provider: 'mock', model: 'main-model' }
 const ORACLE: Route = { provider: 'mock', model: 'oracle-model' }
 
-describe('delegation delivery', () => {
-  it.each([false, true])('delivers the child result with background=%s', async (background) => {
-    const childResult = Promise.withResolvers<StreamChunk[]>()
+describe('native delegation delivery', () => {
+  it('returns the activation receipt before the routed child finishes and delivers its answer through the inbox', async () => {
+    const childReply = Promise.withResolvers<StreamChunk[]>()
+    const childStarted = Promise.withResolvers<undefined>()
     const host = await setupHost([
-      delegateCall('c1', 'fixer', background || undefined),
-      () => childResult.promise,
-      textResponse('parent done'),
-      textResponse('follow-up done'),
-    ])
-    const turn = runTurn(host.lead)
-    const events = () => host.lead.session.snapshotEvents()
+      delegateCall('native-start', 'oracle'),
+      () => { childStarted.resolve(undefined); return childReply.promise },
+      textResponse('parent continues'),
+      textResponse('parent received the completion notice'),
+    ], { initial: { main: MAIN, roles: { oracle: { ...ORACLE, reasoningEffort: 'high' } } } })
+    await host.service.setEnabled(host.lead, true)
+    const childEnded = Promise.withResolvers<undefined>()
+    host.ctx.on('subagent/end', () => { childEnded.resolve(undefined) })
     try {
-      await vi.waitFor(() => { expect(host.adapter.requests.length).toBeGreaterThanOrEqual(2) })
-      if (background) {
-        await vi.waitFor(() => { expect(events().filter(event => event.type === 'turn/end')).toHaveLength(1) })
-      } else {
-        expect(events().some(event => event.type === 'turn/end' || event.type === 'tool/result')).toBe(false)
-      }
-    } finally {
-      childResult.resolve(textResponse('child report'))
-    }
-    await turn
-    await vi.waitFor(() => {
-      expect(events().filter(event => event.type === 'turn/end')).toHaveLength(background ? 2 : 1)
-    })
-    const result = events().find(event => event.type === 'tool/result')
-    expect(result?.data.message.isError).toBe(false)
-    expect(JSON.stringify(result?.data.message.content)).toContain(background ? 'started fixer' : 'child report')
-    const notice = events().find(event => event.type === 'user/message' && event.data.source.kind === 'subagent-settled')
-    if (background) expect(JSON.stringify(notice)).toContain('child report')
-    else expect(notice).toBeUndefined()
+      await runTurn(host.lead)
+      await childStarted.promise
+      expect(host.lead.status).toBe('idle')
+      expect(host.adapter.requests.find(request => request.model === 'oracle-model')).toMatchObject({ reasoningEffort: 'high' })
+      const receipt = host.lead.session.snapshotEvents().find(event => event.type === 'tool/result')
+      expect(receipt?.data.message.isError).toBe(false)
+      expect(JSON.stringify(receipt?.data.message.content)).toContain('started subagent')
+      expect(receipt?.data.meta).toMatchObject({ kind: 'activation' })
+      expect(receipt?.data.meta).not.toHaveProperty('completed')
+      expect(host.lead.session.snapshotEvents().some(event => event.type === 'user/message'
+        && event.data.source.kind === 'subagent-settled')).toBe(false)
+    } finally { childReply.resolve(textResponse('routed child report')) }
+    await childEnded.promise
+    await host.lead.whenIdle()
+    const notice = host.lead.session.snapshotEvents().find(event => event.type === 'user/message'
+      && event.data.source.kind === 'subagent-settled')
+    expect(JSON.stringify(notice)).toContain('routed child report')
   })
 
-  it('reports a failed foreground child as a tool error', async () => {
-    const { lead } = await setupHost([
-      delegateCall('c1', 'fixer'),
-      [{ type: 'finish', reason: { kind: 'error', failure: { message: 'probe failed', code: 'TEST_FAILURE' } } }],
-      textResponse('parent acknowledged failure'),
-    ])
-    await runTurn(lead)
-    const result = lead.session.snapshotEvents().find(event => event.type === 'tool/result')
-    expect(result?.data.message.isError).toBe(true)
-    expect(JSON.stringify(result?.data.message.content)).toContain('ended with error')
-  })
-
-  it('stops the exact foreground child when the parent is cancelled', async () => {
-    let childAborted = false
-    const { lead, adapter } = await setupHost([
-      delegateCall('c1', 'fixer'),
-      async ({ signal }) => {
+  it('keeps a published routed child running when its parent is cancelled after the tool returns', async () => {
+    const childReply = Promise.withResolvers<StreamChunk[]>()
+    const parentStreaming = Promise.withResolvers<undefined>()
+    const childStreaming = Promise.withResolvers<undefined>()
+    let childSignal: AbortSignal | undefined
+    const afterStart: ScriptEntry = async (options) => {
+      if (options.sessionId === 'lead') {
+        parentStreaming.resolve(undefined)
         await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => { resolve() }, { once: true })
+          if (options.signal?.aborted) resolve()
+          else options.signal?.addEventListener('abort', () => { resolve() }, { once: true })
         })
-        childAborted = true
-        return []
-      },
-    ])
-    const turn = runTurn(lead)
-    await vi.waitFor(() => { expect(adapter.requests).toHaveLength(2) })
-    lead.cancel({ kind: 'user' })
-    await vi.waitFor(() => { expect(childAborted).toBe(true) })
-    await turn
-    expect(adapter.requests).toHaveLength(2)
-    expect(lead.session.snapshotEvents().some(event =>
-      event.type === 'user/message' && event.data.source.kind === 'subagent-settled')).toBe(false)
+        return textResponse('cancelled parent')
+      }
+      childSignal = options.signal
+      childStreaming.resolve(undefined)
+      return childReply.promise
+    }
+    const host = await setupHost([
+      delegateCall('native-cancel', 'oracle'), afterStart, afterStart, textResponse('completion received'),
+    ], { initial: { main: MAIN, roles: { oracle: ORACLE } } })
+    await host.service.setEnabled(host.lead, true)
+    const childEnded = Promise.withResolvers<undefined>()
+    host.ctx.on('subagent/end', () => { childEnded.resolve(undefined) })
+    const turn = runTurn(host.lead)
+    try {
+      await Promise.all([parentStreaming.promise, childStreaming.promise])
+      host.lead.cancel({ kind: 'user' })
+      await turn
+      expect(childSignal?.aborted).toBe(false)
+      expect(host.lead.session.snapshotEvents().find(event => event.type === 'tool/result')?.data.message.isError).toBe(false)
+    } finally { childReply.resolve(textResponse('independent child report')) }
+    await childEnded.promise
+    await host.lead.whenIdle()
+    expect(JSON.stringify(host.lead.session.snapshotEvents().filter(event => event.type === 'user/message'
+      && event.data.source.kind === 'subagent-settled'))).toContain('independent child report')
   })
 })
 
@@ -271,7 +281,7 @@ describe('manual model selections', () => {
   })
 
   it('routes from the next turn after auto is enabled mid-turn', async () => {
-    let toggled: Promise<void> = Promise.resolve()
+    let toggled: Promise<void> = Promise.resolve(undefined)
     const host = await setupHost([
       () => {
         toggled = host.service.setEnabled(host.lead, true)
@@ -378,7 +388,7 @@ describe('fail-closed routing', () => {
 })
 
 describe('delegation depth', () => {
-  it('rejects hemi_delegate when the configured depth is zero', async () => {
+  it('rejects native subagent when the configured depth is zero', async () => {
     const host = await setupHost([
       delegateCall('c1', 'explorer'),
       textResponse('recover'),

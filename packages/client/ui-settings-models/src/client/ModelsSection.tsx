@@ -1,3 +1,5 @@
+// Hemi fork: the reusable native provider editor accepts the owning settings page title.
+// See hemi-fork-changes.md#hemi-customization-isolation.
 /**
  * Models settings section: the provider rows joined from the configurable
  * directory, settings namespaces, and credential states, with one editor
@@ -72,7 +74,9 @@ type ModelsRenderSlot = PropsRenderSlots<ModelsChildSlots>['renderSlot']
  * call itself — unlike the inject face it is never absent at runtime — and a
  * direct render that forgets it fails to compile instead of mounting nothing.
  */
-export type ModelsSectionProps = Partial<InjectFace<ModelsSectionInjected>> & PropsRenderSlots<ModelsChildSlots>
+export type ModelsSectionProps = Partial<InjectFace<ModelsSectionInjected>>
+  & PropsRenderSlots<ModelsChildSlots>
+  & { heading?: string | undefined }
 
 type ModelsSectionFace = InjectFace<ModelsSectionInjected>
 
@@ -241,10 +245,14 @@ export function ModelsSection(props: ModelsSectionProps): ReactNode {
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} heading={props.heading} />
 }
 
-function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
+function Loaded({ injected, renderSlot, heading }: {
+  injected: ModelsSectionFace
+  renderSlot: ModelsRenderSlot
+  heading: string | undefined
+}): ReactNode {
   const { controller, operations, schema, t } = injected
   const snapshot = injected.useSnapshot(value => value)
   const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
@@ -345,7 +353,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   if (!hasReadySnapshot && state.status !== 'ready') {
     return (
       <div className={styles['section']}>
-        <h2 className={styles['title']}>{t('title')}</h2>
+        <h2 className={styles['title']}>{heading ?? t('title')}</h2>
         <p className={styles['intro']}>{t('intro')}</p>
       </div>
     )
@@ -412,7 +420,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
 
   return (
     <div className={styles['section']}>
-      <h2 className={styles['title']}>{t('title')}</h2>
+      <h2 className={styles['title']}>{heading ?? t('title')}</h2>
       <p className={styles['intro']}>{t('intro')}</p>
       {!state.writable && state.status === 'ready' ? <p className={styles['notice']}>{t('readOnly')}</p> : null}
       {savedIdentity === undefined

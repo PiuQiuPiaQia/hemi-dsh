@@ -1,0 +1,32 @@
+- dialog "Conversation usage":
+  - text: Conversation usage Total
+  - strong: "275"
+  - text: token Cache hit 32%
+  - table "Recorded usage by model":
+    - caption: Recorded usage by model
+    - rowgroup:
+      - row "Model Calls Input incl. cache Output Cache rate Cache read Cache write":
+        - columnheader "Model"
+        - columnheader "Calls"
+        - columnheader "Input incl. cache"
+        - columnheader "Output"
+        - columnheader "Cache rate"
+        - columnheader "Cache read"
+        - columnheader "Cache write"
+    - rowgroup:
+      - row "deepseek-v4-flash (deepseek-official) 2 200 20 40% 80 0":
+        - rowheader "deepseek-v4-flash (deepseek-official)"
+        - cell "2"
+        - cell "200"
+        - cell "20"
+        - cell "40%"
+        - cell "80"
+        - cell "0"
+      - row "deepseek-v4-pro (deepseek-official) 1 50 5 0% 0 0":
+        - rowheader "deepseek-v4-pro (deepseek-official)"
+        - cell "1"
+        - cell "50"
+        - cell "5"
+        - cell "0%"
+        - cell "0"
+        - cell "0"

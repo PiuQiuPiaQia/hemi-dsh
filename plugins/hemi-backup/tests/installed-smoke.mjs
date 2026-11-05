@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -48,7 +48,7 @@ async function launch(state, label, port = 0) {
     '--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'web',
     '--patch', 'apps/web/tests/pin-browse-picker.overlay.yml',
     '--no-open', '--port', String(port),
-  ], { cwd: root, env: { ...process.env, DSH_HOME: state.home }, stdio: ['ignore', 'pipe', 'pipe'] })
+  ], { cwd: root, env: { ...process.env, DSH_HOME: state.home, DSH_AGENTS_HOME: state.agentsHome }, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
   let url
   const ended = new Promise(resolveExit => child.once('close', (code, signal) => resolveExit({ code, signal })))
@@ -120,36 +120,51 @@ async function connectWorkspace(page, state) {
 }
 
 async function openBackupSection(page) {
-  for (let round = 0; round < 5; round++) {
-    const preview = page.getByRole('dialog', { name: '预览版说明', exact: true })
-    if (!await preview.isVisible()) break
-    await preview.getByRole('button', { name: '继续', exact: true }).click()
-    await preview.waitFor({ state: 'detached', timeout: 10000 }).catch(() => {})
-  }
-  const onboarding = page.getByRole('dialog', { name: '开始使用', exact: true })
-  if (await onboarding.isVisible()) {
-    await onboarding.getByRole('button', { name: '关闭', exact: true }).click()
-    await onboarding.waitFor({ state: 'detached', timeout: 10000 })
-  }
-  await page.getByRole('button', { name: '账号菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: '设置', exact: true }).click()
   const settings = page.getByRole('dialog', { name: '设置', exact: true })
-  await settings.waitFor()
-  const general = settings.getByRole('button', { name: '通用设置', exact: true })
-  await general.waitFor()
-  await general.click()
-  const section = settings.locator('h3', { hasText: '数据备份' }).first()
-  await section.waitFor()
+  await until(async () => {
+    const preview = page.getByRole('dialog', { name: '预览版说明', exact: true })
+    if (await preview.isVisible()) {
+      await preview.getByRole('button', { name: '继续', exact: true }).click()
+      await preview.waitFor({ state: 'detached' })
+      return false
+    }
+    const onboarding = page.getByRole('dialog', { name: '开始使用', exact: true })
+    if (await onboarding.isVisible()) {
+      await onboarding.getByRole('button', { name: '关闭', exact: true }).click()
+      await onboarding.waitFor({ state: 'detached' })
+      return false
+    }
+    try {
+      if (!await settings.isVisible()) {
+        const trigger = page.getByRole('button', { name: '设置', exact: true })
+        if (!await trigger.isVisible()) return false
+        await trigger.click({ timeout: 250 })
+        return false
+      }
+      await settings.getByRole('button', { name: '备份', exact: true }).click({ timeout: 250 })
+    } catch (error) {
+      // A startup dialog can appear between its visibility check and either click.
+      if (error.name !== 'TimeoutError') throw error
+      return false
+    }
+    return true
+  }, 'unobstructed backup settings')
+  await settings.locator('h3', { hasText: '数据备份' }).first().waitFor()
   return settings
 }
 
 async function main() {
   writeFileSync(commandLog, '', { mode: 0o600 })
   const state = JSON.parse(await run([join(here, 'prepare-profile.mjs'), join(area, 'profile')]))
+  const memoryRoot = join(state.home, 'hemi-memory')
+  mkdirSync(join(memoryRoot, 'daily'), { recursive: true })
+  writeFileSync(join(memoryRoot, 'MEMORY.md'), 'installed long-term memory\n')
+  writeFileSync(join(memoryRoot, 'daily/2026-11-05.md'), 'installed daily memory\n')
+  writeFileSync(join(memoryRoot, 'SCRATCHPAD.md'), 'installed working notes\n')
   const packed = join(area, 'packages')
   await run([join(root, 'plugins/hemi-backup/pack.mjs'), packed])
   const archives = JSON.parse(readFileSync(join(packed, 'packages.json'), 'utf8')).packages.map(entry => join(packed, entry.file))
-  await run(['--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'plugin', '--profile', 'web', 'add', state.cleanBundle, ...archives, '--ignore-scripts'], { ...process.env, DSH_HOME: state.home })
+  await run(['--import', 'tsx/esm', 'apps/cli/src/bin.ts', 'plugin', '--profile', 'web', 'add', state.cleanBundle, ...archives, '--ignore-scripts'], { ...process.env, DSH_HOME: state.home, DSH_AGENTS_HOME: state.agentsHome })
   const profile = JSON.parse(readFileSync(join(state.profile, 'package.json'), 'utf8'))
   assert.ok(profile.dsh.profile.bundles.includes('@hemi/backup'))
   note('independent bundle installation without built-in Hemi rows')
@@ -176,7 +191,8 @@ async function main() {
     const settings = await openBackupSection(page)
     const section = settings.locator('section', { hasText: '数据备份' }).first()
     await section.waitFor()
-    note('settings general page shows the backup section')
+    note('independent Backup tab shows the backup section')
+    await page.screenshot({ path: join(area, 'backup-tab.png') })
 
     await page.locator('#hemi-backup-dir').fill(state.backupsDir)
     await section.getByRole('button', { name: '测试连接', exact: true }).click()
@@ -191,13 +207,19 @@ async function main() {
     await section.getByRole('button', { name: '刷新', exact: true }).click()
     await section.getByRole('button', { name: '恢复', exact: true }).first().waitFor()
     note('manual backup produces a listed backup set')
+    rmSync(memoryRoot, { recursive: true })
 
     await section.getByRole('button', { name: '恢复', exact: true }).first().click()
-    await section.getByText(/新增 0 · 相同自动跳过 \d+ · 冲突 [01]/).waitFor()
-    note('restore preview reports all-identical with at most one live-host conflict')
+    await section.getByText(/新增 3 · 相同自动跳过 \d+ · 冲突 [01]/).waitFor()
+    await section.getByText('合并恢复：已有会话保持原样，冲突的会话备份另存安全副本；其他冲突保留较新版本，落选数据另存；重启应用后完全生效。', { exact: true }).waitFor()
+    note('restore preview includes all three missing Hemi memory stores and the session-preserving policy')
     await section.getByRole('button', { name: '确认恢复', exact: true }).click()
     await section.getByText('已恢复，重启应用后完全生效。', { exact: true }).waitFor()
     note('merge restore applies through the dialog')
+    assert.equal(readFileSync(join(memoryRoot, 'MEMORY.md'), 'utf8'), 'installed long-term memory\n')
+    assert.equal(readFileSync(join(memoryRoot, 'daily/2026-11-05.md'), 'utf8'), 'installed daily memory\n')
+    assert.equal(readFileSync(join(memoryRoot, 'SCRATCHPAD.md'), 'utf8'), 'installed working notes\n')
+    note('installed Host restores every Hemi memory store from the archive')
 
     await page.keyboard.press('Escape')
     await settings.waitFor({ state: 'detached' })
@@ -210,12 +232,21 @@ async function main() {
     const settings2 = await openBackupSection(page2)
     const section2 = settings2.locator('section', { hasText: '数据备份' }).first()
     await section2.waitFor()
+    await until(async () => await page2.locator('#hemi-backup-dir').inputValue() === state.backupsDir, 'saved backup target after restart')
     assert.equal(await page2.locator('#hemi-backup-dir').inputValue(), state.backupsDir)
     note('restart keeps the saved target and the section mounted')
+  } catch (error) {
+    for (const [index, page] of (browser?.contexts().flatMap(context => context.pages()) ?? []).entries()) {
+      writeFileSync(join(area, `failure-page-${index}.html`), await page.content())
+    }
+    throw error
   } finally {
+    try {
+      await browser?.close()
+    } finally {
+      await server?.stop()
+    }
     assert.deepEqual(pageErrors, [])
-    await browser?.close()
-    await server?.stop()
   }
   console.log(`\n${checks.length} checks passed`)
 }

@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-models/client'
+import type {} from '@deepseek-ai/dsh-hemi-model-settings-ui/client'
 import type {} from '@deepseek-ai/dsh-hemi-routing/remote'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
@@ -17,6 +18,11 @@ import { RoutingModelLabel, type RoutingLabelInjected } from './RoutingModelLabe
 import { RoutingSettingsEntry, type RoutingSettingsEntryInjected } from './RoutingSettingsEntry.tsx'
 import type { RoutingConfig } from './types.ts'
 import { NS, en, zh, type RoutingLocaleKey } from './locales.ts'
+import { mountModelPicker } from './model-picker/mount.ts'
+import { ModelMenuMode } from './model-picker/menu-mode.ts'
+import { HemiTurnUsage, type TurnUsageInjected } from './usage/UsagePanel.tsx'
+import { HemiSessionUsage } from './usage/SessionUsage.tsx'
+import { loadConversationUsage } from './usage/conversation-usage.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -49,7 +55,32 @@ export async function mountRouting(ctx: Context, contribution: TypertRemoteContr
 
 /** Register controls only while the routing Remote namespace is available. */
 function registerRouting(ctx: Context): void {
+  const menuMode = new ModelMenuMode()
+  mountModelPicker(ctx, menuMode)
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'hemi-routing-ui: dictionaries')
+  const turnUsage: TurnUsageInjected = {
+    async loadChildUsage(sessionId, signal) {
+      const response = await ctx.remote.session.projections({ sessionId }, signal)
+      if (!response.ok || response.value?.kind !== 'sequenced') return undefined
+      return response.value.values.tokenUsage
+    },
+  }
+  ctx.slots.inject('conversation.chat.turnUsage', () => ctx.slots.register({
+    name: 'conversation.chat.turnUsage', locale: NS, inject: () => turnUsage,
+  }, HemiTurnUsage))
+  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+    name: 'conversation.composer.dock', id: 'usage', order: 1, priority: -1, locale: NS,
+    inject: sessionId => ({
+      loadUsage: signal => loadConversationUsage(sessionId, async (id, readSignal) => {
+        const result = await ctx.remote.session.projections({ sessionId: id }, readSignal)
+        if (!result.ok) throw new Error(result.error.message)
+        if (result.value?.kind !== 'sequenced' || result.value.values.hemiModelUsage === undefined) {
+          throw new Error('Recorded model usage is unavailable')
+        }
+        return { usage: result.value.values.hemiModelUsage, children: result.value.values.subagentCatalog ?? [] }
+      }, signal),
+    }),
+  }, HemiSessionUsage))
   const form = ctx.configForms.get<RoutingConfig>(ROUTING_NS)
   const editor = createRoutingEditor(form, async () => {
     const response = await ctx.remote.session.modelCatalog()
@@ -83,7 +114,7 @@ function registerRouting(ctx: Context): void {
       name: 'shell.overlay', id: 'hemi-routing', locale: NS,
       inject: (): RoutingDialogInjected => ({
         ...editor.injected,
-        modelChoiceMenu: ctx.get('modelDirectories')?.menuMode !== undefined,
+        modelChoiceMenu: ctx.get('modelDirectories') !== undefined,
         hooks: { ...editor.injected.hooks, routingOpen },
         closeConfiguration: () => { routingOpen.set(false) },
       }),
@@ -92,13 +123,16 @@ function registerRouting(ctx: Context): void {
       name: 'settings.models.footer', id: 'hemi-routing', order: 60, locale: NS,
       inject: (): RoutingSettingsEntryInjected => ({ openConfiguration }),
     }, RoutingSettingsEntry))
+    yield ctx.slots.inject('hemi.models.routing', () => ctx.slots.register({
+      name: 'hemi.models.routing', id: 'hemi-routing', order: 60, locale: NS,
+      inject: (): RoutingSettingsEntryInjected => ({ openConfiguration }),
+    }, RoutingSettingsEntry))
     yield ctx.slots.inject('conversation.input.model.options', () => ctx.slots.register({
       name: 'conversation.input.model.options', id: 'hemi-routing', order: 60, locale: NS,
       inject: modeFor,
     }, RoutingModeToggle))
     yield ctx.slots.inject('conversation.input.model.alternative', function* () {
-      const menuMode = ctx.get('modelDirectories')?.menuMode
-      if (menuMode === undefined) return
+      if (ctx.get('modelDirectories') === undefined) return
       yield menuMode.register({ en: en.auto, zh: zh.auto }, {
         getSnapshot: () => {
           const snapshot = form.getSnapshot()

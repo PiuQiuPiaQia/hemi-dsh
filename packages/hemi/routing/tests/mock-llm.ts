@@ -1,6 +1,6 @@
 /** Local scripted LLM adapter for Hemi routing tests, modeled on the agent-loop mock adapter. */
 
-import { ToolCallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, ReasoningEffortId, LlmAdapter } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   LlmResolvedModelInfo,
@@ -59,7 +59,7 @@ export class ScriptedAdapter extends LlmAdapter {
   }
 
   override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
-    return Promise.resolve({ provider, id: model, name: model })
+    return Promise.resolve({ provider, id: model, name: model, reasoning: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }] } })
   }
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

@@ -20,7 +20,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
 import { ModelCatalogDirectory } from './catalog.ts'
 import { ModelDirectory } from './directory.ts'
-import { ModelMenuMode } from './hemi/menu-mode.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -40,9 +39,6 @@ export class ModelDirectoryResolver extends Service {
 
   private readonly live: LiveState = { directories: new WeakMapWithValues() }
   private readonly catalog: ModelCatalogDirectory
-
-  /** Alternative selection state for the customized composer menu. */
-  readonly menuMode = new ModelMenuMode()
 
   /**
    * @param ctx - owning root context (the service registers itself as `models`).

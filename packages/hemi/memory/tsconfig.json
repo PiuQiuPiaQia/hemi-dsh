@@ -18,7 +18,31 @@
       "path": "../../typert/protocol"
     },
     {
+      "path": "../../util/atomic-write"
+    },
+    {
       "path": "../../util/home-paths"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../core/system-prompt"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../compaction/compaction"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../session/session-persistence"
     }
   ]
 }

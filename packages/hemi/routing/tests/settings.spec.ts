@@ -202,7 +202,7 @@ describe('setEnabled validation', () => {
       .rejects.toMatchObject({ code: 'HEMI_ROUTING_ROUTE_UNRESOLVED' })
     const effortUnsupported = await setup({
       main: { provider: 'mock', model: 'main' },
-      roles: { oracle: { provider: 'mock', model: 'oracle', reasoningEffort: 'high' } },
+      roles: { oracle: { provider: 'mock', model: 'oracle', reasoningEffort: 'max' } },
     })
     await expect(effortUnsupported.service.setEnabled(effortUnsupported.lead, true))
       .rejects.toMatchObject({ code: 'HEMI_ROUTING_ROUTE_UNRESOLVED' })

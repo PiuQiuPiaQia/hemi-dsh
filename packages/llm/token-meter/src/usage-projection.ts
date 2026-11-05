@@ -87,6 +87,7 @@ function usageOf(event: SessionEvent): TokenUsage | undefined {
 
 /** The context-pressure state schema and source of its inferred type. */
 const contextPressureStateSchema = z.object({
+  route: z.object({ provider: z.string(), model: z.string() }).optional(),
   contextWindow: z.number().int().positive().optional(),
   pressureTokens: z.number().int().nonnegative().optional(),
   surfaceTokens: z.number().int().nonnegative(),
@@ -146,11 +147,7 @@ export const tokenUsageProjectionDefinition = {
 /**
  * Token-meter's context-occupancy projection unit.
  *
- * Independent last-wins slots: the newest usage sample supplies the provider
- * numerator, the newest `request/context` record the denominator. Both are
- * whole values, so replay order alone decides the result and no cross-field
- * consistency is claimed — the pair is explicitly not one atomic request
- * observation (see {@link ContextPressureProjection}).
+ * A route change clears the provider sample until the new route reports usage.
  *
  * `pressureTokens` is prompt-side only, so it holds still while a turn streams
  * and steps forward once the next request reports its usage. Because nothing
@@ -166,15 +163,20 @@ export const tokenUsageProjectionDefinition = {
  */
 export const contextPressureProjectionDefinition = {
   key: 'contextPressure',
-  stateVersion: 5,
+  stateVersion: 6,
   stateSchema: contextPressureStateSchema,
   init: () => ({ surfaceTokens: 0 }),
   apply: (state, event) => {
     const fold = foldSurfaceProjection(state.claim, event)
     let next = state
     if (event.type === 'request/context') {
-      const contextWindow = event.data.contextWindow
-      if (contextWindow !== state.contextWindow) {
+      const { provider, model, contextWindow } = event.data
+      // Hemi fork: a model switch invalidates the old context-pressure sample; see hemi-fork-changes.md#hemi-customization-isolation.
+      if (provider !== state.route?.provider || model !== state.route.model) {
+        const { pressureTokens: _pressure, sampledSurfaceTokens: _sample, ...unmeasured } = next
+        next = { ...unmeasured, route: { provider, model } }
+      }
+      if (contextWindow !== next.contextWindow) {
         if (contextWindow !== undefined) {
           next = { ...next, contextWindow }
         } else {

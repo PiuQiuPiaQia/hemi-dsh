@@ -9,6 +9,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, launchWebScaffold,
   seedSession, watchConsole, webSnapshotMode,
 } from './scaffold.ts'
+import { serveWebDocument } from '../../desktop/src/web-document.ts'
 import { openSettings, newEnglishPage, saveFailureShot, ZH_BROWSER_LOCALE } from './support.ts'
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/plugins/fixture-live-client', import.meta.url))
@@ -438,5 +439,56 @@ it('removes the client UI and resources while Host cleanup is still pending', as
     expect(hostDisposed).toBe(true)
   } finally {
     await browser.close()
+  }
+})
+
+it('reloads the desktop document with fresh boot resources after old bootstrap generations expire', async () => {
+  const scaffold = await launchWebScaffold()
+  onTestFinished(() => scaffold.close())
+  const browser = await chromium.launch()
+  onTestFinished(() => browser.close())
+  const page = await browser.newPage({ locale: 'en-US' })
+  const failures: string[] = []
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => { pageErrors.push(error.message) })
+  await page.exposeFunction('desktopBootFailure', (message: string) => { failures.push(message) })
+  await page.exposeFunction('desktopBootReady', () => ({
+    injections: scaffold.ctx.webServer.collectIndexInjections(scaffold.ctx.connection.browserPeer),
+    streamBaseUrl: new URL(scaffold.baseUrl).origin,
+  }))
+  await page.addInitScript(`globalThis.dshDesktopBoot = {
+    ready: () => globalThis.desktopBootReady(), failed: message => globalThis.desktopBootFailure(message)
+  }`)
+  const response = await serveWebDocument(new Request('dsh-app://app/'), fileURLToPath(new URL('../dist/', import.meta.url)))
+  const html = await response.text()
+  await page.route(url => url.origin === new URL(scaffold.baseUrl).origin && url.pathname === '/' && url.search === '',
+    route => route.fulfill({ status: 200, contentType: 'text/html', body: html }))
+  try {
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+    await page.waitForFunction(() => document.getElementById('root')?.textContent?.includes('New Session'), null, { timeout: 10_000 })
+    const path = scaffold.ctx.clientModules.clientPath('@deepseek-ai/dsh-client-modules')
+    if (path === undefined) throw new Error('Missing bootstrap bundle')
+    const original = await stat(path)
+    onTestFinished(() => utimes(path, original.atime, original.mtime))
+    for (let round = 0; round < 3; round++) {
+      const old = scaffold.ctx.clientModules.graph().batches.find(batch => batch.phase === 'bootstrap')
+      if (old === undefined) throw new Error('Missing bootstrap batch')
+      // Two publications evict the old document's startup resource; no source bytes change.
+      for (let change = 1; change <= 2; change++) {
+        await utimes(path, original.atime, new Date(original.mtimeMs + (round * 2 + change) * 1000))
+        scaffold.ctx.clientModules.rebuilt('@deepseek-ai/dsh-client-modules')
+      }
+      const stale = await scaffold.hostFetch('/' + old.url)
+      expect(stale.status).toBe(404)
+      await stale.body?.cancel()
+      await page.reload({ waitUntil: 'load' })
+      await page.waitForFunction(() => document.getElementById('root')?.textContent?.includes('New Session'), null, { timeout: 10_000 })
+    }
+    expect(failures).toEqual([])
+    expect(pageErrors).toEqual([])
+  } catch (error) {
+    console.error({ failures, pageErrors, body: (await page.locator('body').innerText()).slice(0, 2000) })
+    await saveFailureShot(page, 'desktop-fresh-boot')
+    throw error
   }
 })

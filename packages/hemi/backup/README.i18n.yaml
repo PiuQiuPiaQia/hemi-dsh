@@ -9,20 +9,38 @@
   en: 0490814b9c5990a0
   zh: 07d53e15fbc36388
 /deepseek-ai-dsh-hemi-backup/summary:
-  en: 4f97f7401644106b
-  zh: fe5fd20d866a8853
+  en: 92e061e443ebba81
+  zh: 82257765caaecbb3
 /deepseek-ai-dsh-hemi-backup/table-of-contents:
   en: beadfd9a5a1e319e
-  zh: beadfd9a5a1e319e
+  zh: 1d1e369922c708df
 /deepseek-ai-dsh-hemi-backup/use-this-package:
   en: db595c3d77fe3d02
-  zh: df5399eb779f2b6c
+  zh: dcef3047169f87eb
 /deepseek-ai-dsh-hemi-backup/understand-the-implementation:
-  en: eb26e3ba5622b2b1
-  zh: bcc6b0aa0b443fa2
+  en: cda6d3bd8e9b3c89
+  zh: 4a844b1f61fbb473
 /deepseek-ai-dsh-hemi-backup/client-interface:
-  en: 55854e005e2e1bf6
-  zh: e2abc8df5852730f
+  en: fe8a0e756f02bd1e
+  zh: 808cb138953fd8eb
+/deepseek-ai-dsh-hemi-backup/model-experience:
+  en: 215e7ba838619b7b
+  zh: e61c78b7d37628ed
+/deepseek-ai-dsh-hemi-backup/model-experience/backup-and-restore:
+  en: 10d62a7aa927df20
+  zh: 249d8e0ad7642404
+/deepseek-ai-dsh-hemi-backup/model-experience/backup-and-restore/what-the-model-sees:
+  en: 3378777a53c3bc5a
+  zh: 88507ca39dcafdd3
+/deepseek-ai-dsh-hemi-backup/model-experience/backup-and-restore/token-effect:
+  en: 44155b1775797d50
+  zh: cb562b58a57c6a92
+/deepseek-ai-dsh-hemi-backup/model-experience/backup-and-restore/kv-cache-effect:
+  en: 5339f55a0a4b4e0b
+  zh: 914eaeb100b62774
 /deepseek-ai-dsh-hemi-backup/known-limitations-and-deferred-work:
-  en: 6999e7fa98bed24c
-  zh: 817e4b1b1ef82ae1
+  en: 17f3278ff7791db9
+  zh: a927eac65c953fe6
+/deepseek-ai-dsh-hemi-backup/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 754c49ec538c164c

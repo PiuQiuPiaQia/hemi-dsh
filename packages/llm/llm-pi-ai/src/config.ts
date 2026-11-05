@@ -103,6 +103,8 @@ export type {
 
 /** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
 export interface PiAiProviderProfile {
+  /** Model IDs explicitly removed from the served catalog; connection credentials are retained. */
+  hiddenModels?: string[]
   /** Credential reference (environment-variable name) resolved per request through `ctx.credentials`. */
   apiKeyEnv?: string
   /** Name shown by configuration surfaces; defaults to the route key. */
@@ -358,6 +360,7 @@ const profile = z.object({
   api: z.union(supportedProtocols()),
   baseURL: z.string(),
   models: z.array(modelProfile),
+  hiddenModels: z.array(z.string()).default([]),
   modelOverrides: z.dict(modelOverride),
   compat: compatProfile,
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
@@ -522,6 +525,12 @@ export function resolveProfiles(
         models: catalog.models,
         namesCredential: source.apiKeyEnv !== undefined,
       })
+      // Hemi fork: removing catalog models must retain the connection and grant; see hemi-fork-changes.md#hemi-customization-isolation.
+      if (source.hiddenModels?.length) {
+        const original = piProvider
+        const hidden = new Set(source.hiddenModels)
+        piProvider = { ...original, getModels: () => original.getModels().filter(model => !hidden.has(model.id)) }
+      }
     } catch (error) {
       if (validation === 'strict' || !(error instanceof PiAiCatalogError)) throw error
       catalogError ??= error.message

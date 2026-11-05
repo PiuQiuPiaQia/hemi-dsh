@@ -47,11 +47,11 @@ dsh plugin --profile <name> add \
 
 Read the exact file names from `<destination>/packages.json`. `@hemi/model-routing` declares the two routing packages as peer dependencies at matching versions; one command adding all three archives satisfies them.
 
-Install this layer only on compositions that carry no built-in Hemi routing rows: the web-app bundle in this checkout already wires `hemi-routing-settings`, `hemi-routing`, and `hemi-routing-ui`, and adding this layer on top inserts those rows again. Profiles composed from official upstream bundles carry no such rows.
+Install this version on the matching official Web composition with its standard preset, before applying user preset overrides. Install it only on compositions that carry no built-in Hemi routing rows: the web-app bundle in this checkout already wires `hemi-routing-settings`, `hemi-routing`, and `hemi-routing-ui`, and adding this layer on top inserts those rows again. Profiles composed from official upstream bundles carry no such rows.
 
 ### What you get
 
-The layer inserts three profile rows: `hemi-routing-settings` (the root-scope settings service `@deepseek-ai/dsh-hemi-routing/settings`, seeded with an empty `main` and `roles`), `hemi-routing` (the delegation plugin `@deepseek-ai/dsh-hemi-routing`), and `hemi-routing-ui` (the client plugin `@deepseek-ai/dsh-hemi-routing-ui`). It edits no preset: the delegation tool contributes through the scoped registries.
+The layer inserts two root profile rows: `hemi-routing-settings` (the root-scope settings service `@deepseek-ai/dsh-hemi-routing/settings`, seeded with an empty `main` and `roles`) and `hemi-routing-ui` (the client plugin `@deepseek-ai/dsh-hemi-routing-ui`). It replaces the standard preset configuration with the fork’s standard capabilities, without the separate memory plugin, and enables the native `subagent` role allowlist. Four native presets (`explorer`, `oracle`, `fixer`, `designer`) supply role personas and shared tools; model routing is mounted inside standard. Waiting, cancellation and result notices remain native.
 
 From the gear beside Automatic routing in the conversation model menu, or Settings → Models → Configure model routing, pick a main model and one model for each of the four roles — Research, Review, Execution, and Design (`explorer`, `oracle`, `fixer`, `designer`) — from the configured model catalog. A role left on Follow main model uses the main model; provider and model ids cannot be typed in.
 
@@ -65,7 +65,7 @@ Each ordinary conversation saves its own auto/fixed preference. Every root Sessi
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The whole payload is [cordis.patch.yml](cordis.patch.yml): one `insert` list with the three rows above. [pack.mjs](pack.mjs) packs this package together with `packages/hemi/routing` and `packages/hemi/routing-ui`; the tests live in [tests/installed-smoke.mjs](tests/installed-smoke.mjs).
+The payload consists of [cordis.patch.yml](cordis.patch.yml), [standard.patch.yml](standard.patch.yml) and [roles.patch.yml](roles.patch.yml). Run `node plugins/hemi-model-routing/sync-config.mjs --write` after changing the owning standard preset or `packages/hemi/routing/roles.patch.yml`; packing rejects stale generated configuration. The Hemi composer uses a lower slot priority to shadow official clients that lack `showComposer`. [pack.mjs](pack.mjs) packs this package together with `packages/hemi/routing` and `packages/hemi/routing-ui`; the tests live in [tests/installed-smoke.mjs](tests/installed-smoke.mjs).
 
 Turn and step semantics in brief, owned by the routing package: each turn's first claimed message captures one plan of mode, main, and role routes; in auto the plugin selects the configured main model before the loop reads the step's selection, and delegations bind the plan's role route. A manual model selection takes effect from the next step, not the next turn; steps already prepared keep their captured routes, and dispatched delegations keep their bound routes.
 

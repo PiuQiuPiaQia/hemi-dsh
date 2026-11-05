@@ -6,7 +6,7 @@
  * standard settings pipeline; the per-Session mode is one path-addressed
  * preference saved through the same pipeline, and the preset-scope
  * `hemi-routing` plugin reads everything through the domain getters below
- * when it plans turns and binds `hemi_delegate`. No Hemi session events are
+ * when it plans turns and binds native role subagents. No Hemi session events are
  * recorded; plain Session logs stay readable by every harness build.
  */
 
@@ -224,6 +224,19 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
       return raw
     }), 'hemi-routing: validate routing config')
     ctx.effect(() => () => { this.stopWrites() }, 'hemi-routing: stop settings submissions')
+    ctx.effect(() => ctx.on('subagent/resolve-agent-options', (spec, next) => {
+      const options = next()
+      const role = spec.agentPreset
+      if (role === undefined || !HEMI_ROLE_IDS.includes(role as HemiRoleId)) return options
+      const route = this.routeForDelegation(spec.parent, role as HemiRoleId)
+      if (route.kind === 'inherit') return options
+      return {
+        ...options,
+        provider: route.route.provider,
+        model: route.route.model,
+        reasoningEffort: route.route.reasoningEffort === undefined ? undefined : ReasoningEffortId(route.route.reasoningEffort),
+      }
+    }), 'hemi-routing: native role model binding')
     ctx.effect(() => ctx.on('agent/before-user-model-selection', async (agent) => {
       if (agent.session.header.origin !== 'subagent' && ctx.subagents.rootOf(agent) === agent) {
         await this.setEnabled(agent, false)
@@ -305,7 +318,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
   }
 
   /**
-   * Resolve the route one `hemi_delegate` call hard-binds for `role`. Role
+   * Resolve the route a native role subagent hard-binds for `role`. Role
    * routing applies only when the turn was planned in auto mode and the
    * delegating step still runs in auto mode: a manual model selection between
    * steps switches later delegations to the selected route, while steps

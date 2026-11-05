@@ -1,7 +1,7 @@
 /** Locale bundles for the Hemi backup settings section. */
 
 /** Locale keys the section renders. */
-export type BackupLocaleKey =
+export type BackupLocaleKey = 'localPathHint' | 'webdavUrlHint'
   | 'nav' | 'title' | 'description' | 'plaintextNote' | 'restartNote'
   | 'targetKind' | 'targetLocal' | 'targetWebdav' | 'targetDir' | 'targetUrl' | 'targetUsername' | 'targetPassword' | 'targetPasswordSaved' | 'targetRemoteDir' | 'targetHelp'
   | 'test' | 'testing' | 'testOk' | 'save' | 'saving' | 'saved' | 'saveFailed'
@@ -14,6 +14,7 @@ export type BackupLocaleKey =
 
 /** English copy. */
 export const en: Record<BackupLocaleKey, string> = {
+  localPathHint: '~/.dsh-backups', webdavUrlHint: 'https://dav.jianguoyun.com/dav/',
   nav: 'Backup',
   title: 'Data backup',
   description: 'Keep model settings, user settings, and session history in a snapshot archive, and restore them on this or a new machine.',
@@ -70,7 +71,7 @@ export const en: Record<BackupLocaleKey, string> = {
   previewIdentical: 'identical, skipped',
   previewConflicts: 'conflicts',
   previewSkipped: 'skills excluded by size',
-  mergeNote: 'Merge restore: identical data is skipped; conflicts keep the newer copy and the loser is saved to a safe-copy folder; the app restart completes the restore.',
+  mergeNote: 'Merge restore: existing sessions stay unchanged; conflicting session backups are saved separately. Other conflicts keep the newer copy and save the other to the safe-copy folder. Restart the app to complete the restore.',
   applied: 'Restored. Restart the app to take full effect.',
   applyFailed: 'Restore failed',
   noRestore: 'No restore is staged.',
@@ -78,6 +79,7 @@ export const en: Record<BackupLocaleKey, string> = {
 
 /** 中文文案。 */
 export const zh: Record<BackupLocaleKey, string> = {
+  localPathHint: '~/.dsh-backups', webdavUrlHint: 'https://dav.jianguoyun.com/dav/',
   nav: '备份',
   title: '数据备份',
   description: '把模型配置、用户配置和会话历史保存为快照归档，需要时在本机或新机恢复。',
@@ -134,7 +136,7 @@ export const zh: Record<BackupLocaleKey, string> = {
   previewIdentical: '相同自动跳过',
   previewConflicts: '冲突',
   previewSkipped: '因超尺寸排除的技能',
-  mergeNote: '合并恢复：相同数据自动跳过；冲突保留较新版本，落选数据存入安全副本；重启应用后完全生效。',
+  mergeNote: '合并恢复：已有会话保持原样，冲突的会话备份另存安全副本；其他冲突保留较新版本，落选数据另存；重启应用后完全生效。',
   applied: '已恢复，重启应用后完全生效。',
   applyFailed: '恢复失败',
   noRestore: '没有正在进行的恢复。',

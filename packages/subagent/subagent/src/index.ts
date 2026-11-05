@@ -37,7 +37,7 @@ import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock, MessageId } from '@deepseek-ai/dsh-llm'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { Remote, RemoteError, TypertRemoteService, principalOf, type Principal } from '@deepseek-ai/dsh-typert-protocol'
@@ -129,6 +129,15 @@ declare module '@deepseek-ai/cordis' {
   }
 
   interface Events {
+    /**
+     * Resolve trusted deployment-owned child model defaults before capability validation and identity publication.
+     * Listeners may bind a selected preset to a model; task, parent and delivery remain caller-owned.
+     * @param spec - requested child identity and execution options.
+     * @param next - remaining option resolvers and the caller defaults.
+     * @mode waterfall
+     */
+    'subagent/resolve-agent-options'(spec: Readonly<SubagentActivationSpec>, next: () => AgentOptions | undefined): AgentOptions | undefined
+
     /**
      * A provider became resolvable in the registry.
      * @param provider - the registered provider.
@@ -269,6 +278,12 @@ export class SubagentRuntime extends TypertRemoteService {
     if (this.ctx.get('agents')?.get(spec.parent.id) !== spec.parent) {
       throw new SubagentError('subagent creation requires the exact live parent agent', 'UNAUTHORIZED')
     }
+    // Hemi fork: let role plugins bind model options before validating provider capabilities.
+    // See hemi-fork-changes.md#hemi-customization-isolation.
+    const options = this.ctx.waterfall('subagent/resolve-agent-options', spec, () => spec.agentOptions)
+    if (options !== undefined) spec = { ...spec, agentOptions: options }
+    // Deployment defaults may add options that the caller did not request.
+    this.assertCapabilities(provider, spec)
     if (spec.outputSchema !== undefined) assertObjectJsonSchema(spec.outputSchema)
     const prepare = provider.prepareContinuable?.bind(provider)
     if (prepare !== undefined) {

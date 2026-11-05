@@ -525,9 +525,9 @@ describe('PiAiAdapter provider routing', () => {
 })
 
 describe('provider profile lifecycle', () => {
-  it('keeps adapter helpers off the package root', () => {
+  it('exports the adapter composition seam and keeps wire conversion helpers private', () => {
+    expect(LlmPiAi.resolveProfiles).toBe(resolveProfiles)
     for (const helper of [
-      'resolveProfiles',
       'toPiContext',
       'toPiReplayState',
       'toPiAssistant',

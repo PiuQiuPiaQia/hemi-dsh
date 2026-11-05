@@ -107,6 +107,17 @@ const GROUP_ORDER = [
 ]
 
 const SERVICE_ROLES: ServiceRole[] = [
+  // Hemi fork: feature services remain owned by their Hemi plugins.
+  { key: 'hemiBackup', pkg: 'hemi-backup', title: 'Hemi backup', mode: 'service',
+    consumers: ['hemi-backup-ui'], note: 'Owns backup targets, archive jobs and staged restores.' },
+  { key: 'hemiMemory', pkg: 'hemi-memory', title: 'Hemi memory', mode: 'service',
+    consumers: ['hemi-memory-ui'], note: 'Owns revision-checked memory store reads and edits.' },
+  { key: 'hemiModelAccess', pkg: 'hemi-model-access', title: 'Hemi model access', mode: 'service',
+    consumers: ['hemi-model-access-ui'], note: 'Owns subscription authorization, quota queries and model import.' },
+  { key: 'hemiModelSettings', pkg: 'hemi-model-settings', title: 'Hemi model tests', mode: 'service',
+    consumers: ['hemi-model-settings-ui'], note: 'Owns explicit model connection tests.' },
+  { key: 'hemiRoutingSettings', pkg: 'hemi-routing', title: 'Hemi role routes', mode: 'service',
+    consumers: ['hemi-routing-ui'], note: 'Owns saved main and role routes and per-Session automatic mode.' },
   {
     key: 'actionCards',
     pkg: 'action-cards',

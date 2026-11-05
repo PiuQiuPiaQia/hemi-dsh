@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Register the six Hemi desktop-assistant skins (classic plus the five character skins) as selectable alias-token themes, apply the chosen skin through a durable `overrideTokens` layer, and render the ported character artwork as a fixed backdrop without lettering. Artwork keeps its intrinsic aspect ratio and uses Hemi's height-based framing: 104% height, -12% right, -13% bottom; at widths up to 880px, 90% height, -40% right, -8% bottom. The built-in theme preference schema accepts only light/dark/system, so a third-party `setTheme` call is reverted by the next settings adopt; the override layer keeps the skin live across preference changes. Idle animations and portraits are deferred.
+Register the six Hemi desktop-assistant skins (classic plus the five character skins) as selectable alias-token themes, apply the chosen skin through a durable `overrideTokens` layer, and render the ported character artwork as a backdrop without lettering. Artwork keeps its intrinsic aspect ratio and uses Hemi's height-based framing: 104% height, -12% right, -13% bottom; at widths up to 880px, 90% height, -40% right, -8% bottom. The built-in theme preference schema accepts only light/dark/system, so a third-party `setTheme` call is reverted by the next settings adopt; the override layer keeps the skin live across preference changes. Idle animations and portraits are deferred.
 
 ## Table of Contents
 
@@ -29,18 +29,37 @@ The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme
 
 `src/client/skins.ts` mirrors the Hemi `skins.config.json` palette table (rail, accent, scale-600, line) into a small `--dsw-alias-*` token set. The client half registers each skin and disposes the registrations on teardown.
 
+The backdrop layer is a full-viewport body child mounted after `#root` and is visual only. Its sheet opts it out of app-region collection with `-webkit-app-region: initial !important`: the shell's darwin `body > :not(#root)` rule subtracts body-level overlays from the window drag surface by DOM order, and a full-viewport no-drag box would otherwise disable titlebar dragging and its native double-click maximize/restore on macOS.
+
 <a id="further-exploration"></a>
 ## Further exploration
 
 - `packages/client/ui-theme` owns the theme registry, token stylesheets, and settings rows.
 - The Hemi source table lives in the Hemi repository at `src/shared/appearance/skins.config.json`.
 
-<a id="known-limitations-and-deferred-work"></a>
-## Known limitations and deferred work
+## Model Experience
 
-Startup application overwrites the persisted preference until a skin picker row ships. Background images, portraits, idle animation, and lettering are deferred.
+### Skin selection
+
+#### What the model sees
+
+`overrideTokens` colors and artwork stay in the browser and add no model input.
+
+#### Token effect
+
+Skin changes send no model requests.
+
+#### KV Cache effect
+
+Skin changes preserve model request prefixes.
+
+## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
+
+- Startup application overwrites the persisted preference until a skin picker row ships. Background images, portraits, idle animation, and lettering are deferred.
 
 <a id="dev-note"></a>
-## Dev note
+### Dev Note
 
 Fork addition; keep the palette table in sync with the Hemi source of truth.

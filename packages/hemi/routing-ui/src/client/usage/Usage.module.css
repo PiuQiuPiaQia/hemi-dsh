@@ -1,0 +1,179 @@
+/* Icon-row Turn-usage pill (data icon + turn total); its click-open dialog
+   wears the shared stat-dialog.module.css skin. */
+
+.root {
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* Adjacent stat pills (usage then time) rebate part of their combined internal
+   padding so the pair reads as one cluster inside the row's 8px flex gap,
+   while keeping 2px clear between their hover backgrounds. */
+.root + .root {
+  margin-left: -6px;
+}
+
+/* The information pills use the action icons' resting color. */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
+  font-variant-numeric: tabular-nums;
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* A narrow column trims the label to an ellipsis instead of overflowing the
+   pill; the data glyph never shrinks. */
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trigger svg {
+  width: calc(15px + var(--dsh-content-font-delta, 0px));
+  height: calc(15px + var(--dsh-content-font-delta, 0px));
+  flex: none;
+}
+
+.trigger[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+@media (hover: hover) {
+  .trigger:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-tertiary);
+  }
+}
+
+/* Narrow viewport: the pills collapse to bare icons with the sibling
+   `.action` geometry (28px circle, 6px padding, centered glyph); the
+   label-padding rebate no longer applies, so the pair keeps the row's plain
+   8px rhythm. The dialogs keep the words. */
+@media (max-width: 480px) {
+  .trigger {
+    justify-content: center;
+    width: calc(28px + var(--dsh-content-font-delta, 0px));
+    padding: 6px;
+  }
+
+  .trigger .label {
+    display: none;
+  }
+
+  .root + .root {
+    margin-left: 0;
+  }
+}
+
+.panel {
+  box-sizing: border-box;
+  position: fixed;
+  z-index: 1100;
+  width: max-content;
+  min-width: min(290px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
+  max-width: min(440px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
+  max-height: var(--dsh-anchored-max-height, none);
+  padding: 16px;
+  overflow: auto;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.title {
+  margin-bottom: 8px;
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto);
+  gap: 4px 16px;
+  margin: 0;
+}
+
+.details dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.heading {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.compact svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wide {
+  width: min(760px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
+  max-width: min(760px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
+}
+
+.scope, .status {
+  color: var(--dsw-alias-label-secondary);
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary strong { color: var(--dsw-alias-label-primary); font-size: 14px; }
+
+
+.models { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.models th, .models td { text-align: right; padding: 10px 8px; vertical-align: top; }
+.models thead th { font-weight: 500; white-space: nowrap; }
+.models th:first-child { text-align: left; padding-left: 0; }
+.models th:last-child, .models td:last-child { padding-right: 0; }
+.models tbody tr + tr { border-top: 0.5px solid var(--dsw-alias-border-l3); }
+.models tbody th { font-weight: 500; min-width: 100px; max-width: 220px; overflow-wrap: anywhere; }
+.models small { display: block; font-size: 11px; line-height: 16px; font-weight: 400; color: var(--dsw-alias-label-secondary); }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .models thead { display: none; }
+  .models, .models tbody { display: block; }
+  .models tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 0; gap: 8px 16px; }
+  .models tbody th { grid-column: 1 / -1; max-width: none; padding: 0; }
+  .models td { padding: 0; text-align: left; overflow-wrap: anywhere; }
+  .models td::before { content: attr(data-label); display: block; color: var(--dsw-alias-label-secondary); }
+}
+
+@media (max-width: 480px) {
+  .keepLabel .trigger { width: auto; padding: 6px 8px; }
+  .keepLabel .trigger .label { display: inline; }
+  .summary { flex-wrap: wrap; gap: 8px; }
+}

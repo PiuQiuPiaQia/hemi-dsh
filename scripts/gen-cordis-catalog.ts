@@ -50,6 +50,12 @@ export { REGION_BEGIN, REGION_END }
  * errors, so the partition can never silently drift from the service API.
  */
 export const SERVICE_PAGE: Record<string, string> = {
+  // Hemi fork: keep fork-owned service documentation on the Hemi subsystem page.
+  hemiBackup: 'hemi.md',
+  hemiMemory: 'hemi.md',
+  hemiModelAccess: 'hemi.md',
+  hemiModelSettings: 'hemi.md',
+  hemiRoutingSettings: 'hemi.md',
   headlessStartup: 'boot.md',
   translator: 'translation.md',
   cotTranslation: 'translation.md',
@@ -985,6 +991,34 @@ export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
 
 /** Project types deliberately documented outside the subsystems catalog. */
 export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
+  // Hemi fork: Hemi DTO documentation stays with its owning plugin README.
+  BackupOperationResult: 'packages/hemi/backup/README.md',
+  BackupSetView: 'packages/hemi/backup/README.md',
+  BackupSettings: 'packages/hemi/backup/README.md',
+  BackupStateView: 'packages/hemi/backup/README.md',
+  BackupTarget: 'packages/hemi/backup/README.md',
+  RestoreApplyResult: 'packages/hemi/backup/README.md',
+  RestorePreview: 'packages/hemi/backup/README.md',
+  RunManifestSummary: 'packages/hemi/backup/README.md',
+  MemorySnapshot: 'packages/hemi/memory/README.md',
+  StoreTarget: 'packages/hemi/memory/README.md',
+  KeyDirectory: 'packages/hemi/model-access/README.md',
+  KeyProfileInput: 'packages/hemi/model-access/README.md',
+  ModelOptions: 'packages/hemi/model-access/README.md',
+  ModelOptionsView: 'packages/hemi/model-access/README.md',
+  LoginState: 'packages/hemi/model-access/README.md',
+  NewApiBrowserCommit: 'packages/hemi/model-access/README.md',
+  NewApiBrowserCommitResult: 'packages/hemi/model-access/README.md',
+  NewApiImportReceipt: 'packages/hemi/model-access/README.md',
+  NewApiLogin: 'packages/hemi/model-access/README.md',
+  NewApiToken: 'packages/hemi/model-access/README.md',
+  QuotaWindow: 'packages/hemi/model-access/README.md',
+  Subscription: 'packages/hemi/model-access/README.md',
+  DelegationRoute: 'packages/hemi/routing/README.md',
+  HemiRoleId: 'packages/hemi/routing/README.md',
+  HemiRoutingMode: 'packages/hemi/routing/README.md',
+  RoleRoutes: 'packages/hemi/routing/README.md',
+  Route: 'packages/hemi/routing/README.md',
   ActionCardDecision: 'packages/experimental/action-cards/README.md',
   ActionCardKind: 'packages/experimental/action-cards/README.md',
   ActionCardResult: 'packages/experimental/action-cards/README.md',

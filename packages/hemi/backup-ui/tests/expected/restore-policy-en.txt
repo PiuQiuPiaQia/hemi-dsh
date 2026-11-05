@@ -1,0 +1,1 @@
+Merge restore: existing sessions stay unchanged; conflicting session backups are saved separately. Other conflicts keep the newer copy and save the other to the safe-copy folder. Restart the app to complete the restore.

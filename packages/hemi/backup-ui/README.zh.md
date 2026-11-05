@@ -7,11 +7,11 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
-## Summary
+## 概述
 
-`dsh-hemi-backup-ui` 在通用设置页渲染 Hemi 备份卡片：上次备份状态、目标编辑（本地文件夹或 WebDAV/坚果云应用密码）、连接测试、立即备份、定时与保留份数控制、带恢复与删除的备份集列表，以及应用前展示合并预估（新增/相同/冲突）的分阶段恢复对话框。所有动作调用由 `dsh-hemi-backup` 持有的 `hemiBackup` Remote 命名空间。
+`dsh-hemi-backup-ui` 在设置导航中注册独立的「备份」页：上次备份状态、目标编辑（本地文件夹或 WebDAV/坚果云应用密码）、连接测试、立即备份、定时与保留份数控制、带恢复与删除的备份集列表，以及应用前展示合并预估（新增/相同/冲突）的分阶段恢复对话框。所有动作调用由 `dsh-hemi-backup` 持有的 `hemiBackup` Remote 命名空间。
 
-## Table of Contents
+## 目录
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
@@ -20,17 +20,44 @@ kind: "package-reference"
 -----
 
 <a id="use-this-package"></a>
-## Use this package
+## 使用此包
 
 本包以浏览器 `hemi-backup-ui` 条目接进 web-app bundle；要求宿主侧存在 `dsh-hemi-backup`，自身无需配置。
 
 <a id="understand-the-implementation"></a>
-## Understand the implementation
+## 理解实现
 
-`src/client/index.ts` 注册 `hemi-backup` locale 命名空间并把 `BackupSection` 注入 `settings.general.item` 槽位；注入面负责拆开宿主方法外的 Remote 结果封套。`BackupSection.tsx` 持有编辑器状态、单飞忙碌守卫、运行中的进度轮询，并在卸载时取消任何已暂存的恢复。
+`src/client/index.ts` 注册 `hemi-backup` locale 命名空间并把 `BackupSection` 注入 `settings.section` 槽位；注入面负责拆开宿主方法外的 Remote 结果封套。`BackupSection.tsx` 持有编辑器状态、单飞忙碌守卫、运行中的进度轮询，并在卸载时取消任何已暂存的恢复。
+
+恢复确认区说明已有会话保持原样，冲突的会话备份另存安全副本。
+
+## 模型体验
+
+<a id="model-experience"></a>
+
+### 备份操作
+
+#### 模型看到的内容
+
+`hemiBackup` 设置与恢复预览仅在用户界面呈现。
+
+#### Token 影响
+
+面板不发送模型请求。
+
+#### KV Cache 影响
+
+面板不修改请求前缀。
+
+## 已知限制与延期工作
 
 <a id="known-limitations-and-deferred-work"></a>
-## Known limitations and deferred work
 
 - 没有首跑恢复向导；恢复一律从设置页发起。
 - 本地文件夹目标是手输路径；桌面端暂无原生目录选择器。
+
+### 开发备注
+
+<a id="dev-note"></a>
+
+无。

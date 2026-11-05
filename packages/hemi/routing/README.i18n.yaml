@@ -9,20 +9,38 @@
   en: 23bb44138ef3b413
   zh: f92585abc27c96af
 /deepseek-ai-dsh-hemi-routing/summary:
-  en: d5a73cc7f9ea89e4
-  zh: 703a3d3c24803d4b
+  en: 534415a3e2d57caf
+  zh: bb0b7f406291e84f
 /deepseek-ai-dsh-hemi-routing/table-of-contents:
   en: beadfd9a5a1e319e
   zh: 9e696e9c3e6d265a
 /deepseek-ai-dsh-hemi-routing/use-this-package:
-  en: 07fd3bf366d48b82
-  zh: 3ef034a7b5b13b48
+  en: 57cec521940c4fd1
+  zh: 2b62d00105677898
 /deepseek-ai-dsh-hemi-routing/understand-the-implementation:
-  en: 59e50d854e649628
-  zh: 10d34cd3d69b2979
+  en: 11bf463ea6723150
+  zh: c2d87e682c2d9040
 /deepseek-ai-dsh-hemi-routing/client-interface:
-  en: 1c754acee0f7e346
-  zh: 634219f39b6a29e1
+  en: 5b917c9af0636aab
+  zh: 0a1713f3e68d0a65
+/deepseek-ai-dsh-hemi-routing/model-experience:
+  en: 215e7ba838619b7b
+  zh: e61c78b7d37628ed
+/deepseek-ai-dsh-hemi-routing/model-experience/native-role-guidance:
+  en: 0d6b46d95e451454
+  zh: 8f9013a2e19fe196
+/deepseek-ai-dsh-hemi-routing/model-experience/native-role-guidance/what-the-model-sees:
+  en: 0f72aebceed550e0
+  zh: fb4d6b4e7e704e08
+/deepseek-ai-dsh-hemi-routing/model-experience/native-role-guidance/token-effect:
+  en: fcf0e54530771a43
+  zh: 4e8b74f5da73e179
+/deepseek-ai-dsh-hemi-routing/model-experience/native-role-guidance/kv-cache-effect:
+  en: ff0fc76663e6242e
+  zh: cee7bd533c5ca64f
 /deepseek-ai-dsh-hemi-routing/known-limitations-and-deferred-work:
-  en: 574430dabf41bdb8
-  zh: 93790caf27e5202b
+  en: 62b35faa84e10511
+  zh: 71c251cfc124fe40
+/deepseek-ai-dsh-hemi-routing/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 754c49ec538c164c

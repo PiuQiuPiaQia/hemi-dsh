@@ -13,12 +13,13 @@
  * @module @deepseek-ai/dsh-hemi-backup/engine
  */
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { Duplex } from 'node:stream'
+import type { FileHandle } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
 import { createGzip, createGunzip } from 'node:zlib'
+import { z } from 'zod'
 
 /** Manifest `kind` discriminator for Hemi backup directories. */
 export const BACKUP_KIND = 'hemi-dsh-backup'
@@ -44,6 +45,7 @@ const DSH_ENTRIES: readonly string[] = [
   'sessions',
   'storages',
   'memory',
+  'hemi-memory',
   'profiles',
 ]
 
@@ -120,7 +122,7 @@ export class BackupEngineError extends Error {
    * @param code - stable failure code.
    * @param message - human-readable failure description.
    */
-  constructor(readonly code: 'EMPTY_ARCHIVE' | 'NOT_A_BACKUP' | 'NEWER_SCHEMA' | 'MISSING_PARTS' | 'PART_CORRUPT' | 'SYMLINK' | 'SNAPSHOT_SHRUNK' | 'PATH_TOO_LONG', message: string) {
+  constructor(readonly code: 'EMPTY_ARCHIVE' | 'NOT_A_BACKUP' | 'NEWER_SCHEMA' | 'MISSING_PARTS' | 'PART_CORRUPT' | 'SYMLINK' | 'SNAPSHOT_SHRUNK' | 'PATH_TOO_LONG' | 'INVALID_PATH' | 'INVALID_ARCHIVE', message: string) {
     super(message)
   }
 }
@@ -196,7 +198,7 @@ export function collectEntries(dshHome: string, agentsHome: string, skillMaxByte
   const skipped: SkippedSkill[] = []
   const record = (root: string, rel: string): void => {
     if (isExcludedRel(rel)) return
-    if (hasLinkedAncestor(root, rel)) return
+    if (hasLinkedAncestor(root, rel.split('/').slice(1).join('/'))) return
     const abs = path.join(root, ...rel.split('/').slice(1))
     const stats = lstatIfPresent(abs)
     if (stats === null) return
@@ -268,9 +270,9 @@ interface TarHeader {
 function buildHeader(member: { name: string; type: 'file' | 'dir'; size: number; mtimeMs: number }): TarHeader {
   let prefix = ''
   let base = member.name
-  if (member.name.length > 100) {
-    const split = member.name.lastIndexOf('/', member.name.length - 101)
-    if (split > 0 && member.name.length - split - 1 <= 100) {
+  if (Buffer.byteLength(member.name) > 100) {
+    const split = member.name.lastIndexOf('/')
+    if (split > 0 && Buffer.byteLength(member.name.slice(split + 1)) <= 100 && Buffer.byteLength(member.name.slice(0, split)) <= 155) {
       prefix = member.name.slice(0, split)
       base = member.name.slice(split + 1)
     } else return { needsLong: true }
@@ -293,11 +295,7 @@ function buildHeader(member: { name: string; type: 'file' | 'dir'; size: number;
   return { needsLong: false, header: buffer }
 }
 
-async function writeAll(stream: Duplex, chunk: Buffer): Promise<void> {
-  if (!stream.write(chunk)) await new Promise<void>(resolve => stream.once('drain', resolve))
-}
-
-async function writeLongNameEntry(gzip: Duplex, name: string): Promise<void> {
+function* longNameEntry(name: string): Generator<Buffer> {
   const content = Buffer.from(`${name}\0`, 'utf8')
   const long = buildHeader({ name: '././@LongLink', type: 'file', size: content.length, mtimeMs: 0 })
   if (long.needsLong || long.header === undefined) throw new BackupEngineError('PATH_TOO_LONG', `backup path too long (>255): ${name}`)
@@ -306,26 +304,27 @@ async function writeLongNameEntry(gzip: Duplex, name: string): Promise<void> {
   let sum = 0
   for (const byte of long.header) sum += byte
   long.header.write(octal(sum, 8), 148)
-  await writeAll(gzip, long.header)
-  await writeAll(gzip, content)
+  yield long.header
+  yield content
   const pad = (512 - (content.length % 512)) % 512
-  if (pad > 0) await writeAll(gzip, Buffer.alloc(pad, 0))
+  if (pad > 0) yield Buffer.alloc(pad, 0)
 }
 
-async function writeTarEntries(gzip: Duplex, entries: readonly BackupEntry[], roots: Readonly<Record<string, string>>): Promise<void> {
+async function* tarEntries(entries: readonly BackupEntry[], roots: Readonly<Record<string, string>>): AsyncGenerator<Buffer> {
   for (const entry of entries) {
     const { root, inner } = rootFor(roots, entry.rel)
+    validateArchivePath(entry.rel, entry.type)
     if (hasLinkedAncestor(root, inner)) {
       throw new BackupEngineError('SYMLINK', `backup path crosses a symlink: ${entry.rel}`)
     }
     const size = entry.type === 'dir' ? 0 : entry.bytes ?? 0
     const header = buildHeader({ name: entry.rel, type: entry.type, size, mtimeMs: entry.mtimeMs ?? Date.now() })
     if (header.needsLong) {
-      await writeLongNameEntry(gzip, entry.rel)
+      yield* longNameEntry(entry.rel)
       const retry = buildHeader({ name: '_L', type: entry.type, size, mtimeMs: entry.mtimeMs ?? Date.now() })
-      if (retry.header !== undefined) await writeAll(gzip, retry.header)
+      if (retry.header !== undefined) yield retry.header
     } else if (header.header !== undefined) {
-      await writeAll(gzip, header.header)
+      yield header.header
     }
     if (entry.type !== 'file') continue
     const abs = path.join(root, ...entry.rel.split('/').slice(1))
@@ -336,14 +335,14 @@ async function writeTarEntries(gzip: Duplex, entries: readonly BackupEntry[], ro
     for await (const chunk of fs.createReadStream(abs, { highWaterMark: 1 << 20 }) as AsyncIterable<Buffer>) {
       if (remaining <= 0) break
       const piece = chunk.length > remaining ? chunk.subarray(0, remaining) : chunk
-      await writeAll(gzip, piece)
+      yield piece
       remaining -= piece.length
     }
     if (remaining > 0) throw new BackupEngineError('SNAPSHOT_SHRUNK', `file rewrote shorter during backup: ${entry.rel} (missing ${remaining} bytes)`)
     const pad = (512 - (size % 512)) % 512
-    if (pad > 0) await writeAll(gzip, Buffer.alloc(pad, 0))
+    if (pad > 0) yield Buffer.alloc(pad, 0)
   }
-  await writeAll(gzip, Buffer.alloc(1024, 0))
+  yield Buffer.alloc(1024, 0)
 }
 
 const pad2 = (value: number): string => String(value).padStart(2, '0')
@@ -352,7 +351,12 @@ function stamp(now: Date): string {
   return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}-${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
 }
 
-/** Resolve a non-clobbering backup directory for this second. */
+/**
+ * Resolve a non-clobbering backup directory for this second.
+ * @param outDir - Parent directory where the backup set is created.
+ * @param now - Timestamp used to name the backup set.
+ * @returns the new backup-set directory path.
+ */
 export function resolveBackupDir(outDir: string, now: Date): string {
   const base = BACKUP_DIR_PREFIX + stamp(now)
   let dirName = base
@@ -398,6 +402,7 @@ export interface CreateBackupResult {
  */
 export async function createBackup(input: CreateBackupInput): Promise<CreateBackupResult> {
   const chunkBytes = input.chunkBytes ?? DEFAULT_CHUNK_BYTES
+  if (!Number.isSafeInteger(chunkBytes) || chunkBytes <= 0) throw new BackupEngineError('INVALID_ARCHIVE', 'volume size must be a positive safe integer')
   const now = input.now ?? new Date()
   const { entries, skipped } = collectEntries(input.dshHome, input.agentsHome, input.skillMaxBytes)
   if (!entries.some(entry => entry.type === 'file')) {
@@ -406,55 +411,42 @@ export async function createBackup(input: CreateBackupInput): Promise<CreateBack
   const backupDir = resolveBackupDir(input.outDir, now)
   fs.mkdirSync(backupDir, { recursive: true })
   const roots: Record<string, string> = { [DSH_ROOT_LABEL]: input.dshHome, [AGENTS_ROOT_LABEL]: input.agentsHome }
-  const gzip: Duplex = createGzip({ level: 6 })
-  const pump = (async () => {
-    try {
-      await writeTarEntries(gzip, entries, roots)
-    } finally {
-      gzip.end()
-    }
-  })().catch(() => {})
   const parts: BackupManifest['parts'][number][] = []
-  let index = 0
+  let handle: FileHandle | undefined
   let hash = createHash('sha256')
   let written = 0
-  // The current volume; `rollPart` returns a fresh handle and `closePart`
-  // closes the current one, so the invariant stays local to this block.
-  const rollPart = (): { handle: fs.WriteStream; name: string } => {
-    const name = `part-${String(index).padStart(4, '0')}.gz`
-    hash = createHash('sha256')
-    written = 0
-    return { handle: fs.createWriteStream(path.join(backupDir, name)), name }
-  }
-  let part = rollPart()
   const closePart = async (): Promise<void> => {
-    await new Promise<void>((resolve) => {
-      part.handle.end(() => { resolve() })
-    })
-    if (written > 0 || parts.length === 0) parts.push({ name: part.name, bytes: written, sha256: hash.digest('hex') })
-    else fs.rmSync(path.join(backupDir, part.name), { force: true })
+    if (handle === undefined) return
+    await handle.close()
+    handle = undefined
+    parts.push({ name: `part-${String(parts.length).padStart(4, '0')}.gz`, bytes: written, sha256: hash.digest('hex') })
   }
   try {
-    for await (const chunk of gzip as AsyncIterable<Buffer>) {
-      let offset = 0
-      while (offset < chunk.length) {
-        if (written >= chunkBytes && index < 9999) {
-          await closePart()
-          index += 1
-          part = rollPart()
+    await pipeline(tarEntries(entries, roots), createGzip({ level: 6 }), async (source) => {
+      for await (const chunk of source as AsyncIterable<Buffer>) {
+        let offset = 0
+        while (offset < chunk.length) {
+          if (handle === undefined) {
+            handle = await fs.promises.open(path.join(backupDir, `part-${String(parts.length).padStart(4, '0')}.gz`), 'wx', 0o600)
+            hash = createHash('sha256')
+            written = 0
+          }
+          const piece = chunk.subarray(offset, offset + Math.min(chunkBytes - written, chunk.length - offset))
+          await handle.writeFile(piece)
+          hash.update(piece)
+          written += piece.length
+          offset += piece.length
+          if (written === chunkBytes) await closePart()
         }
-        const take = Math.min(chunkBytes - written, chunk.length - offset)
-        const piece = chunk.subarray(offset, offset + take)
-        if (!part.handle.write(piece)) await new Promise<void>(resolve => part.handle.once('drain', resolve))
-        hash.update(piece)
-        written += take
-        offset += take
       }
-    }
-    await closePart()
-    await pump
+      await closePart()
+    })
   } catch (error) {
-    fs.rmSync(backupDir, { recursive: true, force: true })
+    try {
+      await handle?.close()
+    } finally {
+      fs.rmSync(backupDir, { recursive: true, force: true })
+    }
     throw error
   }
   const rawBytes = entries.reduce((sum, entry) => sum + (entry.bytes ?? 0), 0)
@@ -475,25 +467,75 @@ export async function createBackup(input: CreateBackupInput): Promise<CreateBack
   return { backupDir, manifest }
 }
 
+const manifestSchema = z.object({
+  kind: z.literal(BACKUP_KIND),
+  schemaVersion: z.literal(BACKUP_SCHEMA_VERSION),
+  tier: z.literal('light'),
+  createdAt: z.iso.datetime(),
+  appVersion: z.string().nullable(),
+  compression: z.literal('gzip'),
+  chunkBytes: z.number().int().positive(),
+  parts: z.array(z.object({
+    name: z.string().regex(/^part-[0-9]{4,}\.gz$/u),
+    bytes: z.number().int().positive(),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+  })).min(1),
+  entries: z.object({ files: z.number().int().nonnegative(), dirs: z.number().int().nonnegative() }),
+  totals: z.object({ rawBytes: z.number().int().nonnegative(), packedBytes: z.number().int().positive() }),
+  skipped: z.array(z.object({ name: z.string(), bytes: z.number().int().nonnegative(), reason: z.literal('oversize') })),
+})
+
 /**
- * Read and validate one backup-set manifest.
+ * Read and validate one backup-set manifest, including plain volume filenames.
  * @param backupDir - backup-set directory holding `manifest.json`.
  * @returns the parsed manifest.
- * @throws BackupEngineError for foreign directories, newer schemas, or missing volume lists.
+ * @throws BackupEngineError for foreign, unsupported, or invalid manifests.
  */
 export function readManifest(backupDir: string): BackupManifest {
-  const parsed = JSON.parse(fs.readFileSync(path.join(backupDir, 'manifest.json'), 'utf8')) as { kind?: unknown }
-  if (parsed.kind !== BACKUP_KIND) {
-    throw new BackupEngineError('NOT_A_BACKUP', 'not a Hemi backup directory (manifest.kind mismatch)')
+  const parsed: unknown = JSON.parse(fs.readFileSync(path.join(backupDir, 'manifest.json'), 'utf8'))
+  const envelope = z.object({ kind: z.literal(BACKUP_KIND), schemaVersion: z.number().int() }).safeParse(parsed)
+  if (!envelope.success) throw new BackupEngineError('NOT_A_BACKUP', 'not a Hemi backup manifest')
+  if (envelope.data.schemaVersion > BACKUP_SCHEMA_VERSION) {
+    throw new BackupEngineError('NEWER_SCHEMA', `backup format version ${envelope.data.schemaVersion} is newer than supported ${BACKUP_SCHEMA_VERSION}; upgrade the app first`)
   }
-  const manifest = parsed as BackupManifest
-  if ((manifest.schemaVersion | 0) > BACKUP_SCHEMA_VERSION) {
-    throw new BackupEngineError('NEWER_SCHEMA', `backup format version ${manifest.schemaVersion} is newer than supported ${BACKUP_SCHEMA_VERSION}; upgrade the app first`)
-  }
-  if (!Array.isArray(manifest.parts) || manifest.parts.length === 0) {
-    throw new BackupEngineError('MISSING_PARTS', 'manifest has no volume list')
+  const result = manifestSchema.safeParse(parsed)
+  if (!result.success) throw new BackupEngineError('NOT_A_BACKUP', 'invalid Hemi backup manifest; select an intact backup set')
+  const manifest = result.data
+  if (new Set(manifest.parts.map(part => part.name)).size !== manifest.parts.length) {
+    throw new BackupEngineError('NOT_A_BACKUP', 'backup manifest repeats a volume')
   }
   return manifest
+}
+
+/** Reject paths that can escape staging or name platform-specific filesystem targets. */
+function validateArchivePath(rel: string, type: 'file' | 'dir'): void {
+  const segments = rel.split('/')
+  if (rel.includes('\\') || rel.includes(':') || rel.includes('\0')
+    || segments.some(segment => segment === '' || segment === '.' || segment === '..'
+      || /[. ]$/u.test(segment) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(segment))
+    || (segments[0] !== DSH_ROOT_LABEL && segments[0] !== AGENTS_ROOT_LABEL)) {
+    throw new BackupEngineError('INVALID_PATH', `invalid backup member path: ${rel}`)
+  }
+  const file = type === 'file'
+  if ((segments.length === 1 && file)
+    || (segments[0] === AGENTS_ROOT_LABEL && segments.length === 2 && file)
+    || (segments[0] === DSH_ROOT_LABEL && segments[1]?.startsWith('.')
+      && (segments.length !== 2 || !file))
+    || (segments[0] === DSH_ROOT_LABEL && segments[1] === 'sessions'
+      && (file ? segments.length !== 5 || !/^session(?:\.v[1-9][0-9]*)?\.jsonl(?:\.zstd)?$/u.test(segments[4] ?? '') : segments.length > 4))
+    || (segments[0] === DSH_ROOT_LABEL && segments[1] === 'profiles' && file && segments.length !== 4)) {
+    throw new BackupEngineError('INVALID_PATH', `invalid backup member type or location: ${rel}`)
+  }
+  const label = segments[0]
+  const top = segments[1]
+  if (top !== undefined && (label === DSH_ROOT_LABEL ? !DSH_ENTRIES.includes(top) : top !== 'skills')) {
+    throw new BackupEngineError('INVALID_PATH', `backup member is outside the data whitelist: ${rel}`)
+  }
+  if (isExcludedRel(rel)
+    || (top === 'profiles' && segments.length > 3 && (segments.length !== 4 || !PROFILE_FILES.has(segments[3] ?? '')))
+    || (top === 'storages' && segments[2] !== undefined && STORAGE_EXCLUDED.has(segments[2]))) {
+    throw new BackupEngineError('INVALID_PATH', `backup member is excluded from restore: ${rel}`)
+  }
 }
 
 async function* partsConcat(backupDir: string, parts: readonly { name: string }[]): AsyncGenerator<Buffer> {
@@ -530,21 +572,27 @@ class TarExtractor {
   private need = 512
   private longName: string | null = null
   private longSink: Buffer[] | null = null
-  private fileStream: fs.WriteStream | null = null
+  private fileStream: FileHandle | null = null
+  private zeroBlocks = 0
   private fileTarget: string | null = null
   private fileMtimeSec = 0
   private pendingPad = 0
   /** @param dir - staging directory receiving extracted members. */
   constructor(private readonly dir: string) {}
 
-  private onHeader(header: Buffer): void {
+  private async onHeader(header: Buffer): Promise<void> {
     if (header.every(byte => byte === 0)) {
+      this.zeroBlocks += 1
       this.state = 'header'
       this.need = 512
       return
     }
+    const checksum = Number.parseInt(header.toString('ascii', 148, 156).replace(/\0.*$/u, '').trim(), 8)
+    const actual = header.reduce((sum, byte, index) => sum + (index >= 148 && index < 156 ? 32 : byte), 0)
+    if (checksum !== actual || this.zeroBlocks > 0) throw new BackupEngineError('INVALID_ARCHIVE', 'invalid tar header or data after end marker')
     const name = header.subarray(0, 100).toString('utf8').replace(/\0.*$/, '')
-    const size = Number.parseInt(header.toString('utf8', 124, 136).replace(/\0.*$/, '').trim(), 8) || 0
+    const size = Number.parseInt(header.toString('utf8', 124, 136).replace(/\0.*$/, '').trim(), 8)
+    if (!Number.isSafeInteger(size) || size < 0) throw new BackupEngineError('INVALID_ARCHIVE', 'invalid tar member size')
     const mtimeSec = Number.parseInt(header.toString('utf8', 136, 148).replace(/\0.*$/, '').trim(), 8) || 0
     const type = String.fromCharCode(header[156] ?? 0)
     const prefix = header.subarray(345, 500).toString('utf8').replace(/\0.*$/, '')
@@ -558,9 +606,12 @@ class TarExtractor {
     }
     const rel = this.longName ?? (prefix !== '' ? `${prefix}/${name}` : name)
     this.longName = null
+    validateArchivePath(rel, type === '5' ? 'dir' : 'file')
+    if (hasLinkedAncestor(this.dir, rel)) throw new BackupEngineError('SYMLINK', `staging path crosses a symlink: ${rel}`)
     const pad = (512 - (size % 512)) % 512
     this.pendingPad = pad
     if (type === '5') {
+      if (size !== 0) throw new BackupEngineError('INVALID_ARCHIVE', 'directory entry carries file content')
       fs.mkdirSync(path.join(this.dir, rel), { recursive: true })
       this.state = pad > 0 ? 'pad' : 'header'
       this.need = pad || 512
@@ -570,14 +621,12 @@ class TarExtractor {
     if (write) {
       const target = path.join(this.dir, rel)
       fs.mkdirSync(path.dirname(target), { recursive: true })
-      this.fileStream = fs.createWriteStream(target)
+      this.fileStream = await fs.promises.open(target, 'wx', 0o600)
       this.fileTarget = target
       this.fileMtimeSec = mtimeSec
       this.restored.push({ rel, type: 'file', bytes: size })
     } else {
-      this.fileStream = null
-      this.fileTarget = null
-      this.fileMtimeSec = 0
+      throw new BackupEngineError('INVALID_ARCHIVE', `unsupported tar member type: ${type}`)
     }
     this.state = 'content'
     this.need = size
@@ -590,7 +639,7 @@ class TarExtractor {
       if (this.state === 'header' && this.buffer.length >= 512) {
         const header = this.buffer.subarray(0, 512)
         this.buffer = this.buffer.subarray(512)
-        this.onHeader(header)
+        await this.onHeader(header)
       } else if (this.state === 'content') {
         if (this.need === 0) {
           if (this.longSink !== null) {
@@ -599,9 +648,7 @@ class TarExtractor {
           }
           if (this.fileStream !== null) {
             const closing = this.fileStream
-            await new Promise<void>((resolve) => {
-              closing.end(() => { resolve() })
-            })
+            await closing.close()
             this.fileStream = null
             // Restore the packed mtime so merge restore compares the same
             // timeline as the backup source; tar headers are second-granular.
@@ -619,7 +666,7 @@ class TarExtractor {
           this.need -= take
           if (this.fileStream !== null) {
             const target = this.fileStream
-            if (!target.write(piece)) await new Promise<void>(resolve => target.once('drain', resolve))
+            await target.writeFile(piece)
           } else if (this.longSink !== null) this.longSink.push(Buffer.from(piece))
         } else break
       } else if (this.state === 'pad') {
@@ -633,6 +680,19 @@ class TarExtractor {
         this.buffer = this.buffer.subarray(take)
         this.need -= take
       } else break
+    }
+  }
+
+  /** Close any incomplete member after extraction fails. */
+  async close(): Promise<void> {
+    await this.fileStream?.close()
+    this.fileStream = null
+  }
+
+  /** Refuse a truncated tar stream even when its gzip and volume hashes are valid. */
+  finish(): void {
+    if (this.state !== 'header' || this.buffer.length !== 0 || this.zeroBlocks < 2 || this.longName !== null) {
+      throw new BackupEngineError('INVALID_ARCHIVE', 'incomplete tar archive; select an intact backup set')
     }
   }
 
@@ -655,26 +715,37 @@ export interface ExtractResult {
  * @param backupDir - backup-set directory.
  * @param stagingDir - empty directory receiving extracted members.
  * @returns the manifest and extracted records.
- * @throws BackupEngineError when a volume's size or sha256 mismatches.
+ * @throws BackupEngineError for invalid manifests, linked volumes, unsafe member
+ * paths, mismatched hashes, or malformed tar content. Failed extraction closes
+ * file handles and removes staging without applying any live data.
  */
 export async function extractBackup(backupDir: string, stagingDir: string): Promise<ExtractResult> {
   const manifest = readManifest(backupDir)
   for (const part of manifest.parts) {
     const abs = path.join(backupDir, part.name)
+    if (hasLinkedAncestor(backupDir, part.name)) throw new BackupEngineError('SYMLINK', `volume crosses a symlink: ${part.name}`)
     const size = fs.statSync(abs).size
     if (size !== part.bytes) throw new BackupEngineError('PART_CORRUPT', `volume ${part.name} size mismatch (expected ${part.bytes}, found ${size})`)
     if (await sha256File(abs) !== part.sha256) throw new BackupEngineError('PART_CORRUPT', `volume ${part.name} failed its sha256 check; the backup may be damaged`)
   }
+  if (lstatIfPresent(stagingDir)?.isSymbolicLink()) throw new BackupEngineError('SYMLINK', 'restore staging is a symlink')
   fs.rmSync(stagingDir, { recursive: true, force: true })
-  fs.mkdirSync(stagingDir, { recursive: true })
+  fs.mkdirSync(stagingDir, { recursive: true, mode: 0o700 })
   const extractor = new TarExtractor(stagingDir)
-  await pipeline(
-    partsConcat(backupDir, manifest.parts),
-    createGunzip(),
-    async (source) => {
-      for await (const chunk of source as AsyncIterable<Buffer>) await extractor.push(chunk)
-    },
-  )
+  try {
+    await pipeline(
+      partsConcat(backupDir, manifest.parts),
+      createGunzip(),
+      async (source) => {
+        for await (const chunk of source as AsyncIterable<Buffer>) await extractor.push(chunk)
+      },
+    )
+    extractor.finish()
+  } catch (error) {
+    await extractor.close()
+    fs.rmSync(stagingDir, { recursive: true, force: true })
+    throw error
+  }
   return { manifest, entries: extractor.records() }
 }
 
@@ -691,6 +762,13 @@ async function filesIdentical(a: string, b: string): Promise<boolean> {
   return await sha256File(a) === await sha256File(b)
 }
 
+/** Existing Session directories retain every generation, including when a backup adds another version. */
+function sessionDirectory(localRoot: string, rel: string): string | undefined {
+  const segments = rel.split('/')
+  return segments[0] === DSH_ROOT_LABEL && segments[1] === 'sessions' && segments.length >= 5
+    ? path.join(localRoot, ...segments.slice(1, 4)) : undefined
+}
+
 /**
  * Decide one file's disposition; the single authority shared by restore and preview.
  * @param stagingAbs - extracted file in staging.
@@ -700,12 +778,14 @@ async function filesIdentical(a: string, b: string): Promise<boolean> {
  * @returns the disposition for this file.
  */
 export async function decideRestoreAction(stagingAbs: string, localAbs: string, rel: string, localRoot: string): Promise<RestoreAction> {
-  if (hasLinkedAncestor(localRoot, rel.split('/').slice(1).join('/'))) return 'takeBackup'
+  const sessionDir = sessionDirectory(localRoot, rel)
+  if (hasLinkedAncestor(localRoot, rel.split('/').slice(1).join('/'))) return sessionDir !== undefined ? 'keepLocal' : 'takeBackup'
   const local = lstatIfPresent(localAbs)
   if (ATOMIC_RELS.has(rel)) return local !== null ? 'takeBackup' : 'new'
-  if (local === null) return 'new'
-  if (local.isSymbolicLink() || !local.isFile()) return 'takeBackup'
+  if (local === null) return sessionDir !== undefined && lstatIfPresent(sessionDir) !== null ? 'keepLocal' : 'new'
+  if (local.isSymbolicLink() || !local.isFile()) return sessionDir !== undefined ? 'keepLocal' : 'takeBackup'
   if (await filesIdentical(stagingAbs, localAbs)) return 'identical'
+  if (sessionDir !== undefined) return 'keepLocal'
   const localSec = Math.floor(local.mtimeMs / 1000)
   const backupSec = Math.floor(fs.statSync(stagingAbs).mtimeMs / 1000)
   // Ties take the backup: the user's intent right now is to restore it.
@@ -724,13 +804,24 @@ function walkFiles(abs: string, relPrefix: string): string[] {
   return out
 }
 
+/** Complete cross-volume moves before removing their source. */
+function moveFile(source: string, target: string): void {
+  try {
+    fs.renameSync(source, target)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+    fs.cpSync(source, target, { recursive: true, errorOnExist: true, force: false, preserveTimestamps: true, verbatimSymlinks: true })
+    fs.rmSync(source, { recursive: true })
+  }
+}
+
 function moveIntoSafeCopy(abs: string, rel: string, safeCopyRoot: string): void {
   const safeAbs = path.join(safeCopyRoot, ...rel.split('/'))
   if (hasLinkedAncestor(safeCopyRoot, rel)) throw new BackupEngineError('SYMLINK', `safe-copy path crosses a symlink: ${rel}`)
   fs.mkdirSync(path.dirname(safeAbs), { recursive: true })
   const prior = lstatIfPresent(safeAbs)
   if (prior !== null) fs.rmSync(safeAbs, { recursive: !prior.isSymbolicLink(), force: true })
-  fs.renameSync(abs, safeAbs)
+  moveFile(abs, safeAbs)
 }
 
 /** Disposition counts reported by merge restore and preview. */
@@ -739,7 +830,7 @@ export interface MergeStats {
   newFiles: number
   /** Byte-identical files; skipped on both sides. */
   identical: number
-  /** Local was newer; backup copy moved to the safe copy. */
+  /** Local was newer or belongs to an existing Session; backup saved separately. */
   keepLocal: number
   /** Backup won or the domain swaps whole; local loser moved to the safe copy. */
   takeBackup: number
@@ -767,19 +858,22 @@ export interface MergeRestoreInput {
 
 /**
  * Merge one staged restore into the live roots: absent files move in,
- * identical files skip, conflicts keep the newer side and displace the loser
- * into the safe copy, and atomic domains swap whole.
+ * identical files skip, and ordinary conflicts keep the newer side in place.
+ * Existing Session directories retain all local generations; conflicting or
+ * additional backup generations go to the safe copy. New Session files publish
+ * exclusively. Credentials swap whole; displaced files go to the safe copy.
  * @param input - staging, live roots, and safe-copy destination.
  * @returns applied top-level entries, the safe-copy root, and counts.
- * @throws BackupEngineError when any involved path crosses a symlink.
+ * @throws BackupEngineError for invalid archive paths or linked restore paths.
+ * I/O failures may leave a partial merge; the original backup remains available.
  */
 export async function mergeRestore(input: MergeRestoreInput): Promise<MergeResult> {
   const { stagingDir, roots, safeCopyRoot } = input
   for (const root of [stagingDir, safeCopyRoot, ...Object.values(roots)]) {
     if (lstatIfPresent(root)?.isSymbolicLink() ?? false) throw new BackupEngineError('SYMLINK', 'a restore root is a symlink')
   }
-  walkFiles(stagingDir, '')
-  fs.mkdirSync(safeCopyRoot, { recursive: true })
+  for (const rel of walkFiles(stagingDir, '')) validateArchivePath(rel, 'file')
+  fs.mkdirSync(safeCopyRoot, { recursive: true, mode: 0o700 })
   const stats: MergeStats = { newFiles: 0, identical: 0, keepLocal: 0, takeBackup: 0 }
   const count = (action: RestoreAction): void => {
     if (action === 'new') stats.newFiles += 1
@@ -801,16 +895,64 @@ export async function mergeRestore(input: MergeRestoreInput): Promise<MergeResul
     }
     if (action === 'takeBackup' && lstatIfPresent(targetAbs) !== null) moveIntoSafeCopy(targetAbs, rel, safeCopyRoot)
     fs.mkdirSync(path.dirname(targetAbs), { recursive: true })
-    fs.renameSync(stagingAbs, targetAbs)
-    // Extraction writes 0644; the credential store refuses group/world-readable
-    // files, so the atomic credential file restores to owner-only.
+    moveFile(stagingAbs, targetAbs)
+    // Restored credentials must remain owner-only for the credential provider.
     if (ATOMIC_RELS.has(rel)) fs.chmodSync(targetAbs, 0o600)
+  }
+  const mergeSession = async (stagingAbs: string, rel: string, targetAbs: string): Promise<void> => {
+    const dshRoot = roots[DSH_ROOT_LABEL]
+    if (dshRoot === undefined) throw new BackupEngineError('INVALID_PATH', 'Harness restore root is missing')
+    const files = walkFiles(stagingAbs, rel)
+    try {
+      fs.mkdirSync(targetAbs, { mode: 0o700 })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      // Existing Sessions retain their log generations and native write ownership.
+      for (const member of files) {
+        const source = path.join(stagingDir, member)
+        const local = path.join(dshRoot, ...member.split('/').slice(1))
+        const action = await decideRestoreAction(source, local, member, dshRoot)
+        count(action)
+        if (action !== 'identical') moveIntoSafeCopy(source, member, safeCopyRoot)
+      }
+      return
+    }
+    for (const member of files) {
+      const source = path.join(stagingDir, member)
+      const target = path.join(dshRoot, ...member.split('/').slice(1))
+      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 })
+      // Copy beside the destination before exclusive publication; staging may be on another volume.
+      const temp = path.join(path.dirname(target), `.hemi-restore-${randomUUID()}`)
+      try {
+        fs.copyFileSync(source, temp, fs.constants.COPYFILE_EXCL)
+        fs.chmodSync(temp, 0o600)
+        const stats = fs.statSync(source)
+        fs.utimesSync(temp, stats.atime, stats.mtime)
+        try {
+          fs.linkSync(temp, target)
+          count('new')
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+          count('keepLocal')
+          moveIntoSafeCopy(source, member, safeCopyRoot)
+        }
+      } finally {
+        fs.rmSync(temp, { force: true })
+      }
+    }
   }
   const mergeDir = async (stagingAbs: string, relPrefix: string): Promise<void> => {
     const { root, inner } = rootOf(relPrefix)
     const targetAbs = path.join(root, inner)
     if (hasLinkedAncestor(root, inner)) throw new BackupEngineError('SYMLINK', `restore target parent crosses a symlink: ${relPrefix}`)
     const target = lstatIfPresent(targetAbs)
+    if (relPrefix.startsWith('dsh/sessions/') && relPrefix.split('/').length === 4) {
+      await mergeSession(stagingAbs, relPrefix, targetAbs)
+      return
+    }
+    if (target !== null && !target.isDirectory() && (relPrefix === 'dsh/sessions' || relPrefix.startsWith('dsh/sessions/'))) {
+      throw new BackupEngineError('INVALID_PATH', `Session directory is not a directory: ${relPrefix}`)
+    }
     if (target !== null && (target.isSymbolicLink() || !target.isDirectory())) moveIntoSafeCopy(targetAbs, relPrefix, safeCopyRoot)
     fs.mkdirSync(targetAbs, { recursive: true })
     for (const entry of fs.readdirSync(stagingAbs, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {

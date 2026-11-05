@@ -1,0 +1,47 @@
+{
+  "name": "@deepseek-ai/dsh-hemi-customizations",
+  "description": "Electron adapters for Hemi fork customizations",
+  "version": "0.2.2-alpha.3",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./preload": {
+      "types": "./lib/types/preload.d.ts",
+      "default": "./lib/preload.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/preload.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "dsh": null,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PiuQiuPiaQia/hemi-dsh.git",
+    "directory": "packages/hemi/customizations"
+  },
+  "peerDependencies": {
+    "electron": "^44.7.0",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-hemi-model-access": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-hemi-model-access": "workspace:*"
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "private": true
+}

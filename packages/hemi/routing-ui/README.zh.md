@@ -7,11 +7,13 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
-## Summary
+Hemi 模型菜单、样式和替代选型状态归 `src/client/model-picker/` 所有。原生模型选择插件须配置 `showComposer: false`；本插件拥有输入框菜单及子插槽，复用原生模型目录与 `model` 字典。同一组合不能同时挂载两个菜单所有者。
+
+## 概述
 
 从已配置的模型目录中选择主模型，以及研究、评审、执行、设计四个角色的模型。每个普通会话都可单独开启或关闭自动路由。模型菜单和“设置 → 模型”打开同一份配置表单；每次选择自动保存，已接受的值通过设置镜像回显。正在进行的请求不受影响。
 
-## Table of Contents
+## 目录
 
 - [使用本包](#use-this-package)
 - [实现说明](#understand-the-implementation)
@@ -24,6 +26,8 @@ kind: "package-reference"
 
 <a id="use-this-package"></a>
 ## 使用本包
+
+Hemi 使用 [定制模型选择器](src/client/model-picker/ModelSelect.tsx)，同一菜单直接显示提供方分组和底部插件控件。路由插件挂载时，“自动路由”显示在首行，与具体型号互斥。固定模式下，当前型号的推理等级可以在菜单内展开。菜单打开时焦点留在触发按钮。Tab 进入搜索框或当前选项，方向键浏览各行，Escape 返回触发按钮。
 
 打开会话的模型菜单，点击“自动路由”旁的齿轮；也可从“设置 → 模型 → 配置模型路由”进入。开启自动路由前需先选择主模型。角色设为“跟随主模型”时使用配置的主模型；用户不能创建角色，也不能手填供应商或型号标识。
 
@@ -61,19 +65,19 @@ kind: "package-reference"
 -----
 
 <a id="model-experience"></a>
-## Model Experience
+## 模型体验
 
 ### 路由选择
 
-#### What the model sees
+#### 模型看到的内容
 
 此界面不增加提示词或工具，只提交保存的主模型与角色模型选择，以及会话级 `hemiRoutingSettings.setEnabled` 命令；路由后台插件将偏好保存在自身设置中，负责将其应用于后续模型请求，不新增自定义 Session 事件。
 
-#### Token effect
+#### Token 影响
 
 控件和配置文案不消耗模型上下文 token；路由指令由后台插件负责。
 
-#### KV Cache effect
+#### KV Cache 影响
 
 界面不修改提示词前缀。选择其他模型可能改变后续请求的供应商缓存复用。
 
@@ -83,6 +87,7 @@ kind: "package-reference"
 
 当前界面只使用已有模型菜单扩展插槽。
 
+- Hemi 中选择具体型号即可进入固定模式，包括自动路由当前使用的型号。
 - 旧版 DSH 客户端显示独立开关。通过该开关可固定使用当前型号。
 - 模式偏好属于当前 profile，导出或分叉 Session 历史不会复制该偏好。
 - 在 Hemi 中，所选模式同步更新触发器的名称、无障碍标签和悬浮提示。模型菜单各行保留目录名称和徽标。
@@ -91,7 +96,7 @@ kind: "package-reference"
 - 本包组件预览和测试不验证真实供应商执行、最终分发接线或完整应用的会话回放。
 
 <a id="dev-note"></a>
-### Dev Note
+### 开发备注
 
 <details>
 <summary>维护者工作上下文 — 点击展开</summary>
@@ -99,3 +104,5 @@ kind: "package-reference"
 `pnpm exec vite --config packages/hemi/routing-ui/tests/preview/vite.config.ts` 用固定测试数据渲染真实组件，便于核对主题与宽度；它不连接后台，也不验证 Remote 流程。
 
 </details>
+
+本轮用量面板展示当前智能体和历史直接同步委派的用量，并兼容历史自定义工具回执。输入框旁改用 `src/client/usage/SessionUsage.tsx` 自定义组件，读取 Hemi 的 `hemiModelUsage` 投影，并递归遍历原生子会话目录。按供应商和模型汇总整棵会话树的调用，展示模型（供应商）、调用次数、输入总量、输出、缓存率和缓存读写；缓存率使用完整的输入和缓存读取计数，缺少依据时显示横线；外部展示按输入 token 加权的全会话缓存命中率，与 Hemi 口径一致，后台子智能体也会更新收起状态下的数值；排除继承的历史调用，计入重试和有记录的压缩、记忆摘要。上游只提供总量而未拆分缓存时仍保留完整总量。缺失的上报和不可读取的分支会明确提示；打开面板不会恢复智能体或调用模型。面板展开时自动刷新，并适配窄屏。去掉未缓存输入辅助行、逐模型合计和供应商副行。

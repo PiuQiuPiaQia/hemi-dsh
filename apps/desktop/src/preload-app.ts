@@ -10,6 +10,8 @@ import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.t
 import { syncNativeTheme } from './preload-theme.ts'
 import { syncWindowsAppearance } from './preload-windows.ts'
 import { installMandatoryUpdateOverlay } from './preload-mandatory-overlay.ts'
+// Hemi fork: keep the sandboxed bridge adapter separate from the shell preload.
+import { createNewApiPreloadBridge } from '@deepseek-ai/dsh-hemi-customizations/preload'
 import { createDesktopBrowserBridge } from './preload-browser.ts'
 import type { FileDragHandle } from '@deepseek-ai/dsh-util-file-drag'
 
@@ -22,6 +24,7 @@ function createProductApi(): DshDesktopProductApi {
         Promise<{ bytes: Uint8Array; mediaType: string }>,
     },
     browser: createDesktopBrowserBridge(),
+    newApiImport: createNewApiPreloadBridge((action, input) => ipcRenderer.invoke(DESKTOP_IPC.newApiImport, action, input)),
     fileDrag: {
       prepare: (source, requestId) => ipcRenderer.invoke(DESKTOP_IPC.fileDragPrepare, source, requestId) as
         Promise<FileDragHandle | undefined>,

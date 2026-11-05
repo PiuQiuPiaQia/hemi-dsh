@@ -83,11 +83,12 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-file-actions` | no | Original-file saving and image clipboard actions for Web and Desktop |
 | `@deepseek-ai/dsh-client-ui-file-drag` | no | Application-owned file drag transfers and localized failure feedback |
 | `@deepseek-ai/dsh-client-ui-goal` | no | Session goal surface: GoalBar docked above the composer, read from the goal session projection |
+| `@deepseek-ai/dsh-client-ui-hemi-skins` | no | Hemi character skin themes as alias-token palettes for the Web client |
 | `@deepseek-ai/dsh-client-ui-input-trigger` | no | Input trigger pipeline: '/' and '@' detection, candidate menu, pick routing to registered sources |
 | `@deepseek-ai/dsh-client-ui-jobs` | no | Session-header background-job list with on-demand streaming record panels |
 | `@deepseek-ai/dsh-client-ui-layout` | no | Shell plugin: three-column AppFrame with drag handles, ctx.layout viewing-state service (navigation + panels) |
 | `@deepseek-ai/dsh-client-ui-message-feedback` | no | The Web feedback surface: per-message Like/Dislike in the assistant-message action strip and the feedback dialog behind both ratings and /feedback, backed by the messageFeedback and sessionFeedback Host Remotes |
-| `@deepseek-ai/dsh-client-ui-model-selection` | no | Model selection over the shared model catalog, Session projection, and session.selectModel |
+| `@deepseek-ai/dsh-client-ui-model-selection` | yes | Model selection over the shared model catalog, Session projection, and session.selectModel |
 | `@deepseek-ai/dsh-client-ui-open-in-app` | no | Web "Open In..." controls: the Session-header split button opening the workspace directory in an installed application, and the document preview's default-application controls for one file |
 | `@deepseek-ai/dsh-client-ui-permission-presets` | no | Permission surfaces: a new-session default in General settings and a current-session /permission popup over the permissions projection |
 | `@deepseek-ai/dsh-client-ui-plan` | no | Plan mode controls, persistent transcript plan cards, and sidebar Markdown previews |
@@ -277,6 +278,20 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-repeat-tool-reminder` | yes | Repeat-tool-call guard plugin: advisory reminders when an agent loops on identical tool calls |
 | `@deepseek-ai/dsh-tool-call-timeout-policy` | no | Tool-call timeout policy: a tools/execute wrapper that arms a per-tool deadline on exec.signal and returns TOOL_TIMEOUT when it wins |
+
+## hemi
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-hemi-backup-ui` | no | Hemi data backup settings section: target configuration, scheduled runs, and staged restore |
+| `@deepseek-ai/dsh-hemi-memory` | yes | Hemi cross-session memory: persistent markdown stores (long-term, daily log, scratchpad) with model-facing read, write, search, and forget tools |
+| `@deepseek-ai/dsh-hemi-memory-ui` | no | Hemi memory settings page for editing persistent Markdown memory |
+| `@deepseek-ai/dsh-hemi-model-access` | yes | Subscription authorization, quota and New API model import |
+| `@deepseek-ai/dsh-hemi-model-access-ui` | no | Model Connections settings page |
+| `@deepseek-ai/dsh-hemi-model-settings` | no | Host operations for Hemi model settings |
+| `@deepseek-ai/dsh-hemi-model-settings-ui` | no | Hemi Models and Routing settings page over the Harness model editor |
+| `@deepseek-ai/dsh-hemi-routing` | yes | Hemi role-based delegation routing: preset explorer/oracle/fixer/designer roles with user-chosen model routes, per-conversation auto/fixed mode, and model-bound native subagents |
+| `@deepseek-ai/dsh-hemi-routing-ui` | no | Hemi model routing: session mode controls and main/role model configuration |
 
 ## host
 

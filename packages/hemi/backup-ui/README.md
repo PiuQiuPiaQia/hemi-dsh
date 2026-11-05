@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-hemi-backup-ui` renders the Hemi backup card on the general settings page: last-run status, target editing (local folder or WebDAV/Nutstore with an application password), a connection test, manual backup, the schedule and retention controls, the backup-set list with per-set restore and delete, and the staged restore dialog showing the merge preview (new / identical / conflicts) before applying. All actions call the `hemiBackup` Remote namespace owned by `dsh-hemi-backup`.
+`dsh-hemi-backup-ui` registers an independent Backup page in the settings navigation: last-run status, target editing (local folder or WebDAV/Nutstore with an application password), a connection test, manual backup, the schedule and retention controls, the backup-set list with per-set restore and delete, and the staged restore dialog showing the merge preview (new / identical / conflicts) before applying. All actions call the `hemiBackup` Remote namespace owned by `dsh-hemi-backup`.
 
 ## Table of Contents
 
@@ -27,10 +27,31 @@ The package is wired into the web-app bundle as the browser `hemi-backup-ui` ent
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-`src/client/index.ts` registers the `hemi-backup` locale namespace and injects `BackupSection` into the `settings.general.item` slot; the injected face unwraps Remote result envelopes around the host methods. `BackupSection.tsx` owns the editor state, a single-flight busy guard, progress polling while a run executes, and cancels any staged restore when the section unmounts.
+`src/client/index.ts` registers the `hemi-backup` locale namespace and injects `BackupSection` into the `settings.section` slot; the injected face unwraps Remote result envelopes around the host methods. The restore dialog explains that existing sessions stay unchanged and conflicting session backups are saved separately. `BackupSection.tsx` owns the editor state, a single-flight busy guard, progress polling while a run executes, and cancels any staged restore when the section unmounts.
+
+## Model Experience
+
+### `Backup` controls
+
+#### What the model sees
+
+`hemiBackup` settings and restore previews stay in the user interface.
+
+#### Token effect
+
+The panel sends no model requests.
+
+#### KV Cache effect
+
+The panel does not alter request prefixes.
+
+## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-## Known limitations and deferred work
 
 - There is no first-run restore wizard; restore always starts from the settings page.
 - The local-folder target is a typed path; no native directory picker on desktop yet.
+
+### Dev Note
+
+None.

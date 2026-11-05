@@ -32,7 +32,13 @@ const server = createServer((request, response) => {
 server.listen(0, '127.0.0.1', () => {
   process.send({ type: 'ready', url: 'http://127.0.0.1:' + server.address().port + '/?token=fixture' })
 })
+let bootRevision = 0
 process.on('message', message => {
+  if (message.type === 'boot-injections') {
+    process.send({ type: 'boot-injections', requestId: message.requestId,
+      injections: [{ kind: 'script-src', placement: 'head', src: 'plugins/bootstrap.js?rev=' + (++bootRevision) }] })
+    return
+  }
   if (message.type === 'file-drag-cancel') {
     process.send({ type: 'file-drag-resource', requestId: message.requestId, resource: null })
     return
@@ -196,6 +202,16 @@ ${HTTP_HOST}`)
     await host.start()
     await expect(host.resolveDragResource('invalid')).rejects.toThrow('invalid IPC event')
   })
+  it('reads fresh page boot snapshots over correlated private IPC without restarting the Host', async () => {
+    const host = hostProcess(projectWithHost())
+    await expect(host.bootInjections()).rejects.toThrow('Host is unavailable')
+    await host.start()
+    expect(await host.bootInjections()).toEqual([{ kind: 'script-src', placement: 'head', src: 'plugins/bootstrap.js?rev=1' }])
+    expect(await host.bootInjections()).toEqual([{ kind: 'script-src', placement: 'head', src: 'plugins/bootstrap.js?rev=2' }])
+    await host.stop(true)
+    await expect(host.bootInjections()).rejects.toThrow('Host is unavailable')
+  })
+
   it('correlates task inspections and admission changes over private IPC', async () => {
     const host = hostProcess(projectWithHost())
     await expect(host.updateTasks('inspect')).rejects.toThrow('Host is unavailable')

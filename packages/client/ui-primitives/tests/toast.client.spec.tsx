@@ -1,12 +1,36 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { Toast } from '../src/Toast.tsx'
 
+const toastCss = readFileSync(join(process.cwd(), 'packages/client/ui-primitives/src/Toast.module.css'), 'utf8')
+
 afterEach(cleanup)
 
 describe('Toast', () => {
+  it('opts out of app-region collection so the macOS titlebar keeps dragging while it is shown', () => {
+    // The banner portals to document.body beside #root, so the shell's darwin
+    // `body > :not(#root)` no-drag rule would otherwise erase the header's drag
+    // rect for the toast's whole lifetime. The opt-out lives in CSS because
+    // that shell selector carries id specificity, so only `!important` beats it.
+    const rule = /\.toast\s*\{[^}]*\}/.exec(toastCss)?.[0]
+    expect(rule, 'the .toast rule exists').toBeDefined()
+    expect(rule).toMatch(/-webkit-app-region:\s*initial\s*!important/)
+  })
+
+  it('stays click-through while its action keeps taking the pointer', () => {
+    // The app-region opt-out must not change hit testing: the banner itself is
+    // transparent to clicks and only the action text is pressable, so the
+    // overlay never blocks the controls it covers.
+    const banner = /\.toast\s*\{[^}]*\}/.exec(toastCss)?.[0]
+    const action = /\.action\s*\{[^}]*\}/.exec(toastCss)?.[0]
+    expect(banner).toMatch(/pointer-events:\s*none/)
+    expect(action).toMatch(/pointer-events:\s*auto/)
+  })
+
   it('announces its text and reports done after the hold-and-fade lifetime', () => {
     vi.useFakeTimers()
     try {

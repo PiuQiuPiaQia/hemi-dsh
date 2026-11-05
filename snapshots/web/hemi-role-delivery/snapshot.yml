@@ -1,0 +1,8 @@
+version: 1
+scenario: hemi-role-delivery
+profile: web
+composition: web-hemi-role-delivery
+recording: authored
+header:
+  class: web-hemi-role-delivery
+  pin: true

@@ -9,6 +9,21 @@
 
 ```mermaid
 flowchart LR
+  pkg_hemi_backup["hemi-backup"]
+  svc_hemiBackup["ctx.hemiBackup<br/>Hemi backup"]
+  pkg_hemi_backup_ui["hemi-backup-ui"]
+  pkg_hemi_memory["hemi-memory"]
+  svc_hemiMemory["ctx.hemiMemory<br/>Hemi memory"]
+  pkg_hemi_memory_ui["hemi-memory-ui"]
+  pkg_hemi_model_access["hemi-model-access"]
+  svc_hemiModelAccess["ctx.hemiModelAccess<br/>Hemi model access"]
+  pkg_hemi_model_access_ui["hemi-model-access-ui"]
+  pkg_hemi_model_settings["hemi-model-settings"]
+  svc_hemiModelSettings["ctx.hemiModelSettings<br/>Hemi model tests"]
+  pkg_hemi_model_settings_ui["hemi-model-settings-ui"]
+  pkg_hemi_routing["hemi-routing"]
+  svc_hemiRoutingSettings["ctx.hemiRoutingSettings<br/>Hemi role routes"]
+  pkg_hemi_routing_ui["hemi-routing-ui"]
   pkg_action_cards["action-cards"]
   svc_actionCards["ctx.actionCards<br/>Optional action cards"]
   pkg_creation_recommendations["creation-recommendations"]
@@ -388,6 +403,11 @@ flowchart LR
   pkg_fs_ssh --> svc_fs
   pkg_goal --> svc_goals
   pkg_headless --> svc_headlessStartup
+  pkg_hemi_backup --> svc_hemiBackup
+  pkg_hemi_memory --> svc_hemiMemory
+  pkg_hemi_model_access --> svc_hemiModelAccess
+  pkg_hemi_model_settings --> svc_hemiModelSettings
+  pkg_hemi_routing --> svc_hemiRoutingSettings
   pkg_hmr --> svc_hmr
   pkg_host_directory_picker --> svc_directoryPicker
   pkg_host_directory_picker_browse --> svc_directoryPicker
@@ -529,6 +549,11 @@ flowchart LR
   svc_forgeSession --> pkg_experimental_client_ui_forge
   svc_fs --> pkg_tool_fs
   svc_headlessStartup --> pkg_headless
+  svc_hemiBackup --> pkg_hemi_backup_ui
+  svc_hemiMemory --> pkg_hemi_memory_ui
+  svc_hemiModelAccess --> pkg_hemi_model_access_ui
+  svc_hemiModelSettings --> pkg_hemi_model_settings_ui
+  svc_hemiRoutingSettings --> pkg_hemi_routing_ui
   svc_hmr --> pkg_app_boot
   svc_jobs --> pkg_api_job_controller
   svc_jobs --> pkg_tool_bash
@@ -651,6 +676,11 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.hemiBackup` | `service` | [`hemi-backup`](../packages/hemi/backup) | - | [`hemi-backup-ui`](../packages/hemi/backup-ui) | - | 管理备份目标、归档任务与分阶段恢复。 |
+| `ctx.hemiMemory` | `service` | [`hemi-memory`](../packages/hemi/memory) | - | [`hemi-memory-ui`](../packages/hemi/memory-ui) | - | 管理带修订核对的记忆存储读取与编辑。 |
+| `ctx.hemiModelAccess` | `service` | [`hemi-model-access`](../packages/hemi/model-access) | - | [`hemi-model-access-ui`](../packages/hemi/model-access-ui) | - | 管理订阅授权、额度查询与模型导入。 |
+| `ctx.hemiModelSettings` | `service` | [`hemi-model-settings`](../packages/hemi/model-settings) | - | [`hemi-model-settings-ui`](../packages/hemi/model-settings-ui) | - | 管理显式模型连接测试。 |
+| `ctx.hemiRoutingSettings` | `service` | [`hemi-routing`](../packages/hemi/routing) | - | [`hemi-routing-ui`](../packages/hemi/routing-ui) | - | 管理保存的主模型与角色路由，以及每个 Session 的自动模式。 |
 | `ctx.actionCards` | `service` | [`action-cards`](../packages/experimental/action-cards) | - | [`creation-recommendations`](../packages/experimental/creation-recommendations), [`client-ui-action-cards`](../packages/experimental/client-ui-action-cards) | - | 负责卡片工具、卡片状态、用户操作和状态通知；各卡片种类注册自己的动作和处理器。 |
 | `ctx.pluginRecommendations` | `service` | [`plugin-recommendations`](../packages/experimental/plugin-recommendations) | - | [`client-ui-plugin-recommendations`](../packages/experimental/client-ui-plugin-recommendations) | - | 读取官方插件卡片的当前目录文本，并在用户点击后通过配置插件管理器启用该插件。 |
 | `ctx.headlessStartup` | `core` | [`headless`](../packages/bundle/headless) | - | [`headless`](../packages/bundle/headless) | - | 将解析后的任务和运行选项提供给无界面运行器及其 sandbox-policy 配置。 |

@@ -29,15 +29,6 @@ export interface ModelOptionsOwner {
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
-    /** Alternative to choosing a concrete model, shown before catalog rows. */
-    'conversation.input.model.alternative': {
-      kind: 'single'
-      scope: 'session'
-      owner: ModelOptionsOwner & {
-        /** Run one selection, closing only after the plugin accepts it. */
-        selectAlternative: (select: () => Promise<string | null>) => void
-      }
-    }
     /** Utility options after the model catalog. */
     'conversation.input.model.options': {
       kind: 'list'

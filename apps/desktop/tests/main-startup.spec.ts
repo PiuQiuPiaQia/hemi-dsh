@@ -153,6 +153,7 @@ const harness = await vi.hoisted(async () => {
     }
   }
   class FakeHost {
+    readonly bootInjections = vi.fn(async (): Promise<readonly unknown[]> => [])
     readonly updateTasks = vi.fn(async (_action: 'inspect' | 'lock' | 'unlock') => false)
     readonly inspectQuit = vi.fn(async () => ({ activeTasks: false, scheduledTasks: false }))
     url = 'http://127.0.0.1:3080/?token=test'
@@ -1480,6 +1481,23 @@ describe('desktop main startup', () => {
     harness.hosts[0]!.ready.resolve()
     await expect(boot).resolves.toEqual({ injections: [], streamBaseUrl: 'http://127.0.0.1:3080' })
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+  })
+
+  it('fetches fresh boot injections after plugin rebuilds instead of replaying the startup snapshot', async () => {
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    harness.prepared.resolve()
+    await harness.hostStarted.promise
+    const host = harness.hosts[0]!
+    const before = [{ kind: 'script-src', placement: 'head', src: 'plugins/bootstrap.js?rev=before' }]
+    const after = [{ kind: 'script-src', placement: 'head', src: 'plugins/bootstrap.js?rev=after' }]
+    host.bootInjections.mockResolvedValueOnce(before).mockResolvedValueOnce(after)
+    host.ready.resolve()
+    await expect(Promise.resolve(invoke(DESKTOP_IPC.boot))).resolves.toMatchObject({ injections: before })
+    await expect(Promise.resolve(invoke(DESKTOP_IPC.boot))).resolves.toMatchObject({ injections: after })
+    expect(host.bootInjections).toHaveBeenCalledTimes(2)
+    expect(harness.hosts).toHaveLength(1)
+    expect(host.stop).not.toHaveBeenCalled()
   })
 
   it('retains macOS native editing actions on right-click and only copy for selected read-only text', async () => {

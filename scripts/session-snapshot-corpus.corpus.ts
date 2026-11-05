@@ -24,6 +24,7 @@ const corpusRoot = join(repoRoot, 'snapshots')
 const profiles = ['acp', 'sdk', 'session', 'web'] as const
 const snapshotAdapters = [
   'apps/web/tests/code-language.snapshot.ts',
+  'apps/web/tests/hemi-role-delivery.snapshot.ts',
   'apps/web/tests/message-feedback-protocol.snapshot.ts',
   'apps/web/tests/minimal-preset.snapshot.ts',
   'apps/web/tests/preset-migration.snapshot.ts',
@@ -90,7 +91,8 @@ async function snapshotNamedTests(): Promise<string[]> {
   const visit = async (directory: string, relativeDir: string): Promise<void> => {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        if (['dist', 'lib', 'node_modules'].includes(entry.name)) continue
+        // Hemi fork: Desktop development bundles contain dependencies, not snapshot test sources.
+        if (['dist', 'lib', 'node_modules', '.desktop-build'].includes(entry.name)) continue
         await visit(join(directory, entry.name), join(relativeDir, entry.name))
       } else if (entry.isFile() && /\.snapshot\.tsx?$/u.test(entry.name)) {
         files.push(join(relativeDir, entry.name).split(/[/\\]/u).join('/'))

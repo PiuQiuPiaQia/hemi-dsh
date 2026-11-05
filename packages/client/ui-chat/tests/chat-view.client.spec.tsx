@@ -284,7 +284,9 @@ type ToolOwner = Pick<ChatNodeOwnerProps, 'openFile' | 'inspectCall'> & {
 
 const renderCommandSlot: React.ComponentProps<typeof CommandNodeView>['renderSlot'] =
   (_key, _owner, opts) => opts?.fallback ?? null
-const renderTurnTailSlot: React.ComponentProps<typeof TurnTailNodeView>['renderSlot'] = () => null
+// Hemi fork: an unoccupied usage slot must exercise the native fallback in this render harness.
+const renderTurnTailSlot: React.ComponentProps<typeof TurnTailNodeView>['renderSlot'] =
+  (_key, _owner, opts) => opts?.fallback ?? null
 
 function HarnessChatFlow({ standard, owner, hookContext, renderSlot, useConnectionState }: {
   readonly standard: HarnessStandardProps

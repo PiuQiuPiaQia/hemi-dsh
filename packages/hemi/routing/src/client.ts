@@ -8,3 +8,5 @@ export type {
   RoleRoutes,
   Route,
 } from './types.ts'
+
+export type { ModelUsageRow, ModelUsageProjection, ConversationUsage } from './usage-types.ts'

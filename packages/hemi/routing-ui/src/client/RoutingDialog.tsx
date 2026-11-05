@@ -24,7 +24,7 @@ export type RoutingDialogProps = PropsRuntime<'shell.overlay'> & InjectFace<Rout
 export function RoutingDialog(props: RoutingDialogProps) {
   const open = props.useRoutingOpen(value => value)
   return (
-    <Modal open={open} title={props.t('title')} description={props.t('description')} closeLabel={props.t('close')}
+    <Modal open={open} title={props.t('title')} closeLabel={props.t('close')}
       onClose={props.closeConfiguration} className={css.dialog ?? ''} contentClassName={`${css.dialogContent} scrollable`}
       footer={<div className={css.dialogFooter}><RoutingSaveStatus useRoutingWrite={props.useRoutingWrite} t={props.t} /><Button variant="primary" onClick={props.closeConfiguration}>{props.t('done')}</Button></div>}>
       {open && <RoutingSection {...props} />}

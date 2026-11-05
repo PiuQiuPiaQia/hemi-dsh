@@ -1,4 +1,4 @@
-/** Owner-local model-visible snapshot: the `hemi_delegate` tool schema and role prompt section. */
+/** Owner-local model-visible snapshot: the native `subagent` tool schema and role prompt section. */
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -12,6 +12,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
+import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
+import { mountNativeRoles } from './native-roles.ts'
 import * as routingPreset from '../src/index.ts'
 import HemiRoutingSettingsService from '../src/settings.ts'
 import { ScriptedAdapter, textResponse } from './mock-llm.ts'
@@ -32,45 +34,6 @@ class DirectService extends HemiRoutingSettingsService {
   }
 }
 
-/** The exact model-facing tool entry, committed as this package's model-visible snapshot. */
-const EXPECTED_HEMI_DELEGATE = {
-  name: 'hemi_delegate',
-  description: 'Delegate a task to a Hemi role using its configured model. Returns the child’s result in the current turn by default.',
-  parameters: {
-    type: 'object',
-    properties: {
-      role: {
-        type: 'string',
-        description: 'Delegation role. explorer gathers read-only context and reports; oracle analyzes independently; fixer makes the changes; designer works on the interface.',
-        enum: ['explorer', 'oracle', 'fixer', 'designer'],
-      },
-      description: {
-        type: 'string',
-        description: "A short (3-5 word) description of the delegated task, for display. Use the language of the user's current request.",
-      },
-      prompt: {
-        type: 'string',
-        description: "The complete standalone task for the subagent, including every constraint and the expected deliverable. The role's duty is prepended automatically.",
-      },
-      background: {
-        type: 'boolean',
-        description: 'Set true only when the user requests background execution. Returns an ID immediately and delivers the result later.',
-      },
-    },
-    required: ['role', 'description', 'prompt'],
-  },
-}
-
-const ROLE_POLICY = [
-  'Follow the user’s explicit role assignment or request to work directly.',
-  'worth the handoff, wait, and verification. Do small, bounded work directly.',
-  'broad or uncertain fact-finding',
-  'independent judgment on consequential assumptions',
-  'substantial, well-scoped execution',
-  'visual or interaction judgment materially affects the outcome',
-  'Verify and integrate the results needed for the final answer.',
-]
-
 describe('model-visible snapshot', () => {
   it.each([false, true])('serves the role prompt from a real turn (auto=%s)', async (auto) => {
     const ctx = new Context()
@@ -83,6 +46,7 @@ describe('model-visible snapshot', () => {
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentService)
     await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+    await mountNativeRoles(ctx)
     const settings = new MutableRoutingSettings({
       main: { provider: 'mock', model: 'mock' },
       sessionModes: { lead: auto },
@@ -96,7 +60,8 @@ describe('model-visible snapshot', () => {
       sessionId: SessionId('lead'),
       agentOptions: { provider: 'mock', model: 'mock' },
       setup: async (agentCtx: Context) => {
-        await agentCtx.plugin(routingPreset, { provider: 'spawn' })
+        await agentCtx.plugin(ToolSubagent, { provider: 'spawn', allowedAgentPresets: ['explorer', 'oracle', 'fixer', 'designer'] })
+        await agentCtx.plugin(routingPreset, {})
       },
     })
     handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Help me plan the work' }], source: { kind: 'user' } }))
@@ -105,15 +70,23 @@ describe('model-visible snapshot', () => {
     const header = handle.agent.session.snapshotEvents().find(event => event.type === 'request/header')
     expect(header).toBeDefined()
     const tools = (header?.data as { header?: { tools?: unknown[] } }).header?.tools ?? []
-    const delegate = tools.find(tool => (tool as { name?: string }).name === 'hemi_delegate') as Record<string, unknown>
+    expect(tools.some(tool => (tool as { name?: string }).name === 'hemi_delegate')).toBe(false)
+    const delegate = tools.find(tool => (tool as { name?: string }).name === 'subagent') as Record<string, unknown>
     expect(delegate).toBeDefined()
-    // The committed snapshot is the complete model-facing tool entry.
-    expect(delegate).toEqual(EXPECTED_HEMI_DELEGATE)
+    // Role selection is part of the native model-facing schema.
+    expect(delegate).toMatchObject({ parameters: { properties: {
+      agent_preset: { enum: ['explorer', 'oracle', 'fixer', 'designer'] },
+    } } })
+
+    expect(delegate).not.toHaveProperty('parameters.properties.background')
+    expect(delegate).toHaveProperty('description', expect.stringContaining('immediately returns its id'))
 
     const system = handle.agent.session.snapshotEvents().find(event => event.type === 'system/message')
     expect(system).toBeDefined()
     const content = (system?.data as { message?: { content?: readonly { type?: string; text?: string }[] } }).message?.content
     const systemText = JSON.stringify(content ?? [])
-    for (const clause of ROLE_POLICY) expect(systemText).toContain(clause)
+    expect(systemText).toContain('native `subagent`')
+    expect(systemText).toContain('explorer')
+    expect(systemText).not.toContain('hemi_delegate')
   })
 })

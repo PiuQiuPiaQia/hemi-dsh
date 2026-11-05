@@ -1,0 +1,68 @@
+.section {
+  display: grid;
+  gap: 12px;
+  padding: 8px 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.description {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-alias-settings-card-fill);
+}
+
+.controls,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.controls label,
+.editor {
+  display: grid;
+  gap: 4px;
+}
+
+.card :is(select, input, textarea, button) {
+  min-width: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-settings-card-fill);
+  color: inherit;
+  font: inherit;
+}
+
+.editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 180px;
+  max-height: 60vh;
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+}
+
+.actions button:enabled {
+  cursor: pointer;
+}
+
+.card :is(select, input, textarea, button):disabled {
+  opacity: 0.6;
+}
+
+.status {
+  min-height: 22px;
+  color: var(--dsw-alias-label-secondary);
+}

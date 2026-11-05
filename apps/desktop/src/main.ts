@@ -1,6 +1,8 @@
 /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
 
 import { installFileActions } from './file-actions.ts'
+// Hemi fork: Electron-only adapters live outside the upstream shell; see hemi-fork-changes.md#hemi-customization-isolation.
+import { mountDesktopCustomizations } from '@deepseek-ai/dsh-hemi-customizations'
 import { configurationFailure, channelSaveFailure, configurationMessage } from './update-configuration.ts'
 import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
@@ -480,7 +482,6 @@ async function main(): Promise<void> {
   let hostUrl: string | undefined
   let hostCookie: string | undefined
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
-  let injections: readonly unknown[] = []
   let welcomeBackend: DesktopWelcomeBackend | undefined
   let reportedLaunch = false
   let analyticsEnabled = false
@@ -541,7 +542,6 @@ async function main(): Promise<void> {
         void removeLegacyHostCookies(session.defaultSession.cookies, ready.url)
           .catch((error: unknown) => { console.error('desktop: legacy Host cookie cleanup failed', error) })
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')
-        injections = ready.injections
         welcomeBackend = connectDesktopWelcome(ready.url, cookie)
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
@@ -594,6 +594,7 @@ async function main(): Promise<void> {
           updateStopFailure = error
         }
       },
+      bootInjections: () => host.bootInjections(),
       updateTasks: (action: 'inspect' | 'lock' | 'unlock') => host.updateTasks(action),
       inspectQuit: () => host.inspectQuit(),
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
@@ -811,8 +812,12 @@ async function main(): Promise<void> {
   ipcMain.handle(DESKTOP_IPC.boot, async (event) => {
     assertDesktopSender(event, ['app'])
     await startup
-    if (backend.host === undefined || hostUrl === undefined) throw new Error('Desktop Host is unavailable')
-    return { injections, streamBaseUrl: new URL(hostUrl).origin }
+    const host = backend.host
+    const url = hostUrl
+    if (host === undefined || url === undefined) throw new Error('Desktop Host is unavailable')
+    const injections = await host.bootInjections()
+    if (backend.host !== host || hostUrl !== url) throw new Error('Desktop Host changed while preparing the page')
+    return { injections, streamBaseUrl: new URL(url).origin }
   })
 
   ipcMain.handle(DESKTOP_IPC.bootFailed, (event, message: unknown) => {
@@ -823,6 +828,14 @@ async function main(): Promise<void> {
     if (typeof message !== 'string') throw new Error('dsh desktop: startup failure must be text')
     reportFatal(new Error(message), 'web-boot')
   })
+
+  const newApiImport = mountDesktopCustomizations(
+    () => mainWindow,
+    () => hostUrl === undefined || hostCookie === undefined ? undefined : { url: hostUrl, cookie: hostCookie },
+    join(app.getPath('userData'), 'hemi-new-api-import'),
+    DESKTOP_IPC.newApiImport,
+    assertProductSender,
+  )
 
   ipcMain.handle(DESKTOP_IPC.browserAcquire, (event, workspace: unknown) => {
     assertProductSender(event)
@@ -1459,10 +1472,14 @@ async function main(): Promise<void> {
     updateDialog.dispose()
     mandatoryUI?.dispose()
     void Promise.all([stopOperationReports(), Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
-      backend.close().then(async () => { await operationJournal?.drain(500) }, async (error: unknown) => {
-        await operationJournal?.drain(500)
-        throw error
-      }),
+      // Hemi fork: finish the import journal before closing its authenticated Host.
+      (async () => {
+        try { await newApiImport.dispose() }
+        finally {
+          try { await backend.close() }
+          finally { await operationJournal?.drain(500) }
+        }
+      })(),
       platformView.dispose(),
       disposeFileDrag(),
     ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))

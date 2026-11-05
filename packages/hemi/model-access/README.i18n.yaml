@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/model-access/README.md
+/:
+  en: 03c526e9703b2ef3
+  zh: b2eff00f587ce606
+/deepseek-ai-dsh-hemi-model-access:
+  en: 6adbd6028dc9d6de
+  zh: d5a17ee6967e6633
+/deepseek-ai-dsh-hemi-model-access/summary:
+  en: a9c00c3df864fbf9
+  zh: 3e9adfe8801fd440
+/deepseek-ai-dsh-hemi-model-access/table-of-contents:
+  en: bc735d5ae6f456aa
+  zh: ec4fc1049aadebcb
+/deepseek-ai-dsh-hemi-model-access/model-experience:
+  en: 215e7ba838619b7b
+  zh: e61c78b7d37628ed
+/deepseek-ai-dsh-hemi-model-access/model-experience/import-validation:
+  en: 814215cbf472e119
+  zh: 47cd7580a4c1ebae
+/deepseek-ai-dsh-hemi-model-access/model-experience/import-validation/what-the-model-sees:
+  en: 4cf9fb980f9bad15
+  zh: a5f7b87408ee1c8f
+/deepseek-ai-dsh-hemi-model-access/model-experience/import-validation/token-effect:
+  en: d6cfa7bfdbd36a50
+  zh: f314bcdf5965c8f1
+/deepseek-ai-dsh-hemi-model-access/model-experience/import-validation/kv-cache-effect:
+  en: af99fcf7de7ca511
+  zh: 4a22e6be33238f24
+/deepseek-ai-dsh-hemi-model-access/known-limitations-and-deferred-work:
+  en: 9a30621b24163073
+  zh: dd25f83878ba9c43
+/deepseek-ai-dsh-hemi-model-access/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 754c49ec538c164c

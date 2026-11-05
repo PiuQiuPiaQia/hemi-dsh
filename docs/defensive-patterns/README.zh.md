@@ -18,6 +18,7 @@
 
 | 你在改什么 | 读哪篇 |
 |---|---|
+| Hemi 功能迁移、定制组件及上游接线 | [hemi-fork.zh.md](hemi-fork.zh.md) |
 | 包导出面、包形态、构建面、依赖声明 | [package-surface.zh.md](package-surface.zh.md) |
 | 远程服务、`@Remote` 方法、API 分发、API 层的业务归属 | [remote-and-api.zh.md](remote-and-api.zh.md) |
 | 客户端组件、slots、store、hooks、effect | [client-components.zh.md](client-components.zh.md) |

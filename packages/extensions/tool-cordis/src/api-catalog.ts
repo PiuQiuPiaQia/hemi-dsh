@@ -1681,6 +1681,279 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'hemiBackup',
+    summary: 'Hemi backup orchestrator: settings, runs, retention, and staged restore, exposed to the client as the `hemiBackup` Remote namespace.',
+    description: 'Hemi backup orchestrator: settings, runs, retention, and staged restore, exposed to the client as the `hemiBackup` Remote namespace.',
+    methods: [
+      {
+        signature: '@Remote async getState(): Promise<BackupStateView>',
+        description: 'Read the client-safe state: settings, password presence, run flag, progress.',
+        parameters: [],
+        returns: 'current state view without secrets.',
+      },
+      {
+        signature: '@Remote async saveSettings(input: Partial<Omit<BackupSettings, \'lastRun\'>> & { password?: string }): Promise<BackupStateView>',
+        description: 'Persist settings changes; a fresh password goes to the credential store.',
+        parameters: [{ name: 'input', description: 'partial settings plus an optional plaintext password.' }],
+        returns: 'the state view after saving.',
+      },
+      {
+        signature: '@Remote async testConnection(target?: (BackupTarget & { password?: string })): Promise<BackupOperationResult & { message?: string }>',
+        description: 'Probe a target without saving it; the saved password is used when the caller provides none.',
+        parameters: [{ name: 'target', description: 'target to probe; defaults to the saved one.' }],
+        returns: 'success or a typed failure the UI can phrase.',
+      },
+      {
+        signature: '@Remote runNow(): Promise<BackupOperationResult & RunManifestSummary>',
+        description: 'Run one backup now.',
+        parameters: [],
+        returns: 'the manifest summary on success or a typed failure.',
+      },
+      {
+        signature: '@Remote async listBackups(): Promise<readonly BackupSetView[]>',
+        description: 'List backup sets on the configured target, newest first.',
+        parameters: [],
+        returns: 'local sets directly and WebDAV sets through their manifests.',
+      },
+      {
+        signature: '@Remote async deleteSet(setName: string): Promise<BackupOperationResult>',
+        description: 'Delete one backup set; the name must be a plain backup-set name.',
+        parameters: [{ name: 'setName', description: 'set directory name on the target.' }],
+        returns: 'success or a typed failure.',
+      },
+      {
+        signature: '@Remote async restorePrepare(setName: string): Promise<BackupOperationResult & { preview?: RestorePreview }>',
+        description: 'Stage one set and produce the restore preview; the staging stays until applied or cancelled.',
+        parameters: [{ name: 'setName', description: 'set directory name on the target.' }],
+        returns: 'the preview on success or a typed failure.',
+      },
+      {
+        signature: '@Remote async restoreApply(): Promise<RestoreApplyResult>',
+        description: 'Apply the staged restore as a merge; displaced local files survive in a unique safe-copy directory under the Harness home. Existing Session generations remain in place; conflicting backup files are saved separately.',
+        parameters: [],
+        returns: 'the merge counts and safe-copy location on success.',
+      },
+      {
+        signature: '@Remote restoreCancel(): Promise<BackupOperationResult>',
+        description: 'Discard the staged restore without touching live data.',
+        parameters: [],
+        returns: 'success or `NO_RESTORE` when nothing is staged.',
+      },
+    ],
+  },
+  {
+    key: 'hemiMemory',
+    summary: 'Read and edit the same Markdown files used by the memory tools.',
+    description: 'Read and edit the same Markdown files used by the memory tools.',
+    methods: [
+      {
+        signature: '@Remote async readStore(target: StoreTarget, date?: string): Promise<MemorySnapshot>',
+        description: 'Read one memory file. A missing file is an empty document.',
+        parameters: [{ name: 'target', description: 'memory store.' }, { name: 'date', description: 'YYYY-MM-DD for a daily log.' }],
+        returns: 'document content and the revision required to save it.',
+      },
+      {
+        signature: '@Remote async saveStore(target: StoreTarget, content: string, revision: string, date?: string): Promise<string | null>',
+        description: 'Replace a memory file only if its content still matches the loaded revision.',
+        parameters: [{ name: 'target', description: 'memory store.' }, { name: 'content', description: 'replacement Markdown.' }, { name: 'revision', description: 'revision from readStore or the last successful save.' }, { name: 'date', description: 'YYYY-MM-DD for a daily log.' }],
+        returns: 'new revision, or null when the file changed before saving.',
+      },
+    ],
+  },
+  {
+    key: 'hemiModelAccess',
+    summary: 'Reuse the adapter\'s authorization flow and credential record rather than storing another grant.',
+    description: 'Reuse the adapter\'s authorization flow and credential record rather than storing another grant.',
+    methods: [
+      {
+        signature: '@Remote async subscriptions(): Promise<Subscription[]>',
+        description: 'Available subscription sign-ins and redacted grant presence.',
+        parameters: [],
+        returns: 'registered subscription accounts, connection state and selected models.',
+      },
+      {
+        signature: '@Remote async subscriptionCandidates(provider: string, signal: AbortSignal): Promise<string[]>',
+        description: 'Fetch the current service-side model catalog without an installed-catalog fallback.',
+        parameters: [{ name: 'provider', description: 'Configured subscription provider ID.' }, { name: 'signal', description: 'Caller cancellation for authentication and model-list requests.' }],
+        returns: 'current advertised IDs; GLM uses the official live Coding Plan catalog.',
+      },
+      {
+        signature: '@Remote async changeSubscriptionModel(provider: string, model: string, add: boolean): Promise<void>',
+        description: 'Add or remove one model while retaining account authorization and other selections.',
+        parameters: [{ name: 'provider', description: 'Configured subscription provider ID.' }, { name: 'model', description: 'Model ID within the selected provider.' }, { name: 'add', description: 'True adds this model; false removes it while retaining authorization.' }],
+      },
+      {
+        signature: '@Remote async start(providerId: string): Promise<LoginState>',
+        description: 'Start an authorization attempt using the catalog\'s registered OAuth method.',
+        parameters: [{ name: 'providerId', description: 'Registered subscription provider ID.' }],
+        returns: 'the initial authorization state; subsequent progress is read through state().',
+      },
+      {
+        signature: '@Remote state(): LoginState | null',
+        description: 'Return the current attempt without its credentials.',
+        parameters: [],
+        returns: 'the current authorization state without credentials, or null.',
+      },
+      {
+        signature: '@Remote answer(id: string, promptId: string, value: string): void',
+        description: 'Answer only the prompt currently presented for the caller\'s attempt.',
+        parameters: [{ name: 'id', description: 'Exact operation, token or connection ID selected by the caller.' }, { name: 'promptId', description: 'ID of the currently pending authorization prompt.' }, { name: 'value', description: 'Caller-supplied value to inspect or submit.' }],
+      },
+      {
+        signature: '@Remote cancel(id: string): void',
+        description: 'Cancel the exact pending attempt.',
+        parameters: [{ name: 'id', description: 'Exact operation, token or connection ID selected by the caller.' }],
+      },
+      {
+        signature: '@Remote async disconnect(provider: string): Promise<void>',
+        description: 'Remove only a saved subscription grant. Model profiles may also serve API-key connections.',
+        parameters: [{ name: 'provider', description: 'Configured subscription provider ID.' }],
+      },
+      {
+        signature: '@Remote async quota(provider: string, signal: AbortSignal): Promise<QuotaWindow[]>',
+        description: 'Get quota windows from the selected subscription account.',
+        parameters: [{ name: 'provider', description: 'Configured subscription provider ID.' }, { name: 'signal', description: 'Caller cancellation for this asynchronous operation.' }],
+        returns: 'the selected account’s quota windows.',
+      },
+      {
+        signature: '@Remote async listNewApi(login: NewApiLogin, signal: AbortSignal): Promise<NewApiToken[]>',
+        description: 'List the enabled New API tokens after proving the selected account identity.',
+        parameters: [{ name: 'login', description: 'Selected New API site identity and account credential.' }, { name: 'signal', description: 'Caller cancellation for this asynchronous operation.' }],
+        returns: 'enabled account tokens eligible for explicit import.',
+      },
+      {
+        signature: '@Remote async importNewApi(login: NewApiLogin, tokenId: number, signal: AbortSignal): Promise<number>',
+        description: 'Read a selected token key and import its advertised models into Harness.',
+        parameters: [{ name: 'login', description: 'Selected New API site identity and account credential.' }, { name: 'tokenId', description: 'Enabled New API token selected for import.' }, { name: 'signal', description: 'Caller cancellation for this asynchronous operation.' }],
+        returns: 'the number of model routes imported.',
+      },
+      {
+        signature: '@Remote checkNewApiBrowserImport(): void',
+        description: 'Verify that the model store is ready before dispatching a New API token creation.',
+        parameters: [],
+      },
+      {
+        signature: '@Remote async newApiBrowserReceipt(operationId: string): Promise<NewApiImportReceipt | null>',
+        description: 'Read the durable commit result for a recovered native import operation.',
+        parameters: [{ name: 'operationId', description: 'Recoverable desktop operation ID.' }],
+        returns: 'the saved operation receipt, or null when no committed import is found.',
+      },
+      {
+        signature: '@Remote async commitNewApiBrowserImport(input: NewApiBrowserCommit): Promise<NewApiBrowserCommitResult>',
+        description: 'Accept a validated model plan and key from the native import coordinator.',
+        parameters: [{ name: 'input', description: 'Validated draft or import plan including its optimistic settings revision.' }],
+        returns: 'the committed model routes and durable import receipt.',
+      },
+      {
+        signature: '@Remote async keyDirectory(): Promise<KeyDirectory>',
+        description: 'Read the Hemi API connection directory.',
+        parameters: [],
+        returns: 'the configured connections and their current settings revision.',
+      },
+      {
+        signature: '@Remote async getModelOptions(provider: string, model: string): Promise<ModelOptionsView>',
+        description: 'Read explicit settings for one available model.',
+        parameters: [{ name: 'provider', description: 'Configured provider ID.' }, { name: 'model', description: 'Available model ID.' }],
+        returns: 'editable overrides and their optimistic settings revision.',
+      },
+      {
+        signature: '@Remote async saveModelOptions(provider: string, model: string, options: ModelOptions, revision: number): Promise<void>',
+        description: 'Save editable capabilities while retaining account and protocol configuration.',
+        parameters: [{ name: 'provider', description: 'Configured provider ID.' }, { name: 'model', description: 'Available model ID.' }, { name: 'options', description: 'Explicit overrides; omitted fields inherit adapter defaults.' }, { name: 'revision', description: 'Settings revision observed when the editor opened.' }],
+      },
+      {
+        signature: '@Remote async discoverKeyModels(input: KeyProfileInput, signal: AbortSignal): Promise<string[]>',
+        description: 'Read model IDs from a draft API connection.',
+        parameters: [{ name: 'input', description: 'Validated draft or import plan including its optimistic settings revision.' }, { name: 'signal', description: 'Caller cancellation for this asynchronous operation.' }],
+        returns: 'the discovered model IDs, deduplicated and capped at 500.',
+      },
+      {
+        signature: '@Remote async saveKeyProfile(input: KeyProfileInput): Promise<void>',
+        description: 'Save one API connection.',
+        parameters: [{ name: 'input', description: 'Validated draft or import plan including its optimistic settings revision.' }],
+      },
+      {
+        signature: '@Remote async removeKeyProfile(id: string, revision: number): Promise<void>',
+        description: 'Remove one API connection.',
+        parameters: [{ name: 'id', description: 'Exact operation, token or connection ID selected by the caller.' }, { name: 'revision', description: 'Settings revision observed when the edit began.' }],
+      },
+    ],
+  },
+  {
+    key: 'hemiModelSettings',
+    summary: 'Probe a configured route with its actual adapter and saved credential.',
+    description: 'Probe a configured route with its actual adapter and saved credential.',
+    methods: [
+      {
+        signature: '@Remote async testModel(provider: string, model: string, signal: AbortSignal): Promise<boolean>',
+        description: 'Send a bounded request and check whether the model returns a test tool call.',
+        parameters: [{ name: 'provider', description: 'configured provider ID.' }, { name: 'model', description: 'model ID.' }, { name: 'signal', description: 'cancellation propagated from the client.' }],
+        returns: 'whether the model returned the test tool call.',
+      },
+    ],
+  },
+  {
+    key: 'hemiRoutingSettings',
+    summary: 'Settings namespace service and Remote owner for Hemi routing.',
+    description: 'Settings namespace service and Remote owner for Hemi routing.',
+    methods: [
+      {
+        signature: 'currentMain(): Route | null',
+        description: 'Read the configured main route as a detached copy.',
+        parameters: [],
+        returns: 'the route, or `null` while unconfigured.',
+        throws: ['{HemiRoutingError} on malformed stored config.'],
+      },
+      {
+        signature: 'currentRoles(): RoleRoutes',
+        description: 'Read the canonical role table as a detached copy.',
+        parameters: [],
+        returns: 'routes per canonical role; absent roles are missing keys.',
+        throws: ['{HemiRoutingError} on malformed or unknown stored role config.'],
+      },
+      {
+        signature: 'modeOfSession(sessionId: SessionId): HemiRoutingMode',
+        description: 'Effective routing mode of one root Session: the saved preference, with an unsettled write already counting as its target\'s opposite — an auto exit in flight or failed reads fixed, so no later claim re-selects the main model underneath the user\'s recorded selection, and an enable that has not settled yet routes nothing.',
+        parameters: [{ name: 'sessionId', description: 'exact root Session identity.' }],
+        returns: 'the effective mode.',
+      },
+      {
+        signature: 'modeOf(agent: Agent): HemiRoutingMode',
+        description: 'Effective routing mode of the tree `agent` belongs to.',
+        parameters: [{ name: 'agent', description: 'exact live member of the tree.' }],
+        returns: 'the root Session\'s effective mode.',
+      },
+      {
+        signature: 'routeForDelegation(parent: Agent, role: HemiRoleId): DelegationRoute',
+        description: 'Resolve the route a native role subagent hard-binds for `role`. Role routing applies only when the turn was planned in auto mode and the delegating step still runs in auto mode: a manual model selection between steps switches later delegations to the selected route, while steps already prepared and delegations already dispatched keep their routes. Main and role routes come from the turn\'s plan; without a plan (for example immediately after a host restart) the live values decide.',
+        parameters: [{ name: 'parent', description: 'exact live delegating agent.' }, { name: 'role', description: 'preset role id.' }],
+        returns: 'the bound route, or parent inheritance.',
+      },
+      {
+        signature: 'captureStep(agent: Agent): void',
+        description: 'Capture the routing mode of the step about to run, synchronously before the step proceeds. Called from the preset plugin\'s `agent/pre-step` listener for the root agent only; descendant and subagent trees route nothing. Also plans the turn lazily when no claimed message planned it, for example a resumed turn whose claim was empty.',
+        parameters: [{ name: 'agent', description: 'exact live root agent about to run one step.' }],
+      },
+      {
+        signature: 'blockedReason(agent: Agent): string | null',
+        description: 'Fail-closed reason for the step about to run, or `null`. Auto mode with no configured main blocks the model call instead of silently falling back to a stale route, and a failed routing-mode write blocks until a manual mode switch confirms the saved state.',
+        parameters: [{ name: 'agent', description: 'exact live member of the tree.' }],
+        returns: 'why the next step must be rejected, or `null` to proceed.',
+      },
+      {
+        signature: 'prepareTurn(root: Agent): void',
+        description: 'Plan one root\'s turn: capture the turn\'s mode/main/roles snapshot, and in auto mode select the configured main model before the loop reads the step\'s selection. The synchronous {@linkcode internalSelection} guard marks the plugin\'s own selection so {@linkcode observeSelection} does not mistake it for a user choice. Auto mode without a main records the plan and selects nothing; the preset plugin then blocks the step.',
+        parameters: [{ name: 'root', description: 'exact live root agent of a non-subagent Session.' }],
+      },
+      {
+        signature: '@Remote async setEnabled(agent: Agent, enabled: boolean, signal?: AbortSignal): Promise<void>',
+        description: 'Save one root Session\'s routing mode preference. Only the root agent may switch; enabling validates the main route and every configured role route against the live LLM registry. The call resolves only after the settings pipeline has persisted the preference — no optimistic success — and the write is serialized after every earlier in-flight write of the same Session, so concurrent switches land in call order. The mode flips in memory at registration: an enable in flight routes nothing until it settles, and in-flight requests plus accepted delegations keep their routes either way.',
+        parameters: [{ name: 'agent', description: 'exact live root whose tree receives the selection.' }, { name: 'enabled', description: '`true` selects auto routing, `false` returns to fixed.' }, { name: 'signal', description: 'cancellation checked before the preference is written.' }],
+        throws: ['when called by a descendant, validation fails, or the save fails.'],
+      },
+    ],
+  },
+  {
     key: 'hmr',
     summary: 'Hot reload service with Cordis-compatible module configuration and events.',
     description: 'Hot reload service with Cordis-compatible module configuration and events.',
@@ -4715,6 +4988,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.frame - one ordered start, chunk, or end publication. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
   },
   {
+    name: 'agent/before-user-model-selection',
+    mode: 'serial',
+    signature: '\'agent/before-user-model-selection\'(agent: Agent): undefined | Promise<undefined>',
+    summary: 'A validated explicit model choice is about to replace the current route.',
+    description: 'A validated explicit model choice is about to replace the current route. Listeners finish before selection is applied, even for the same model. Rejection stops the selection. Programmatic selection does not emit this event.',
+    parameters: [{ name: 'agent', description: 'live Agent receiving the user\'s choice.' }],
+  },
+  {
     name: 'agent/created',
     mode: 'serial',
     signature: '\'agent/created\'(this: Scoped<Agent>, payload: { agent: Agent; source: SessionStartSource; signal?: AbortSignal }): undefined | Promise<undefined>',
@@ -5251,6 +5532,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'name', description: 'the provider name that no longer resolves.' }],
   },
   {
+    name: 'subagent/resolve-agent-options',
+    mode: 'waterfall',
+    signature: '\'subagent/resolve-agent-options\'(spec: Readonly<SubagentActivationSpec>, next: () => AgentOptions | undefined): AgentOptions | undefined',
+    summary: 'Resolve trusted deployment-owned child model defaults before capability validation and identity publication.',
+    description: 'Resolve trusted deployment-owned child model defaults before capability validation and identity publication. Listeners may bind a selected preset to a model; task, parent and delivery remain caller-owned.',
+    parameters: [{ name: 'spec', description: 'requested child identity and execution options.' }, { name: 'next', description: 'remaining option resolvers and the caller defaults.' }],
+  },
+  {
     name: 'subagent/start',
     mode: 'emit',
     signature: '\'subagent/start\'(this: Scoped<SubagentRuntime>, info: SubagentRunInfo): void',
@@ -5743,6 +6032,38 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export class BackendRegistry {\n    register(name: string, backend: StorageBackend): () => void;\n    get(name: string): StorageBackend;\n    names(): string[];\n}',
   },
   {
+    name: 'BackupLastRun',
+    declaration: 'export interface BackupLastRun {\n    readonly at: string;\n    readonly ok: boolean;\n    readonly trigger: \'manual\' | \'scheduled\';\n    readonly packedBytes?: number;\n    readonly files?: number;\n    readonly message?: string;\n}',
+  },
+  {
+    name: 'BackupOperationResult',
+    declaration: 'export interface BackupOperationResult {\n    readonly ok: boolean;\n    readonly code?: \'BUSY\' | \'NO_TARGET\' | \'NO_RESTORE\' | \'INVALID_NAME\' | \'FAILED\';\n    readonly message?: string;\n}',
+  },
+  {
+    name: 'BackupProgress',
+    declaration: 'export interface BackupProgress {\n    readonly phase: \'pack\' | \'upload\' | \'prune\' | \'done\' | \'error\';\n    readonly detail?: string;\n}',
+  },
+  {
+    name: 'BackupScheduleInterval',
+    declaration: 'export type BackupScheduleInterval = \'daily\' | \'weekly\';',
+  },
+  {
+    name: 'BackupSettings',
+    declaration: 'export interface BackupSettings {\n    readonly schemaVersion: 1;\n    readonly target: BackupTarget | null;\n    readonly schedule: {\n        readonly enabled: boolean;\n        readonly interval: BackupScheduleInterval;\n    };\n    readonly keep: number;\n    readonly lastRun: BackupLastRun | null;\n}',
+  },
+  {
+    name: 'BackupSetView',
+    declaration: 'export interface BackupSetView {\n    readonly name: string;\n    readonly createdAt: string | null;\n    readonly packedBytes: number | null;\n    readonly appVersion: string | null;\n    readonly source: \'local\' | \'webdav\';\n    readonly broken?: boolean;\n    readonly skipped?: readonly {\n        name: string;\n        bytes: number;\n    }[];\n}',
+  },
+  {
+    name: 'BackupStateView',
+    declaration: 'export interface BackupStateView {\n    readonly settings: BackupSettings;\n    readonly hasPassword: boolean;\n    readonly isRunning: boolean;\n    readonly progress: BackupProgress | null;\n}',
+  },
+  {
+    name: 'BackupTarget',
+    declaration: 'export type BackupTarget = {\n    readonly kind: \'local\';\n    readonly dir: string;\n} | {\n    readonly kind: \'webdav\';\n    readonly url: string;\n    readonly username: string;\n    readonly remoteDir: string;\n};',
+  },
+  {
     name: 'BashEnvContributor',
     declaration: 'export interface BashEnvContributor {\n    name: string;\n    variables: Readonly<Record<DshEnvironmentKey, BashEnvVariable>>;\n    resolve(execution: ToolExecution): Readonly<Partial<Record<DshEnvironmentKey, string>>>;\n}',
   },
@@ -6211,6 +6532,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type DeepSeekLlmApiJson = null | boolean | number | string | DeepSeekLlmApiJson[] | {\n    [key: string]: DeepSeekLlmApiJson;\n};',
   },
   {
+    name: 'DelegationRoute',
+    declaration: 'export type DelegationRoute = {\n    readonly kind: \'bound\';\n    readonly route: Route;\n} | {\n    readonly kind: \'inherit\';\n};',
+  },
+  {
     name: 'DeliveryRetentionBounds',
     declaration: 'export interface DeliveryRetentionBounds {\n    readonly days: number;\n    readonly records: number;\n}',
   },
@@ -6643,6 +6968,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface GrantRecord {\n    readonly kind: \'grant\';\n    readonly payload: unknown;\n}',
   },
   {
+    name: 'HemiRoleId',
+    declaration: 'export type HemiRoleId = \'explorer\' | \'oracle\' | \'fixer\' | \'designer\';',
+  },
+  {
+    name: 'HemiRoutingMode',
+    declaration: 'export type HemiRoutingMode = \'auto\' | \'fixed\';',
+  },
+  {
     name: 'HookBudget',
     declaration: 'export interface HookBudget {\n    readonly ms: number;\n    readonly remainingMs: number;\n}',
   },
@@ -6887,6 +7220,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type JsonValue = null | boolean | number | string | JsonValue[] | {\n    [key: string]: JsonValue;\n};',
   },
   {
+    name: 'KeyDirectory',
+    declaration: 'export interface KeyDirectory {\n    revision: number;\n    profiles: KeyProfile[];\n}',
+  },
+  {
+    name: 'KeyProfile',
+    declaration: 'export interface KeyProfile {\n    id: string;\n    name: string;\n    baseUrl: string;\n    api: string;\n    models: string[];\n    hasKey: boolean;\n    modelOptions: Record<string, ModelOptions>;\n}',
+  },
+  {
+    name: 'KeyProfileInput',
+    declaration: 'export interface KeyProfileInput {\n    id?: string;\n    revision: number;\n    name: string;\n    baseUrl: string;\n    api: string;\n    models: string[];\n    apiKey?: string;\n    modelOptions?: Record<string, ModelOptions>;\n}',
+  },
+  {
     name: 'KnownSubagentCatalogFields',
     declaration: 'export type KnownSubagentCatalogFields = {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n} | {\n    readonly mode: \'external\';\n    readonly label?: string;\n} | {\n    readonly mode: \'continuable\';\n    readonly label: string;\n};',
   },
@@ -7013,6 +7358,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LogExporterOptions',
     declaration: 'export type LogExporterOptions = Omit<OTLPExporterNodeConfigBase, \'selfObsMeterProvider\'> & {\n    url: string;\n};',
+  },
+  {
+    name: 'LoginPrompt',
+    declaration: 'export interface LoginPrompt {\n    id: string;\n    kind: \'select\' | \'secret\' | \'text\';\n    message: string;\n    options?: {\n        id: string;\n        label: string;\n    }[];\n}',
+  },
+  {
+    name: 'LoginState',
+    declaration: 'export interface LoginState {\n    id: string;\n    provider: string;\n    phase: \'pending\' | \'connected\' | \'cancelled\' | \'failed\' | \'route-failed\';\n    url?: string;\n    code?: string;\n    prompt?: LoginPrompt;\n}',
   },
   {
     name: 'LspHover',
@@ -7191,6 +7544,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type McpServerRegistration = Omit<EntryInput, \'enabled\'>;',
   },
   {
+    name: 'MemorySnapshot',
+    declaration: 'export interface MemorySnapshot {\n    content: string;\n    revision: string;\n}',
+  },
+  {
     name: 'Mergeability',
     declaration: 'export type Mergeability = \'mergeable\' | \'conflicting\' | \'unknown\';',
   },
@@ -7323,6 +7680,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ModelModalityMap {\n    text: \'text\';\n    image: \'image\';\n}',
   },
   {
+    name: 'ModelOptions',
+    declaration: 'export interface ModelOptions {\n    name?: string;\n    contextWindow?: number;\n    maxTokens?: number;\n    input?: readonly (\'text\' | \'image\')[];\n}',
+  },
+  {
+    name: 'ModelOptionsView',
+    declaration: 'export interface ModelOptionsView {\n    revision: number;\n    options: ModelOptions;\n}',
+  },
+  {
     name: 'ModelProviderGroup',
     declaration: 'export interface ModelProviderGroup {\n    readonly id: string;\n    readonly name: string;\n    readonly models: readonly ModelCatalogModel[];\n}',
   },
@@ -7361,6 +7726,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'NativeFileApplication',
     declaration: 'export interface NativeFileApplication {\n    readonly id: string;\n    readonly name: string;\n    readonly default: boolean;\n    readonly icon: string | null;\n}',
+  },
+  {
+    name: 'NewApiBrowserCommit',
+    declaration: 'export interface NewApiBrowserCommit {\n    operationId: string;\n    planHash: string;\n    providers: {\n        deterministicId: string;\n        name: string;\n        baseUrl: string;\n        api: string;\n        models: {\n            model: string;\n        }[];\n        apiKey: string;\n    }[];\n}',
+  },
+  {
+    name: 'NewApiBrowserCommitResult',
+    declaration: 'export interface NewApiBrowserCommitResult {\n    receipt: NewApiImportReceipt;\n    providers: {\n        id: string;\n        name: string;\n        baseUrl: string;\n        api: string;\n        models: {\n            model: string;\n        }[];\n    }[];\n}',
+  },
+  {
+    name: 'NewApiImportReceipt',
+    declaration: 'export interface NewApiImportReceipt {\n    operationId: string;\n    planHash: string;\n    providerIds: string[];\n    modelKeys: string[];\n}',
+  },
+  {
+    name: 'NewApiLogin',
+    declaration: 'export interface NewApiLogin {\n    site: string;\n    userId: string;\n    accessToken: string;\n}',
+  },
+  {
+    name: 'NewApiToken',
+    declaration: 'export interface NewApiToken {\n    id: number;\n    name: string;\n    group: string;\n}',
   },
   {
     name: 'NpmFileSource',
@@ -7811,6 +8196,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type QueueAction = {\n    readonly kind: \'edit\';\n    readonly content: readonly TextBlock[];\n} | {\n    readonly kind: \'remove\';\n} | {\n    readonly kind: \'steer\';\n};',
   },
   {
+    name: 'QuotaWindow',
+    declaration: 'export interface QuotaWindow {\n    seconds: number;\n    remainingPercent: number;\n    resetAt?: number;\n    remainingCredits?: number;\n    totalCredits?: number;\n}',
+  },
+  {
     name: 'ReadFileLine',
     declaration: 'export interface ReadFileLine {\n    number: number;\n    text: string;\n}',
   },
@@ -8015,12 +8404,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type RestartReason = \'no-hmr\' | \'package-moved\' | \'host-module\' | \'unmanaged-plugin\' | \'module-comparison\';',
   },
   {
+    name: 'RestoreApplyResult',
+    declaration: 'export interface RestoreApplyResult extends BackupOperationResult {\n    readonly stats?: {\n        readonly newFiles: number;\n        readonly identical: number;\n        readonly keepLocal: number;\n        readonly takeBackup: number;\n    };\n    readonly safeCopyRoot?: string;\n}',
+  },
+  {
     name: 'RestoredSessionOptions',
     declaration: 'export interface RestoredSessionOptions {\n    readonly seed: SessionEvent[];\n    readonly meta: SessionHeader;\n    readonly inheritedEventCount: SessionLogOffset;\n    readonly eventState: SessionSeedEventState;\n}',
   },
   {
     name: 'RestoredWorktree',
     declaration: 'export interface RestoredWorktree {\n    path: string;\n    branchRecreated: boolean;\n}',
+  },
+  {
+    name: 'RestorePreview',
+    declaration: 'export interface RestorePreview {\n    readonly files: number;\n    readonly sessions: number;\n    readonly skills: number;\n    readonly estimate: {\n        readonly newFiles: number;\n        readonly identical: number;\n        readonly conflicts: number;\n    };\n}',
   },
   {
     name: 'RestoreWorktreeRequest',
@@ -8035,12 +8432,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ReviewDecision = \'approved\' | \'changes-requested\' | \'review-required\' | \'none\';',
   },
   {
+    name: 'RoleRoutes',
+    declaration: 'export type RoleRoutes = Partial<Record<HemiRoleId, Route>>;',
+  },
+  {
+    name: 'Route',
+    declaration: 'export interface Route {\n    provider: string;\n    model: string;\n    reasoningEffort?: string;\n}',
+  },
+  {
     name: 'RpcId',
     declaration: 'export type RpcId = Branded<\'rpc-id\'>;',
   },
   {
     name: 'RRuleScheduleRecord',
     declaration: 'export interface RRuleScheduleRecord {\n    readonly kind: \'rrule\';\n    readonly id: ScheduleId;\n    readonly title: string;\n    readonly prompt: string;\n    readonly rrule: string;\n    readonly scheduledAt: string;\n}',
+  },
+  {
+    name: 'RunManifestSummary',
+    declaration: 'export interface RunManifestSummary {\n    manifest?: {\n        createdAt: string;\n        files: number;\n        packedBytes: number;\n        skipped: readonly {\n            name: string;\n            bytes: number;\n        }[];\n    };\n}',
   },
   {
     name: 'RunnerFailureRule',
@@ -8236,7 +8645,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Session',
-    declaration: 'export class Session {\n    get surface(): SessionSurface;\n    readonly header: SessionHeader;\n    readonly inheritedEventCount: SessionLogOffset;\n    get id(): SessionId;\n    readonly firstLiveSeq: SessionLogOffset;\n    readonly firstLifecycleSeq: SessionLogOffset;\n    static create(id: SessionId, seed?: readonly SessionEvent[], header?: SessionHeader, inheritedEventCount?: SessionLogOffset, projections?: readonly SessionMessageProjection[]): Session;\n    static fromRestore(id: SessionId, seed: readonly SessionEvent[], header: SessionHeader, inheritedEventCount: SessionLogOffset, eventState: SessionSeedEventState, projections?: readonly SessionMessageProjection[]): Session;\n    eventAt(seq: SessionSeq): SessionEvent | undefined;\n    snapshotEvents(fromSeq: SessionLogOffset = SessionLogOffset(0), toSeqExclusive: SessionLogOffset = this.seq): readonly SessionEvent[];\n    ownEvents(): readonly SessionEvent[];\n    isOwnSeq(seq: SessionSeq): boolean;\n    get seq(): SessionLogOffset;\n    append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [\n        opts: SurfaceIntent<T>\n    ] : [\n    ]): SessionEvent<T>;\n    requestHeader(): EpochHeader | undefined;\n    requestContext(): RequestContext | undefined;\n    toolHistory(): ToolHistory;\n    deriveMessages(): Message[];\n    deriveEventMessage(event: SessionEvent): Message | null;\n}',
+    declaration: 'export class Session {\n    get surface(): SessionSurface;\n    readonly header: SessionHeader;\n    readonly inheritedEventCount: SessionLogOffset;\n    get id(): SessionId;\n    readonly firstLiveSeq: SessionLogOffset;\n    readonly firstLifecycleSeq: SessionLogOffset;\n    static create(id: SessionId, seed?: readonly SessionEvent[], header?: SessionHeader, inheritedEventCount?: SessionLogOffset, projections?: readonly SessionMessageProjection[]): Session;\n    static fromRestore(id: SessionId, seed: readonly SessionEvent[], header: SessionHeader, inheritedEventCount: SessionLogOffset, eventState: SessionSeedEventState, projections?: readonly SessionMessageProjection[]): Session;\n    eventAt(seq: SessionSeq): SessionEvent | undefined;\n    snapshotEvents(fromSeq: SessionLogOffset = SessionLogOffset(0), toSeqExclusive: SessionLogOffset = this.seq): readonly SessionEvent[];\n    ownEvents(): readonly SessionEvent[];\n    isOwnSeq(seq: SessionSeq): boolean;\n    get seq(): SessionLogOffset;\n    append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [\n        opts: SurfaceIntent<T>\n    ] : [\n        opts?: {\n            ignorable?: true;\n        }\n    ]): SessionEvent<T>;\n    requestHeader(): EpochHeader | undefined;\n    requestContext(): RequestContext | undefined;\n    toolHistory(): ToolHistory;\n    deriveMessages(): Message[];\n    deriveEventMessage(event: SessionEvent): Message | null;\n}',
   },
   {
     name: 'SessionAccess',
@@ -9183,6 +9592,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface StoredImageAttachment {\n    ref: ImageAttachmentRef;\n    data: Uint8Array;\n}',
   },
   {
+    name: 'StoreTarget',
+    declaration: 'export type StoreTarget = \'long_term\' | \'daily\' | \'scratchpad\';',
+  },
+  {
     name: 'StreamChunk',
     declaration: 'export type StreamChunk = {\n    type: \'block-start\';\n    index: number;\n    blockType: ContentBlockType;\n} | {\n    type: \'text-delta\';\n    index: number;\n    text: string;\n} | {\n    type: \'reasoning-delta\';\n    index: number;\n    text: string;\n} | {\n    type: \'tool-call-delta\';\n    index: number;\n    id: ToolCallId;\n    name?: string;\n    argumentsDelta: string;\n} | {\n    type: \'block-end\';\n    index: number;\n    block: ContentBlock;\n} | {\n    type: \'usage\';\n    usage: TokenUsage;\n} | {\n    type: \'finish\';\n    reason: FinishReason;\n    replayState?: ReplayEnvelope;\n};',
   },
@@ -9341,6 +9754,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SubprocessTerminalSpawnSpec',
     declaration: 'export interface SubprocessTerminalSpawnSpec {\n    argv: readonly string[];\n    cwd: string;\n    env?: Record<string, string> | undefined;\n    rows: number;\n    cols: number;\n    terminalType: string;\n    shellActivity?: boolean | undefined;\n    graceMs: number;\n    signal?: AbortSignal | undefined;\n}',
+  },
+  {
+    name: 'Subscription',
+    declaration: 'export interface Subscription {\n    id: string;\n    name: string;\n    connected: boolean;\n    quota: boolean;\n    models: string[];\n}',
   },
   {
     name: 'SurfaceEvent',

@@ -1,107 +1,58 @@
-/**
- * Host Remote service for the Hemi memory stores: read, write, and search
- * the markdown stores for the settings section. Persistence stays in the
- * markdown files under `$DSH_HOME/hemi-memory/`; this service is a thin
- * typed seam over {@link ./store.ts}.
- */
-
+/** Host entry for the Hemi memory settings page. */
+import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import {
-  allStores, appendBlock, readStore, storePath, writeStore,
-} from './store.ts'
+import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { readStore, storePath, updateStore, type StoreTarget } from './store.ts'
 
-/** Cordis plugin name of the remote service registration. */
-export const remoteName = 'hemi-memory-remote'
+export type { StoreTarget } from './store.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host owner of the `hemiMemory` Remote namespace. */
-    hemiMemoryRemote: HemiMemoryRemoteService
+    /** Host owner of the memory settings endpoints. */
+    hemiMemory: HemiMemoryService
   }
 }
 
-/** Target store selector. */
-type StoreTargetInput = 'long_term' | 'daily' | 'scratchpad'
-
-function isStoreTarget(value: string): value is StoreTargetInput {
-  return value === 'long_term' || value === 'daily' || value === 'scratchpad'
+/** The editor loads a revision with the content and sends it back when saving. */
+export interface MemorySnapshot {
+  content: string
+  revision: string
 }
 
-/**
- * Host service backing the generated `ctx.remote.hemiMemory` namespace.
- * @param ctx - Host context.
- */
-export class HemiMemoryRemoteService extends TypertRemoteService {
+function revisionOf(content: string): string {
+  return createHash('sha256').update(content).digest('hex')
+}
+
+/** Read and edit the same Markdown files used by the memory tools. */
+export default class HemiMemoryService extends TypertRemoteService {
   constructor(ctx: Context) {
-    super(ctx, remoteName, { namespace: 'hemiMemory' })
+    super(ctx, 'hemiMemory', { namespace: 'hemiMemory' })
   }
 
   /**
-   * Read one store's markdown content.
-   * @param target - store selector.
-   * @param date - daily log date (YYYY-MM-DD); defaults to today.
-   * @returns the store content; empty when nothing was stored yet.
+   * Read one memory file. A missing file is an empty document.
+   * @param target - memory store.
+   * @param date - YYYY-MM-DD for a daily log.
+   * @returns document content and the revision required to save it.
    */
-  async readStore(target: string, date?: string): Promise<string> {
-    if (!isStoreTarget(target)) throw new Error(`unknown memory store ${target}`)
-    return readStore(storePath(target, date))
+  @Remote
+  async readStore(target: StoreTarget, date?: string): Promise<MemorySnapshot> {
+    const content = await readStore(storePath(target, date))
+    return { content, revision: revisionOf(content) }
   }
 
   /**
-   * Overwrite one store's markdown content.
-   * @param target - store selector.
-   * @param content - full markdown content to persist.
-   * @param date - daily log date; defaults to today.
+   * Replace a memory file only if its content still matches the loaded revision.
+   * @param target - memory store.
+   * @param content - replacement Markdown.
+   * @param revision - revision from readStore or the last successful save.
+   * @param date - YYYY-MM-DD for a daily log.
+   * @returns new revision, or null when the file changed before saving.
    */
-  async writeStore(target: string, content: string, date?: string): Promise<void> {
-    if (!isStoreTarget(target)) throw new Error(`unknown memory store ${target}`)
-    await writeStore(storePath(target, date), content.endsWith('\n') ? content : `${content}\n`)
+  @Remote
+  async saveStore(target: StoreTarget, content: string, revision: string, date?: string): Promise<string | null> {
+    const saved = await updateStore(storePath(target, date), current =>
+      revisionOf(current) === revision ? content : undefined)
+    return saved ? revisionOf(content) : null
   }
-
-  /**
-   * Append one block to one store.
-   * @param target - store selector.
-   * @param content - markdown block to append.
-   * @param date - daily log date; defaults to today.
-   */
-  async appendStore(target: string, content: string, date?: string): Promise<void> {
-    if (!isStoreTarget(target)) throw new Error(`unknown memory store ${target}`)
-    await appendBlock(storePath(target, date), content)
-  }
-
-  /**
-   * Search every store for lines containing the query (case-insensitive).
-   * @param query - text to find.
-   * @returns matching lines with `store:line` prefixes; empty when nothing matched.
-   */
-  async searchStores(query: string): Promise<string> {
-    const needle = query.toLowerCase()
-    const hits: string[] = []
-    for (const store of await allStores()) {
-      const content = await readStore(store.path)
-      for (const [index, line] of content.split('\n').entries()) {
-        if (line.toLowerCase().includes(needle) && hits.length < 40) {
-          hits.push(`${store.label}:${index + 1}: ${line.slice(0, 300)}`)
-        }
-      }
-    }
-    return hits.join('\n')
-  }
-
-  /**
-   * Resolve the store file path for one target (for open-in-editor affordances).
-   * @param target - store selector.
-   * @param date - daily log date; defaults to today.
-   * @returns the absolute store path.
-   */
-  storePathFor(target: string, date?: string): string {
-    if (!isStoreTarget(target)) throw new Error(`unknown memory store ${target}`)
-    return storePath(target, date)
-  }
-}
-
-/** Mount the remote service into the Host context. @param ctx - Host context. */
-export function apply(ctx: Context): void {
-  ctx.plugin(HemiMemoryRemoteService)
 }

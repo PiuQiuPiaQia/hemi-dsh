@@ -32,6 +32,10 @@
   line-height: 22px;
   box-shadow: var(--dsw-shadow-lv3);
   transform: translateX(-50%);
+  /* Hemi fork: pure visual body portal must not subtract the native drag region
+     while shown; `initial` is uncollected and `!important` beats the shell's
+     id-specific `body > :not(#root)` rule (see ui-hemi-skins Backdrop). */
+  -webkit-app-region: initial !important;
   animation:
     dsh-toast-in 160ms ease-out,
     dsh-toast-fade 1000ms ease var(--dsh-toast-hold, 3000ms) forwards;

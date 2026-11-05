@@ -1,14 +1,14 @@
 /** Real Cordis Loader composition over the fixture `cordis.yml`, including reversibility. */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { Context } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
-import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
+import { EntryTree, type Entry } from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
@@ -16,6 +16,8 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
+import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
+import { mountNativeRoles } from './native-roles.ts'
 import * as routingPreset from '../src/index.ts'
 import routingSettings from '../src/settings.ts'
 import { ScriptedAdapter } from './mock-llm.ts'
@@ -26,6 +28,7 @@ const contexts: Context[] = []
 const roots: string[] = []
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
@@ -42,6 +45,8 @@ async function loadFixture(): Promise<{ ctx: Context; settings: MutableRoutingSe
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentService)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+  await mountNativeRoles(ctx)
+  await ctx.plugin(ToolSubagent, { provider: 'spawn', allowedAgentPresets: ['explorer', 'oracle', 'fixer', 'designer'] })
   const settings = new MutableRoutingSettings()
   settings.provide(ctx)
   ctx.llm.registerAdapter(['mock'], new ScriptedAdapter([]))
@@ -51,19 +56,16 @@ async function loadFixture(): Promise<{ ctx: Context; settings: MutableRoutingSe
   const fixture = await readFile(new URL('./fixture/cordis.yml', import.meta.url), 'utf8')
   await writeFile(join(root, 'cordis.yml'), fixture)
   ctx.baseUrl = pathToFileURL(root).href + '/'
-  await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-hemi-routing', routingPreset],
     ['@deepseek-ai/dsh-hemi-routing/settings', routingSettings],
   ])
-  ctx.loader.internal = {
-    version: 'v2',
-    async import(specifier: string) {
-      if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
-      return modules.get(specifier)
-    },
-  } as unknown as NonNullable<typeof ctx.loader.internal>
+  vi.spyOn(EntryTree.prototype, 'import').mockImplementation(async (specifier: string) => {
+    if (specifier === 'cordis:include') return Include
+    if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
+    return modules.get(specifier)
+  })
   await ctx.loader.create({
     name: 'cordis:include',
     config: { path: pathToFileURL(join(root, 'cordis.yml')).href },
@@ -85,6 +87,12 @@ function entryFiber(ctx: Context, id: string): NonNullable<Entry['fiber']> {
 }
 
 describe('real Loader composition', () => {
+  it('keeps installable and built-in native role configuration aligned', () => {
+    expect(() => execFileSync(process.execPath, [
+      fileURLToPath(new URL('../../../../plugins/hemi-model-routing/sync-config.mjs', import.meta.url)),
+    ])).not.toThrow()
+  })
+
   it('loads both entries and maps the legacy role table through schema resolution', async () => {
     const { ctx, settings } = await loadFixture()
     const unloaded = [...ctx.loader.entries()]
@@ -137,7 +145,8 @@ describe('real Loader composition', () => {
       })
       return [...toolSet.view(handle.agent).keys()].sort()
     }
-    expect(await visibleTools()).toContain('hemi_delegate')
+    expect(await visibleTools()).toContain('subagent')
+    expect(await visibleTools()).not.toContain('hemi_delegate')
 
     await entryFiber(ctx, 'hemi-routing').dispose()
     expect(await visibleTools()).not.toContain('hemi_delegate')

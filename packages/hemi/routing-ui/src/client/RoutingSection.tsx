@@ -40,11 +40,11 @@ export function routingFieldLabel(field: RoutingField, t: PropsLocale<typeof NS>
  */
 export function RoutingSaveStatus({ useRoutingWrite, t }: Pick<RoutingSectionProps, 'useRoutingWrite' | 't'>) {
   const write = useRoutingWrite(value => value)
-  const field = write.status === 'idle' ? '' : routingFieldLabel(write.field, t)
-  const text = write.status === 'saving' ? t('saving', { field })
-    : write.status === 'saved' ? t('saved', { field })
-      : write.status === 'failed' ? write.message === null ? t('saveFailed', { field }) : t('saveError', { field, message: write.message })
-        : t('autoSave')
+  if (write.status === 'idle') return null
+  const field = routingFieldLabel(write.field, t)
+  const text = write.status === 'failed'
+    ? write.message === null ? t('saveFailed', { field }) : t('saveError', { field, message: write.message })
+    : write.status === 'saving' ? t('saving', { field }) : t('saved', { field })
   return <p className={write.status === 'failed' ? css.writeError : css.writeStatus} role={write.status === 'failed' ? 'alert' : 'status'}>
     {write.status === 'saving' && <StateDot state="ongoing" />}
     {write.status === 'failed' && <IconWarningOutlineRegular className={css.errorIcon} size={14} aria-hidden="true" />}
@@ -111,7 +111,7 @@ export function RoutingSection({
           </div>
         ))}
       </section>
-      <div className={css.notes}><p>{t('timing')}</p>{modelChoiceMenu !== true && <p>{t('sameModel')}</p>}</div>
+      {modelChoiceMenu !== true && <div className={css.notes}><p>{t('sameModel')}</p></div>}
     </div>
   )
 }

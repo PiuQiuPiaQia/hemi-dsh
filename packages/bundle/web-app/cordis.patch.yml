@@ -59,12 +59,26 @@
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
     # Hemi fork addition: role routing table (edited by the 模型路由 settings section).
+    - id: hemi-model-usage
+      name: '@deepseek-ai/dsh-hemi-routing/usage'
+
     - id: hemi-routing-settings
       name: '@deepseek-ai/dsh-hemi-routing/settings'
+
+    - id: hemi-model-settings
+      name: '@deepseek-ai/dsh-hemi-model-settings'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
+    - id: hemi-model-access
+      name: '@deepseek-ai/dsh-hemi-model-access'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     # Hemi fork addition: data backup orchestrator (hemiBackup Remote namespace).
     - id: hemi-backup
       name: '@deepseek-ai/dsh-hemi-backup'
+
+    - id: hemi-memory-settings
+      name: '@deepseek-ai/dsh-hemi-memory/settings'
 
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
@@ -359,9 +373,20 @@
     - id: hemi-routing-ui
       name: '@deepseek-ai/dsh-hemi-routing-ui'
 
+    - id: hemi-model-settings-ui
+      name: '@deepseek-ai/dsh-hemi-model-settings-ui'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
+    - id: hemi-model-access-ui
+      name: '@deepseek-ai/dsh-hemi-model-access-ui'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
     # Hemi fork addition: settings section for data backup and restore.
     - id: hemi-backup-ui
       name: '@deepseek-ai/dsh-hemi-backup-ui'
+
+    - id: hemi-memory-ui
+      name: '@deepseek-ai/dsh-hemi-memory-ui'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
@@ -445,8 +470,11 @@
       name: '@deepseek-ai/dsh-client-ui-message-feedback'
 
     # Model selection: the /model popupSelect + composer seat over session.models.
+    # Hemi fork: routing-ui owns the composer; retain the native /model command and directory service.
     - id: ui-model-selection
       name: '@deepseek-ai/dsh-client-ui-model-selection'
+      config:
+        showComposer: false
 
     - id: ui-permission
       name: '@deepseek-ai/dsh-client-ui-permission-presets'

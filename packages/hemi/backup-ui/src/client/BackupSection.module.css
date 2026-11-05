@@ -1,5 +1,4 @@
-/* Hemi data backup card. Rendered on the general settings page, so it
- * follows the settings card material instead of owning panel chrome. */
+/* Backup page content within the shared settings panel. */
 
 .section {
   display: flex;

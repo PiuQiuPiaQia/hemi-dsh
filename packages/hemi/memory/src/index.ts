@@ -2,29 +2,32 @@
  * Hemi cross-session memory plugin. Stores durable facts, dated daily
  * logs, and a working scratchpad as markdown files under
  * `$DSH_HOME/hemi-memory/`, and registers model-facing tools to read,
- * write, search, and forget entries plus the Remote service backing the
- * memory settings section. Files stay user-editable; every tool is
- * line-oriented so the model never rewrites unrelated content.
+ * write, search, and forget entries. The separate settings service edits the
+ * same files.
  * @module @deepseek-ai/dsh-hemi-memory
  */
+
+import { installLifecycle, type MemoryLifecycleConfig } from './lifecycle.ts'
+export { Config } from './lifecycle.ts'
 
 import { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
-  allStores, appendBlock, readStore, storePath, writeStore, type StoreTarget,
+  allStores, appendBlock, readStore, storePath, updateStore, writeStore, type StoreTarget,
 } from './store.ts'
 
 /** Cordis plugin name. */
 export const name = 'hemi-memory'
-/** Services used by the tools and the remote registration. */
-export const inject = ['tools']
+/** Services used by the tools. */
+export const inject = ['tools', 'llm', 'systemPrompt', 'sessionPersistence']
 
 function isStoreTarget(value: string): value is StoreTarget {
   return value === 'long_term' || value === 'daily' || value === 'scratchpad'
 }
 
 /** Cordis plugin body: register the memory tools. */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: MemoryLifecycleConfig): void {
+  installLifecycle(ctx, config)
   ctx.tools.register(defineTool({
     name: 'memory_write',
     description: [
@@ -131,18 +134,17 @@ export function apply(ctx: Context): void {
     async execute(args) {
       if (!isStoreTarget(args.target)) throw new Error(`memory_forget target must be long_term, daily, or scratchpad; got ${args.target}`)
       const path = storePath(args.target, args.date)
-      const content = await readStore(path)
-      if (content === '') return { removed: `store ${path} is already empty` }
       const match = args.match.toLowerCase()
-      const kept: string[] = []
       let removed = 0
-      for (const line of content.split('\n')) {
-        if (line.toLowerCase().includes(match)) removed += 1
-        else kept.push(line)
-      }
-      const cleaned = kept.join('\n').replace(/\n{3,}/g, '\n\n')
-      await writeStore(path, cleaned === '' ? '' : `${cleaned}${cleaned.endsWith('\n') ? '' : '\n'}`)
-      return { removed: `removed ${removed} line(s) from ${path}` }
+      const updated = await updateStore(path, (content) => {
+        if (content === '') return undefined
+        const lines = content.split('\n')
+        const kept = lines.filter(line => !line.toLowerCase().includes(match))
+        removed = lines.length - kept.length
+        const cleaned = kept.join('\n').replace(/\n{3,}/g, '\n\n')
+        return cleaned === '' || cleaned.endsWith('\n') ? cleaned : `${cleaned}\n`
+      })
+      return { removed: updated ? `removed ${removed} line(s) from ${path}` : `store ${path} is already empty` }
     },
   }))
 

@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for hemi-fork.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/defensive-patterns/hemi-fork.md
+/hemi-fork-rules:
+  en: c4863a651541d2a5
+  zh: 99e5a191e58f02fc
+/hemi-fork-rules/choose-the-implementation-location:
+  en: 90e5ff772e221f73
+  zh: 0da1a66c9e6f0065
+/hemi-fork-rules/preserve-native-behavior:
+  en: 0f20d1fc9b43900f
+  zh: 49de6acd3a3524f1
+/hemi-fork-rules/keep-upstream-modifications-narrow:
+  en: e592764f2178150a
+  zh: 679bb1281c083991
+/hemi-fork-rules/mark-and-record-retained-modifications:
+  en: 4635568dc910c884
+  zh: a9214ab582a9a601
+/hemi-fork-rules/verify-the-requested-change:
+  en: a45a026b905ca278
+  zh: 011e0b722ad26c73

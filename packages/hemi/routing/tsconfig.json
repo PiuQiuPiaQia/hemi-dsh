@@ -8,6 +8,9 @@
     "src"
   ],
   "references": [
+    { "path": "../../compaction/compaction" },
+    { "path": "../../llm/llm-retry" },
+    { "path": "../../session/session-projection" },
     {
       "path": "../../../vendor/cordis"
     },

@@ -14,7 +14,7 @@ import { apply, inject, refreshIfLoaded } from '@deepseek-ai/dsh-client-ui-setti
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
-import { ModelsSection } from '../src/client/ModelsSection.tsx'
+import type { DeepSeekOnboardingInjected } from '../src/client/DeepSeekOnboardingDialog.tsx'
 import { DeepSeekOnboardingDialog } from '../src/client/DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from '../src/client/WelcomeNotice.tsx'
 import type { IndexInjection, WebServer } from '@deepseek-ai/dsh-host-webserver'
@@ -78,7 +78,7 @@ describe('ui-settings-models apply', () => {
       await host.await()
       const rows: IndexInjection[] = []
       ctx.emit('webserver/index-inject', rows, PAGE_PEER)
-      expect(rows).toEqual([{ kind: 'global', name: ONBOARDING_CONFIG_GLOBAL, value: { credentialOnboarding: false } }])
+      expect(rows).toEqual([{ kind: 'global', name: ONBOARDING_CONFIG_GLOBAL, value: { credentialOnboarding: false, showSettingsSection: true } }])
       for (const row of rows) if (row.kind === 'global') vi.stubGlobal(row.name, row.value)
       const plugin = ctx.plugin({ inject: [...inject], apply })
       await plugin.await()
@@ -97,8 +97,22 @@ describe('ui-settings-models apply', () => {
     }
   })
 
+  it('hides only its navigation when the profile provides a separate connection page', async () => {
+    const { ctx, slots } = await bench()
+    declare(slots)
+    try {
+      vi.stubGlobal(ONBOARDING_CONFIG_GLOBAL, { showSettingsSection: false })
+      const plugin = ctx.plugin({ inject: [...inject], apply })
+      await plugin.await()
+      expect(slots.entries('settings.section')).toEqual([])
+      expect(slots.entries('settings.onboarding').length).toBeGreaterThan(0)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('defaults to browser onboarding and rejects malformed bootstrap options', async () => {
-    expect(hostPlugin.Config({})).toEqual({ credentialOnboarding: true })
+    expect(hostPlugin.Config({})).toEqual({ credentialOnboarding: true, showSettingsSection: true })
     expect(hostPlugin.Config['~standard'].validate({ credentialOnboarding: 'false' })).toHaveProperty('issues')
     const { ctx } = await bench()
     try {
@@ -121,19 +135,12 @@ describe('ui-settings-models apply', () => {
     declare(before.slots)
     await before.ctx.plugin({ inject: [...inject], apply }).await()
     const entry = before.slots.entries('settings.section')[0]!
-    expect(entry.component).toBe(ModelsSection)
     expect(entry.options).toMatchObject({ id: 'models', order: 10 })
-    // The section claims its two extension seats in the same registration.
+    // The shared editor owns both extension seats.
     expect(before.slots.spec('settings.models.provider-card')).toMatchObject({ kind: 'keyed', scope: 'root' })
     expect(before.slots.spec('settings.models.footer')).toMatchObject({ kind: 'list', scope: 'root' })
     // The nav label is a locale-following thunk; owners resolve at read time.
     expect(resolveSlotLabel(entry.options.label)).toBe('模型')
-    const injected = (entry.inject as unknown as () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected)()
-    expect(injected.t('nav')).toBe('模型')
-    expect(injected.t('deleteTitle')).toBe('删除 {provider}？')
-    expect(typeof injected.controller.load).toBe('function')
-    expect(injected.hooks.snapshot).toBe(injected.controller.store)
-    expect(typeof injected.operations.writeSettings).toBe('function')
     const onboarding = before.slots.entries('settings.onboarding')
     expect(onboarding).toHaveLength(2)
     expect(onboarding.find(entry => entry.options.id === 'welcome-notice')).toMatchObject({
@@ -152,7 +159,8 @@ describe('ui-settings-models apply', () => {
     const deepSeekInjected = (
       deepSeek.inject as unknown as () => import('../src/client/DeepSeekOnboardingDialog.tsx').DeepSeekOnboardingInjected
     )()
-    expect(deepSeekInjected.hooks.models).toBe(injected.controller.store)
+    expect(deepSeekInjected.hooks.models).toBe(deepSeekInjected.controller.store)
+    expect(deepSeekInjected.t('deleteTitle')).toBe('删除 {provider}？')
     expect(typeof deepSeekInjected.operations.storeCredential).toBe('function')
 
     const after = await bench()
@@ -161,7 +169,7 @@ describe('ui-settings-models apply', () => {
     expect(after.slots.entries('settings.onboarding')).toHaveLength(0)
     declare(after.slots)
     await Promise.resolve()
-    expect(after.slots.entries('settings.section')[0]!.component).toBe(ModelsSection)
+    expect(after.slots.entries('settings.section')[0]!.options.id).toBe('models')
     expect(after.slots.entries('settings.onboarding')).toHaveLength(2)
     // The self-inflicted ledger notifications hit the duplicate guard.
     expect(after.slots.entries('settings.section')).toHaveLength(1)
@@ -173,7 +181,8 @@ describe('ui-settings-models apply', () => {
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     b.locale.setLocale('en')
     expect(resolveSlotLabel(b.slots.entries('settings.section')[0]!.options.label)).toBe('Models')
-    const injected = b.slots.entries('settings.section')[0]!.inject as unknown as () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected
+    const injected = b.slots.entries('settings.onboarding')
+      .find(entry => entry.options.id === 'deepseek-official')!.inject as () => Pick<DeepSeekOnboardingInjected, 't'>
     expect(injected().t('deleteTitle')).toBe('Delete {provider}?')
     b.locale.setLocale('zh')
     expect(resolveSlotLabel(b.slots.entries('settings.section')[0]!.options.label)).toBe('模型')
@@ -200,7 +209,7 @@ describe('ui-settings-models apply', () => {
     expect(b.slots.entries('settings.onboarding')).toHaveLength(0)
     declare(b.slots)
     await Promise.resolve()
-    expect(b.slots.entries('settings.section')[0]!.component).toBe(ModelsSection)
+    expect(b.slots.entries('settings.section')[0]!.options.id).toBe('models')
     expect(b.slots.entries('settings.onboarding')).toHaveLength(2)
     // The locale path also recovers through the same ledger re-check.
     b.locale.setLocale('en')
@@ -336,20 +345,17 @@ describe('pushed invalidations', () => {
     const b = await bench(mock, { listProviders })
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    const entry = b.slots.entries('settings.section')
-      .find(candidate => candidate.options.id === 'models')!
-    const injected = (
-      entry.inject as unknown as
-      () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected
-    )()
+    const entry = b.slots.entries('settings.onboarding')
+      .find(candidate => candidate.options.id === 'deepseek-official')!
+    const injected = (entry.inject as unknown as () => DeepSeekOnboardingInjected)()
     await injected.controller.load()
-    expect(injected.hooks.snapshot.getSnapshot().namespaces.get('llm-test')?.revision).toBe(1)
+    expect(injected.hooks.models.getSnapshot().namespaces.get('llm-test')?.revision).toBe(1)
 
     describe.mockResolvedValue(ok({ ...document, namespaces: [{ ...namespace, revision: 2 }] }))
     b.remote.emit('settings/document-updated', ['llm-test', 2])
 
     await vi.waitFor(() => {
-      expect(injected.hooks.snapshot.getSnapshot().namespaces.get('llm-test')?.revision).toBe(2)
+      expect(injected.hooks.models.getSnapshot().namespaces.get('llm-test')?.revision).toBe(2)
     })
     expect(describe).toHaveBeenCalledTimes(2)
   })

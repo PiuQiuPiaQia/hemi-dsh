@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 Desktop product events use the optional [product analytics service](../product-analytics/README.md); ordinary Web interactions are excluded.
 
+`showComposer` defaults to `true`. Set it to `false` when another plugin owns `conversation.input.model`; the native `/model` command, locale dictionaries and model-directory service remain available. Only the owning picker declares its child slots.
+
 ## Summary
 
 The Web GUI lets users switch the model and reasoning effort for an existing session through either the `/model` popup or the composer's model control. Both surfaces present the same provider-grouped choices, and the selected model determines the available effort names and default. A complete selection applies to the next request; a running step keeps the model and effort it started with.
@@ -28,8 +30,6 @@ The Web GUI lets users switch the model and reasoning effort for an existing ses
 ## Use this package
 
 DeepSeek account and API-key routes appear as separate provider groups, each exposing the same configured model catalog.
-
-Hemi uses the [custom model picker](src/client/hemi/ModelSelect.tsx) with provider groups and plugin controls in one menu. When the routing plugin is installed, Automatic routing appears first as an alternative to a concrete model. In fixed mode, the current model’s reasoning effort expands in place. Opening keeps focus on the trigger. Tab enters search or the current option, arrow keys browse rows, and Escape returns to the trigger.
 
 The trigger shows the catalog name when the selected model is available. Removing a model or provider preserves the saved provider, model, and reasoning effort. Restoring the catalog entry restores its name and effort caption. While a selection is pending, the trigger shows progress. A rejected selection leaves the menu open for retry.
 

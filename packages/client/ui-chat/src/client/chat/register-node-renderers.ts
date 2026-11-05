@@ -1,3 +1,4 @@
+// Hemi fork: declare the optional usage replacement beside its native turn renderer; see hemi-fork-changes.md#hemi-customization-isolation.
 import type { Context } from '@deepseek-ai/cordis'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { PerformanceUsageMode } from '../../chat-settings.ts'
@@ -91,6 +92,7 @@ export function registerChatNodeRenderers(
     locale: NS,
     inject: () => ({ hooks: { performanceUsage } }),
     children: {
+      'conversation.chat.turnUsage': { kind: 'single', scope: 'session' },
       'conversation.chat.turnTail': { kind: 'list', scope: 'session' },
       'conversation.chat.assistant-actions': { kind: 'list', scope: 'session' },
     },

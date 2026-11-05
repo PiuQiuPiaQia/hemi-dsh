@@ -1,0 +1,202 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { chromium } from 'playwright'
+import { expect, it, onTestFinished } from 'vitest'
+import { captureStableAria, compareOrRefreshGolden, launchWebScaffold, webSnapshotMode } from './scaffold.ts'
+import { ZH_BROWSER_LOCALE } from './support.ts'
+
+it('offers a separate Hemi connection entry while hiding the intact stock Models entry', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'hemi-model-settings-test-'))
+  onTestFinished(() => rm(scratch, { recursive: true, force: true }))
+  const patch = join(scratch, 'hemi.patch.yml')
+  await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
+    + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n'
+    + '- id: ui-settings-models\n  config:\n    showSettingsSection: false\n')
+  const scaffold = await launchWebScaffold({ developerTools: false, extraOverlayPath: patch })
+  onTestFinished(() => scaffold.close())
+  const browser = await chromium.launch()
+  onTestFinished(() => browser.close())
+  const page = await browser.newPage({ locale: ZH_BROWSER_LOCALE })
+  const errors: Error[] = []
+  page.on('pageerror', (error) => { errors.push(error) })
+  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+
+  const settings = page.getByRole('dialog', { name: '设置', exact: true })
+  const nav = settings.getByRole('button', { name: '模型接入', exact: true })
+  expect(await nav.count()).toBe(1)
+  expect(await settings.getByRole('button', { name: '模型', exact: true }).count()).toBe(0)
+  await nav.click()
+  const models = settings.getByRole('region', { name: '模型接入' })
+  await models.getByRole('heading', { name: '模型接入' }).waitFor()
+  await models.getByRole('button', { name: '配置模型路由' }).click()
+  await page.getByRole('dialog', { name: '模型路由', exact: true }).waitFor()
+  await page.getByRole('button', { name: '关闭模型路由配置' }).click()
+
+  let received: { model?: string; tools?: { function: { name: string } }[] } | undefined
+  const provider = createServer((request, response) => {
+    expect(request.headers.authorization).toBe('Bearer test-provider-key')
+    if (request.url === '/v1/models') {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ data: [{ id: 'hemi-test-model' }, { id: 'additional-model' }] }))
+      return
+    }
+    request.setEncoding('utf8')
+    let body = ''
+    request.on('data', (chunk: string) => { body += chunk })
+    request.on('end', () => {
+      received = JSON.parse(body) as typeof received
+      const base = { id: 'test-completion', object: 'chat.completion.chunk', created: 1, model: 'hemi-test-model' }
+      const reply = { role: 'assistant', tool_calls: [{ index: 0, id: 'test-call', type: 'function',
+        function: { name: 'model_connection_test', arguments: '{}' } }] }
+      response.writeHead(200, { 'content-type': 'text/event-stream' })
+      response.end([
+        { ...base, choices: [{ index: 0, delta: reply, finish_reason: null }] },
+        { ...base, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+      ].map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n')
+    })
+  })
+  await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve))
+  onTestFinished(() => new Promise<void>((resolve, reject) => provider.close((error) => {
+    if (error) reject(error)
+    else resolve()
+  })))
+  const address = provider.address()
+  if (address === null || typeof address === 'string') throw new Error('Test provider could not bind a port')
+
+  await models.getByRole('button', { name: 'API Key', exact: true }).click()
+  await models.getByRole('button', { name: '添加 API 接入' }).click()
+  const custom = models.getByRole('region', { name: 'API 接入', exact: true })
+  await custom.getByLabel('连接名称').fill('Hemi Test Provider')
+  await custom.getByLabel('接口地址').fill(`http://127.0.0.1:${address.port}/v1`)
+  await custom.getByLabel('协议', { exact: true }).selectOption('openai-completions')
+  await custom.getByLabel('API Key', { exact: true }).fill('test-provider-key')
+  await custom.getByRole('button', { name: '读取模型', exact: true }).click()
+  const picker = page.getByRole('dialog', { name: '选择模型', exact: true })
+  await picker.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  await picker.waitFor({ state: 'detached' })
+  expect(await custom.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).count()).toBe(0)
+  await custom.getByRole('button', { name: '读取模型', exact: true }).click()
+  await picker.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).waitFor()
+  await picker.getByLabel('搜索模型').fill('missing-model')
+  await picker.getByText('没有匹配的模型', { exact: true }).waitFor()
+  await picker.getByLabel('搜索模型').fill('hemi-test')
+  await picker.getByRole('button', { name: '全选', exact: true }).click()
+  await picker.getByLabel('搜索模型').fill('additional')
+  await picker.getByRole('button', { name: '全选', exact: true }).click()
+  await picker.getByRole('button', { name: '取消全选', exact: true }).click()
+  await picker.getByLabel('搜索模型').fill('hemi-test')
+  expect(await picker.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).isChecked()).toBe(true)
+  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/hemi-model-settings/discovery.expected.md', import.meta.url)),
+    await captureStableAria(page, '[role="dialog"][aria-label="选择模型"]', scaffold.workspaceCwd), webSnapshotMode())
+  await picker.getByRole('button', { name: '添加选中型号', exact: true }).click()
+  await picker.waitFor({ state: 'detached' })
+  await custom.getByLabel('模型 ID', { exact: true }).fill('manual-model')
+  await custom.getByRole('button', { name: '添加模型', exact: true }).click()
+  await custom.getByRole('group', { name: 'manual-model', exact: true }).getByRole('button', { name: '模型设置', exact: true }).click()
+  const draftOptions = page.getByRole('dialog', { name: '模型设置', exact: true })
+  await draftOptions.getByLabel('上下文长度（token）').fill('32000')
+  await draftOptions.getByRole('button', { name: '保存模型设置', exact: true }).click()
+  await draftOptions.waitFor({ state: 'detached' })
+  await custom.getByRole('button', { name: '保存接入' }).click()
+  await models.getByText('Hemi Test Provider', { exact: true }).waitFor()
+  await models.getByRole('button', { name: '编辑', exact: true }).click()
+  await models.getByLabel('连接名称', { exact: true }).fill('Hemi Test Provider edited')
+  expect(await models.getByLabel('API Key', { exact: true }).inputValue()).toBe('')
+  await models.getByRole('button', { name: '保存接入', exact: true }).click()
+  await models.getByText('Hemi Test Provider edited', { exact: true }).waitFor()
+  const added = scaffold.ctx.llm.listProviders().find(entry => entry.id.startsWith('hemi-key-'))
+  if (added === undefined) throw new Error('The saved Hemi provider was not registered')
+  expect(await scaffold.ctx.llm.resolveModelInfo(added.id, 'manual-model')).toMatchObject({ context: { contextWindow: 32000 } })
+  await expect(scaffold.ctx.llm.resolveModelInfo(added.id, 'hemi-test-model')).resolves.toBeDefined()
+  expect(await models.getByRole('region', { name: '连接测试', exact: true }).count()).toBe(0)
+  const testedModel = models.getByRole('group', { name: 'hemi-test-model', exact: true })
+  const otherModel = models.getByRole('group', { name: 'manual-model', exact: true })
+  await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
+  const options = page.getByRole('dialog', { name: '模型设置', exact: true })
+  await options.getByLabel('显示名称').fill('Should not be saved')
+  await options.getByRole('button', { name: '取消', exact: true }).click()
+  expect((await scaffold.ctx.llm.resolveModelInfo(added.id, 'hemi-test-model')).name).toBe('hemi-test-model')
+  await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
+  expect(await options.getByLabel('显示名称').inputValue()).toBe('')
+  await options.getByLabel('显示名称').fill('Hemi Vision')
+  await options.getByLabel('上下文长度（token）').fill('0')
+  expect(await options.getByRole('button', { name: '保存模型设置', exact: true }).isEnabled()).toBe(false)
+  await options.getByLabel('上下文长度（token）').fill('64000')
+  await options.getByLabel('最大输出（token）').fill('4096')
+  await options.getByRole('checkbox', { name: '使用适配器默认值', exact: true }).uncheck()
+  await options.getByRole('checkbox', { name: '文本', exact: true }).uncheck()
+  expect(await options.getByRole('button', { name: '保存模型设置', exact: true }).isEnabled()).toBe(false)
+  await options.getByRole('checkbox', { name: '文本', exact: true }).check()
+  await options.getByRole('checkbox', { name: '图片', exact: true }).check()
+  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/hemi-model-settings/options.expected.md', import.meta.url)),
+    await captureStableAria(page, '[role="dialog"][aria-label="模型设置"]', scaffold.workspaceCwd), webSnapshotMode())
+  await page.setViewportSize({ width: 390, height: 844 })
+  const bounds = await options.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+  expect(await options.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.screenshot({ path: join(scratch, 'model-options-light.png') })
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.screenshot({ path: join(scratch, 'model-options-dark.png') })
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await options.getByRole('button', { name: '保存模型设置', exact: true }).click()
+  await options.waitFor({ state: 'detached' })
+  expect(await scaffold.ctx.llm.resolveModelInfo(added.id, 'hemi-test-model')).toMatchObject({
+    name: 'Hemi Vision', context: { contextWindow: 64000 }, defaultMaxTokens: 4096, inputModalities: ['text', 'image'],
+  })
+  expect((await scaffold.ctx.llm.listModels(added.id)).map(model => model.id)).toEqual(['hemi-test-model', 'manual-model'])
+  await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
+  expect(await options.getByLabel('上下文长度（token）').inputValue()).toBe('64000')
+  await options.getByRole('checkbox', { name: '图片', exact: true }).uncheck()
+  await options.getByRole('button', { name: '保存模型设置', exact: true }).click()
+  await options.waitFor({ state: 'detached' })
+  expect((await scaffold.ctx.llm.resolveModelInfo(added.id, 'hemi-test-model')).inputModalities).toEqual(['text'])
+  await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
+  await options.getByLabel('显示名称').fill('')
+  await options.getByLabel('上下文长度（token）').fill('')
+  await options.getByLabel('最大输出（token）').fill('')
+  await options.getByRole('checkbox', { name: '使用适配器默认值', exact: true }).check()
+  await options.getByRole('button', { name: '保存模型设置', exact: true }).click()
+  await options.waitFor({ state: 'detached' })
+  await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
+  expect(await options.getByLabel('显示名称').inputValue()).toBe('')
+  expect(await options.getByLabel('上下文长度（token）').inputValue()).toBe('')
+  expect(await options.getByLabel('最大输出（token）').inputValue()).toBe('')
+  expect(await options.getByRole('checkbox', { name: '使用适配器默认值', exact: true }).isChecked()).toBe(true)
+  await options.getByRole('button', { name: '取消', exact: true }).click()
+  await testedModel.getByRole('button', { name: '测试', exact: true }).click()
+  await testedModel.getByRole('status').getByText('连接成功 · 支持工具调用', { exact: true }).waitFor()
+  expect(await otherModel.getByRole('status').count()).toBe(0)
+  expect(received).toMatchObject({
+    model: 'hemi-test-model',
+    tools: [{ function: { name: 'model_connection_test' } }],
+  })
+  for (const model of ['hemi-test-model', 'manual-model']) {
+    page.once('dialog', (dialog) => { void dialog.accept() })
+    await models.getByRole('group', { name: model, exact: true }).getByRole('button', { name: '删除型号' }).click()
+    await models.getByRole('group', { name: model, exact: true }).waitFor({ state: 'detached' })
+  }
+  expect(await scaffold.ctx.llm.listModels(added.id)).toEqual([])
+  await models.getByRole('button', { name: '拉取添加型号' }).click()
+  await picker.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).check()
+  await picker.getByRole('button', { name: '添加选中型号' }).click()
+  await picker.waitFor({ state: 'detached' })
+  await testedModel.waitFor()
+  expect((await scaffold.ctx.llm.listModels(added.id)).map(model => model.id)).toEqual(['hemi-test-model'])
+  const stock = [...scaffold.ctx.loader.entries()].find(entry => entry.options.id === 'ui-settings-models')
+  if (stock === undefined) throw new Error('The retained stock model plugin is missing')
+  await stock.update({ config: { showSettingsSection: true } })
+  await scaffold.ctx.loader.await()
+  await page.reload({ waitUntil: 'load' })
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  await settings.getByRole('button', { name: '模型', exact: true }).click()
+  await settings.getByRole('heading', { name: '模型', exact: true }).waitFor()
+  expect(await nav.count()).toBe(1)
+  expect(errors).toEqual([])
+})

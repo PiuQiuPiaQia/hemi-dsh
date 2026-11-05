@@ -14,11 +14,17 @@
   "files": [
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "standard.patch.yml",
+    "roles.patch.yml"
   ],
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./standard.patch.yml",
+        "./roles.patch.yml"
+      ]
     }
   },
   "peerDependencies": {

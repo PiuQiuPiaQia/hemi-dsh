@@ -365,7 +365,7 @@ export default class HemiBackupService extends TypertRemoteService {
    * @returns the manifest summary on success or a typed failure.
    */
   private async runBackup(trigger: 'manual' | 'scheduled'): Promise<BackupOperationResult & RunManifestSummary> {
-    if (this.running) return { ok: false, code: 'BUSY', message: 'a backup or restore is already running' }
+    if (this.running || this.currentRestore !== null) return { ok: false, code: 'BUSY', message: 'a backup or restore is already running or staged' }
     const settings = this.loadSettings()
     const target = settings.target
     if (target === null) return { ok: false, code: 'NO_TARGET', message: 'no backup target is configured' }
@@ -497,7 +497,7 @@ export default class HemiBackupService extends TypertRemoteService {
    */
   @Remote
   async deleteSet(setName: string): Promise<BackupOperationResult> {
-    if (!setName.startsWith(BACKUP_DIR_PREFIX) || setName.includes('..') || setName.includes('/')) {
+    if (!/^hemi-backup-[0-9]{8}-[0-9]{6}(?:-[0-9]+)?$/u.test(setName)) {
       return { ok: false, code: 'INVALID_NAME', message: 'not a valid backup set name' }
     }
     const target = this.loadSettings().target
@@ -522,11 +522,13 @@ export default class HemiBackupService extends TypertRemoteService {
    */
   @Remote
   async restorePrepare(setName: string): Promise<BackupOperationResult & { preview?: RestorePreview }> {
-    if (this.currentRestore !== null) return { ok: false, code: 'BUSY', message: 'a restore is already staged' }
+    if (!/^hemi-backup-[0-9]{8}-[0-9]{6}(?:-[0-9]+)?$/u.test(setName)) return { ok: false, code: 'INVALID_NAME', message: 'not a valid backup set name' }
+    if (this.running || this.currentRestore !== null) return { ok: false, code: 'BUSY', message: 'a backup or restore is already running or staged' }
     const target = this.loadSettings().target
     if (target === null) return { ok: false, code: 'NO_TARGET', message: 'no backup target is configured' }
     const stagingDir = path.join(os.tmpdir(), `hemi-restore-${randomUUID()}`)
     const tmp = this.tmpRoot()
+    this.running = true
     try {
       let backupDir: string
       if (target.kind === 'local') {
@@ -554,28 +556,36 @@ export default class HemiBackupService extends TypertRemoteService {
       fs.rmSync(stagingDir, { recursive: true, force: true })
       return { ok: false, code: 'FAILED', message: error instanceof Error ? error.message : String(error) }
     } finally {
-      if (target.kind !== 'local') fs.rmSync(tmp, { recursive: true, force: true })
+      this.running = false
+      fs.rmSync(tmp, { recursive: true, force: true })
     }
   }
 
   /**
    * Apply the staged restore as a merge; displaced local files survive in a
-   * timestamped safe-copy directory under the Harness home.
+   * unique safe-copy directory under the Harness home. Existing Session
+   * generations remain in place; conflicting backup files are saved separately.
    * @returns the merge counts and safe-copy location on success.
    */
   @Remote
   async restoreApply(): Promise<RestoreApplyResult> {
+    if (this.running) return { ok: false, code: 'BUSY', message: 'a backup or restore is already running' }
     const staged = this.currentRestore
     if (staged === null) return { ok: false, code: 'NO_RESTORE', message: 'no restore is staged' }
-    const safeCopyRoot = path.join(this.roots().dshHome, 'restore-safety', `${Date.now()}`)
+    const safety = path.join(this.roots().dshHome, 'restore-safety')
+    fs.mkdirSync(safety, { recursive: true, mode: 0o700 })
+    const safeCopyRoot = fs.mkdtempSync(path.join(safety, 'restore-'))
+    this.running = true
     try {
       const { stats } = await mergeRestore({ stagingDir: staged.stagingDir, roots: this.rootsMap(), safeCopyRoot })
       return { ok: true, stats, safeCopyRoot }
     } catch (error) {
-      return { ok: false, code: 'FAILED', message: error instanceof Error ? error.message : String(error) }
+      const message = error instanceof Error ? error.message : String(error)
+      return { ok: false, code: 'FAILED', message: `Restore may be partially applied. Keep ${safeCopyRoot} and the original backup before retrying. ${message}`, safeCopyRoot }
     } finally {
       fs.rmSync(staged.stagingDir, { recursive: true, force: true })
       this.currentRestore = null
+      this.running = false
     }
   }
 
@@ -585,6 +595,7 @@ export default class HemiBackupService extends TypertRemoteService {
    */
   @Remote
   restoreCancel(): Promise<BackupOperationResult> {
+    if (this.running) return Promise.resolve({ ok: false, code: 'BUSY', message: 'a backup or restore is already running' })
     const staged = this.currentRestore
     if (staged === null) return Promise.resolve({ ok: false, code: 'NO_RESTORE', message: 'no restore is staged' })
     fs.rmSync(staged.stagingDir, { recursive: true, force: true })

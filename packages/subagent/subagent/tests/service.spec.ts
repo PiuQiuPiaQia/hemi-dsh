@@ -313,6 +313,37 @@ describe('SubagentRuntime', () => {
     expect(provider.startCount).toBe(0)
   })
 
+  it('resolves deployment model defaults without changing the caller spec', async () => {
+    const { ctx, subagents } = await service()
+    const provider = new StubProvider('bound')
+    subagents.registerProvider(provider)
+    const original = { provider: 'original', model: 'original', maxTokens: 1024 }
+    ctx.on('subagent/resolve-agent-options', (_spec, next) => ({ ...next(), provider: 'roles', model: 'oracle', reasoningEffort: ReasoningEffortId('high') }))
+    const activation = await start(subagents, 'bound', baseRequest({ agentOptions: original }))
+    await activation.result
+    expect(provider.lastRequest?.agentOptions).toEqual({ provider: 'roles', model: 'oracle', reasoningEffort: 'high', maxTokens: 1024 })
+    expect(original).toEqual({ provider: 'original', model: 'original', maxTokens: 1024 })
+  })
+
+  it('validates deployment defaults against the backend capabilities before startup', async () => {
+    const { ctx, subagents } = await service()
+    const provider = new StubProvider('weak-defaults', NO_CAPS)
+    subagents.registerProvider(provider)
+    ctx.on('subagent/resolve-agent-options', () => ({ model: 'role-model' }))
+    await expect(start(subagents, provider.name, baseRequest())).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' })
+    expect(provider.startCount).toBe(0)
+  })
+
+  it('does not resolve deployment defaults for a forged parent', async () => {
+    const { ctx, subagents } = await service()
+    subagents.registerProvider(new StubProvider('trusted'))
+    const resolve = vi.fn()
+    ctx.on('subagent/resolve-agent-options', (spec, next) => { resolve(spec); return next() })
+    await expect(subagents.startActivation({ ...baseRequest(), provider: 'trusted', label: 'forged', delivery: 'caller' }))
+      .rejects.toMatchObject({ code: 'UNAUTHORIZED' })
+    expect(resolve).not.toHaveBeenCalled()
+  })
+
   it('rejects a reserved child identity for an external backend before startup', async () => {
     const { ctx, subagents } = await service()
     const provider = new StubProvider('external')

@@ -97,6 +97,23 @@ async function main(): Promise<void> {
       void task.finally(() => { dragTasks.delete(task) })
       return
     }
+    // Hemi fork: serve current plugin revisions over private IPC after HMR; see hemi-fork-changes.md#hemi-customization-isolation.
+    if (message.type === 'boot-injections') {
+      if (!('requestId' in message) || !Number.isSafeInteger(message.requestId)) return
+      const requestId = message.requestId
+      void (async () => {
+        try {
+          if (stopping !== undefined) throw new Error('desktop boot: Host is stopping')
+          const { ctx } = await application
+          const injections = ctx.webServer.collectIndexInjections(ctx.connection.browserPeer)
+          await send({ type: 'boot-injections', requestId, injections })
+        } catch (error) {
+          await send({ type: 'boot-injections', requestId, injections: [],
+            error: error instanceof Error ? error.message : String(error) })
+        }
+      })().catch((error: unknown) => { console.error(error) })
+      return
+    }
     if (message.type === 'quit-inspection') {
       if (!('requestId' in message) || !Number.isSafeInteger(message.requestId)) return
       const requestId = message.requestId

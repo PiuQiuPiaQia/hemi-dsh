@@ -1,0 +1,13 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/README.md
+/:
+  en: 44e813e84e078843
+  zh: fb1bca4e5333782f
+/hemi-fork-code:
+  en: 06702fe04f72fce7
+  zh: 2f505549078b0305
+/hemi-fork-code/summary:
+  en: 9ade591f509298ba
+  zh: d5d9dd65da0ba972

@@ -26,6 +26,11 @@ interface PlatformSessionEvent {
 }
 
 type DesktopHostEvent = ReadyEvent | FatalEvent | PlatformSessionEvent | {
+  readonly type: 'boot-injections'
+  readonly requestId: number
+  readonly injections: readonly unknown[]
+  readonly error?: string
+} | {
   readonly type: 'starting'
   readonly runId: PluginOperationRunId
 } | { readonly type: 'shutdown-complete' } | {
@@ -71,6 +76,9 @@ function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
       return true
     case 'ready':
       return typeof candidate.url === 'string'
+    case 'boot-injections':
+      return Number.isSafeInteger(candidate.requestId) && Array.isArray(candidate.injections)
+        && (candidate.error === undefined || typeof candidate.error === 'string')
     case 'platform-session': {
       const session = candidate.session
       if (session === null) return true
@@ -269,6 +277,15 @@ export class DesktopHostProcess {
     return this.readyPromise
   }
 
+  /** Read the current page boot table, including client revisions published after startup. */
+  // Hemi fork: reloads require current asset revisions; see hemi-fork-changes.md#hemi-customization-isolation.
+  async bootInjections(): Promise<readonly unknown[]> {
+    const response = await this.control({ type: 'boot-injections' }, 10_000,
+      'desktop boot: injection request timed out', 'desktop boot')
+    if (response.type !== 'boot-injections') throw new Error('desktop boot: Host answered with a different control response')
+    return response.injections
+  }
+
   /**
    * Inspect active work or lock request admission for update handoff.
    * @param action - Read-only inspection, admission lock, or recovery unlock.
@@ -307,7 +324,7 @@ export class DesktopHostProcess {
 
   private async control(
     request: { readonly type: 'update-tasks'; readonly action: 'inspect' | 'lock' | 'unlock' } | { readonly type: 'quit-inspection' }
-      | { readonly type: 'file-drag-resource'; readonly address: string },
+      | { readonly type: 'file-drag-resource'; readonly address: string } | { readonly type: 'boot-injections' },
     deadlineMs: number, deadlineMessage: string, operation: string, signal?: AbortSignal,
   ): Promise<DesktopHostControlResponse> {
     const child = this.child

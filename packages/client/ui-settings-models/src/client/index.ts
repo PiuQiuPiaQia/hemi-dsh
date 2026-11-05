@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ctx.remote merge and the forwarded-event key face
 // (settings/credentials invalidations ride the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -39,6 +40,25 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** The Models page + product-onboarding copy. */
     'settings.models': ModelsKey
   }
+}
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotFactoryMap {
+    /** Provider editor with the existing provider-card and footer extension slots. */
+    'settings.models.editor': {
+      scope: 'root'
+      props: { heading?: string }
+      children: {
+        'settings.models.provider-card': { kind: 'keyed'; scope: 'root' }
+        'settings.models.footer': { kind: 'list'; scope: 'root' }
+      }
+      inject: ModelsSectionInjected
+    }
+  }
+}
+
+function DefaultModelsPage({ renderFactorySlot }: PropsRenderFactories) {
+  return renderFactorySlot('settings.models.editor', {})
 }
 
 /** Dictionary namespace owned by this plugin. */
@@ -133,17 +153,22 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-settings-models: pushed invalidations')
 
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'models',
-    order: 10,
-    label: () => t('nav'),
+  // Hemi fork: custom settings pages reuse the native provider editor; see hemi-fork-changes.md#hemi-customization-isolation.
+  ctx.slots.registerFactory({
+    name: 'settings.models.editor',
+    scope: 'root',
     inject: injected,
     children: {
       'settings.models.provider-card': { kind: 'keyed', scope: 'root' },
       'settings.models.footer': { kind: 'list', scope: 'root' },
     },
-  }, ModelsSection))
+  }, ModelsSection)
+  if (configured.showSettingsSection) ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'models',
+    order: 10,
+    label: () => t('nav'),
+  }, DefaultModelsPage))
   if (!('dshDesktop' in globalThis)) ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
     name: 'settings.onboarding',
     id: 'welcome-notice',

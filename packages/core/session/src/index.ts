@@ -779,10 +779,10 @@ export class Session {
    *   events this one derives from. REQUIRED for
    *   {@link SurfaceEventType} events (every message-producing event must
    *   declare how it joins the surface, the sole source of derived model
-   *   history) and
-   *   rejected by the compiler for non-surface types like `turn/start` or
-   *   `assistant/attempt`. Assistant messages embed their exact provider
-   *   stream and cannot cite top-level source events.
+   *   history). Non-surface events may instead pass `ignorable: true` when
+   *   readers can skip the record without changing conversation semantics.
+   *   Assistant messages embed their exact provider stream and cannot cite
+   *   top-level source events.
    * @returns the logged event — its assigned `seq`/`time` plus the SNAPSHOT of
    *   `data` that entered the log, so reading `event.data` back sees the logged
    *   value, never the caller's still-mutable input.
@@ -806,11 +806,15 @@ export class Session {
   append<T extends SessionEventType>(
     type: T,
     data: SessionEventMap[T],
-    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : []
+    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : [opts?: { ignorable?: true }]
   ): SessionEvent<T> {
     this.publicationEntry()
-    const surfaceOpts: SurfaceIntent | undefined = opts[0]
+    const surfaceOpts = opts[0] as SurfaceIntent | undefined
+    // Hemi fork: auxiliary plugin records remain skippable by readers without that plugin.
+    // See hemi-fork-changes.md#hemi-customization-isolation.
+    const ignorable = opts[0] !== undefined && 'ignorable' in opts[0] && opts[0].ignorable
     const surfaceMetadata = {
+      ...ignorable ? { ignorable: true } : {},
       ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
       ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
     }

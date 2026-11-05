@@ -575,6 +575,22 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-shortcuts -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-ui-model-selection -->
+<a id="deepseek-aidsh-client-ui-model-selection"></a>
+
+## `@deepseek-ai/dsh-client-ui-model-selection`
+
+- `source`: [`packages/client/ui-model-selection/src/config.ts:5`](../packages/client/ui-model-selection/src/config.ts)
+
+```ts config-catalog
+/** Native picker options after Loader defaults. */
+export interface Config {
+  /** Register the native composer picker; /model and model directories remain available when false. */
+  showComposer: boolean
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-model-selection -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-client-ui-plugin-manager -->
 <a id="deepseek-aidsh-client-ui-plugin-manager"></a>
 
@@ -650,13 +666,15 @@ export type OnboardingProcess = 'compact' | 'standard' | 'detailed'
 
 ## `@deepseek-ai/dsh-client-ui-settings-models`
 
-- `source`: [`packages/client/ui-settings-models/src/onboarding-config.ts:6`](../packages/client/ui-settings-models/src/onboarding-config.ts)
+- `source`: [`packages/client/ui-settings-models/src/onboarding-config.ts:7`](../packages/client/ui-settings-models/src/onboarding-config.ts)
 
 ```ts config-catalog
 /** Onboarding options after schema defaults are applied. */
 export interface Config {
   /** Offer the browser API-key step when no native shell owns credential onboarding. */
   credentialOnboarding: boolean
+  /** Show the built-in Models settings navigation entry. */
+  showSettingsSection: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-settings-models -->
@@ -1637,6 +1655,93 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-headless -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-memory -->
+<a id="deepseek-aidsh-hemi-memory"></a>
+
+## `@deepseek-ai/dsh-hemi-memory`
+
+- `inject`: `tools` · `llm` · `systemPrompt` · `sessionPersistence`
+- `source`: [`packages/hemi/memory/src/lifecycle.ts:40`](../packages/hemi/memory/src/lifecycle.ts)
+
+```ts config-catalog
+/** Limits apply to the complete emitted context and complete summary input. */
+export interface MemoryLifecycleConfig {
+  /** Maximum bytes of memory context included in a model request. */
+  contextMaxBytes: number
+  /** Maximum bytes of conversation text sent for memory summarization. */
+  summaryMaxInputBytes: number
+  /** Maximum output tokens requested for a memory summary. */
+  summaryMaxOutputTokens: number
+  /** Maximum milliseconds to wait for a memory summary request. */
+  summaryTimeoutMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-memory -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-access -->
+<a id="deepseek-aidsh-hemi-model-access"></a>
+
+## `@deepseek-ai/dsh-hemi-model-access`
+
+- `inject`: `authorization` · `credentials` · `settings` · `llm`
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/hemi/model-access/src/index.ts:33`](../packages/hemi/model-access/src/index.ts)
+
+```ts config-catalog
+interface ModelAccessConfig {
+  /** Saved model IDs enabled for each subscription provider. */
+  subscriptionModels: Volatile<Record<string, string[]>>
+  /** Model capability overrides for Hemi-owned subscription adapters. */
+  subscriptionModelOptions: Volatile<Record<string, Record<string, ModelOptions>>>
+  /** Request limits and client versions for live subscription model listings. */
+  subscriptionDiscovery: SubscriptionDiscoveryConfig
+}
+
+/** Editable model capabilities; omitted fields inherit the adapter defaults. */
+export interface ModelOptions {
+  /** Display name override used by model selectors. */
+  name?: string
+  /** Maximum combined request and response tokens; omitted inherits adapter capacity. */
+  contextWindow?: number
+  /** Per-request output token cap when the caller does not specify one. */
+  maxTokens?: number
+  /** Explicit text/image input capabilities; omitted inherits adapter modalities. */
+  input?: readonly ('text' | 'image')[]
+}
+
+/** Request limits and external client versions used for subscription discovery. */
+export interface SubscriptionDiscoveryConfig {
+  /** Total time allowed for one catalog refresh, including authentication. */
+  timeoutMs: number
+  /** Maximum number of model entries accepted from a provider. */
+  maxModels: number
+  /** Codex client version sent to its model catalog endpoint. */
+  codexClientVersion: string
+  /** ZCode version sent when downloading the current Coding Plan catalog. */
+  zcodeAppVersion: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-access -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-routing -->
+<a id="deepseek-aidsh-hemi-routing"></a>
+
+## `@deepseek-ai/dsh-hemi-routing`
+
+- `inject`: `tools` · `subagents` · `systemPrompt` · `hemiRoutingSettings`
+- `source`: [`packages/hemi/routing/src/index.ts:28`](../packages/hemi/routing/src/index.ts)
+
+```ts config-catalog
+/** Legacy delegation fields retained so existing profile patches keep loading. */
+export interface Config {
+  /** Legacy backend name, retained for profile compatibility. Configure the native subagent tool instead. */
+  provider?: string
+  /** Legacy depth preference; configure the native subagent tool for enforcement. */
+  maxDepth?: number | 'provider-managed'
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-routing -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hmr -->
 <a id="deepseek-aidsh-hmr"></a>
 
@@ -1954,7 +2059,7 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:251`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:253`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
@@ -1969,6 +2074,8 @@ export interface Config {
 
 /** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
 export interface PiAiProviderProfile {
+  /** Model IDs explicitly removed from the served catalog; connection credentials are retained. */
+  hiddenModels?: string[]
   /** Credential reference (environment-variable name) resolved per request through `ctx.credentials`. */
   apiKeyEnv?: string
   /** Name shown by configuration surfaces; defaults to the route key. */
@@ -3626,7 +3733,7 @@ export type JournalMode = 'wal' | 'delete' | 'truncate' | 'persist'
 
 - `inject`: `workingDirectory` · `sessionProjections`
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/subagent/subagent/src/index.ts:181`](../packages/subagent/subagent/src/index.ts)
+- `source`: [`packages/subagent/subagent/src/index.ts:190`](../packages/subagent/subagent/src/index.ts)
 
 ```ts config-catalog
 /** Host configuration for continuable subagent capacity. */
@@ -4920,11 +5027,11 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-file-actions` | — | [`packages/client/ui-file-actions/src/index.ts`](../packages/client/ui-file-actions/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-file-drag` | — | [`packages/client/ui-file-drag/src/index.ts`](../packages/client/ui-file-drag/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-goal` | — | [`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-hemi-skins` | — | [`packages/client/ui-hemi-skins/src/index.ts`](../packages/client/ui-hemi-skins/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-input-trigger` | — | [`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-jobs` | — | [`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-layout` | — | [`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-message-feedback` | — | [`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts) |
-| `@deepseek-ai/dsh-client-ui-model-selection` | — | [`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-open-in-app` | — | [`packages/client/ui-open-in-app/src/index.ts`](../packages/client/ui-open-in-app/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-permission-presets` | — | [`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-plan` | — | [`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts) |
@@ -4979,6 +5086,12 @@ export interface Config {
 | `@deepseek-ai/dsh-fs-ssh` | `ssh` · `sandboxPolicy` | [`packages/ssh/fs-ssh/src/index.ts`](../packages/ssh/fs-ssh/src/index.ts) |
 | `@deepseek-ai/dsh-goal-round-driver` | `agents` · `goals` · `sessions` | [`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts) |
 | `@deepseek-ai/dsh-harness-dev-context` | `systemPrompt` · `sessionProjections` · `webApp` | [`packages/context/harness-dev-context/src/index.ts`](../packages/context/harness-dev-context/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-backup-ui` | — | [`packages/hemi/backup-ui/src/index.ts`](../packages/hemi/backup-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-memory-ui` | — | [`packages/hemi/memory-ui/src/index.ts`](../packages/hemi/memory-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-model-access-ui` | — | [`packages/hemi/model-access-ui/src/index.ts`](../packages/hemi/model-access-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-model-settings` | `llm` | [`packages/hemi/model-settings/src/index.ts`](../packages/hemi/model-settings/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-model-settings-ui` | — | [`packages/hemi/model-settings-ui/src/index.ts`](../packages/hemi/model-settings-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-routing-ui` | — | [`packages/hemi/routing-ui/src/index.ts`](../packages/hemi/routing-ui/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-auto` | `webServer` · `connection` · `loader` | [`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-native` | — | [`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts) |
 | `@deepseek-ai/dsh-host-plugin-inventory` | `loader` | [`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts) |
@@ -5075,6 +5188,8 @@ export interface Config {
 | `@deepseek-ai/dsh-experimental-webworker-packer` | — | [`packages/experimental/webworker-packer/src/index.ts`](../packages/experimental/webworker-packer/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-runtime` | — | [`packages/experimental/webworker-runtime/src/index.ts`](../packages/experimental/webworker-runtime/src/index.ts) |
 | `@deepseek-ai/dsh-fs-patch` | — | [`packages/fs/fs-patch/src/index.ts`](../packages/fs/fs-patch/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-backup` | — | [`packages/hemi/backup/src/index.ts`](../packages/hemi/backup/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-customizations` | — | [`packages/hemi/customizations/src/index.ts`](../packages/hemi/customizations/src/index.ts) |
 | `@deepseek-ai/dsh-home-paths` | — | [`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts) |
 | `@deepseek-ai/dsh-hook-protocol` | — | [`packages/experimental/hook-protocol/src/index.ts`](../packages/experimental/hook-protocol/src/index.ts) |
 | `@deepseek-ai/dsh-http-proxy` | — | [`packages/util/http-proxy/src/index.ts`](../packages/util/http-proxy/src/index.ts) |
