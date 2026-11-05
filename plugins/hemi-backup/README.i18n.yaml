@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write plugins/hemi-backup/README.md
+/:
+  en: c1ec28114630ef89
+  zh: a4ba47bb1ec6f4a9
+/hemi-backup:
+  en: a3675325befa9536
+  zh: 902f53f2ec7a9105
+/hemi-backup/summary:
+  en: 1407faca2b3ddc25
+  zh: 3e993bc63e3f3ccd
+/hemi-backup/table-of-contents:
+  en: 5db0ae01d50cb0e4
+  zh: 5db0ae01d50cb0e4
+/hemi-backup/use-this-package:
+  en: bbff250eba0f1b89
+  zh: bbff250eba0f1b89
+/hemi-backup/use-this-package/install-into-a-profile:
+  en: a85a5d1fc5dd26c2
+  zh: c0070f55d6784571
+/hemi-backup/use-this-package/verify-the-installation:
+  en: bb8d92f2471b8ae5
+  zh: 19ac1d097ea51d61
+/hemi-backup/understand-the-implementation:
+  en: 11bd6cc6c9f1e35a
+  zh: 04bf8e2d589d9efd
+/hemi-backup/further-exploration:
+  en: 8e6c7e24d627a5eb
+  zh: c23b69e092a52344
+/hemi-backup/known-limitations-and-deferred-work:
+  en: 7b424bcdec74cc10
+  zh: 47b23f39119a06a8

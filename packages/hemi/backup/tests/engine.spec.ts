@@ -1,5 +1,5 @@
 /** Engine behavior: collection whitelist, pack/extract roundtrip, chunking, corruption, and merge restore. */
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, readFileSync, utimesSync, existsSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, readFileSync, statSync, utimesSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -110,7 +110,7 @@ it('merges a restore: new files land, identical files skip, conflicts keep the n
   await extractBackup(backupDir, staging)
   // Local mutations after the backup: one newer file, one identical file.
   write(join(dshHome, 'memory/MEMORY.md'), 'changed after backup')
-  utimesSync(join(dshHome, 'memory/MEMORY.md'), new Date('2026-11-05T00:00:00Z'), new Date('2026-11-05T00:00:00Z'))
+  utimesSync(join(dshHome, 'memory/MEMORY.md'), new Date('2030-01-01T00:00:00Z'), new Date('2030-01-01T00:00:00Z'))
   rmSync(join(dshHome, 'sessions/--ws--/session-1/session.v4.jsonl.zstd'))
   const safeCopy = join(root, 'safe-5')
   const roots = { dsh: dshHome, agents: agentsHome }
@@ -134,6 +134,7 @@ it('replaces the credentials file whole when the backup version differs', async 
   const safeCopy = join(root, 'safe-6')
   await mergeRestore({ stagingDir: staging, roots: { dsh: dshHome, agents: agentsHome }, safeCopyRoot: safeCopy })
   expect(readFileSync(join(dshHome, '.credentials.yaml'), 'utf8')).toBe('version: 2\n')
+  expect((statSync(join(dshHome, '.credentials.yaml')).mode & 0o777)).toBe(0o600)
   expect(readFileSync(join(safeCopy, 'dsh/.credentials.yaml'), 'utf8')).toBe('version: 1\n')
 })
 

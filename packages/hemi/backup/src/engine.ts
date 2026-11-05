@@ -802,6 +802,9 @@ export async function mergeRestore(input: MergeRestoreInput): Promise<MergeResul
     if (action === 'takeBackup' && lstatIfPresent(targetAbs) !== null) moveIntoSafeCopy(targetAbs, rel, safeCopyRoot)
     fs.mkdirSync(path.dirname(targetAbs), { recursive: true })
     fs.renameSync(stagingAbs, targetAbs)
+    // Extraction writes 0644; the credential store refuses group/world-readable
+    // files, so the atomic credential file restores to owner-only.
+    if (ATOMIC_RELS.has(rel)) fs.chmodSync(targetAbs, 0o600)
   }
   const mergeDir = async (stagingAbs: string, relPrefix: string): Promise<void> => {
     const { root, inner } = rootOf(relPrefix)

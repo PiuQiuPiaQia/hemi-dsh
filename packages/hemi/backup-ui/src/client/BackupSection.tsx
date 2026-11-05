@@ -262,6 +262,8 @@ export function BackupSection(props: BackupSectionProps) {
           </button>
           <button type="button" className={css.buttonPrimary} disabled={busy !== null} onClick={() => void guard('target', async () => {
             await saveTarget(draft)
+            setNotice({ ok: true, text: t('saved') })
+            await refresh()
             await refreshList()
           })}>
             {busy === 'target' ? t('saving') : t('save')}
