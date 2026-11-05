@@ -1,21 +1,22 @@
 /** Searchable model discovery dialog shared by subscriptions and API connections. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconDownloadOutlineRegular, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './copy.ts'
 import css from './page.module.css'
 
 /**
  * Fetch candidates only on demand and apply selections only after confirmation.
- * @param props - Current IDs, cancellable discovery, explicit addition and localized copy.
+ * @param props - Current IDs, cancellable discovery, explicit addition, localized copy and an optional compact trigger.
  * @returns a discovery button and its selection dialog.
  */
-export function ModelPicker({ current, load, add, t, buttonText, disabled = false }: PropsLocale<typeof NS> & {
+export function ModelPicker({ current, load, add, t, buttonText, disabled = false, iconOnly = false }: PropsLocale<typeof NS> & {
   current: string[]
   load: (signal: AbortSignal) => Promise<string[]>
   add: (models: string[]) => Promise<void>
   buttonText?: string
   disabled?: boolean
+  iconOnly?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [candidates, setCandidates] = useState<string[]>([])
@@ -52,9 +53,13 @@ export function ModelPicker({ current, load, add, t, buttonText, disabled = fals
   const available = candidates.filter(model => !current.includes(model))
   const visible = available.filter(model => model.toLowerCase().includes(query.trim().toLowerCase()))
   const allVisible = visible.length > 0 && visible.every(model => selected.includes(model))
+  const label = buttonText ?? t('fetchModels')
+  const trigger = <Button variant="ghost" size="sm" disabled={disabled} aria-label={iconOnly ? label : undefined}
+    icon={iconOnly ? <IconDownloadOutlineRegular size={14} /> : undefined}
+    onClick={() => { void discover() }}>{iconOnly ? null : label}</Button>
   return (
     <div className={css.modelPicker}>
-      <Button variant="ghost" size="sm" disabled={disabled} onClick={() => { void discover() }}>{buttonText ?? t('fetchModels')}</Button>
+      {iconOnly ? <Tooltip label={label}>{trigger}</Tooltip> : trigger}
       <Modal open={open} title={t('chooseModels')} closeLabel={t('close')} onClose={close}
         description={t('liveModelCatalog')}
         className={css.modelDialog ?? ''} contentClassName={`${css.dialogContent} scrollable`}

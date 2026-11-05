@@ -4,8 +4,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-account/client'
+import type { InjectFace, PropsLocale, PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
 import accessRemote from '@deepseek-ai/dsh-hemi-model-access/remote'
+import type {} from '@deepseek-ai/dsh-hemi-model-settings/remote'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { en, NS, zh } from './copy.ts'
 import type { NewApiDesktopBridge } from '@deepseek-ai/dsh-hemi-model-access/desktop-import'
@@ -14,16 +16,23 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { BrowserImportSection } from './BrowserImportSection.tsx'
 import { NewApiSection } from './NewApiSection.tsx'
 import { SubscriptionSection } from './SubscriptionSection.tsx'
+import { AccountSubscriptionCard, type AccountSubscriptionInput } from './AccountSubscriptionCard.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
 import css from './page.module.css'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotFactoryMap {
     'hemi.models.connections': { scope: 'root'; props: { test: ModelTest }; inject: { actions: ModelAccessActions } & PropsLocale<typeof NS> }
+    'hemi.models.account-subscription': {
+      scope: 'root'
+      props: AccountSubscriptionInput
+      inject: { actions: ModelAccessActions; test: ModelTest } & PropsLocale<typeof NS>
+    }
   }
 }
 
-function ModelAccessPage({ actions, test, t }: InjectFace<{ actions: ModelAccessActions }> & PropsLocale<typeof NS> & { test: ModelTest }) {
+function ModelAccessPage({ actions, test, t, renderFactorySlot }: InjectFace<{ actions: ModelAccessActions }> & PropsLocale<typeof NS>
+  & PropsRenderFactories & { test: ModelTest }) {
   const [method, setMethod] = useState<'subscriptionsMethod' | 'newApiMethod' | 'keyMethod'>('subscriptionsMethod')
   const desktop = (globalThis as { dshDesktop?: { newApiImport?: NewApiDesktopBridge } }).dshDesktop?.newApiImport
   return (
@@ -35,7 +44,9 @@ function ModelAccessPage({ actions, test, t }: InjectFace<{ actions: ModelAccess
             onClick={() => { setMethod(id) }}>{t(id)}</Button>
         ))}
       </nav>
-      <div hidden={method !== 'subscriptionsMethod'}><SubscriptionSection actions={actions} test={test} t={t} /></div>
+      <div hidden={method !== 'subscriptionsMethod'}>
+        <SubscriptionSection actions={actions} test={test} t={t} renderFactorySlot={renderFactorySlot} />
+      </div>
       <div hidden={method !== 'newApiMethod'}>
         {desktop === undefined ? <NewApiSection actions={actions} t={t} /> : <BrowserImportSection bridge={desktop} t={t} />}
       </div>
@@ -77,11 +88,13 @@ function register(ctx: Context): void {
   const actions: ModelAccessActions = {
     keyDirectory: () => unwrap(remote.keyDirectory()),
     getModelOptions: (provider, model) => unwrap(remote.getModelOptions(provider, model)),
+    getModelDefaults: (api, model, provider) => unwrap(remote.getModelDefaults(api, model, provider)),
     saveModelOptions: (provider, model, options, revision) => unwrap(remote.saveModelOptions(provider, model, options, revision)),
     discoverKeyModels: (input, signal) => unwrap(remote.discoverKeyModels(input, signal)),
     saveKeyProfile: input => unwrap(remote.saveKeyProfile(input)),
     removeKeyProfile: (id, revision) => unwrap(remote.removeKeyProfile(id, revision)),
     subscriptionCandidates: (provider, signal) => unwrap(remote.subscriptionCandidates(provider, signal)),
+    subscriptionModels: (provider, signal) => unwrap(remote.subscriptionModels(provider, signal)),
     changeSubscriptionModel: (provider, model, add) => unwrap(remote.changeSubscriptionModel(provider, model, add)),
     subscriptions: () => unwrap(remote.subscriptions()),
     state: () => unwrap(remote.state()),
@@ -96,4 +109,10 @@ function register(ctx: Context): void {
   ctx.slots.registerFactory({
     name: 'hemi.models.connections', scope: 'root', inject: () => ({ actions, t }),
   }, ModelAccessPage)
+  ctx.inject(['remote.hemiModelSettings'], (probes) => {
+    const test: ModelTest = (provider, model, signal) => unwrap(probes.remote.hemiModelSettings.testModel(provider, model, signal))
+    probes.slots.registerFactory({
+      name: 'hemi.models.account-subscription', scope: 'root', inject: () => ({ actions, test, t }),
+    }, AccountSubscriptionCard)
+  })
 }

@@ -37,6 +37,8 @@ kind: "package-reference"
 
 提供的模型会在 Web 模型选择器中，于名称旁显示列表条目在 `client_metadata["deepseek-harness"].badge` 下声明的角标。`client_metadata` 存放任何版本都可以忽略的客户端专属数据；与 `client_requirements` 不同，其中的内容不会隐藏模型。`badge.text` 是字符串，或以小写语言 id（如 `en`、`zh`、`ja`）为键且包含 `en` 的对象；选择器显示当前语言的文字，没有时显示英文。每段文字去掉首尾空白后须为单行，长度为 1 到 12 个字符；一个 emoji 或带组合符号的字母算作一个字符。`badge.tone` 取 `neutral`、`info`、`success` 或 `warning`；缺省或其他取值按 `neutral` 显示。这条路径上任何一层缺省或为 `null` 时不显示角标，因为本版本没有可回退的内置角标。某一层不是对象或角标无法读取时，角标被丢弃，所属模型照常提供。角标只用于展示：模型请求、Session 事件和面向模型的工具都不携带它。
 
+`selectedModels` 控制路由向选择器提供哪些可用模型。默认 `null` 跟随完整账号目录，显式列表只缩小目录，`[]` 则保留账号连接但不提供可选模型。选择不改变模型能力或请求准入，并保存在 profile 设置中，重启后仍有效。注册的型号查询操作只接受 `{ provider: "deepseek-account" }`，重新加载配置好的账号目录，返回全部可用候选，不受当前选择影响。它复用进行中的加载，服务不可用时直接报错，不用缓存候选替代，同时保留运行时之前的目录。该操作拒绝覆盖端点或凭据。选择变化时发出 `llm/models-updated`。
+
 `modelOverrides` 调整单个模型而不替换整个目录。键是模型 id；值的字段与 [Messages `models` 条目](../llm-deepseek/README.zh.md#minimal-configuration)相同，未设置的字段沿用下层的值。覆盖作用在列表和内置目录之上；不能新增模型，也不能让被拒绝的模型变得可用。列表声明的能力不约束覆盖：覆盖的 `maxTokens` 高于列表的 `max_output_tokens` 时按覆盖值发送，超出服务端限制的请求由服务端拒绝。覆盖指向的模型既不在列表里、内置目录也不认识，或者被列出的模型拒绝时，会成为模型页上该提供方的诊断信息；模型页不为此路由提供编辑器。被拒绝且内置目录不认识的模型，其覆盖要等当前版本能用该模型时才校验。此路由没有 `models` 字段；配置里仍写了它时，加载即失败并提示改用 `modelOverrides`。修改 `$DSH_HOME/profiles/<profile>/cordis.patch.yml`，下一次请求即生效。
 
 ```yaml
@@ -55,6 +57,7 @@ kind: "package-reference"
 | `modelsTimeoutMs` | `5,000` | 单次列表请求以及首次访问等待的上限 |
 | `modelsMaxAgeMs` | `600,000` | 首次使用后的自动刷新间隔，失败后也按此间隔重试；`0` 表示只在访问时刷新 |
 | `modelOverrides` | `{}` | 按模型 id 的字段覆盖 |
+| `selectedModels` | `null` | 可选模型 ID；`null` 跟随账号目录，`[]` 不选择任何模型 |
 
 账号请求的 HTTP 401 与响应正文无关：映射为 `ACCOUNT_TOKEN_INVALID`，并要求账号服务仅在当前 token 仍与请求所用 token 相同时清除凭据。403 和其他错误不会触发清除。账号模块负责退登后打断任务，本插件不遍历 Agent。
 

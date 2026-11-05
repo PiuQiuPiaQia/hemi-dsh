@@ -136,8 +136,10 @@ export interface ModelOptions {
   input?: readonly ('text' | 'image')[]
 }
 
-/** Model overrides with the settings revision required for a subsequent save. */
+/** Model overrides and effective display values with the settings revision required for a subsequent save. */
 export interface ModelOptionsView {
   revision: number
   options: ModelOptions
+  /** Resolved values shown by the editor; unchanged values remain inherited on save. */
+  effective: ModelOptions
 }

@@ -126,12 +126,20 @@ Reuse the adapter's authorization flow and credential record rather than storing
 @Remote async subscriptions(): Promise<Subscription[]>
 
 /**
- * Fetch the current service-side model catalog without an installed-catalog fallback.
+ * Read the subscription model catalog; DeepSeek uses its native account adapter catalog.
  * @param provider - Configured subscription provider ID.
  * @param signal - Caller cancellation for authentication and model-list requests.
- * @returns current advertised IDs; GLM uses the official live Coding Plan catalog.
+ * @returns available IDs; GLM uses the live Coding Plan catalog and DeepSeek retains native model admission.
  */
 @Remote async subscriptionCandidates(provider: string, signal: AbortSignal): Promise<string[]>
+
+/**
+ * Read the models currently selected for a connected subscription.
+ * @param provider - Subscription provider ID.
+ * @param signal - Caller cancellation while the adapter reads its catalog.
+ * @returns selected model IDs; an empty array also covers a signed-out account.
+ */
+@Remote async subscriptionModels(provider: string, signal: AbortSignal): Promise<string[]>
 
 /**
  * Add or remove one model while retaining account authorization and other selections.
@@ -226,9 +234,18 @@ Reuse the adapter's authorization flow and credential record rather than storing
  * Read explicit settings for one available model.
  * @param provider - Configured provider ID.
  * @param model - Available model ID.
- * @returns editable overrides and their optimistic settings revision.
+ * @returns editable overrides, effective values and their optimistic settings revision.
  */
 @Remote async getModelOptions(provider: string, model: string): Promise<ModelOptionsView>
+
+/**
+ * Read installed model capabilities before saving a draft connection.
+ * @param api - Draft connection wire protocol.
+ * @param model - Exact model id selected by the owner.
+ * @param provider - Existing connection id when editing a saved connection draft.
+ * @returns catalog capabilities or adapter fallback values for an unknown id.
+ */
+@Remote getModelDefaults(api: string, model: string, provider?: string): ModelOptions
 
 /**
  * Save editable capabilities while retaining account and protocol configuration.
@@ -339,11 +356,13 @@ routeForDelegation(parent: Agent, role: HemiRoleId): DelegationRoute
  * Capture the routing mode of the step about to run, synchronously before
  * the step proceeds. Called from the preset plugin's `agent/pre-step`
  * listener for the root agent only; descendant and subagent trees route
- * nothing. Also plans the turn lazily when no claimed message planned it,
- * for example a resumed turn whose claim was empty.
+ * nothing. Plans a resumed turn lazily and resolves the saved effort for
+ * main and role models before admitting the step. Existing prepared calls
+ * and accepted child tasks retain their captured routes.
  * @param agent - exact live root agent about to run one step.
+ * @returns after the turn's effort mapping and main selection complete.
  */
-captureStep(agent: Agent): void
+async captureStep(agent: Agent): Promise<void>
 
 /**
  * Fail-closed reason for the step about to run, or `null`. Auto mode with
@@ -365,6 +384,15 @@ blockedReason(agent: Agent): string | null
  * @param root - exact live root agent of a non-subagent Session.
  */
 prepareTurn(root: Agent): void
+
+/**
+ * Save the root conversation's automatic routing effort for later turns.
+ * @param agent - live root conversation whose routes use the choice.
+ * @param effort - one of the four model-independent routing levels.
+ * @param signal - cancellation checked before saving.
+ * @returns after the settings pipeline confirms persistence.
+ */
+@Remote async setReasoningEffort(agent: Agent, effort: HemiRoutingEffort, signal?: AbortSignal): Promise<void>
 
 /**
  * Save one root Session's routing mode preference. Only the root agent may

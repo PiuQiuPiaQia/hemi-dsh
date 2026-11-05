@@ -83,6 +83,29 @@ export function apply(ctx: Context, config: Config): void {
     }
     return connection
   }
+  // Hemi fork: settings can fetch unselected models through the existing discovery service, with native admission intact.
+  ctx.llm.registerModelDiscovery(entry.settingsNs, async (request, signal) => {
+    if (request.provider !== PROVIDER || request.baseURL !== undefined || request.api !== undefined || request.apiKey !== undefined) {
+      throw new LlmError('Account discovery requires its configured provider, without endpoint or credential overrides.', 'INVALID_DISCOVERY')
+    }
+    const listing = settings().catalog
+    const token = await resolveDeepSeekAccountToken(ctx, listing.url)
+    if (token === undefined) throw new LlmError('Sign in to DeepSeek before reading account models.', 'ACCOUNT_SIGN_IN_REQUIRED')
+    const view = await catalog.reload(listing, signal)
+    if (view === undefined) throw new LlmError('Could not refresh the account model catalog. Check the connection and retry.', 'MODEL_LISTING_FAILED')
+    if (!view.authenticated) throw new LlmError('Sign in to DeepSeek before reading account models.', 'ACCOUNT_SIGN_IN_REQUIRED')
+    if (await resolveDeepSeekAccountToken(ctx, listing.url) !== token) {
+      throw new LlmError('The account changed while reading models. Read the catalog again.', 'ACCOUNT_CHANGED')
+    }
+    return discovered(view).catalog.offered.map(model => ({ id: model.id, ...model.name === undefined ? {} : { name: model.name } }))
+  })
+  let selection = JSON.stringify(settings().selectedModels)
+  ctx.on('loader/volatile-update', () => {
+    const next = JSON.stringify(settings().selectedModels)
+    if (next === selection) return
+    selection = next
+    ctx.emit('llm/models-updated', PROVIDER)
+  })
   registerDeepSeekProvider<AccountConnection>(ctx, PROVIDER, {
     providerName: 'DeepSeek Account',
     options: () => connectionOf(catalog.current()),
@@ -93,7 +116,9 @@ export function apply(ctx: Context, config: Config): void {
       const view = await catalog.view(settings().catalog)
       if (!view.authenticated) return []
       const { offered, badges } = discovered(view).catalog
-      return offered.map(model => catalogModelInfo(provider, model, badges.get(model.id)))
+      const selected = settings().selectedModels
+      return offered.filter(model => selected === null || selected.includes(model.id))
+        .map(model => catalogModelInfo(provider, model, badges.get(model.id)))
     },
   })
 }

@@ -42,6 +42,7 @@ function harness(timeoutMs = 60_000, honorsAbort = true) {
   // Every access passes the same configuration generation.
   const catalog = {
     view: (signal?: AbortSignal) => cache.view(settings, signal),
+    reload: (signal?: AbortSignal) => cache.reload(settings, signal),
     current: () => cache.current(),
     invalidate: () => { cache.invalidate() },
     dispose: () => cache.dispose(),
@@ -413,4 +414,63 @@ it('keeps the committed listing and reports a failed change observer', async () 
   loads[0]!.settle.resolve(listing('a'))
   await expect(first).resolves.toMatchObject({ listing: listing('a') })
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('change notification failed'))
+})
+
+it('explicitly reloads a fresh listing, shares concurrent reloads, and retains it after failure', async () => {
+  const { catalog, loads, flush } = harness()
+  const first = catalog.view()
+  await flush()
+  loads[0]!.settle.resolve(listing('a'))
+  await first
+  const reload = catalog.reload()
+  const shared = catalog.reload()
+  await flush()
+  expect(loads).toHaveLength(2)
+  loads[1]!.settle.resolve(listing('b'))
+  await expect(reload).resolves.toEqual({ authenticated: true, listing: listing('b') })
+  await expect(shared).resolves.toEqual({ authenticated: true, listing: listing('b') })
+  const failed = catalog.reload()
+  await flush()
+  loads[2]!.settle.reject(new Error('outage'))
+  await expect(failed).resolves.toBeUndefined()
+  expect(catalog.current().listing).toEqual(listing('b'))
+})
+
+it('abandons a reload wait without stopping the cache-owned load', async () => {
+  const { catalog, loads, flush } = harness()
+  const request = new AbortController()
+  const read = catalog.reload(request.signal)
+  await flush()
+  request.abort(new Error('picker closed'))
+  await expect(read).rejects.toThrow('picker closed')
+  expect(loads[0]!.signal.aborted).toBe(false)
+  loads[0]!.settle.resolve(listing('a'))
+  await flush()
+  expect(catalog.current().listing).toEqual(listing('a'))
+})
+
+it('reports signed-out reloads and rejects reloads superseded by disposal or invalidation', async () => {
+  const { catalog, loads, flush, credential } = harness()
+  credential(undefined)
+  await expect(catalog.reload()).resolves.toEqual({ authenticated: false, listing: undefined })
+  expect(loads).toHaveLength(0)
+  credential('token')
+  const superseded = expect(catalog.reload()).rejects.toMatchObject({ name: 'AbortError' })
+  await flush()
+  catalog.invalidate()
+  await superseded
+  await catalog.dispose()
+  await expect(catalog.reload()).rejects.toMatchObject({ name: 'AbortError' })
+})
+
+it('does not start a reload after disposal during its credential lookup', async () => {
+  const { catalog, loads, resolveCredential, flush } = harness()
+  const token = Promise.withResolvers<string | undefined>()
+  resolveCredential.mockReturnValue(token.promise)
+  const read = expect(catalog.reload()).rejects.toMatchObject({ name: 'AbortError' })
+  await flush()
+  await catalog.dispose()
+  token.resolve('old-token')
+  await read
+  expect(loads).toHaveLength(0)
 })

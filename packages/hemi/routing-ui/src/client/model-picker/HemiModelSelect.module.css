@@ -27,11 +27,3 @@
   padding-block-start: 4px;
   border-block-start: 1px solid var(--dsw-alias-border-l1);
 }
-
-.menuWithEffort[role='menu'] {
-  overflow-y: auto;
-}
-
-.menuWithEffort .utilities {
-  flex: none;
-}

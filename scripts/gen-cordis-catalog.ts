@@ -441,6 +441,8 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   DeepSeekLlmApiExtensionRequest: 'llm-streaming.md',
   LlmCallConfig: 'llm-streaming.md',
   PiAiRequestHeaderContext: 'llm-streaming.md',
+  // Hemi fork: the generic provider-defaults event is documented with the pi-ai transport seam.
+  PiAiProviderProfiles: 'llm-streaming.md',
   ConfigureCall: 'llm-streaming.md',
   LlmModelContext: 'llm-streaming.md',
   LlmModelReasoningInfo: 'llm-streaming.md',
@@ -1017,6 +1019,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   DelegationRoute: 'packages/hemi/routing/README.md',
   HemiRoleId: 'packages/hemi/routing/README.md',
   HemiRoutingMode: 'packages/hemi/routing/README.md',
+  HemiRoutingEffort: 'packages/hemi/routing/README.md',
   RoleRoutes: 'packages/hemi/routing/README.md',
   Route: 'packages/hemi/routing/README.md',
   ActionCardDecision: 'packages/experimental/action-cards/README.md',

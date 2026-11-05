@@ -103,3 +103,16 @@ it('refuses an unexpected catalog download origin without making another request
     .rejects.toMatchObject({ code: 'hemi/subscription-discovery-failed' })
   expect(fetch).toHaveBeenCalledTimes(1)
 })
+
+it('reads DeepSeek models from its native account adapter without a Pi OAuth grant', async () => {
+  const discoverModels = vi.fn(async () => [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }])
+  const ctx = { llm: { discoverModels, listConfigurableProviders: () => [{ provider: 'deepseek-account', settingsNs: 'native-account' }] } } as never
+  vi.mocked(credentialStoreFrom).mockClear()
+  await expect(subscriptionCatalog(ctx, 'deepseek-account', config, new AbortController().signal))
+    .resolves.toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+  expect(discoverModels).toHaveBeenCalledWith('native-account', { provider: 'deepseek-account' }, expect.any(AbortSignal))
+  expect(credentialStoreFrom).not.toHaveBeenCalled()
+  discoverModels.mockResolvedValueOnce([])
+  await expect(subscriptionCatalog(ctx, 'deepseek-account', config, new AbortController().signal))
+    .rejects.toMatchObject({ code: 'hemi/subscription-discovery-failed' })
+})

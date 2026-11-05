@@ -11,32 +11,43 @@ type Props = PropsLocale<typeof NS>
 
 /**
  * Edit the four model fields supported by the connection page.
- * @param props - Explicit overrides, save callback and localized copy.
+ * @param props - Explicit overrides, effective values, save callback and localized copy.
  * @returns an isolated draft dialog; cancellation performs no write.
  */
-export function ModelOptionsEditor({ model, options, save, close, t }: Props & {
+export function ModelOptionsEditor({ model, options, effective, save, close, t }: Props & {
   model: string
   options: ModelOptions
+  effective: ModelOptions
   save: (options: ModelOptions) => Promise<void>
   close: () => void
 }) {
-  const [name, setName] = useState(options.name ?? '')
-  const [context, setContext] = useState(options.contextWindow?.toString() ?? '')
-  const [output, setOutput] = useState(options.maxTokens?.toString() ?? '')
-  const [input, setInput] = useState(options.input)
+  const initial = { ...effective, ...options }
+  const [name, setName] = useState(initial.name ?? model)
+  const [context, setContext] = useState(initial.contextWindow?.toString() ?? '')
+  const [output, setOutput] = useState(initial.maxTokens?.toString() ?? '')
+  const [input, setInput] = useState<readonly ('text' | 'image')[]>(initial.input ?? ['text'])
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const capacity = (value: string): number | undefined => value.trim() === '' ? undefined : Number(value)
   const contextWindow = capacity(context)
   const maxTokens = capacity(output)
   const invalidCapacity = [contextWindow, maxTokens].some(value => value !== undefined && (!Number.isSafeInteger(value) || value <= 0))
-  const invalidInput = input !== undefined && input.length === 0
-  const next: ModelOptions = {
-    ...name.trim() === '' ? {} : { name: name.trim() },
-    ...contextWindow === undefined ? {} : { contextWindow },
-    ...maxTokens === undefined ? {} : { maxTokens },
-    ...input === undefined ? {} : { input },
+  const invalidInput = input.length === 0
+  const next: ModelOptions = { ...options }
+  if (name !== (initial.name ?? model)) {
+    delete next.name
+    if (name.trim() !== '') next.name = name.trim()
   }
+  if (context !== (initial.contextWindow?.toString() ?? '')) {
+    delete next.contextWindow
+    if (contextWindow !== undefined) next.contextWindow = contextWindow
+  }
+  if (output !== (initial.maxTokens?.toString() ?? '')) {
+    delete next.maxTokens
+    if (maxTokens !== undefined) next.maxTokens = maxTokens
+  }
+  const initialInput = initial.input ?? ['text']
+  if (input.length !== initialInput.length || input.some(type => !initialInput.includes(type))) next.input = input
   return (
     <Modal open title={t('modelSettings')} closeLabel={t('close')} onClose={() => { if (!busy) close() }}
       description={model} className={css.modelDialog ?? ''} contentClassName={`${css.dialogContent} scrollable`}
@@ -48,7 +59,6 @@ export function ModelOptionsEditor({ model, options, save, close, t }: Props & {
         }}>{t(busy ? 'loading' : 'saveModel')}</Button>
       </div>}>
       <div className={css.dialogForm}>
-        <p className={css.help}>{t('modelDefaults')}</p>
         <label>{t('modelDisplayName')}<input value={name} disabled={busy} placeholder={model}
           onChange={(event) => { setName(event.currentTarget.value) }} /></label>
         <div className={css.capacityFields}>
@@ -62,9 +72,7 @@ export function ModelOptionsEditor({ model, options, save, close, t }: Props & {
         {invalidCapacity && <p role="alert">{t('invalidCapacity')}</p>}
         <fieldset className={css.inputTypes} disabled={busy}>
           <legend>{t('inputTypes')}</legend>
-          <label className={css.modelChoice}><input type="checkbox" checked={input === undefined}
-            onChange={(event) => { setInput(event.currentTarget.checked ? undefined : ['text']) }} />{t('inheritInput')}</label>
-          {input !== undefined && (['text', 'image'] as const).map(type => <label className={css.modelChoice} key={type}>
+          {(['text', 'image'] as const).map(type => <label className={css.modelChoice} key={type}>
             <input type="checkbox" checked={input.includes(type)} onChange={(event) => {
               setInput(event.currentTarget.checked ? [...input, type] : input.filter(item => item !== type))
             }} />{t(type === 'text' ? 'textInput' : 'imageInput')}
@@ -101,7 +109,8 @@ export function SavedModelOptions({ provider, model, actions, t, disabled, saved
         }} />
     </Tooltip>
     {failed && <small role="alert">{t('failed')}</small>}
-    {view !== null && <ModelOptionsEditor model={model} options={view.options} t={t} close={() => { setView(null) }}
+    {view !== null && <ModelOptionsEditor model={model} options={view.options} effective={view.effective} t={t}
+      close={() => { setView(null) }}
       save={async (options) => {
         await actions.saveModelOptions(provider, model, options, view.revision)
         try { await saved?.() } catch { setFailed(true) }

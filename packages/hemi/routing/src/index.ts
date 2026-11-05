@@ -110,7 +110,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => ctx.on('agent/pre-step', async ({ agent }, next) => {
     if (agent.session.header.origin === 'subagent') return await next()
     if (ctx.subagents.rootOf(agent) !== agent) return await next()
-    ctx.hemiRoutingSettings.captureStep(agent)
+    await ctx.hemiRoutingSettings.captureStep(agent)
     const reason = ctx.hemiRoutingSettings.blockedReason(agent)
     if (reason === null) return await next()
     ctx.logger.error(`hemi-routing: ${reason} (session ${agent.id})`)

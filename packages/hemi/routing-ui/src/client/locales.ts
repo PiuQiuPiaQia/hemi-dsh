@@ -3,6 +3,12 @@ export const NS = 'hemi-routing'
 
 /** English source dictionary. */
 export const en = {
+  'effort.label': 'Reasoning effort',
+  'effort.low': 'Low',
+  'effort.medium': 'Medium',
+  'effort.high': 'High',
+  'effort.max': 'Maximum',
+  'effort.failed': 'Could not save reasoning effort: {message}',
   'usage.turn': 'Turn usage',
   'usage.session': 'Conversation usage',
   'usage.currentAgent': 'Current agent',
@@ -76,6 +82,12 @@ export type RoutingLocaleKey = keyof typeof en
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<RoutingLocaleKey, string> = {
+  'effort.label': '推理强度',
+  'effort.low': '低',
+  'effort.medium': '中',
+  'effort.high': '高',
+  'effort.max': '最高',
+  'effort.failed': '推理强度保存失败：{message}',
   'usage.turn': '本轮用量',
   'usage.session': '会话用量',
   'usage.currentAgent': '当前智能体',

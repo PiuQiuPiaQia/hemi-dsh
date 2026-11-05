@@ -31,6 +31,12 @@
     },
     {
       "path": "../model-access"
+    },
+    {
+      "path": "../../client/ui-settings-account"
+    },
+    {
+      "path": "../model-settings"
     }
   ]
 }

@@ -19,7 +19,8 @@ import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
-import type { HemiRoleId, HemiRoutingMode, RoleRoutes, Route } from './types.ts'
+import type { HemiRoleId, HemiRoutingEffort, HemiRoutingMode, RoleRoutes, Route } from './types.ts'
+import { routingReasoningEffort } from './reasoning.ts'
 import { HEMI_ROLE_IDS, LEGACY_ROLE_IDS } from './types.ts'
 
 /** Cordis plugin name; also the settings namespace and profile entry id. */
@@ -51,6 +52,10 @@ const ROLE_KEY_SCHEMA = z.union([
 
 /** Plugin config: the main route, the role table, and the per-Session modes. */
 export interface Config {
+  /** Initial automatic routing effort before a conversation saves its own choice. */
+  defaultReasoningEffort: Volatile<HemiRoutingEffort>
+  /** Automatic routing effort saved independently for each root conversation. */
+  sessionEfforts: Volatile<Record<string, HemiRoutingEffort>>
   /** Auto routing's main route; `null` or absent until configured. */
   main: Volatile<Route | null>
   /** Role routes keyed by canonical or legacy id; absent roles follow main. */
@@ -61,6 +66,8 @@ export interface Config {
 
 /** Runtime schema; volatile so the settings card writes it live. */
 export const Config = z.object({
+  defaultReasoningEffort: z.union(['low', 'medium', 'high', 'max']).default('high').volatile(),
+  sessionEfforts: z.dict(z.union(['low', 'medium', 'high', 'max'])).default({}).volatile(),
   main: z.union([z.const(null), RouteSchema]).volatile(),
   roles: z.dict(RouteSchema, ROLE_KEY_SCHEMA).default({}).volatile(),
   sessionModes: z.dict(z.boolean()).default({}).volatile(),
@@ -78,6 +85,8 @@ export type DelegationRoute = { readonly kind: 'bound'; readonly route: Route } 
 
 /** Per-turn routing plan: mode and config captured at the turn's first claimed message. */
 export interface TurnSnapshot {
+  /** Conversation effort captured with this turn's routes. */
+  readonly effort: HemiRoutingEffort
   /** Mode when this turn was planned; it governs the whole turn. */
   readonly mode: HemiRoutingMode
   /** Main route captured at planning; `null` while unconfigured. */
@@ -193,6 +202,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
   static Config = Config
 
   private readonly turnSnapshots = new WeakMap<Agent, TurnSnapshot>()
+  private readonly mappedPlans = new WeakSet<TurnSnapshot>()
   /** Step routing mode per root, captured synchronously at each step's pre-step. */
   private readonly stepModes = new WeakMap<Agent, HemiRoutingMode>()
   /** Root sessions whose routing-mode write is in flight or failed. */
@@ -345,16 +355,38 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
    * Capture the routing mode of the step about to run, synchronously before
    * the step proceeds. Called from the preset plugin's `agent/pre-step`
    * listener for the root agent only; descendant and subagent trees route
-   * nothing. Also plans the turn lazily when no claimed message planned it,
-   * for example a resumed turn whose claim was empty.
+   * nothing. Plans a resumed turn lazily and resolves the saved effort for
+   * main and role models before admitting the step. Existing prepared calls
+   * and accepted child tasks retain their captured routes.
    * @param agent - exact live root agent about to run one step.
+   * @returns after the turn's effort mapping and main selection complete.
    */
-  captureStep(agent: Agent): void {
+  async captureStep(agent: Agent): Promise<void> {
     if (this.ctx.subagents.rootOf(agent) !== agent) return
     const mode = this.modeOfSession(agent.id)
+    if (!this.turnSnapshots.has(agent)) this.prepareTurn(agent)
     this.stepModes.set(agent, mode)
-    if (this.turnSnapshots.has(agent)) return
-    this.turnSnapshots.set(agent, { mode, main: this.readMain(), roles: this.currentRoles() })
+    const snapshot = this.turnSnapshots.get(agent)
+    if (snapshot === undefined || mode !== 'auto' || snapshot.mode !== 'auto'
+      || snapshot.main === null || this.mappedPlans.has(snapshot)) return
+    const [main, roles] = await Promise.all([
+      this.routeWithEffort(snapshot.main, snapshot.effort),
+      Promise.all(Object.entries(snapshot.roles).map(async ([role, route]) => (
+        [role, await this.routeWithEffort(route, snapshot.effort)] as const
+      ))),
+    ])
+    if (this.stopped || this.turnSnapshots.get(agent) !== snapshot) return
+    const settledMode = this.modeOfSession(agent.id)
+    if (settledMode !== 'auto') {
+      this.stepModes.set(agent, settledMode)
+      return
+    }
+    const mapped = { ...snapshot, main, roles: Object.fromEntries(roles) }
+    this.turnSnapshots.set(agent, mapped)
+    this.mappedPlans.add(mapped)
+    this.internalSelection = agent.id
+    try { agent.model.select(toSelection(main)) }
+    finally { this.internalSelection = undefined }
   }
 
   /**
@@ -391,6 +423,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
       mode: this.modeOfSession(root.id),
       main: this.readMain(),
       roles: this.currentRoles(),
+      effort: this.effortOf(root.id),
     }
     this.turnSnapshots.set(root, snapshot)
     this.stepModes.delete(root)
@@ -400,6 +433,38 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
       root.model.select(toSelection(snapshot.main))
     } finally {
       this.internalSelection = undefined
+    }
+  }
+
+  /** Read the saved conversation effort, falling back to the configured routing default. */
+  private effortOf(sessionId: SessionId): HemiRoutingEffort {
+    return this.config.sessionEfforts.get()[sessionId] ?? this.config.defaultReasoningEffort.get()
+  }
+
+  private async routeWithEffort(route: Route, effort: HemiRoutingEffort): Promise<Route> {
+    const model = await this.ctx.llm.resolveModelInfo(route.provider, route.model)
+    const mapped = routingReasoningEffort(effort, model)
+    return { provider: route.provider, model: route.model, ...mapped === undefined ? {} : { reasoningEffort: mapped } }
+  }
+
+  /**
+   * Save the root conversation's automatic routing effort for later turns.
+   * @param agent - live root conversation whose routes use the choice.
+   * @param effort - one of the four model-independent routing levels.
+   * @param signal - cancellation checked before saving.
+   * @returns after the settings pipeline confirms persistence.
+   */
+  @Remote
+  async setReasoningEffort(agent: Agent, effort: HemiRoutingEffort, signal?: AbortSignal): Promise<void> {
+    if (this.ctx.subagents.rootOf(agent) !== agent) {
+      throw new HemiRoutingError('change the reasoning effort from the root Session', 'HEMI_ROUTING_LEAD_REQUIRED')
+    }
+    signal?.throwIfAborted()
+    if (this.stopped) throw new HemiRoutingError('routing settings are shutting down', 'HEMI_ROUTING_SAVE_FAILED')
+    try {
+      await this.ctx.settings.mutate(SETTINGS_NAMESPACE, [{ op: 'set', path: ['sessionEfforts', agent.id], value: effort }])
+    } catch (error) {
+      throw new HemiRoutingError('saving the routing effort failed', 'HEMI_ROUTING_SAVE_FAILED', { cause: error })
     }
   }
 

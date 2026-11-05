@@ -106,9 +106,13 @@ A profile's `models` list replaces the route's installed catalog rather than ext
 
 `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `max: ultra` renames a level for a gateway with its own vocabulary. Omitting the field keeps the installed catalog entry's capability; `false` declares a non-reasoning model. `compat` switches reshape the request for endpoints pi-ai cannot recognize — which role carries the system prompt, which field caps output, how a thinking level travels — configurable per route and per model. A model neither the entry nor the installed catalog sizes takes the route's `defaultContextWindow` and `defaultMaxTokens` fallbacks.
 
+`defaultReasoningEffort` on a model entry sets its request default, below an explicit request or route-level `reasoning` choice. Catalog resolution rejects a default outside the model’s offered levels. The synchronous `llm-pi-ai/provider-profiles` waterfall supplies ephemeral deployment defaults before catalog resolution and settings validation; contributors call `next()`, preserve explicit configuration and return stable objects for unchanged inputs. Removing a contribution withdraws its defaults without writing settings.
+
 Exact-model metadata lists `reasoning.efforts` from least to greatest selectable effort. A configuration function can select from that list before `prepareCall()` validates the concrete effort. The adapter receives only the resolved controls. Selecting `off` does not guarantee disabled reasoning: a protocol that expresses it by omitting the reasoning field leaves the gateway's default in effect. Reasoning tokens at any selected level count toward the request's output cap.
 
 For self-hosted Chat Completions endpoints, `thinkingTokenBudgetField` selects the reasoning-budget parameter, and `vllmPriority` sets an integer scheduler priority when the server enables priority scheduling. Template arguments accept `$var: thinking.budget`. `openai-responses` gateways can set `supportsMaxOutputTokens: false` to omit `max_output_tokens`; Azure and Codex transports ignore this shared compatibility field. These controls are opt-in; catalog-owned Anthropic effort and fallback capabilities are not configurable switches.
+
+A model may name `catalogProvider` to inherit its exact-id entry’s display name, input types and token capacities from another installed provider. Explicit model fields take priority. This reference does not inherit transport, authentication, pricing, reasoning or compatibility metadata; a missing referenced model is a configuration error. Inherited output capacity never becomes a per-request output cap.
 
 ### Change configuration at runtime
 

@@ -20,6 +20,7 @@ import type { RoutingConfig } from './types.ts'
 import { NS, en, zh, type RoutingLocaleKey } from './locales.ts'
 import { mountModelPicker } from './model-picker/mount.ts'
 import { ModelMenuMode } from './model-picker/menu-mode.ts'
+import { RoutingEffortSelect, type RoutingEffortInjected } from './RoutingEffortSelect.tsx'
 import { HemiTurnUsage, type TurnUsageInjected } from './usage/UsagePanel.tsx'
 import { HemiSessionUsage } from './usage/SessionUsage.tsx'
 import { loadConversationUsage } from './usage/conversation-usage.ts'
@@ -131,6 +132,16 @@ function registerRouting(ctx: Context): void {
       name: 'conversation.input.model.options', id: 'hemi-routing', order: 60, locale: NS,
       inject: modeFor,
     }, RoutingModeToggle))
+    yield ctx.slots.inject('conversation.input.model.effort', () => ctx.slots.register({
+      name: 'conversation.input.model.effort', locale: NS,
+      inject: (sessionId): RoutingEffortInjected => ({
+        hooks: { routingSettings: form },
+        setEffort: async (effort) => {
+          const response = await ctx.remote.hemiRoutingSettings.setReasoningEffort(sessionId, effort)
+          return response.ok ? null : response.error.message
+        },
+      }),
+    }, RoutingEffortSelect))
     yield ctx.slots.inject('conversation.input.model.alternative', function* () {
       if (ctx.get('modelDirectories') === undefined) return
       yield menuMode.register({ en: en.auto, zh: zh.auto }, {

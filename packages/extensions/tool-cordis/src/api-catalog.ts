@@ -1773,9 +1773,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote async subscriptionCandidates(provider: string, signal: AbortSignal): Promise<string[]>',
-        description: 'Fetch the current service-side model catalog without an installed-catalog fallback.',
+        description: 'Read the subscription model catalog; DeepSeek uses its native account adapter catalog.',
         parameters: [{ name: 'provider', description: 'Configured subscription provider ID.' }, { name: 'signal', description: 'Caller cancellation for authentication and model-list requests.' }],
-        returns: 'current advertised IDs; GLM uses the official live Coding Plan catalog.',
+        returns: 'available IDs; GLM uses the live Coding Plan catalog and DeepSeek retains native model admission.',
+      },
+      {
+        signature: '@Remote async subscriptionModels(provider: string, signal: AbortSignal): Promise<string[]>',
+        description: 'Read the models currently selected for a connected subscription.',
+        parameters: [{ name: 'provider', description: 'Subscription provider ID.' }, { name: 'signal', description: 'Caller cancellation while the adapter reads its catalog.' }],
+        returns: 'selected model IDs; an empty array also covers a signed-out account.',
       },
       {
         signature: '@Remote async changeSubscriptionModel(provider: string, model: string, add: boolean): Promise<void>',
@@ -1854,7 +1860,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: '@Remote async getModelOptions(provider: string, model: string): Promise<ModelOptionsView>',
         description: 'Read explicit settings for one available model.',
         parameters: [{ name: 'provider', description: 'Configured provider ID.' }, { name: 'model', description: 'Available model ID.' }],
-        returns: 'editable overrides and their optimistic settings revision.',
+        returns: 'editable overrides, effective values and their optimistic settings revision.',
+      },
+      {
+        signature: '@Remote getModelDefaults(api: string, model: string, provider?: string): ModelOptions',
+        description: 'Read installed model capabilities before saving a draft connection.',
+        parameters: [{ name: 'api', description: 'Draft connection wire protocol.' }, { name: 'model', description: 'Exact model id selected by the owner.' }, { name: 'provider', description: 'Existing connection id when editing a saved connection draft.' }],
+        returns: 'catalog capabilities or adapter fallback values for an unknown id.',
       },
       {
         signature: '@Remote async saveModelOptions(provider: string, model: string, options: ModelOptions, revision: number): Promise<void>',
@@ -1930,9 +1942,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the bound route, or parent inheritance.',
       },
       {
-        signature: 'captureStep(agent: Agent): void',
-        description: 'Capture the routing mode of the step about to run, synchronously before the step proceeds. Called from the preset plugin\'s `agent/pre-step` listener for the root agent only; descendant and subagent trees route nothing. Also plans the turn lazily when no claimed message planned it, for example a resumed turn whose claim was empty.',
+        signature: 'async captureStep(agent: Agent): Promise<void>',
+        description: 'Capture the routing mode of the step about to run, synchronously before the step proceeds. Called from the preset plugin\'s `agent/pre-step` listener for the root agent only; descendant and subagent trees route nothing. Plans a resumed turn lazily and resolves the saved effort for main and role models before admitting the step. Existing prepared calls and accepted child tasks retain their captured routes.',
         parameters: [{ name: 'agent', description: 'exact live root agent about to run one step.' }],
+        returns: 'after the turn\'s effort mapping and main selection complete.',
       },
       {
         signature: 'blockedReason(agent: Agent): string | null',
@@ -1944,6 +1957,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'prepareTurn(root: Agent): void',
         description: 'Plan one root\'s turn: capture the turn\'s mode/main/roles snapshot, and in auto mode select the configured main model before the loop reads the step\'s selection. The synchronous {@linkcode internalSelection} guard marks the plugin\'s own selection so {@linkcode observeSelection} does not mistake it for a user choice. Auto mode without a main records the plan and selects nothing; the preset plugin then blocks the step.',
         parameters: [{ name: 'root', description: 'exact live root agent of a non-subagent Session.' }],
+      },
+      {
+        signature: '@Remote async setReasoningEffort(agent: Agent, effort: HemiRoutingEffort, signal?: AbortSignal): Promise<void>',
+        description: 'Save the root conversation\'s automatic routing effort for later turns.',
+        parameters: [{ name: 'agent', description: 'live root conversation whose routes use the choice.' }, { name: 'effort', description: 'one of the four model-independent routing levels.' }, { name: 'signal', description: 'cancellation checked before saving.' }],
+        returns: 'after the settings pipeline confirms persistence.',
       },
       {
         signature: '@Remote async setEnabled(agent: Agent, enabled: boolean, signal?: AbortSignal): Promise<void>',
@@ -5340,6 +5359,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'reloads', description: 'Replaced plugins and their module locations.' }],
   },
   {
+    name: 'llm-pi-ai/provider-profiles',
+    mode: 'waterfall',
+    signature: '\'llm-pi-ai/provider-profiles\'(profiles: PiAiProviderProfiles, next: () => PiAiProviderProfiles): PiAiProviderProfiles',
+    summary: 'Supply deployment defaults before catalog and request resolution.',
+    description: 'Supply deployment defaults before catalog and request resolution. Contributions must return a stable object for unchanged input, preserve explicit fields, and call next(). Results are ephemeral; settings retain the configured values. Disposing a listener withdraws its defaults.',
+    parameters: [{ name: 'profiles', description: 'validated configured profiles; do not mutate them.' }, { name: 'next', description: 'obtain the remaining contributors\' profiles.' }],
+  },
+  {
     name: 'llm-pi-ai/request-headers',
     mode: 'waterfall',
     signature: '\'llm-pi-ai/request-headers\'(request: PiAiRequestHeaderContext, headers: Headers, next: () => Headers): Headers',
@@ -6972,6 +6999,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type HemiRoleId = \'explorer\' | \'oracle\' | \'fixer\' | \'designer\';',
   },
   {
+    name: 'HemiRoutingEffort',
+    declaration: 'export type HemiRoutingEffort = \'low\' | \'medium\' | \'high\' | \'max\';',
+  },
+  {
     name: 'HemiRoutingMode',
     declaration: 'export type HemiRoutingMode = \'auto\' | \'fixed\';',
   },
@@ -7685,7 +7716,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ModelOptionsView',
-    declaration: 'export interface ModelOptionsView {\n    revision: number;\n    options: ModelOptions;\n}',
+    declaration: 'export interface ModelOptionsView {\n    revision: number;\n    options: ModelOptions;\n    effective: ModelOptions;\n}',
   },
   {
     name: 'ModelProviderGroup',
@@ -7874,6 +7905,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PermissionCatalog',
     declaration: 'export interface PermissionCatalog {\n    options: PresetOption[];\n    defaultOptions: PresetOption[];\n    defaultPreset: string;\n}',
+  },
+  {
+    name: 'PiAiProviderProfiles',
+    declaration: 'export type PiAiProviderProfiles = ReturnType<Config[\'providers\'][\'get\']>;',
   },
   {
     name: 'PiAiRequestHeaderContext',

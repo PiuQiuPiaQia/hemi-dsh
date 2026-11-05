@@ -35,6 +35,7 @@ it.each(['accepted', 'refused', 'disconnected', 'pending'] as const)('initialize
       describe: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ error: null }) }),
     },
     slots: {
+      registerFactory: () => () => {},
       inject: (_name: string, install: () => (() => void) | undefined) => {
         const dispose = install()
         if (dispose) disposers.push(dispose)

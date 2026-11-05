@@ -71,6 +71,7 @@ it('registers account sign-in in a plain browser without the Desktop-only surfac
     await c.mock.streams.opened('account/watch', reload ? 2 : 1)
     expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(1)
     expect(c.ctx.slots.entries('settings.models.sign-in')).toHaveLength(1)
+    expect(c.ctx.slots.snapshot('factory:account.connection')).toMatchObject([{ type: 'factory', name: 'account.connection' }])
     expect(quotaNoticeEntry(c)).toBeDefined()
     expect(platformHostEntry(c)).toBeUndefined()
     expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-onboarding')).toBe(false)
@@ -78,9 +79,32 @@ it('registers account sign-in in a plain browser without the Desktop-only surfac
   }
 }, 60_000)
 
+it('removes the reusable account UI when its plugin unloads', async ({ start }) => {
+  const c = await start()
+  expect(c.ctx.slots.snapshot('factory:account.connection')).toHaveLength(1)
+  await c.unload(SELF)
+  expect(c.ctx.slots.snapshot('factory:account.connection')).toEqual([])
+}, 60_000)
+
+it('keeps shared account controls available when native account navigation is hidden', async ({ start }) => {
+  vi.stubGlobal(CONTACT_CONFIG_GLOBAL, { showSettingsSection: false, showLauncher: false })
+  const c = await start()
+  await c.mock.streams.opened('account/watch', 1)
+  c.mock.streams.push('account/watch', stored)
+  const injected: object = c.ctx.slots.entries('settings.models.sign-in')[0]!.inject!()
+  const shared = injected as AccountSectionInjected
+  await vi.waitFor(() => { expect(shared.hooks.account.getSnapshot().view?.status).toBe('credential-stored') })
+  expect(c.ctx.slots.snapshot('factory:account.connection')).toMatchObject([{ type: 'factory', name: 'account.connection' }])
+  expect(c.ctx.slots.entries('settings.section').some(entry => entry.options.id === 'account')).toBe(false)
+  expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(0)
+  expect(c.ctx.slots.entries('settings.models.sign-in')).toHaveLength(1)
+  expect(quotaNoticeEntry(c)).toBeDefined()
+}, 60_000)
+
 withoutAccountAccess('opens no account stream and registers no account surface while the current Peer may not watch the account', async ({ start }) => {
   const c = await start()
   expect(c.mock.streams.end('account/watch')).toBe(0)
+  expect(c.ctx.slots.snapshot('factory:account.connection')).toEqual([])
   expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(0)
   expect(quotaNoticeEntry(c)).toBeUndefined()
   expect(c.ctx.slots.entries('settings.models.sign-in')).toHaveLength(0)

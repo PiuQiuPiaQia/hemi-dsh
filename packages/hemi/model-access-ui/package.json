@@ -55,7 +55,9 @@
     "react-dom": "^18.2.0",
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:*",
     "@deepseek-ai/dsh-typert-protocol": "workspace:*",
-    "@deepseek-ai/dsh-hemi-model-access": "workspace:*"
+    "@deepseek-ai/dsh-hemi-model-access": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-settings-account": "workspace:*",
+    "@deepseek-ai/dsh-hemi-model-settings": "workspace:*"
   },
   "files": [
     "locale/*.json",

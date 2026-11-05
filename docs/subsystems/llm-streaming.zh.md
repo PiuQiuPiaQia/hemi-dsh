@@ -761,11 +761,10 @@ interface ToolSchema {
  * route: a provider being added has no route to name.
  */
 interface LlmModelDiscoveryRequest {
+  // Hemi fork: allow provider-owned live catalog refresh through the existing discovery operation.
   /**
-   * Route the draft is editing, when it edits an existing one. A route whose
-   * adapter already knows its models answers from that knowledge instead of
-   * asking the endpoint — the adapter's own registry is the better answer, and
-   * it costs no network call.
+   * Route the draft is editing, when it edits an existing one. The owning
+   * adapter chooses between its catalog and a request to its configured endpoint.
    */
   provider?: string
   /**
@@ -865,6 +864,10 @@ interface LlmCallConfigAdapterDefaults {
 `ctx.deepseekLlmApiExtensions` 是用于向 `deepseek-official` 请求添加顶层字段的提供方特定注册表。贡献插件通过 `register(field, provider)` 认领一个字段；适配器在序列化基础正文后调用 `prepare(request)`，并在 HTTP 前合并返回字段。已准备的 `accept()` 事务会在 2xx 后运行，因此贡献方可以提交交付状态，而不会把传输失败或提供方拒绝当作接受。贡献方准备时抛错会被记录并在该次请求中省略，接受失败只记录告警而不使请求失败；与基础字段冲突时使用 `REQUEST_EXTENSION` 并使模型请求失败。合并后的正文无法序列化时，请求不带扩展字段发出，跳过接受，并由提供方插件记录被省略的字段名。
 
 [协议参考](../deepseek-llm-api-wire-extensions.zh.md)定义确切的请求标头、扩展事务、字段版本和接收方义务。随附组合会将 [`dsh_session_log`](../../packages/session/session-log-deepseek/README.zh.md) 注册为无损增量权威日志后缀，并将 [`dsh_plugin_packages`](../../packages/llm/plugin-package-inventory-deepseek/README.zh.md) 注册为完整存活 Loader 包集合。这些字段仍位于模型消息之外，也不会进入 pi-ai 适配器路径。
+
+## Pi-ai 提供方默认值
+
+`PiAiProviderProfiles` 是传入 `llm-pi-ai/provider-profiles` 的已校验、不可变提供方配置。贡献方在适配器解析目录、校验设置写入和准备请求前补充临时默认值；[适配器 README](../../packages/llm/llm-pi-ai/README.zh.md) 定义返回对象的稳定身份、显式字段优先级和撤回规则。型号的 `defaultReasoningEffort` 必须属于其已解析的推理档位，显式请求和路由级默认值优先。
 
 ## Pi-ai 请求头
 
@@ -1262,6 +1265,28 @@ Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)
 <a id="llm-pi-ai-events"></a>
 
 ### `llm-pi-ai/*` events
+
+<a id="llm-pi-aiprovider-profiles--waterfall"></a>
+
+#### `llm-pi-ai/provider-profiles` — waterfall
+
+Supply deployment defaults before catalog and request resolution. Contributions must return a stable object for unchanged input, preserve explicit fields, and call next(). Results are ephemeral; settings retain the configured values. Disposing a listener withdraws its defaults.
+
+```ts cordis-catalog
+/**
+ * Supply deployment defaults before catalog and request resolution.
+ * Contributions must return a stable object for unchanged input, preserve
+ * explicit fields, and call next(). Results are ephemeral; settings retain
+ * the configured values. Disposing a listener withdraws its defaults.
+ * @mode waterfall
+ * @param profiles - validated configured profiles; do not mutate them.
+ * @param next - obtain the remaining contributors' profiles.
+ * @returns profiles used by catalog resolution and settings validation.
+ */
+'llm-pi-ai/provider-profiles'(profiles: PiAiProviderProfiles, next: () => PiAiProviderProfiles): PiAiProviderProfiles
+```
+
+Source: [`packages/llm/llm-pi-ai/src/index.ts`](../../packages/llm/llm-pi-ai/src/index.ts)
 
 <a id="llm-pi-airequest-headers--waterfall"></a>
 

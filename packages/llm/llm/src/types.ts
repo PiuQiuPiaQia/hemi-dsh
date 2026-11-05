@@ -299,11 +299,10 @@ export interface LlmNativeAuth {
  * route: a provider being added has no route to name.
  */
 export interface LlmModelDiscoveryRequest {
+  // Hemi fork: allow provider-owned live catalog refresh through the existing discovery operation.
   /**
-   * Route the draft is editing, when it edits an existing one. A route whose
-   * adapter already knows its models answers from that knowledge instead of
-   * asking the endpoint — the adapter's own registry is the better answer, and
-   * it costs no network call.
+   * Route the draft is editing, when it edits an existing one. The owning
+   * adapter chooses between its catalog and a request to its configured endpoint.
    */
   provider?: string
   /**

@@ -13,6 +13,7 @@
  */
 
 import { builtinProviders, getAllBuiltinModels, getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
+import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type {
   AnthropicMessagesCompat,
@@ -604,6 +605,11 @@ function assertOfferedCompatFields(
 export interface PiAiModelProfile {
   /** Model id sent to the provider and accepted by {@link GenerateOptions.model}. */
   id: string
+  /**
+   * Hemi fork: installed provider whose matching id supplies name, modalities and capacities only;
+   * route transport and reasoning remain independent.
+   */
+  catalogProvider?: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
   name?: string
   /** Maximum combined request and response context in tokens. */
@@ -635,6 +641,8 @@ export interface PiAiModelProfile {
    * declares the offered levels and their wire spellings.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
+  /** Hemi fork: per-model request default; must be one of the resolved model's offered levels. */
+  defaultReasoningEffort?: ModelThinkingLevel
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
 }
@@ -829,6 +837,8 @@ function resolveModelCompat(
 
 /** One route's materialized catalog, plus the request caps its profile chose. */
 export interface RouteCatalog {
+  /** Hemi fork: explicit per-model effort defaults, validated against the resolved capability. */
+  configuredReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
   /** The materialized models in configuration order. */
   models: readonly Model<Api>[]
   /** Models that cannot be resolved, retained as diagnostics during stored-config reads. */
@@ -909,12 +919,19 @@ export function resolveRouteModels(
   assertOfferedCompatFields(provider, 'route', request.compat)
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
+  const configuredReasoningEfforts = new Map<string, ModelThinkingLevel>()
   const resolveEntry = (entry: PiAiModelProfile): Model<Api> => {
     assertOfferedCompatFields(provider, `model "${entry.id}"`, entry.compat)
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
     if (seen.has(entry.id)) invalid(provider, `lists model "${entry.id}" more than once`)
     seen.add(entry.id)
     const base = defaults.get(entry.id)
+    // Hemi fork: gateways may reuse catalog capabilities without inheriting vendor transport or request defaults.
+    const referenced = entry.catalogProvider === undefined ? undefined : catalogModels(entry.catalogProvider).get(entry.id)
+    if (entry.catalogProvider !== undefined && referenced === undefined) {
+      invalid(provider, `model "${entry.id}" catalogProvider "${entry.catalogProvider}" has no matching model`)
+    }
+    const capabilities = referenced ?? base
     const api = request.api ?? base?.api ?? routeApi
     if (api === undefined) {
       invalid(provider, `model "${entry.id}" needs an api; the installed catalog does not describe it, so set the`
@@ -928,18 +945,18 @@ export function resolveRouteModels(
     // discloses nothing but ids still yields a serviceable route. The fallback
     // is a guess by construction, which is why it is a configurable route field
     // rather than a constant buried here.
-    const contextWindow = entry.contextWindow ?? base?.contextWindow ?? request.defaultContextWindow
+    const contextWindow = entry.contextWindow ?? capabilities?.contextWindow ?? request.defaultContextWindow
     if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
       invalid(provider, `model "${entry.id}" contextWindow must be a positive integer`)
     }
-    const maxTokens = entry.maxTokens ?? base?.maxTokens ?? request.defaultMaxTokens
+    const maxTokens = entry.maxTokens ?? capabilities?.maxTokens ?? request.defaultMaxTokens
     if (!Number.isInteger(maxTokens) || maxTokens <= 0) {
       invalid(provider, `model "${entry.id}" maxTokens must be a positive integer`)
     }
     // Only a value the profile named is a deployment choice; the catalog's is
     // the model's capability and stays out of request defaults.
     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
-    return {
+    const model: Model<Api> = {
       // The installed entry lays the floor, and the fields below override it.
       // Enumerating instead would silently drop every `Model` field this
       // package does not model — reasoning-level spellings, compatibility
@@ -947,17 +964,25 @@ export function resolveRouteModels(
       // never enumerate.
       ...base,
       id: entry.id,
-      name: entry.name ?? base?.name ?? entry.id,
+      name: entry.name ?? capabilities?.name ?? entry.id,
       api,
       provider,
       baseUrl,
-      input: declaredInput(entry.input) ?? base?.input ?? [...request.defaultInput],
+      input: declaredInput(entry.input) ?? capabilities?.input ?? [...request.defaultInput],
       cost: base?.cost ?? NO_COST,
       contextWindow,
       maxTokens,
       ...resolveModelReasoning(provider, entry, base),
       ...resolveModelCompat(provider, entry, request.compat, base, api),
     }
+    // Hemi fork: defaults enter both description and dispatch through one validated catalog.
+    if (entry.defaultReasoningEffort !== undefined) {
+      if (!getSupportedThinkingLevels(model).includes(entry.defaultReasoningEffort)) {
+        invalid(provider, `model "${entry.id}" defaultReasoningEffort must name an offered reasoning level`)
+      }
+      configuredReasoningEfforts.set(entry.id, entry.defaultReasoningEffort)
+    }
+    return model
   }
   const models: Model<Api>[] = []
   for (const entry of entries) {
@@ -983,5 +1008,5 @@ export function resolveRouteModels(
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }
-  return { models: serviceableModels, configuredMaxTokens, modelErrors }
+  return { models: serviceableModels, configuredMaxTokens, configuredReasoningEfforts, modelErrors }
 }

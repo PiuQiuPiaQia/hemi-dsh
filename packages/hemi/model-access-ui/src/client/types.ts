@@ -6,11 +6,13 @@ import type { KeyDirectory, KeyProfileInput, LoginState, ModelOptions, ModelOpti
 export interface ModelAccessActions {
   keyDirectory: () => Promise<KeyDirectory>
   getModelOptions: (provider: string, model: string) => Promise<ModelOptionsView>
+  getModelDefaults: (api: string, model: string, provider?: string) => Promise<ModelOptions>
   saveModelOptions: (provider: string, model: string, options: ModelOptions, revision: number) => Promise<void>
   discoverKeyModels: (input: KeyProfileInput, signal: AbortSignal) => Promise<string[]>
   saveKeyProfile: (input: KeyProfileInput) => Promise<void>
   removeKeyProfile: (id: string, revision: number) => Promise<void>
   subscriptionCandidates: (provider: string, signal: AbortSignal) => Promise<string[]>
+  subscriptionModels: (provider: string, signal: AbortSignal) => Promise<string[]>
   changeSubscriptionModel: (provider: string, model: string, add: boolean) => Promise<void>
   subscriptions: () => Promise<Subscription[]>
   state: () => Promise<LoginState | null>

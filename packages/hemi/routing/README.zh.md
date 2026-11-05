@@ -9,6 +9,8 @@ kind: "package-reference"
 
 ## 概述
 
+自动路由提供按会话保存的 `low`、`medium`、`high`、`max` 四档，`sessionEfforts` 保存覆盖值，`defaultReasoningEffort` 默认 `high`。等待式 pre-step 将档位与当前回合的路由一同固定，映射到主模型和角色模型实际提供的档位，并通过原生 Session API 记录具体主模型选择。同名档位优先；最高档缺少 `max` 时依次使用 `xhigh`、`high`，非推理模型不接收强度参数。修改从下一回合生效，已接受的子任务保持原配置。`setReasoningEffort` 通过现有设置管线保存，不退出自动路由。
+
 `dsh-hemi-routing` 提供四个预置委派角色——`explorer`（只读侦察）、`oracle`（独立分析）、`fixer`（执行变更）、`designer`（用户界面设计）——均为原生 DSH 智能体预设。原生 `subagent` 工具通过 `agent_preset` 选择角色，宿主把角色绑定到用户配置的模型，不再注册单独的委派工具。会话级模式决定由谁选路：auto 模式下插件在每个回合选用配置的 main 模型并绑定每个角色；fixed 模式下不做任何路由，子代理继承父代理的实际模型。
 
 ## 目录

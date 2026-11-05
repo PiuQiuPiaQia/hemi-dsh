@@ -40,3 +40,11 @@ it('passes a retired models setting through to the resolver, which rejects it', 
   expect(options).toHaveProperty('models', [])
   expect(() => resolveAccountOptions(options)).toThrow(/models is no longer configurable/)
 })
+
+it('distinguishes the automatic account catalog from an explicit empty or narrowed selection', () => {
+  expect(resolveAccountOptions(plainAccountOptions(Config({}))).selectedModels).toBeNull()
+  expect(resolveAccountOptions(plainAccountOptions(Config({ selectedModels: [] }))).selectedModels).toEqual([])
+  expect(resolveAccountOptions({ selectedModels: ['deepseek-v4-pro'] }).selectedModels).toEqual(['deepseek-v4-pro'])
+  expect(() => resolveAccountOptions({ selectedModels: [' '] })).toThrow('non-empty model ids')
+  expect(() => Config({ selectedModels: [' '] })).toThrow()
+})

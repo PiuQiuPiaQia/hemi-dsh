@@ -2,7 +2,6 @@
   - heading "模型设置" [level=2]
   - button "关闭"
   - paragraph: hemi-test-model
-  - paragraph: 可选项留空则使用适配器默认值。请只启用模型实际支持的输入类型
   - text: 显示名称
   - textbox "显示名称":
     - /placeholder: hemi-test-model
@@ -13,8 +12,6 @@
   - textbox "最大输出（token）": "4096"
   - group "输入能力":
     - text: 输入能力
-    - checkbox "使用适配器默认值"
-    - text: 使用适配器默认值
     - checkbox "文本" [checked]
     - text: 文本
     - checkbox "图片" [checked]

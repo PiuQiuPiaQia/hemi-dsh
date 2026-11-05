@@ -96,7 +96,7 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
   const [key, setKey] = useState('')
   const [models, setModels] = useState(profile?.models ?? [])
   const [modelOptions, setModelOptions] = useState<Record<string, ModelOptions>>(profile?.modelOptions ?? {})
-  const [editingModel, setEditingModel] = useState<string | null>(null)
+  const [editingModel, setEditingModel] = useState<{ model: string; effective: ModelOptions } | null>(null)
   const [candidates, setCandidates] = useState(profile?.models ?? [])
   const [manual, setManual] = useState('')
   const [busy, setBusy] = useState(false)
@@ -156,7 +156,10 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
           </label><Tooltip label={t('modelSettings')} side="top" portal>
             <Button variant="ghost" size="sm" className={css.modelIconButton} aria-label={t('modelSettings')}
               icon={<IconSettingsOutlineRegular size={16} />} disabled={busy || !models.includes(model)}
-              onClick={() => { setEditingModel(model) }} />
+              onClick={() => { void run(async () => {
+                const effective = await actions.getModelDefaults(api, model, profile?.id)
+                setEditingModel({ model, effective })
+              }) }} />
           </Tooltip></div>)}
         </div>
         <label>{t('manualModel')}<input value={manual} disabled={busy} onChange={(event) => { setManual(event.currentTarget.value) }} /></label>
@@ -167,9 +170,10 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
         {error && <p role="alert">{error}</p>}
         <Button variant="outline" size="sm" type="submit" disabled={busy || models.length === 0}>{t(busy ? 'loading' : 'saveConnection')}</Button>
       </form>
-      {editingModel !== null && <ModelOptionsEditor model={editingModel} options={modelOptions[editingModel] ?? {}} t={t}
+      {editingModel !== null && <ModelOptionsEditor model={editingModel.model} options={modelOptions[editingModel.model] ?? {}}
+        effective={editingModel.effective} t={t}
         close={() => { setEditingModel(null) }} save={(options) => {
-          setModelOptions({ ...modelOptions, [editingModel]: options })
+          setModelOptions({ ...modelOptions, [editingModel.model]: options })
           return Promise.resolve()
         }} />}
     </section>

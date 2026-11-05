@@ -12738,12 +12738,18 @@ importers:
       '@deepseek-ai/dsh-client-ui-settings':
         specifier: workspace:*
         version: link:../../client/ui-settings
+      '@deepseek-ai/dsh-client-ui-settings-account':
+        specifier: workspace:*
+        version: link:../../client/ui-settings-account
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../../client/ui-slots
       '@deepseek-ai/dsh-hemi-model-access':
         specifier: workspace:*
         version: link:../model-access
+      '@deepseek-ai/dsh-hemi-model-settings':
+        specifier: workspace:*
+        version: link:../model-settings
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol

@@ -39,3 +39,6 @@ export type LegacyRoleFor<Role extends HemiRoleId> = {
 
 /** Routing mode. `fixed` is the default and means the plugin routes nothing. */
 export type HemiRoutingMode = 'auto' | 'fixed'
+
+/** Model-independent effort choices used by automatic routing. */
+export type HemiRoutingEffort = 'low' | 'medium' | 'high' | 'max'

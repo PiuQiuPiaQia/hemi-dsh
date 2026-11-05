@@ -198,6 +198,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.balanceLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
 .quotaLine progress,
 .quotaTrack {
   width: 100%;

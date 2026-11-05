@@ -22,6 +22,8 @@ import { AccountPlatformHost, type AccountPlatformHostInjected } from './Account
 import { AccountMenu } from './AccountMenu.tsx'
 import { createPlatformPages, type PlatformPages } from './platform-pages.ts'
 import { AccountSection, type AccountSnapshot, type AccountSectionInjected } from './AccountSection.tsx'
+import { AccountConnection } from './AccountConnection.tsx'
+import { formatBalance } from './formatBalance.ts'
 import { createBonusNoticeController } from './bonus-notices.ts'
 import { accountClientMetadata } from './client-metadata.ts'
 import { en, ja, es, fr, de, ru, pt, zh, type AccountKey } from './locales.ts'
@@ -39,6 +41,16 @@ export type { AccountKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { 'settings.account': AccountKey }
+  interface SlotFactoryMap {
+    /** Shared sign-in, account identity and balance UI, authorized by account/watch. */
+    'account.connection': {
+      scope: 'root'
+      props: { title?: string }
+      locale: 'settings.account'
+      inject: AccountSectionInjected & { formatBalance: typeof formatBalance }
+      slots: { content: { scope: 'root'; props: { title?: string } } }
+    }
+  }
 }
 
 /** Services required by account settings. */
@@ -330,10 +342,16 @@ export function apply(ctx: Context): void {
       }),
     }, AccountPlatformHost))
   }
-  ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.launcher', () => ctx.slots.register({
+  // Hemi fork: keep account factories and subscriptions active when native account navigation is hidden.
+  if (config.showLauncher) ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.launcher', () => ctx.slots.register({
     name: 'settings.launcher', locale: 'settings.account', inject: () => operations,
   }, AccountMenu)))
-  ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.section', () => {
+  // Hemi fork: alternate connection pages select their own view while sharing account state and actions.
+  ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.registerFactory({
+    name: 'account.connection', scope: 'root', locale: 'settings.account',
+    slots: { content: { scope: 'root' } }, inject: () => ({ ...operations, formatBalance }),
+  }, AccountConnection))
+  if (config.showSettingsSection) ctx.remoteAccess.whenAccess('account/watch', () => ctx.slots.inject('settings.section', () => {
     let unregister: (() => void) | undefined
     const update = () => {
       if (snapshot.view?.status === 'credential-stored') {

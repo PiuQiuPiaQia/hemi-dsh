@@ -132,6 +132,8 @@
     "tests/settings-appearance.e2e.ts",
     "tests/hemi-memory-settings.e2e.ts",
     "tests/hemi-model-settings.e2e.ts",
+    // Hemi fork: the composer browser scenario boots Host services, checked by tsconfig.host.json.
+    "tests/hemi-effort-picker.e2e.ts",
     "tests/hemi-native-roles.e2e.ts",
     "tests/hemi-model-access.e2e.ts",
     "tests/hemi-new-api-browser.e2e.ts",

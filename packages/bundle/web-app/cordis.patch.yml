@@ -161,6 +161,10 @@
     # reports an actionable error when its settings-domain provider is absent.
     - id: ui-settings-account
       name: '@deepseek-ai/dsh-client-ui-settings-account'
+      # Hemi fork: Desktop account controls live in Model connections; retain the shared account plugin.
+      config:
+        showSettingsSection: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+        showLauncher: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     - id: account-controller
       name: '@deepseek-ai/dsh-api-account-controller'
@@ -337,6 +341,9 @@
 
     - id: ui-settings-models
       name: '@deepseek-ai/dsh-client-ui-settings-models'
+      # Hemi fork: Desktop uses Model connections while preserving the native editor factory.
+      config:
+        showSettingsSection: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     # Plugin management: the sidebar Plugins page installs, enables, disables,
     # and removes the profile's bundles through the `pluginManager` Remote.

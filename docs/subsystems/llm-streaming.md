@@ -755,11 +755,10 @@ A provider a surface is still drafting has no route and no catalog, so interroga
  * route: a provider being added has no route to name.
  */
 interface LlmModelDiscoveryRequest {
+  // Hemi fork: allow provider-owned live catalog refresh through the existing discovery operation.
   /**
-   * Route the draft is editing, when it edits an existing one. A route whose
-   * adapter already knows its models answers from that knowledge instead of
-   * asking the endpoint — the adapter's own registry is the better answer, and
-   * it costs no network call.
+   * Route the draft is editing, when it edits an existing one. The owning
+   * adapter chooses between its catalog and a request to its configured endpoint.
    */
   provider?: string
   /**
@@ -859,6 +858,10 @@ interface LlmCallConfigAdapterDefaults {
 `ctx.deepseekLlmApiExtensions` is the provider-specific registry for additive top-level fields on `deepseek-official` requests. Contributor plugins use `register(field, provider)` to claim one field; the adapter calls `prepare(request)` after serializing its base body and merges the returned fields before HTTP. The prepared `accept()` transaction runs after 2xx, so a contributor can commit delivery state without treating a transport or provider rejection as acceptance. A contributor whose preparation throws is logged and omitted from that request, and an acceptance failure is logged without failing the request; a base-field collision uses `REQUEST_EXTENSION` and fails the model request. A merged body that fails to serialize is sent without extension fields; acceptance is skipped and the provider plugin logs the omitted field names.
 
 The [wire reference](../deepseek-llm-api-wire-extensions.md) defines the exact request headers, extension transaction, field versions, and receiver obligations. The shipped composition registers [`dsh_session_log`](../../packages/session/session-log-deepseek/README.md) as a lossless incremental canonical-log suffix and [`dsh_plugin_packages`](../../packages/llm/plugin-package-inventory-deepseek/README.md) as the complete active Loader-backed package set. These fields remain outside model messages and are absent from the pi-ai adapter path.
+
+## Pi-ai provider defaults
+
+`PiAiProviderProfiles` is the validated, immutable provider configuration passed through `llm-pi-ai/provider-profiles`. Contributors supply ephemeral defaults before the adapter resolves catalogs, validates settings writes and prepares requests; [the adapter README](../../packages/llm/llm-pi-ai/README.md) defines stable return identities, explicit-field precedence and withdrawal. A model’s `defaultReasoningEffort` must be advertised by its resolved effort offer; explicit requests and route-level defaults take priority.
 
 ## Pi-ai request headers
 
@@ -1256,6 +1259,28 @@ Source: [`packages/llm/llm/src/index.ts`](../../packages/llm/llm/src/index.ts)
 <a id="llm-pi-ai-events"></a>
 
 ### `llm-pi-ai/*` events
+
+<a id="llm-pi-aiprovider-profiles--waterfall"></a>
+
+#### `llm-pi-ai/provider-profiles` — waterfall
+
+Supply deployment defaults before catalog and request resolution. Contributions must return a stable object for unchanged input, preserve explicit fields, and call next(). Results are ephemeral; settings retain the configured values. Disposing a listener withdraws its defaults.
+
+```ts cordis-catalog
+/**
+ * Supply deployment defaults before catalog and request resolution.
+ * Contributions must return a stable object for unchanged input, preserve
+ * explicit fields, and call next(). Results are ephemeral; settings retain
+ * the configured values. Disposing a listener withdraws its defaults.
+ * @mode waterfall
+ * @param profiles - validated configured profiles; do not mutate them.
+ * @param next - obtain the remaining contributors' profiles.
+ * @returns profiles used by catalog resolution and settings validation.
+ */
+'llm-pi-ai/provider-profiles'(profiles: PiAiProviderProfiles, next: () => PiAiProviderProfiles): PiAiProviderProfiles
+```
+
+Source: [`packages/llm/llm-pi-ai/src/index.ts`](../../packages/llm/llm-pi-ai/src/index.ts)
 
 <a id="llm-pi-airequest-headers--waterfall"></a>
 

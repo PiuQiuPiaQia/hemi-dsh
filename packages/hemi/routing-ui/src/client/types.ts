@@ -2,7 +2,7 @@
 import type { ModelCatalogFailure, ModelProviderGroup } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ConfiguredRoleRoutes, HemiRoleId, RoleRoutes, Route } from '@deepseek-ai/dsh-hemi-routing/client'
+import type { ConfiguredRoleRoutes, HemiRoleId, HemiRoutingEffort, RoleRoutes, Route } from '@deepseek-ai/dsh-hemi-routing/client'
 
 /** The routing package owns the route and role vocabulary; UI only composes it. */
 export type { RoleRoutes, Route }
@@ -16,6 +16,10 @@ export type RoutingConfig = {
   roles: ConfiguredRoleRoutes
   /** Profile-owned preference per conversation; older settings omit the map. */
   sessionModes?: Readonly<Record<string, boolean>>
+  /** Conversation effort overrides for automatic routing. */
+  sessionEfforts?: Readonly<Record<string, HemiRoutingEffort>>
+  /** Default for conversations without an effort override. */
+  defaultReasoningEffort?: HemiRoutingEffort
 }
 
 /** One independently saved route. */

@@ -92,6 +92,35 @@ export class ModelListingCache {
     return this.current()
   }
 
+  // Hemi fork: explicit model-picker refresh shares native loads and preserves the runtime's last-known-good listing.
+  /**
+   * Load the current scope even while its listing is fresh, sharing an active load.
+   * @param settings - endpoint and timing of this request's configuration generation.
+   * @param signal - abandons this caller's wait; the cache still owns the shared load.
+   * @returns the loaded view, an unauthenticated view without a credential, or undefined after a failed load.
+   * A failed load retains the cached listing.
+   * @throws when cancelled, disposed, or superseded by another scope or invalidation.
+   */
+  async reload(settings: ListingSettings, signal?: AbortSignal): Promise<ListingView | undefined> {
+    this.assertOpen()
+    const credential = await this.dependencies.credential(settings.url)
+    signal?.throwIfAborted()
+    this.assertOpen()
+    const scope = credential === undefined ? undefined : `${settings.url}\n${createHash('sha256').update(credential).digest('hex')}`
+    if (scope !== this.scope) this.rescope(scope)
+    if (credential === undefined) return this.current()
+    const loading = this.start(settings, credential)
+    const generation = this.generation
+    await abandonable(loading, signal)
+    signal?.throwIfAborted()
+    if (generation !== this.generation) throw new DOMException('Model listing reload was superseded.', 'AbortError')
+    return this.failing ? undefined : this.current()
+  }
+
+  private assertOpen(): void {
+    if (this.closed) throw new DOMException('Model listing cache was disposed.', 'AbortError')
+  }
+
   /** Discard the listing and abort any in-flight load; the next access loads again and waits like a first access. */
   invalidate(): void {
     this.rescope(this.scope)

@@ -27,7 +27,7 @@ Choose a main model and models for the Research, Review, Execution, and Design r
 <a id="use-this-package"></a>
 ## Use this package
 
-Hemi uses the [custom model picker](src/client/model-picker/ModelSelect.tsx) with provider groups and plugin controls in one menu. When the routing plugin is installed, Automatic routing appears first as an alternative to a concrete model. In fixed mode, the current model’s reasoning effort expands in place. Opening keeps focus on the trigger. Tab enters search or the current option, arrow keys browse rows, and Escape returns to the trigger.
+Hemi uses the [custom model picker](src/client/model-picker/ModelSelect.tsx) with provider groups and plugin controls in one menu. When the routing plugin is installed, Automatic routing appears first as an alternative to a concrete model. In fixed mode, supported models show a separate reasoning-effort selector to the right of the model button; it saves through the native model-selection service. Explicitly non-reasoning models omit that selector. Automatic routing shows Low, Medium, High and Maximum in the same position, saves the choice per conversation, and maps it to the main and role models on later turns without exiting automatic routing. Opening keeps focus on the trigger. Tab enters search or the current option, arrow keys browse rows, and Escape returns to the trigger.
 
 Open the conversation's model menu and choose the gear beside Automatic routing, or open Settings → Models → Configure model routing. Choose the main model before enabling automatic routing. A role set to Follow main model uses the configured main model; users cannot create roles or enter arbitrary provider/model ids.
 

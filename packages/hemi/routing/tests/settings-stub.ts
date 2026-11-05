@@ -1,11 +1,13 @@
 /** Typed in-memory Settings and volatile-config stand-in shared by the routing tests. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Route } from '../src/types.ts'
+import type { HemiRoutingEffort, Route } from '../src/types.ts'
 import { SETTINGS_NAMESPACE } from '../src/settings.ts'
 
 /** Backing document the volatile config reads and every settings write mutates. */
 export interface RoutingConfigDocument {
+  defaultReasoningEffort: HemiRoutingEffort
+  sessionEfforts: Record<string, HemiRoutingEffort>
   main: Route | null
   roles: Record<string, Route>
   sessionModes: Record<string, boolean>
@@ -30,7 +32,9 @@ export class MutableRoutingSettings {
   readonly attempts = { mutate: 0 }
 
   constructor(initial: Partial<RoutingConfigDocument> = {}) {
-    this.document = { main: initial.main ?? null, roles: initial.roles ?? {}, sessionModes: initial.sessionModes ?? {} }
+    this.document = { main: initial.main ?? null, roles: initial.roles ?? {}, sessionModes: initial.sessionModes ?? {},
+      defaultReasoningEffort: initial.defaultReasoningEffort ?? 'high', sessionEfforts: initial.sessionEfforts ?? {},
+    }
   }
 
   /** The volatile config view the routing service constructor reads. */
@@ -38,11 +42,15 @@ export class MutableRoutingSettings {
     main: { get(): Route | null }
     roles: { get(): Record<string, Route> }
     sessionModes: { get(): Record<string, boolean> }
+    sessionEfforts: { get(): Record<string, HemiRoutingEffort> }
+    defaultReasoningEffort: { get(): HemiRoutingEffort }
   } {
     return {
       main: { get: () => this.document.main },
       roles: { get: () => this.document.roles },
       sessionModes: { get: () => this.document.sessionModes },
+      sessionEfforts: { get: () => this.document.sessionEfforts },
+      defaultReasoningEffort: { get: () => this.document.defaultReasoningEffort },
     }
   }
 
@@ -53,7 +61,9 @@ export class MutableRoutingSettings {
 
   /** Detached copy of the backing document. */
   snapshot(): RoutingConfigDocument {
-    return { main: this.document.main, roles: { ...this.document.roles }, sessionModes: { ...this.document.sessionModes } }
+    return { ...this.document, roles: { ...this.document.roles },
+      sessionModes: { ...this.document.sessionModes }, sessionEfforts: { ...this.document.sessionEfforts },
+    }
   }
 
   /** Replace the main/roles config directly, like a settings-card edit. */
@@ -78,6 +88,10 @@ export class MutableRoutingSettings {
     if (ns !== SETTINGS_NAMESPACE) throw new Error(`settings stub: unexpected namespace "${ns}"`)
     for (const op of ops) {
       const [head, key] = op.path
+      if (head === 'sessionEfforts' && key !== undefined && ['low', 'medium', 'high', 'max'].includes(String(op.value))) {
+        this.document = { ...this.document, sessionEfforts: { ...this.document.sessionEfforts, [key]: op.value as HemiRoutingEffort } }
+        continue
+      }
       if (op.op !== 'set' || head !== 'sessionModes' || key === undefined) {
         throw new Error(`settings stub: unsupported path ${JSON.stringify(op.path)}`)
       }

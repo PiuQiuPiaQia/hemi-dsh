@@ -1,0 +1,5 @@
+- menu:
+  - menuitem "低"
+  - menuitem "中"
+  - menuitem "高"
+  - menuitem "最高"

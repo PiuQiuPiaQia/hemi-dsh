@@ -15,6 +15,8 @@ import type {
 export interface Config extends Omit<ProtocolConfig, 'models'>, ModelListingConfig {
   /** Field overrides by model id, layered over the account listing and the built-in catalog. */
   modelOverrides: Volatile<Record<string, ModelOverride>>
+  /** Advertised model IDs to show; null follows the catalog, while an empty list hides every model. */
+  selectedModels: Volatile<string[] | null>
 }
 
 const { models: _protocolCatalog, ...protocolFields } = deepSeekConfigFields
@@ -29,11 +31,14 @@ export const Config = z.object({
   ...protocolFields,
   ...modelListingConfigFields,
   modelOverrides: z.dict(modelOverride).default({}).volatile(),
+  // Hemi fork: persist model selection without replacing the account catalog or its admission rules.
+  selectedModels: z.union([z.array(z.string().pattern(/\S/)), z.const(null)]).default(null).volatile(),
 })
 
 /** Plain account options accepted by {@link resolveAccountOptions}. */
 export type AccountOptions = Omit<ProtocolOptions, 'models'> & ModelListingOptions & {
   modelOverrides?: Record<string, ModelOverride>
+  selectedModels?: readonly string[] | null
 }
 
 /** One validated configuration generation of the account route. */
@@ -44,6 +49,8 @@ export interface ResolvedAccountOptions {
   readonly catalog: ListingSettings
   /** Overrides by model id, holding only the fields each one declares. */
   readonly modelOverrides: Readonly<Record<string, ModelOverride>>
+  /** Null advertises every serviceable model; an explicit list only narrows that catalog. */
+  readonly selectedModels: readonly string[] | null
 }
 
 /**
@@ -86,12 +93,14 @@ export function resolveAccountOptions(options: AccountOptions, environment?: Lau
     throw new Error('llm-deepseek-account: models is no longer configurable; the account /models listing supplies the catalog. '
       + 'Remove models from this entry and adjust single models with modelOverrides.<model id>')
   }
-  const { modelsTimeoutMs: _timeout, modelsMaxAgeMs: _maxAge, modelOverrides = {}, ...protocolOptions } = options
+  const { modelsTimeoutMs: _timeout, modelsMaxAgeMs: _maxAge, modelOverrides = {}, selectedModels = null, ...protocolOptions } = options
+  if (selectedModels?.some(id => id.trim() === '')) throw new Error('llm-deepseek-account: selectedModels must contain non-empty model ids')
   const timing = resolveListingTiming(options, 'llm-deepseek-account')
   const protocol = resolveAdapterOptions(protocolOptions, environment)
   return {
     protocol,
     catalog: { url: modelListingURL(protocol.baseURL), ...timing },
     modelOverrides: Object.fromEntries(Object.entries(modelOverrides).map(([id, override]) => [id, resolveOverride(id, override)])),
+    selectedModels,
   }
 }

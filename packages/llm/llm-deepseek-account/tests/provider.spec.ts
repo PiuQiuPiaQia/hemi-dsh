@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import LlmRuntime, { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { DeepSeekAccount } from '@deepseek-ai/dsh-deepseek-account'
 import * as ApiKey from '@deepseek-ai/dsh-llm-deepseek-api-key'
@@ -206,4 +207,86 @@ it('aborts an in-flight listing request when the plugin is disposed', async () =
   await account.dispose()
   await closed
   await expect(pending).resolves.toEqual(expect.any(Array))
+})
+
+it('keeps the full catalog discoverable while selection narrows advertised models', async () => {
+  let unavailable = false
+  const server = await listing((request, response) => {
+    if (unavailable) response.writeHead(503).end('outage')
+    else json({ data: [FLASH, PRO] })(request, response)
+  })
+  const ctx = await host(server.origin)
+  const fiber = ctx.plugin(Account, { baseURL: server.baseURL, selectedModels: ['deepseek-flash'] })
+  await fiber
+  expect((await ctx.llm.listModels('deepseek-account')).map(model => model.id)).toEqual(['deepseek-flash'])
+  const request = { provider: 'deepseek-account' }
+  expect((await ctx.llm.discoverModels('llm-deepseek-account', request)).map(model => model.id))
+    .toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+  expect(server.requests).toHaveLength(2)
+  unavailable = true
+  await expect(ctx.llm.discoverModels('llm-deepseek-account', request)).rejects.toMatchObject({ code: 'MODEL_LISTING_FAILED' })
+  expect((await ctx.llm.listModels('deepseek-account')).map(model => model.id)).toEqual(['deepseek-flash'])
+  for (const invalid of [{ provider: 'other' }, { ...request, baseURL: 'https://example.com' },
+    { ...request, api: 'anthropic-messages' }, { ...request, apiKey: 'fixture-key' }]) {
+    await expect(ctx.llm.discoverModels('llm-deepseek-account', invalid)).rejects.toMatchObject({ code: 'INVALID_DISCOVERY' })
+  }
+  await fiber.dispose()
+  await expect(ctx.llm.discoverModels('llm-deepseek-account', request)).rejects.toMatchObject({ code: 'NO_DISCOVERY' })
+})
+
+it('keeps the provider registered with an empty selection', async () => {
+  const server = await listing(json({ data: [FLASH, PRO] }))
+  const ctx = await host(server.origin)
+  await ctx.plugin(Account, { baseURL: server.baseURL, selectedModels: [] })
+  expect(await ctx.llm.listModels('deepseek-account')).toEqual([])
+  expect(ctx.llm.listProviders().some(provider => provider.id === 'deepseek-account')).toBe(true)
+  expect((await ctx.llm.discoverModels('llm-deepseek-account', { provider: 'deepseek-account' })).map(model => model.id))
+    .toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+})
+
+it('publishes selection changes without changing the account or refetching its catalog', async () => {
+  const server = await listing(json({ data: [FLASH, PRO] }))
+  const ctx = await host(server.origin)
+  const config = Account.Config({ baseURL: server.baseURL })
+  // Retain the parsed references so the fixture can publish the loader's committed config update.
+  const fiber = ctx.plugin({ inject: Account.inject, apply: (owner: Context) => { Account.apply(owner, config) } })
+  await fiber
+  await ctx.llm.listModels('deepseek-account')
+  const changed = vi.fn()
+  ctx.on('llm/models-updated', changed)
+  updateVolatile(config.selectedModels, createVolatile<string[] | null>([]))
+  fiber.ctx.emit('loader/volatile-update', [['selectedModels']])
+  expect(await ctx.llm.listModels('deepseek-account')).toEqual([])
+  expect(changed).toHaveBeenCalledExactlyOnceWith('deepseek-account')
+  fiber.ctx.emit('loader/volatile-update', [])
+  expect(changed).toHaveBeenCalledTimes(1)
+  updateVolatile(config.selectedModels, createVolatile<string[] | null>(['deepseek-v4-pro']))
+  fiber.ctx.emit('loader/volatile-update', [['selectedModels']])
+  expect((await ctx.llm.listModels('deepseek-account')).map(model => model.id)).toEqual(['deepseek-v4-pro'])
+  expect(server.requests).toHaveLength(1)
+})
+
+it('rejects discovery before sign-in and when the credential changes during its request', async () => {
+  let token: string | undefined
+  const server = await listing((request, response) => {
+    token = 'replacement-token'
+    json({ data: [FLASH, PRO] })(request, response)
+  })
+  const ctx = await host(server.origin, () => token)
+  await ctx.plugin(Account, { baseURL: server.baseURL })
+  const discover = () => ctx.llm.discoverModels('llm-deepseek-account', { provider: 'deepseek-account' })
+  await expect(discover()).rejects.toMatchObject({ code: 'ACCOUNT_SIGN_IN_REQUIRED' })
+  expect(server.requests).toHaveLength(0)
+  token = 'first-token'
+  await expect(discover()).rejects.toMatchObject({ code: 'ACCOUNT_CHANGED' })
+})
+
+it('does not fetch models when sign-out interrupts discovery preflight', async () => {
+  const server = await listing(json({ data: [FLASH, PRO] }))
+  let lookups = 0
+  const ctx = await host(server.origin, () => ++lookups === 1 ? 'old-token' : undefined)
+  await ctx.plugin(Account, { baseURL: server.baseURL })
+  await expect(ctx.llm.discoverModels('llm-deepseek-account', { provider: 'deepseek-account' }))
+    .rejects.toMatchObject({ code: 'ACCOUNT_SIGN_IN_REQUIRED' })
+  expect(server.requests).toHaveLength(0)
 })

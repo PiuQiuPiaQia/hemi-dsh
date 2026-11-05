@@ -95,6 +95,51 @@ async function spawnChild(ctx: Context, parent: Agent): Promise<{ child: Agent; 
 
 const MAIN: Route = { provider: 'mock', model: 'main' }
 
+it('persists effort per root without leaving auto and maps later turn routes', async () => {
+  const { service, settings, lead } = await setup({ main: MAIN, roles: { oracle: { provider: 'mock', model: 'review' } } })
+  await service.setEnabled(lead, true)
+  await service.setReasoningEffort(lead, 'max')
+  expect(settings.snapshot().sessionEfforts).toEqual({ lead: 'max' })
+  expect(service.modeOf(lead)).toBe('auto')
+  service.prepareTurn(lead)
+  await service.captureStep(lead)
+  expect(service.routeForDelegation(lead, 'oracle')).toEqual({ kind: 'bound', route: {
+    provider: 'mock', model: 'review', reasoningEffort: 'high',
+  } })
+  await service.setReasoningEffort(lead, 'low')
+  expect(settings.snapshot().sessionEfforts).toEqual({ lead: 'low' })
+})
+
+it('keeps the saved effort after a failed write', async () => {
+  const { service, settings, lead } = await setup({ sessionEfforts: { lead: 'high' } })
+  settings.plan({ failure: new Error('disk unavailable') })
+  await expect(service.setReasoningEffort(lead, 'low')).rejects.toThrow('saving the routing effort failed')
+  expect(settings.snapshot().sessionEfforts).toEqual({ lead: 'high' })
+})
+
+it('does not restore automatic routing when a manual exit settles during effort resolution', async () => {
+  const { ctx, service, lead } = await setup({ main: MAIN })
+  await service.setEnabled(lead, true)
+  service.prepareTurn(lead)
+  const metadata = Promise.withResolvers<Awaited<ReturnType<typeof ctx.llm.resolveModelInfo>>>()
+  vi.spyOn(ctx.llm, 'resolveModelInfo').mockReturnValueOnce(metadata.promise)
+  const preparing = service.captureStep(lead)
+  await service.setEnabled(lead, false)
+  lead.model.select({ provider: 'mock', model: 'manual-model' })
+  metadata.resolve({ provider: 'mock', id: 'main', name: 'Main' })
+  await preparing
+  expect(lead.model.current()).toMatchObject({ provider: 'mock', model: 'manual-model' })
+  expect(service.routeForDelegation(lead, 'oracle')).toEqual({ kind: 'inherit' })
+})
+
+it('keeps a resumed step’s captured routing after automatic routing is disabled', async () => {
+  const { service, lead } = await setup({ main: MAIN })
+  await service.setEnabled(lead, true)
+  await service.captureStep(lead)
+  await service.setEnabled(lead, false)
+  expect(service.routeForDelegation(lead, 'oracle')).toMatchObject({ kind: 'bound', route: MAIN })
+})
+
 describe('canonical config reads', () => {
   it('returns a detached canonical table and main route', async () => {
     const { service } = await setup({
@@ -138,7 +183,7 @@ describe('legacy config mapping', () => {
     }
     const { service, settings } = await setup(initial)
     expect(service.currentRoles()).toEqual({ explorer: { provider: 'mock', model: 'old-explorer' } })
-    expect(settings.snapshot()).toEqual(initial)
+    expect(settings.snapshot()).toEqual({ ...initial, defaultReasoningEffort: 'high', sessionEfforts: {} })
     expect(settings.attempts.mutate).toBe(0)
   })
 })

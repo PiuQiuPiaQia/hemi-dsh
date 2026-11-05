@@ -20,9 +20,13 @@ The Desktop profile mounts Hemi’s Model Connections page for subscription acco
 
 ## Use this package
 
+The Desktop profile hides the native Account and Models tabs and the sidebar account menu; account controls remain in Model connections.
+
+All accounts in the Subscription tab use the same `SubscriptionCard` component. DeepSeek shares native sign-in and account state through `account.connection`, with topped-up and granted balances in place of quota bars. Login loads the native `deepseek-account` catalog automatically; the shared model rows provide settings and connection tests. Model removal and the searchable Fetch models dialog use the same controls as other subscriptions. The Fetch models icon sits before the reconnect action in each connected subscription header, with a localized tooltip. The native provider persists `selectedModels`, including an explicit empty list, while discovery reloads every serviceable candidate for adding models back. Quota and balance refresh use the same icon button, with localized tooltips and a disabled state while refreshing. Balance refresh and sign-out use native account operations, including confirmation of running-task impact.
+
 Key presets supply connection addresses without injecting model IDs. Discover or enter model IDs before saving a connection. Discovery dialogs request a fresh server list on open and provide an explicit Refresh action. A failed refresh shows an error with retry and clears the candidate list; it does not remove saved models. New API connections use the same settings editor after import.
 
-Model settings edit the display name, context window, maximum output tokens and text/image input types. Blank optional fields and inherited input types use adapter defaults. New connection drafts are written only when the connection is saved; settings for an existing model have their own confirmation. Cancelling either dialog leaves its settings unchanged.
+Model settings edit the display name, context window, maximum output tokens and text/image input types. The editor displays resolved values immediately, including inherited image support, with text/image choices always visible. Saving unchanged values preserves inheritance; clearing optional text or token fields removes their overrides. New connection drafts are written only when the connection is saved; settings for an existing model have their own confirmation. Cancelling either dialog leaves its settings unchanged.
 
 ## Model Experience
 

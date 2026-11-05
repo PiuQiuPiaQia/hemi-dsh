@@ -18,8 +18,10 @@ import { importToken, listTokens } from './new-api.ts'
 import { codexQuota } from './quota.ts'
 import { BIGMODEL_PROVIDER, bigModelQuota, mountBigModel } from './bigmodel/index.ts'
 import { asObject } from './response.ts'
-import { readModelOptions, writeModelOptions } from './model-options.ts'
+import { readKeyModelDefaults, readModelOptions, writeModelOptions } from './model-options.ts'
 import type { ModelOptions, ModelOptionsView } from './types.ts'
+import { mountProtocolReasoning, PROTOCOL_REASONING_DEFAULTS } from './protocol-reasoning.ts'
+import type { ProtocolReasoningDefault } from './protocol-reasoning.ts'
 
 import type { LoginState, NewApiBrowserCommit, NewApiBrowserCommitResult, NewApiImportReceipt, NewApiLogin, NewApiToken, QuotaWindow, Subscription } from './types.ts'
 
@@ -31,6 +33,8 @@ const SUBSCRIPTIONS = [
 ]
 
 interface ModelAccessConfig {
+  /** Protocol offers used only when the configured and installed catalogs have no reasoning information. */
+  reasoningFallbacks: Record<string, ProtocolReasoningDefault>
   /** Saved model IDs enabled for each subscription provider. */
   subscriptionModels: Volatile<Record<string, string[]>>
   /** Model capability overrides for Hemi-owned subscription adapters. */
@@ -63,9 +67,15 @@ function failure(message: string): RemoteError<'hemi/model-access-failed'> {
   return new RemoteError('hemi/model-access-failed', message, {})
 }
 
+const reasoningFallbacks = z.dict(z.object({
+  efforts: z.dict(z.union([z.string(), z.const(null)]), z.union(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])),
+  defaultEffort: z.union(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']).required(),
+})) as z<Record<string, ProtocolReasoningDefault>>
+
 /** Reuse the adapter's authorization flow and credential record rather than storing another grant. */
 export default class HemiModelAccess extends TypertRemoteService {
   static Config = z.object({
+    reasoningFallbacks: reasoningFallbacks.default(PROTOCOL_REASONING_DEFAULTS),
     subscriptionModels: z.dict(z.array(z.string())).default({}).volatile(),
     subscriptionModelOptions: z.dict(z.dict(z.object({
       name: z.string(), contextWindow: z.number().step(1).min(1), maxTokens: z.number().step(1).min(1),
@@ -88,6 +98,7 @@ export default class HemiModelAccess extends TypertRemoteService {
 
   constructor(ctx: Context, private readonly config: ModelAccessConfig) {
     super(ctx, 'hemiModelAccess', { namespace: 'hemiModelAccess' })
+    mountProtocolReasoning(ctx, config.reasoningFallbacks)
     this.refreshBigModel = mountBigModel(ctx, () => this.config.subscriptionModels.get().bigmodel,
       () => this.config.subscriptionModelOptions.get().bigmodel)
     ctx.effect(() => () => this.active?.controller.abort(), 'cancel model authorization on unload')
@@ -123,16 +134,34 @@ export default class HemiModelAccess extends TypertRemoteService {
   }
 
   /**
-   * Fetch the current service-side model catalog without an installed-catalog fallback.
+   * Read the subscription model catalog; DeepSeek uses its native account adapter catalog.
    * @param provider - Configured subscription provider ID.
    * @param signal - Caller cancellation for authentication and model-list requests.
-   * @returns current advertised IDs; GLM uses the official live Coding Plan catalog.
+   * @returns available IDs; GLM uses the live Coding Plan catalog and DeepSeek retains native model admission.
    */
   @Remote
   async subscriptionCandidates(provider: string, signal: AbortSignal): Promise<string[]> {
     this.assertOwner()
     return subscriptionCatalog(this.ctx, provider, this.config.subscriptionDiscovery,
       AbortSignal.any([signal, AbortSignal.timeout(this.config.subscriptionDiscovery.timeoutMs)]))
+  }
+
+  /**
+   * Read the models currently selected for a connected subscription.
+   * @param provider - Subscription provider ID.
+   * @param signal - Caller cancellation while the adapter reads its catalog.
+   * @returns selected model IDs; an empty array also covers a signed-out account.
+   */
+  @Remote
+  async subscriptionModels(provider: string, signal: AbortSignal): Promise<string[]> {
+    this.assertOwner()
+    if (provider !== 'deepseek-account' && !SUBSCRIPTIONS.some(entry => entry.id === provider)) {
+      throw failure('Subscription sign-in is unavailable.')
+    }
+    signal.throwIfAborted()
+    const models = await this.ctx.llm.listModels(provider)
+    signal.throwIfAborted()
+    return models.map(model => model.id)
   }
 
   /**
@@ -148,6 +177,19 @@ export default class HemiModelAccess extends TypertRemoteService {
     if (this.changingModels) throw failure('Wait for the current model change to finish.')
     this.changingModels = true
     try {
+      if (provider === 'deepseek-account') {
+        const current = (await this.ctx.llm.listModels(provider)).map(item => item.id)
+        const available = add ? await subscriptionCatalog(this.ctx, provider, this.config.subscriptionDiscovery,
+          AbortSignal.timeout(this.config.subscriptionDiscovery.timeoutMs)) : current
+        if (!available.includes(model)) throw failure('This model is unavailable for the subscription.')
+        const entry = this.ctx.llm.listConfigurableProviders().find(item => item.provider === provider)
+        const section = this.ctx.settings.describe().find(item => item.ns === entry?.settingsNs)
+        if (entry === undefined || section === undefined) throw failure('Model settings are unavailable.')
+        const models = add ? [...new Set([...current, model])] : current.filter(id => id !== model)
+        await this.ctx.settings.mutate(entry.settingsNs, [{ op: 'set', path: [...entry.settingsPath, 'selectedModels'], value: models }],
+          section.revision)
+        return
+      }
       if (!SUBSCRIPTIONS.some(entry => entry.id === provider)
         || (await this.ctx.credentials.describeRecord(credentialKey('llm-pi-ai', provider))).kind !== 'grant') {
         throw failure('Connect this subscription first.')
@@ -387,12 +429,25 @@ export default class HemiModelAccess extends TypertRemoteService {
    * Read explicit settings for one available model.
    * @param provider - Configured provider ID.
    * @param model - Available model ID.
-   * @returns editable overrides and their optimistic settings revision.
+   * @returns editable overrides, effective values and their optimistic settings revision.
    */
   @Remote
   async getModelOptions(provider: string, model: string): Promise<ModelOptionsView> {
     this.assertOwner()
     return readModelOptions(this.ctx, provider, model, this.refreshBigModel !== undefined)
+  }
+
+  /**
+   * Read installed model capabilities before saving a draft connection.
+   * @param api - Draft connection wire protocol.
+   * @param model - Exact model id selected by the owner.
+   * @param provider - Existing connection id when editing a saved connection draft.
+   * @returns catalog capabilities or adapter fallback values for an unknown id.
+   */
+  @Remote
+  getModelDefaults(api: string, model: string, provider?: string): ModelOptions {
+    this.assertOwner()
+    return readKeyModelDefaults(this.ctx, api, model, provider)
   }
 
   /**

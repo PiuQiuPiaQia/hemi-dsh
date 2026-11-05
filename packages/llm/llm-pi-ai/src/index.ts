@@ -73,12 +73,15 @@ import { discoverModels } from './discovery.ts'
 import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
 import { providerDefaultsOf } from './provider-data.ts'
-import type { PiAiRequestHeaderContext } from './types.ts'
+import type { PiAiProviderProfiles, PiAiRequestHeaderContext } from './types.ts'
 
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
-export type { PiAiRequestHeaderContext } from './types.ts'
+export type { PiAiProviderProfiles, PiAiRequestHeaderContext } from './types.ts'
 export { Config, resolveProfiles } from './config.ts'
+// Hemi fork: model editors consume adapter defaults through shipped exports rather than source-only paths.
+export { DEFAULT_CONTEXT_WINDOW, DEFAULT_INPUT, DEFAULT_MAX_TOKENS } from './config.ts'
+export { catalogModels } from './catalog.ts'
 export type {
   Options,
   PiAiCompatProfile,
@@ -99,6 +102,18 @@ export const inject = ['llm']
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
+    /**
+     * Supply deployment defaults before catalog and request resolution.
+     * Contributions must return a stable object for unchanged input, preserve
+     * explicit fields, and call next(). Results are ephemeral; settings retain
+     * the configured values. Disposing a listener withdraws its defaults.
+     * @mode waterfall
+     * @param profiles - validated configured profiles; do not mutate them.
+     * @param next - obtain the remaining contributors' profiles.
+     * @returns profiles used by catalog resolution and settings validation.
+     */
+    // Hemi fork: generic defaults seam keeps protocol policy in the Hemi plugin.
+    'llm-pi-ai/provider-profiles'(profiles: PiAiProviderProfiles, next: () => PiAiProviderProfiles): PiAiProviderProfiles
     /**
      * Prepare headers for one pi-ai inference call, excluding model discovery.
      * Listeners run synchronously and must call next(); they may edit only the
@@ -188,7 +203,8 @@ export function apply(ctx: Context, config: Config): void {
    * Scalar configuration errors still reject resolution.
    */
   const profiles = (): ReadonlyMap<string, ResolvedPiAiProviderProfile> => {
-    const raw = config.providers.get()
+    const configured = config.providers.get()
+    const raw = ctx.waterfall('llm-pi-ai/provider-profiles', configured, () => configured)
     if (raw === lastRaw && memoized !== undefined) return memoized
     const next = resolveProfiles(structuredClone(raw) as import('./config.ts').Options['providers'], 'deferred')
     lastRaw = raw
@@ -200,9 +216,11 @@ export function apply(ctx: Context, config: Config): void {
     const raw: unknown = next()
     if (fiber !== ctx.fiber) return raw
     const candidate = Config(raw as import('./config.ts').Options)
+    const configured = candidate.providers.get()
+    const current = config.providers.get()
     assertServiceable(
-      { providers: structuredClone(candidate.providers.get()) } as import('./config.ts').Options,
-      { providers: structuredClone(config.providers.get()) } as import('./config.ts').Options,
+      { providers: structuredClone(ctx.waterfall('llm-pi-ai/provider-profiles', configured, () => configured)) } as import('./config.ts').Options,
+      { providers: structuredClone(ctx.waterfall('llm-pi-ai/provider-profiles', current, () => current)) } as import('./config.ts').Options,
     )
     return raw
   })

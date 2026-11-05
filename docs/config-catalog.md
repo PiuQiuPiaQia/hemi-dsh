@@ -638,6 +638,10 @@ export interface Config extends ContactConfig {
 
 /** Questionnaire destination and bonus notice timings shared by Host and Client. */
 export interface ContactConfig {
+  /** Show the built-in account settings navigation entry. */
+  showSettingsSection: boolean
+  /** Show the sidebar account menu. */
+  showLauncher: boolean
   /** HTTPS questionnaire URL; override for a test form. */
   contactFormUrl: string
   /** Questionnaire source option; empty until Harness is supported by the form. */
@@ -1682,17 +1686,27 @@ export interface MemoryLifecycleConfig {
 ## `@deepseek-ai/dsh-hemi-model-access`
 
 - `inject`: `authorization` · `credentials` · `settings` · `llm`
-- `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/hemi/model-access/src/index.ts:33`](../packages/hemi/model-access/src/index.ts)
+- `refs`: `ModelThinkingLevel` (`@earendil-works/pi-ai`) · [`PiAiReasoningEfforts`](../packages/llm/llm-pi-ai/src/index.ts) · `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/hemi/model-access/src/index.ts:35`](../packages/hemi/model-access/src/index.ts)
 
 ```ts config-catalog
 interface ModelAccessConfig {
+  /** Protocol offers used only when the configured and installed catalogs have no reasoning information. */
+  reasoningFallbacks: Record<string, ProtocolReasoningDefault>
   /** Saved model IDs enabled for each subscription provider. */
   subscriptionModels: Volatile<Record<string, string[]>>
   /** Model capability overrides for Hemi-owned subscription adapters. */
   subscriptionModelOptions: Volatile<Record<string, Record<string, ModelOptions>>>
   /** Request limits and client versions for live subscription model listings. */
   subscriptionDiscovery: SubscriptionDiscoveryConfig
+}
+
+/** Configurable effort offer and request default for one wire protocol. */
+export interface ProtocolReasoningDefault {
+  /** Internal effort ids mapped to wire values; OpenAI's none uses the internal off id. */
+  efforts: PiAiReasoningEfforts
+  /** Initial effort used when neither the route nor the request chooses one. */
+  defaultEffort: ModelThinkingLevel
 }
 
 /** Editable model capabilities; omitted fields inherit the adapter defaults. */
@@ -2028,6 +2042,8 @@ export interface Config {
 export interface Config extends Omit<ProtocolConfig, 'models'>, ModelListingConfig {
   /** Field overrides by model id, layered over the account listing and the built-in catalog. */
   modelOverrides: Volatile<Record<string, ModelOverride>>
+  /** Advertised model IDs to show; null follows the catalog, while an empty list hides every model. */
+  selectedModels: Volatile<string[] | null>
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-deepseek-account -->
@@ -2057,7 +2073,7 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:253`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:255`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
@@ -2182,6 +2198,11 @@ export interface PiAiProviderProfile {
 export interface PiAiModelProfile {
   /** Model id sent to the provider and accepted by {@link GenerateOptions.model}. */
   id: string
+  /**
+   * Hemi fork: installed provider whose matching id supplies name, modalities and capacities only;
+   * route transport and reasoning remain independent.
+   */
+  catalogProvider?: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
   name?: string
   /** Maximum combined request and response context in tokens. */
@@ -2213,6 +2234,8 @@ export interface PiAiModelProfile {
    * declares the offered levels and their wire spellings.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
+  /** Hemi fork: per-model request default; must be one of the resolved model's offered levels. */
+  defaultReasoningEffort?: ModelThinkingLevel
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
 }

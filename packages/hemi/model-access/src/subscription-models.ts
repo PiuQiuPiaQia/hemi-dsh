@@ -1,4 +1,4 @@
-/** Live subscription discovery; installed models supply transport metadata only. */
+/** Subscription discovery through OAuth catalogs and the native DeepSeek account adapter. */
 import type { Context } from '@deepseek-ai/cordis'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { credentialStoreFrom } from '@deepseek-ai/dsh-llm-pi-ai'
@@ -117,16 +117,30 @@ async function accountModels(provider: Provider, credential: OAuthCredential, co
 }
 
 /**
- * Fetch the current subscription catalog without falling back to installed IDs.
+ * Fetch subscription candidates, including models not currently selected.
  * @param ctx - Host context providing encrypted credentials.
  * @param id - Subscription provider ID.
  * @param config - Discovery budgets and supported external client versions.
  * @param signal - Caller cancellation, shared across authentication and downloads.
- * @returns live advertised IDs; known GLM spellings retain their existing runtime IDs.
+ * @returns available model IDs; known GLM spellings retain their existing runtime IDs.
  */
 export async function subscriptionCatalog(
   ctx: Context, id: string, config: SubscriptionDiscoveryConfig, signal: AbortSignal,
 ): Promise<string[]> {
+  if (id === 'deepseek-account') {
+    try {
+      signal.throwIfAborted()
+      const entry = ctx.llm.listConfigurableProviders().find(provider => provider.provider === id)
+      if (entry === undefined) throw failure()
+      const models = await ctx.llm.discoverModels(entry.settingsNs, { provider: id }, signal)
+      signal.throwIfAborted()
+      if (models.length === 0 || models.length > config.maxModels) throw failure()
+      return models.map(model => model.id)
+    } catch (error) {
+      if (signal.aborted) throw signal.reason
+      throw failure(error)
+    }
+  }
   const credentials = credentialStoreFrom(ctx)
   const provider = id === 'bigmodel' ? bigModelCodingProvider(credentials)
     : id === 'openai-codex' ? openaiCodexProvider()

@@ -1,5 +1,5 @@
 /** Hemi's flat composer picker, adapted from the upstream ModelSelect. */
-import { MenuGroup, MenuSurface, observeStickyMenuGroups, useAnchoredPosition } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Menu, MenuGroup, MenuSurface, observeStickyMenuGroups, useAnchoredPosition } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
   type CSSProperties, type KeyboardEvent, type FocusEvent,
@@ -39,14 +39,14 @@ interface EffortChoice {
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 /**
- * Render the Hemi composer picker with alternatives, models and utility options in one menu.
+ * Render the Hemi model menu and a separate capability-gated reasoning-effort selector.
  * @param props - Session, directory, locale and menu-slot bindings.
- * @returns the model trigger and its anchored menu.
+ * @returns adjacent model and reasoning-effort controls with anchored menus.
  */
 export function HemiModelSelect(
   { sessionId, locked, available, useDirectory, useMenuMode, load, select, resolveText, t, renderSlot }:
   InjectFace<HemiModelSelectInjected> & Pick<PropsRuntime<'conversation.input.model'>, 'locked' | 'sessionId'> & PropsLocale<'model'>
-    & Omit<PropsRenderSlots<'conversation.input.model.label' | 'conversation.input.model.options' | 'conversation.input.model.alternative'>, 'SessionProvider'>,
+    & Omit<PropsRenderSlots<'conversation.input.model.label' | 'conversation.input.model.options' | 'conversation.input.model.alternative' | 'conversation.input.model.effort'>, 'SessionProvider'>,
 ) {
   const state = useDirectory(value => value)
   const alternativeLabel = useMenuMode(mode => mode?.sessions?.[sessionId] === true ? mode.label : undefined)
@@ -70,7 +70,6 @@ export function HemiModelSelect(
   const searchRef = useRef<HTMLInputElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const groupsRef = useRef<HTMLDivElement | null>(null)
-  const effortRef = useRef<HTMLDivElement | null>(null)
   const effortToggleRef = useRef<HTMLButtonElement | null>(null)
   const menuPos = useAnchoredPosition({
     open: open && available,
@@ -80,7 +79,6 @@ export function HemiModelSelect(
     align: 'end',
     gap: 8,
     margin: 12,
-    layoutKey: effortOpen ? 'effort' : 'flat',
   })
   const id = useId()
 
@@ -121,13 +119,9 @@ export function HemiModelSelect(
   const currentChoice = choices[selectedIndex]
   const reasoning = alternativeSelected ? undefined : currentChoice?.model.reasoning
   const effectiveEffort = state.current?.reasoningEffort ?? reasoning?.defaultEffort
-  const effortLabel = alternativeSelected || currentChoice === undefined
-    ? undefined
-    : reasoning === undefined
-      ? state.retainedEffort
-      : effectiveEffort === undefined
-        ? t('effort.providerDefault')
-        : reasoning.efforts.find(level => level.id === effectiveEffort)?.name ?? effectiveEffort
+  const effortLabel = reasoning === undefined ? undefined : effectiveEffort === undefined
+    ? t('effort.providerDefault')
+    : reasoning.efforts.find(level => level.id === effectiveEffort)?.name ?? effectiveEffort
   const effortChoices = useMemo<readonly EffortChoice[]>(() => reasoning === undefined
     ? []
     : [
@@ -142,6 +136,10 @@ export function HemiModelSelect(
     ], [reasoning, t])
   const { pending } = state
   const busy = pending !== null || alternativePending
+
+  useEffect(() => {
+    if (reasoning === undefined || locked || !available) setEffortOpen(false)
+  }, [reasoning, locked, available])
 
   const reload = (): void => {
     lastActionRef.current = 'load'
@@ -183,14 +181,6 @@ export function HemiModelSelect(
     }
   }, [open, id, activeModelIndex, visibleModels])
 
-  useLayoutEffect(() => {
-    if (!open || !effortOpen) return
-    const effort = effortRef.current
-    const option = effort?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
-      ?? effort?.querySelector<HTMLButtonElement>('button')
-    option?.focus()
-  }, [open, effortOpen])
-
   if (!available) return null
 
   const show = (): void => {
@@ -213,9 +203,11 @@ export function HemiModelSelect(
     if (restoreFocus) triggerRef.current?.focus()
   }
 
-  const closeAfterSelection = (): void => {
+  const closeAfterSelection = (target = triggerRef.current): void => {
     setSelectionFocus(true)
-    close(true)
+    close()
+    setEffortOpen(false)
+    target?.focus()
   }
 
   const rows = (): HTMLButtonElement[] => Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>(
@@ -226,11 +218,6 @@ export function HemiModelSelect(
     if (event.nativeEvent.isComposing || !open) return
     if (event.key === 'Escape' || (event.key === 'Tab' && event.shiftKey)) {
       event.preventDefault()
-      if (event.target instanceof Node && effortRef.current?.contains(event.target)) {
-        effortToggleRef.current?.focus()
-        setEffortOpen(false)
-        return
-      }
       close(true)
       return
     }
@@ -279,10 +266,10 @@ export function HemiModelSelect(
     close()
   }
 
-  const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>): void => {
+  const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>, target: HTMLButtonElement | null): void => {
     if (result === undefined) return
     if (result.ok) {
-      if (rootRef.current !== null) closeAfterSelection()
+      if (rootRef.current !== null) closeAfterSelection(target)
       return
     }
     const { error } = result
@@ -295,14 +282,14 @@ export function HemiModelSelect(
     })
   }
 
-  const submit = (selection: ModelSelection): void => {
+  const submit = (selection: ModelSelection, target = triggerRef.current): void => {
     if (locked || busy || choosing.current) return
     lastActionRef.current = 'select'
     // Disabled option rows cannot retain focus while a selection is pending.
     setSelectionFocus(true)
-    triggerRef.current?.focus()
+    target?.focus()
     choosing.current = true
-    void select(selection).then(settleSelection, (error: unknown) => {
+    void select(selection).then((result) => { settleSelection(result, target) }, (error: unknown) => {
       reportFailure(t('error.action', { message: error instanceof Error ? error.message : String(error) }))
     }).finally(() => { choosing.current = false })
   }
@@ -338,7 +325,7 @@ export function HemiModelSelect(
   const chooseEffort = (effort: string | undefined): void => {
     if (state.current === null) return
     if (effectiveEffort === effort) {
-      closeAfterSelection()
+      closeAfterSelection(effortToggleRef.current)
       return
     }
     const selection: ModelSelection = {
@@ -346,20 +333,17 @@ export function HemiModelSelect(
       model: state.current.model,
       ...effort === undefined ? {} : { reasoningEffort: effort },
     }
-    submit(selection)
+    submit(selection, effortToggleRef.current)
   }
 
   const waiting = !alternativeSelected && currentChoice === undefined && state.status === 'loading'
   const modelLabel = alternativeLabel !== undefined ? resolveText(alternativeLabel)
     : waiting ? t('trigger.loading') : currentChoice?.model.name ?? t('trigger.fallback')
-  const triggerLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
   const triggerAria = waiting
     ? t('trigger.loading')
     : currentChoice === undefined && !alternativeSelected
       ? t('trigger.selectAria')
-      : effortLabel === undefined
-        ? t('trigger.aria', { model: modelLabel })
-        : t('trigger.ariaEffort', { model: modelLabel, effort: effortLabel })
+      : t('trigger.aria', { model: modelLabel })
   const renderModelLabel = (
     provider: ModelLabelOwner['provider'], model: ModelLabelOwner['model'],
     placement: ModelLabelOwner['placement'], selected: boolean,
@@ -400,7 +384,7 @@ export function HemiModelSelect(
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? `${id}-menu` : undefined}
-        title={triggerLabel}
+        title={modelLabel}
         aria-busy={busy}
         data-selection-focus={selectionFocus ? '' : undefined}
         onBlur={() => { setSelectionFocus(false) }}
@@ -417,11 +401,39 @@ export function HemiModelSelect(
         <span className={css.triggerLabel}>
           {alternativeSelected || currentChoice === undefined ? modelLabel : renderModelLabel(currentChoice.group.provider, currentChoice.model, 'trigger', true)}
         </span>
-        {effortLabel !== undefined && <span className={css.triggerEffort}>{effortLabel}</span>}
         {busy
           ? <StateDot state="ongoing" />
           : <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
       </button>
+
+      {alternativeSelected && renderSlot('conversation.input.model.effort', optionOwner)}
+
+      {reasoning !== undefined && (
+        <Menu
+          open={effortOpen && !locked}
+          onClose={() => { setEffortOpen(false) }}
+          portal side="top" align="end" autoFocus
+          items={effortChoices.map(level => ({ id: level.key, label: level.label, disabled: busy }))}
+          selectedId={effortChoices.find(level => level.effort === effectiveEffort)?.key}
+          onSelect={(key) => {
+            const level = effortChoices.find(choice => choice.key === key)
+            if (level !== undefined) chooseEffort(level.effort)
+          }}
+          anchor={(
+            <button ref={effortToggleRef} type="button" className={clsx(css.trigger, css.effortTrigger)}
+              disabled={locked} aria-label={t('menu.effort')} aria-description={effortLabel}
+              aria-haspopup="menu" aria-expanded={effortOpen && !locked} aria-busy={busy}
+              onClick={() => {
+                close()
+                effortToggleRef.current?.focus()
+                setEffortOpen(!effortOpen)
+              }}>
+              <span className={css.effortLabel}>{effortLabel}</span>
+              <IconChevronDownOutlineRegular className={clsx(css.chevron, effortOpen && css.chevronOpen)} />
+            </button>
+          )}
+        />
+      )}
 
       {/* Portaled to body (Menu primitive's portal mode) so the sidebar and
           column overflow clips cannot crop the card; synthetic events still
@@ -430,7 +442,7 @@ export function HemiModelSelect(
         <MenuSurface
           ref={menuRef}
           id={`${id}-menu`}
-          className={clsx(css.menu, flat.menu, effortOpen && flat.menuWithEffort)}
+          className={clsx(css.menu, flat.menu)}
           style={menuPos ?? MEASURE_STYLE}
           role="menu"
           aria-label={t('menu.aria')}
@@ -540,39 +552,6 @@ export function HemiModelSelect(
             )}
           </div>
           <div className={clsx(flat.utilities, 'scrollable')}>
-            {reasoning !== undefined && (
-              <button ref={effortToggleRef} type="button" role="menuitem" className={css.cell} disabled={busy}
-                aria-expanded={effortOpen} onClick={() => { setEffortOpen(!effortOpen) }}>
-                <span className={css.cellLabel}>{t('menu.effort')}</span>
-                <span className={css.cellValue}>{effortLabel}</span>
-                <IconChevronDownOutlineRegular className={clsx(css.cellChevron, effortOpen && css.chevronOpen)} />
-              </button>
-            )}
-            {effortOpen && reasoning !== undefined && <div ref={effortRef} role="group" aria-label={t('menu.effort')}>
-              {effortChoices.length === 0
-                ? <div className={css.empty}>{t('empty.efforts')}</div>
-                : effortChoices.map(level => (
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={effectiveEffort === level.effort}
-                    className={clsx(css.option, effectiveEffort === level.effort && css.selected)}
-                    key={level.key}
-                    disabled={busy}
-                    onClick={() => { chooseEffort(level.effort) }}
-                  >
-                    <span className={css.optionCopy}>
-                      <span className={css.modelName}>{level.label}</span>
-                    </span>
-                    <span className={css.check}>
-                      {pending !== null && pending.provider === state.current?.provider
-                        && pending.model === state.current.model && pending.reasoningEffort === level.effort
-                        ? <StateDot state="ongoing" />
-                        : effectiveEffort === level.effort ? <IconCheckOutlineRegular /> : null}
-                    </span>
-                  </button>
-                ))}
-            </div>}
             {renderSlot('conversation.input.model.options', { ...optionOwner, flatMenu: true })}
           </div>
         </MenuSurface>,

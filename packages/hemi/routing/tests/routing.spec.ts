@@ -1,3 +1,4 @@
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 /** Auto/fixed routing through the real AgentLoop, real spawn subagents, and a mock LLM adapter. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -313,7 +314,7 @@ describe('manual model selections', () => {
     await service.setEnabled(lead, true)
     await runTurn(lead)
     const selections = lead.session.snapshotEvents().filter(event => event.type === 'model/selection').length
-    lead.model.select({ provider: 'mock', model: 'main-model' })
+    lead.model.select({ provider: 'mock', model: 'main-model', reasoningEffort: ReasoningEffortId('high') })
     expect(lead.session.snapshotEvents().filter(event => event.type === 'model/selection').length).toBe(selections)
     expect(service.modeOf(lead)).toBe('auto')
     expect(settings.attempts.mutate).toBe(1)

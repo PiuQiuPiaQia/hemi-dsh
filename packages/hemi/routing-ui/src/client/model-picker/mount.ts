@@ -29,6 +29,7 @@ export function mountModelPicker(ctx: Context, menuMode: ModelMenuMode): void {
           'conversation.input.model.options': { kind: 'list' as const, scope: 'session' as const },
         } : {},
         'conversation.input.model.alternative': { kind: 'single', scope: 'session' },
+        'conversation.input.model.effort': { kind: 'single', scope: 'session' },
       },
       inject: (sessionId): HemiModelSelectInjected => {
         const directory = scope.modelDirectories.directoryFor(sessionId)

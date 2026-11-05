@@ -10,6 +10,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** English dictionary for the feature controls. */
 export const en = {
+  deepseekAccount: 'DeepSeek',
+  refreshBalance: 'Refresh balance', balanceUnavailable: 'View balance on Platform',
   liveModelCatalog: 'Read the current server catalog. Existing connections are kept.', refreshModels: 'Refresh',
   fetchModelsFailed: 'Could not read the current model list. Check the network and connection authorization, then retry.',
   apiKey: 'API Key', protocolCompletions: 'OpenAI Chat Completions', protocolResponses: 'OpenAI Responses',
@@ -18,8 +20,7 @@ export const en = {
   deselectAll: 'Deselect all', noMatches: 'No matching models.',
   modelSettings: 'Model settings', modelDisplayName: 'Display name', contextWindow: 'Context window (tokens)',
   maxTokens: 'Maximum output (tokens)', inputTypes: 'Input types', textInput: 'Text', imageInput: 'Image',
-  inheritInput: 'Use adapter defaults', saveModel: 'Save model settings',
-  modelDefaults: 'Leave optional fields blank to use adapter defaults. Only enable input types the model supports.',
+  saveModel: 'Save model settings',
   invalidCapacity: 'Enter a positive whole number of tokens.', inputRequired: 'Choose at least one input type.',
   modelSaveFailed: 'Could not save model settings. If the configuration changed, close this dialog and reopen it.',
   deleteModel: 'Remove model', confirmDeleteModel: 'Remove {model} from this connection?',
@@ -56,7 +57,7 @@ export const en = {
   code: 'Device code',
   answer: 'Continue',
   cancel: 'Cancel',
-  quota: 'Read quota',
+  quota: 'Refresh quota',
   quotaUnavailable: 'Quota is unavailable for this account.',
   remaining: '{percent}% remaining · {hours}h window',
   credits: '{remaining} / {total} credits',
@@ -96,6 +97,8 @@ export const en = {
 
 /** Chinese dictionary for the feature controls. */
 export const zh: typeof en = {
+  deepseekAccount: 'DeepSeek',
+  refreshBalance: '刷新余额', balanceUnavailable: '前往开放平台查看余额',
   liveModelCatalog: '从服务端获取当前型号列表，保留已有接入', refreshModels: '刷新',
   fetchModelsFailed: '无法获取当前模型列表，请检查网络和接入授权后重试',
   apiKey: 'API Key', protocolCompletions: 'OpenAI Chat Completions', protocolResponses: 'OpenAI Responses',
@@ -104,8 +107,7 @@ export const zh: typeof en = {
   deselectAll: '取消全选', noMatches: '没有匹配的模型',
   modelSettings: '模型设置', modelDisplayName: '显示名称', contextWindow: '上下文长度（token）',
   maxTokens: '最大输出（token）', inputTypes: '输入能力', textInput: '文本', imageInput: '图片',
-  inheritInput: '使用适配器默认值', saveModel: '保存模型设置',
-  modelDefaults: '可选项留空则使用适配器默认值。请只启用模型实际支持的输入类型',
+  saveModel: '保存模型设置',
   invalidCapacity: '请输入正整数 token 数量', inputRequired: '请至少选择一种输入类型',
   modelSaveFailed: '模型设置未保存。如果配置已变更，请关闭弹窗后重新打开',
   deleteModel: '删除型号', confirmDeleteModel: '从此接入中删除 {model}？',
@@ -142,7 +144,7 @@ export const zh: typeof en = {
   code: '设备验证码',
   answer: '继续',
   cancel: '取消',
-  quota: '查询额度',
+  quota: '刷新额度',
   quotaUnavailable: '当前账号的额度暂不可用。',
   remaining: '{hours} 小时窗口 · 剩余 {percent}%',
   credits: '剩余 {remaining} / {total} 积分',

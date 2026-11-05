@@ -1,0 +1,20 @@
+- dialog "模型设置":
+  - heading "模型设置" [level=2]
+  - button "关闭"
+  - paragraph: o4-mini
+  - text: 显示名称
+  - textbox "显示名称":
+    - /placeholder: o4-mini
+    - text: o4-mini
+  - text: 上下文长度（token）
+  - textbox "上下文长度（token）": "200000"
+  - text: 最大输出（token）
+  - textbox "最大输出（token）": "100000"
+  - group "输入能力":
+    - text: 输入能力
+    - checkbox "文本" [checked]
+    - text: 文本
+    - checkbox "图片" [checked]
+    - text: 图片
+  - button "取消"
+  - button "保存模型设置"

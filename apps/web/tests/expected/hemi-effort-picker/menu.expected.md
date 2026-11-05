@@ -1,0 +1,5 @@
+- menu:
+  - menuitem "Default"
+  - menuitem "Off"
+  - menuitem "High"
+  - menuitem "Max"

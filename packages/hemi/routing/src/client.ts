@@ -4,6 +4,7 @@ export type {
   ConfiguredRoleRoutes,
   HemiRoleId,
   HemiRoutingMode,
+  HemiRoutingEffort,
   LegacyRoleFor,
   RoleRoutes,
   Route,

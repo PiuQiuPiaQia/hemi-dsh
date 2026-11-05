@@ -106,9 +106,13 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 `reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。
 
+型号条目的 `defaultReasoningEffort` 设置请求默认档位，优先级低于请求显式选择和路由级 `reasoning`；目录解析会拒绝未提供的默认档位。同步瀑布事件 `llm-pi-ai/provider-profiles` 在目录解析和设置校验前补充临时部署默认值；监听器调用 `next()`，保留显式配置，并为未变化的输入返回稳定对象。移除监听器即撤回默认值，不写入设置。
+
 确切模型元数据将 `reasoning.efforts` 按可选强度从低到高排列。配置函数可从该列表中选择，再由 `prepareCall()` 校验具体强度。适配器只接收解析后的控制项。选择 `off` 不保证禁用推理：以省略推理字段表达该值的协议会沿用网关默认行为。所选等级下产生的推理 token 都计入该请求的输出上限。
 
 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
+
+模型可指定 `catalogProvider`，从另一已安装提供方的同 ID 条目继承显示名称、输入类型及 token 容量，显式模型字段优先。此引用不继承传输、鉴权、价格、推理或兼容元数据；引用的型号不存在时视为配置错误。继承的输出容量不会成为每次请求的输出上限。
 
 ### 运行时更改配置
 

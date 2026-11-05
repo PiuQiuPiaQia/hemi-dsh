@@ -11,7 +11,13 @@
 
 功能与组件优先放入 `packages/hemi/` 的所属插件。非插件的 Electron 适配集中在 `packages/hemi/customizations/`，桌面壳通过包入口导入；皮肤继续由 `packages/client/ui-hemi-skins/` 插件提供，独立安装层保留在 `plugins/`。详见[目录规则](packages/hemi/README.md)。
 
-模型菜单的组件、样式、替代选型状态和注册现由 `routing-ui/src/client/model-picker/` 拥有。原生 `ui-model-selection` 恢复自己的组件和目录服务，保留 `/model`；通用 `showComposer` 配置默认开启，Hemi 组合显式关闭并由路由 UI 插件注册菜单。菜单共用原生目录，不复制目录控制器。定制菜单样式和排序随所属组件维护。
+模型菜单的组件、样式、替代选型状态和注册现由 `routing-ui/src/client/model-picker/` 拥有。原生 `ui-model-selection` 恢复自己的组件和目录服务，保留 `/model`；通用 `showComposer` 配置默认开启，Hemi 组合显式关闭并由路由 UI 插件注册菜单。菜单共用原生目录，不复制目录控制器。定制菜单样式和排序随所属组件维护。推理强度在模型按钮右侧独立展示，沿用原生能力判断和选型保存，自动路由在同一位置展示按会话保存的四档选择器；此布局只修改 Hemi 自有组件。
+
+推理能力缺失时，由 `hemi/model-access/src/protocol-reasoning.ts` 提供协议默认档位；`llm/llm-pi-ai` 提供通用的临时配置瀑布和型号默认档位解析，目录、设置校验和请求共用同一结果，无 Hemi 插件时保持上游行为。自动路由的四档、会话保存与型号映射归 `hemi/routing`，界面归 `hemi/routing-ui`；现有同步选型钩子无法等待型号能力，因此映射放在已有等待式 pre-step，保留原生子任务绑定和生命周期。合并上游须核对未知能力、显式禁用、默认值与实际字段发送，以及四档选择不退出自动路由。
+
+模型导入的完整 ID 匹配与默认能力展示归 `hemi/model-access/src/model-catalog.ts` 和 `hemi/model-access-ui`。现有 profile 瀑布无法独立表达“继承输出容量但不设置请求上限”，因此 `llm-pi-ai/src/catalog.ts`、`config.ts` 保留通用 `catalogProvider` 引用及校验，只继承名称、输入类型和容量；`index.ts` 导出目录读取及默认值，确保 Hemi 使用已发布入口而非源码路径。合并上游须核对引用失效报错、显式覆盖优先、原连接传输保持独立及未修改默认值的保存行为。实际验证包括 117 项定向测试、型号设置浏览器回放、构建包入口导入冒烟、`build:artifacts`、`build:check`、`doc-sync` 与定向 lint。
+
+独立推理选择器的浏览器场景为 `apps/web/tests/hemi-effort-picker.e2e.ts`；`apps/web/tsconfig.json` 排除该 Host 场景，`tsconfig.host.json` 负责检查，产品运行时无需新增扩展点。实际验证包括 29 项菜单行为测试、Chromium/WebKit 浅深色与 390px/1280px 布局、保存和焦点恢复、`build:artifacts`、`build:check` 与 `doc-sync`；合并上游时须保留两组按钮和对应测试的能力判断。
 
 
 独立安装层使用插槽优先级覆盖旧官方模型菜单，并复用其已声明的标签和选项子插槽；支持 `showComposer` 的 Hemi 组合则关闭原生菜单。四个角色 preset 的来源为 `packages/hemi/routing/roles.patch.yml`；`plugins/hemi-model-routing/sync-config.mjs` 生成内置角色配置和独立安装配置，打包与路由组合测试拒绝配置漂移。独立层覆写匹配版本的 standard preset，保留原生异步行为。
@@ -200,3 +206,22 @@
 - GLM 新型号沿用原有签名传输，并通过已有 Pi 适配器解析默认参数；已有型号的推理能力和用户覆盖值保持原样。移除已有型号不依赖外部目录可用性。拉取弹窗增加「刷新」，重新请求后清除旧候选和未确认选择，不修改已保存的型号。
 - 手写行为改动均留在 Hemi 插件与自有浏览器用例；配置、Cordis 和客户端目录从声明重新生成。合并上游时核对官方型号接口、外部版本及 GLM 发布目录结构，不以本地静态列表掩盖不兼容。
 - 验证：构建产物、16 项字段／订阅单元测试、两项真实 Loader／浏览器回归与预期输出重放、43 项文档检查通过；已用公开服务验证 GLM 控制面和 CDN 来源。聚合检查 Host 通过，Client 受已有 `ui-settings-models/tests/apply.client.spec.ts` 类型断言错误阻塞。任务结束后已重启当前开发版，真实 Codex 账号查询成功并显示 5 个未接入候选，GLM 在线目录查询成功且无新增候选；未修改账号型号选择，未执行真实模型推理。
+
+## 2026-11-05 · DeepSeek 账号接入订阅页
+
+- `packages/hemi/model-access-ui` 在「订阅」tab 中由同一个 `SubscriptionCard.tsx` 渲染所有订阅；DeepSeek 用充值余额和赠金余额代替额度进度条。额度与余额共用 `UsageRefreshButton` 图标、Tooltip 和刷新期间的禁用状态。登录后自动读取型号，共用型号设置、测试、删除及搜索勾选添加弹窗；删除全部型号仍保留登录、余额和型号覆盖值。
+- 上游 `ui-settings-account` 增加通用 `account.connection` factory，遵循原生账号权限和插件生命周期；`AccountSection` 保留默认视图。已有登录引导入口不能展示已登录状态与余额，因此增加这个可复用入口。Hemi 的 `DeepSeekSubscription` 适配原生状态、操作及余额格式化，`AccountSubscriptionCard` 读取已选型号，再进入共用卡片。登录凭据与侧边栏账号共享，退出沿用原生任务影响确认。
+- 原生 `llm-deepseek-account` 增加通用可配置 `selectedModels`：默认 `null` 沿用全部可服务型号，空数组明确隐藏全部型号；型号筛选更新会通知原生目录。注册模型发现能力，重新读取全部可服务候选，允许重新添加已删除型号；拒绝替换端点、协议和凭据。`llm-deepseek` 缓存增加显式 `reload`，合并并发请求，保留失败前的可用目录并向发现调用方报告失败。LLM 模型发现请求的 JSDoc 改为由适配器决定缓存与请求策略。上游不导入 Hemi 代码，原生能力准入及默认运行策略保持原样。
+- Hemi Host 通过提供方声明的设置路径持久化选择与 `modelOverrides`，不建立 Pi 同名路由。合并上游时核对账号 factory、访问权限、原生发现和目录缓存；若上游提供等价接口则评估移除对应扩展。相关目录与文档从声明重新生成。
+- 验证：63 项原生目录／账号／订阅测试、15 项模型操作客户端测试、740 文件 GUI 回归通过；DeepSeek keyless 真实 Loader／浏览器 refresh 与 replay 覆盖登录、模型列表、工具调用、型号设置、删光并恢复、余额刷新、窄屏及退出。构建产物及 Host／Client 聚合检查通过；GLM keyless 真实 Loader／浏览器回归覆盖相同的额度刷新控件及型号管理。局部 lint 通过。首次文档检查 41／43 通过，余下两个为持久化目录行号过期；重新生成后持久化历史检查通过。再次 doc-sync 遇到本地文件读取阻塞，独立读取 `.git/config` 和无关包清单也超时，已停止本次检查，未计为全量通过。
+
+## 2026-11-05 · 订阅拉取型号图标
+
+- `packages/hemi/model-access-ui` 的订阅卡片将拉取型号入口移到重新授权之前，使用现有下载图标及本地化 Tooltip。`ModelPicker` 增加可选紧凑入口，继续使用原来的搜索、刷新和确认添加弹窗；API 连接保留文字入口。本次改动只在 Hemi 插件内。
+- 验证：本包 TypeScript 编译与客户端 bundle、局部 lint、客户端操作测试、DeepSeek 真实 Loader／浏览器 refresh 与 replay 通过；390px 布局已检查。当前 Electron 的 DeepSeek、GLM 与 Codex 卡片均已显示图标入口。全仓聚合检查遇到并行改动中的缺失构建声明；doc-sync 检出其他目录过期及文档标记缺失。已停止余下全仓检查，未计为通过；本次文件的导出 JSDoc、配置目录、客户端目录及翻译配对检查通过。
+
+## 2026-11-05 · 收起原生账号与模型导航
+
+- 原生账号插件增加默认开启的通用 `showSettingsSection`、`showLauncher` 配置，只控制账号设置和侧边栏入口，不停用账号状态、登录、通知或 `account.connection`。桌面组合关闭这两个入口，并使用已有配置关闭原生「模型」入口；Web 默认行为保持原样。Hemi 的账号操作集中在「模型接入」订阅卡片中。合并上游时核对原生入口配置与权限生命周期，有等价接口时移除本地扩展。
+- 验证：35 项账号配置与注册测试、Host／Client 聚合检查、隐藏导航的真实 Loader／浏览器验收通过。当前 Electron 已完整重启，确认账号 tab、模型 tab 和侧边栏用户信息均已隐藏，「模型接入」中的 DeepSeek 余额与型号仍可用。全量 GUI 首轮出现超时，9 个失败文件单独复查的 185 项全部通过。
+- 提交检查保留全仓 `doc-sync` 失败记录：未改动的 README 章节和 Agent Notes 格式检查未通过。本批次局部 lint、浏览器验收及其重放通过；全量 GUI 首轮的 9 个失败文件复查全部通过。
