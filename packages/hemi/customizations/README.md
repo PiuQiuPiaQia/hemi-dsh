@@ -24,7 +24,7 @@ The main adapter creates the isolated New API login window and registers the she
 
 ## GitHub releases
 
-The `/github-distribution`, `/github-release` and `/github-release-command` build-time entries enable independent GitHub Desktop distribution. The community signing, runner setup and Computer Use adapters use `/github-community-signing`, `/github-community-setup` and `/github-community-cua`. See [GitHub release configuration and recovery](release/README.md). These entries do not load Electron or change the client updater.
+The `/github-distribution`, `/github-release` and `/github-release-command` build-time entries enable independent GitHub Desktop distribution. The community signing, runner setup and Computer Use adapters use `/github-community-signing`, `/github-community-setup` and `/github-community-cua`. See [GitHub release configuration and recovery](release/README.md). These entries do not load Electron or change the client updater. `configureHemiDesktopIdentity` applies the explicit packaged `hemi-dsh` marker before Electron preferences are read; `/desktop-branding` owns shared product names.
 
 ## Model Experience
 

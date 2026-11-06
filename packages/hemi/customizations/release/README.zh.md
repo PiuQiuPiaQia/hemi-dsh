@@ -8,7 +8,7 @@ description: "通过 GitHub 发布 Hemi Desktop，macOS 使用固定自签名证
 
 ## 概述
 
-[GitHub 工作流](../../../../.github/workflows/hemi-desktop-release.yml)默认使用 `community`：macOS 使用 Hemi 现有的固定自签名证书，Windows 生成未签名 NSIS 安装包。两者保留 DSH 的 generic 更新器、渠道选择、任务停止确认和原生安装。Releases 保存固定版本文件；独立公开分支保存按平台区分的更新清单。`official` 选项保留 DSH 的 Developer ID／公证及 Windows EV 要求。
+[GitHub 工作流](../../../../.github/workflows/hemi-desktop-release.yml)默认使用 `community`：macOS 使用 Hemi 现有的固定自签名证书，Windows 生成未签名 NSIS 安装包。已安装应用和新资产统一命名为 `hemi-dsh`，外部协议为 `hemi-dsh://open`。[身份迁移](../../../../docs/upgrade-guide/v0.2.2-alpha.3/hemi-desktop-identity/guide.zh.md)说明独立默认数据目录和首次改名安装。两者保留 DSH 的 generic 更新器、渠道选择、任务停止确认和原生安装。Releases 保存固定版本文件；独立公开分支保存按平台区分的更新清单。`official` 选项保留 DSH 的 Developer ID／公证及 Windows EV 要求。
 
 ## 目录
 

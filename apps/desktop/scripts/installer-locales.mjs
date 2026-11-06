@@ -59,16 +59,18 @@ export function readInstallerLocales(directory = defaultDirectory) {
   return locales
 }
 
+// Hemi fork: packaging supplies its product name while source translations retain the DSH default.
 /**
  * Generate guarded NSIS LangString declarations from validated JSON resources.
  * @param {ReturnType<typeof readInstallerLocales>} locales - Resources for all languages or one isolated native-test build.
+ * @param {string} productName - Distribution-owned product name; upstream DSH is the default.
  * @returns {string} UTF-8 NSIS source, with literal dollar signs, quotes and line breaks escaped.
  */
-export function renderInstallerStrings(locales) {
+export function renderInstallerStrings(locales, productName = 'DeepSeek Harness') {
   const escape = (/** @type {string} */ text) => text.replace(/\$|"|\r|\n/gu, character => ({ '$': '$$', '"': '$\\"', '\r': '$\\r', '\n': '$\\n' })[character])
   return '; Generated from installer/locales/*.json.\n' + locales.map(locale =>
     `!ifdef LANG_${locale.nsisLanguage}\n` + Object.entries(locale.strings).map(([key, text]) =>
-      `LangString ${key} \${LANG_${locale.nsisLanguage}} "${escape(text)}"\n`).join('') + '!endif\n').join('')
+      `LangString ${key} \${LANG_${locale.nsisLanguage}} "${escape(text.replaceAll('DeepSeek Harness', productName))}"\n`).join('') + '!endif\n').join('')
 }
 
 if (import.meta.main) {

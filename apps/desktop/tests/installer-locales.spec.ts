@@ -74,3 +74,12 @@ it('uses the real electron-builder language identifiers and English fallback', (
       .toEqual(locales.map(locale => locale.nsisLanguage))
   } }, new LangConfigurator({ installerLanguages: locales.map(locale => locale.id) }))
 })
+
+it('substitutes the distribution name while preserving locale resources and upstream defaults', () => {
+  const locales = readInstallerLocales()
+  const original = renderInstallerStrings(locales)
+  expect(original).toContain('DeepSeek Harness')
+  const branded = renderInstallerStrings(locales, 'hemi-dsh')
+  expect(branded).toBe(original.replaceAll('DeepSeek Harness', 'hemi-dsh'))
+  expect(renderInstallerStrings(locales)).toBe(original)
+})

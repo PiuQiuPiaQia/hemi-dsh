@@ -341,3 +341,10 @@ describe('client build environment', () => {
     }
   })
 })
+
+it('selects a distributor title in the official profile while preserving the canonical default', () => {
+  const source = { DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }
+  expect(resolveClientBuildEnvironment({ ...source, DSH_BUILD_PRODUCT_TITLE: 'hemi-dsh' }, 'official').DSH_CLIENT_TITLE).toBe('hemi-dsh')
+  expect(resolveClientBuildEnvironment(source, 'official').DSH_CLIENT_TITLE).toBe('DeepSeek Harness')
+  expect(() => resolveClientBuildEnvironment({ ...source, DSH_BUILD_PRODUCT_TITLE: ' ' }, 'official')).toThrow('DSH_BUILD_PRODUCT_TITLE')
+})

@@ -1,3 +1,8 @@
+// The packaged coordinator replaces a declaration-only source entry; startup does not exercise imports.
+vi.mock('@deepseek-ai/dsh-hemi-model-access/desktop-import', () => ({
+  createImportCoordinator: () => ({ hasLoginMemoryWork: () => false, disposeForQuit: async () => {} }),
+}))
+
 import { parsePluginOperationRecord } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 import type { DesktopHostProcess } from '../src/host-process.ts'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
@@ -335,6 +340,13 @@ vi.mock('../src/background-notice.ts', () => ({ DesktopBackgroundNotice: class {
   readonly close = harness.backgroundNotice.close
   readonly dispose = harness.backgroundNotice.dispose
 } }))
+vi.mock('node:fs', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:fs')>()
+  return { ...original, readFileSync: (...args: Parameters<typeof original.readFileSync>) => {
+    if (args[0] === join('desktop-test-app', 'package.json')) return JSON.stringify({ dshDesktopAppId: 'com.deepseek.dsh' })
+    return original.readFileSync(...args)
+  } }
+})
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>()
   return { ...original, readFile: vi.fn((path: Parameters<typeof original.readFile>[0], encoding?: 'utf8') => {

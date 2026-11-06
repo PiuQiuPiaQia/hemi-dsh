@@ -31,6 +31,8 @@ web-app bundle 在 `dsh-client-ui-theme` 之后挂载本插件，因此 `ctx.the
 
 背景层是挂载在 `#root` 之后的全视口 body 子元素，仅作视觉呈现。其样式表用 `-webkit-app-region: initial !important` 令其退出 app-region 采集：外壳的 darwin 规则 `body > :not(#root)` 会按 DOM 顺序从窗口拖拽面中减除 body 级覆盖层，若不退出，这个全视口 no-drag 盒子会禁用标题栏拖拽及其在 macOS 上的原生双击最大化/还原。
 
+插件以优先级 -10 在已有侧栏名称插槽中展示本地化字典拥有的 `hemi-dsh` 文本，覆盖官方字标。卸载插件后恢复原有占用者。
+
 <a id="further-exploration"></a>
 ## 进一步探索
 

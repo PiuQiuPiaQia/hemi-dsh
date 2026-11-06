@@ -22,6 +22,16 @@ const OFFICIAL_CLIENT_BUILD_ENVIRONMENT = {
   DSH_CLIENT_TITLE: 'DeepSeek Harness',
 } as const
 
+// Hemi fork: distributors can select their own public title without changing the default official profile.
+function distributorTitle(environment: NodeJS.ProcessEnv): string {
+  const title = environment.DSH_BUILD_PRODUCT_TITLE
+  if (title === undefined) return OFFICIAL_CLIENT_BUILD_ENVIRONMENT.DSH_CLIENT_TITLE
+  if (!title.trim() || title !== title.trim() || /[\r\n\0]/u.test(title)) {
+    throw new Error('DSH_BUILD_PRODUCT_TITLE must be nonempty text without surrounding whitespace or control lines')
+  }
+  return title
+}
+
 /** Public variable carrying the source commit embedded in client artifacts. */
 const CLIENT_COMMIT_HASH_VARIABLE = 'DSH_CLIENT_COMMIT_HASH'
 
@@ -136,7 +146,7 @@ export function repositoryClientBuildEnvironment(
 /**
  * Resolve the exact public values required by an official build at one commit.
  * @param root - repository root whose HEAD must match the built source.
- * @param environment - optional explicit commit source for non-Git build environments.
+ * @param environment - explicit commit source and optional validated distributor title.
  * @returns complete official client environment.
  */
 export function officialClientBuildEnvironment(
@@ -147,6 +157,7 @@ export function officialClientBuildEnvironment(
     DSH_CLIENT_COMMIT_HASH: repositoryCommitHash(root, environment),
     DSH_CLIENT_VERSION: repositoryVersion(root),
     ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT,
+    DSH_CLIENT_TITLE: distributorTitle(environment),
   }
 }
 
@@ -204,7 +215,7 @@ export function resolveClientBuildEnvironment(
     return {
       DSH_CLIENT_COMMIT_HASH: commitHash,
       DSH_CLIENT_VERSION: version,
-      ...(profile === 'official' ? OFFICIAL_CLIENT_BUILD_ENVIRONMENT : {
+      ...(profile === 'official' ? { ...OFFICIAL_CLIENT_BUILD_ENVIRONMENT, DSH_CLIENT_TITLE: distributorTitle(environment) } : {
         DSH_CLIENT_BUILD_PROFILE: 'local',
         ...(environment.DSH_CLIENT_GIT_DIRTY === 'true' ? { DSH_CLIENT_GIT_DIRTY: 'true' } : {}),
       }),

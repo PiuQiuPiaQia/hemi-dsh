@@ -3,6 +3,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { HemiBrandName } from './HemiBrandName.tsx'
 import type { SkinSectionInjected } from './SkinSection.tsx'
 import { SkinSection } from './SkinSection.tsx'
 import { installBackdrop } from './backdrop.ts'
@@ -48,6 +50,9 @@ export function apply(ctx: Context): void {
 
   ctx.effect(() => ctx.locale.register(SKINS_NS, { en, zh }), 'ui-hemi-skins: skin section dictionaries')
   const t = ctx.locale.bind(SKINS_NS)
+  ctx.slots.inject('sidebar.brand.name', () => ctx.slots.register({
+    name: 'sidebar.brand.name', priority: -10, locale: SKINS_NS,
+  }, HemiBrandName))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

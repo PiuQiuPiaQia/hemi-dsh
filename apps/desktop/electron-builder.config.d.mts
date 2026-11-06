@@ -7,7 +7,8 @@ export interface DesktopElectronBuilderConfig {
   readonly appId: string
   readonly copyright: string
   readonly artifactName: string
-  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness'; readonly schemes: readonly ['dsh'] }]
+  readonly productName: string
+  readonly protocols: readonly [{ readonly name: string; readonly schemes: readonly [string] }]
   readonly directories: {
     readonly output: string
   }
@@ -18,6 +19,9 @@ export interface DesktopElectronBuilderConfig {
   ]
   readonly extraMetadata: {
     readonly dshDesktopAppId: string
+    readonly name?: string
+    readonly productName?: string
+    readonly hemiDesktopProduct?: 'hemi-dsh'
     readonly hemiDesktopSigning?: 'mac-self-signed' | 'windows-unsigned'
   }
   readonly asarUnpack: readonly string[]

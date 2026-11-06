@@ -6,6 +6,7 @@ import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dump, load } from 'js-yaml'
 import { gt, valid } from 'semver'
+import { resolveHemiDesktopIdentity } from './identity.mjs'
 import { resolveHemiCommunitySigning } from './signing.mjs'
 import { resolveHemiGitHubDistribution, resolveHemiGitHubUpdate } from './config.mjs'
 
@@ -80,7 +81,7 @@ export async function prepareHemiGitHubRelease(options) {
     if (community?.kind === 'mac-self-signed') requireValue(record.hemiSigningSha256 === community.sha256, `Package certificate disagrees with the fixed Hemi certificate: ${target}`)
     const metadataName = `${channel}${spec.suffix}.yml`
     const metadata = load(await readFile(join(directory, metadataName), 'utf8'))
-    const stem = `deepseek-harness-${version}-${spec.os}-${spec.arch}`
+    const stem = `${resolveHemiDesktopIdentity(record)?.artifactPrefix ?? 'deepseek-harness'}-${version}-${spec.os}-${spec.arch}`
     const updaterName = `${stem}.${spec.extension}`
     requireValue(metadata?.version === version && Array.isArray(metadata.files) && metadata.files.length === 1,
       `Update metadata has the wrong version or file count: ${target}`)
@@ -231,7 +232,7 @@ export async function publishHemiGitHubRelease(plan, client) {
   let release = await request('GET', `${base}/releases/tags/${plan.tag}`, undefined, true)
   if (release === undefined) {
     release = await request('POST', `${base}/releases`, { tag_name: plan.tag, target_commitish: plan.commit,
-      name: `Hemi Desktop ${plan.version} (${plan.channel})`, body: marker, generate_release_notes: true,
+      name: `hemi-dsh ${plan.version} (${plan.channel})`, body: marker, generate_release_notes: true,
       draft: true, prerelease: plan.channel === 'nightly' })
   }
   requireValue(release.tag_name === plan.tag && hasPackageMarker(release, marker) && release.prerelease === (plan.channel === 'nightly'),

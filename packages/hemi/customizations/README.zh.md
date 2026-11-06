@@ -24,7 +24,7 @@ kind: "package-library"
 
 ## GitHub 发布
 
-构建时入口 `/github-distribution`、`/github-release` 和 `/github-release-command` 提供独立的 GitHub Desktop 分发。社区签名、runner 配置和 Computer Use 适配分别由 `/github-community-signing`、`/github-community-setup` 和 `/github-community-cua` 提供。参见 [GitHub 发布配置与恢复](release/README.zh.md)。这些入口不加载 Electron，也不改变客户端更新器。
+构建时入口 `/github-distribution`、`/github-release` 和 `/github-release-command` 提供独立的 GitHub Desktop 分发。社区签名、runner 配置和 Computer Use 适配分别由 `/github-community-signing`、`/github-community-setup` 和 `/github-community-cua` 提供。参见 [GitHub 发布配置与恢复](release/README.zh.md)。这些入口不加载 Electron，也不改变客户端更新器。`configureHemiDesktopIdentity` 在读取 Electron 偏好设置前应用显式的打包 `hemi-dsh` 标记，`/desktop-branding` 拥有共享产品名称。
 
 ## 模型体验
 

@@ -1,9 +1,10 @@
 /** Hemi-owned GitHub release commands; the Desktop shell supplies its existing packaging operations. */
 
-import { appendFileSync } from 'node:fs'
+import { readFileSync, appendFileSync } from 'node:fs'
 import { cp, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
+import { resolveHemiDesktopIdentity } from './identity.mjs'
 import { resolveHemiCommunitySigning } from './signing.mjs'
 import { resolveHemiGitHubDistribution } from './config.mjs'
 import { createHemiGitHubClient, prepareHemiGitHubRelease, publishHemiGitHubRelease } from './publish.mjs'
@@ -113,7 +114,8 @@ export async function runHemiGitHubReleaseCommand(services, argv = process.argv.
     const destination = join(options.artifactsRoot, target)
     await mkdir(destination, { recursive: true })
     const suffix = platform === 'darwin' ? '-mac' : ''
-    const stem = `deepseek-harness-${options.version}-${platform === 'darwin' ? 'mac' : 'win'}-${target.endsWith('arm64') ? 'arm64' : 'x64'}`
+    const record = JSON.parse(readFileSync(join(source, `${target}-release.json`), 'utf8'))
+    const stem = `${resolveHemiDesktopIdentity(record)?.artifactPrefix ?? 'deepseek-harness'}-${options.version}-${platform === 'darwin' ? 'mac' : 'win'}-${target.endsWith('arm64') ? 'arm64' : 'x64'}`
     const extension = platform === 'darwin' ? 'zip' : 'exe'
     const names = [`${target}-release.json`, `${options.channel}${suffix}.yml`, `${stem}.${extension}`, `${stem}.${extension}.blockmap`,
       ...(platform === 'darwin' ? [`${stem}.dmg`] : [])]

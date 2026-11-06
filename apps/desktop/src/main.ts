@@ -2,7 +2,8 @@
 
 import { installFileActions } from './file-actions.ts'
 // Hemi fork: Electron-only adapters live outside the upstream shell; see hemi-fork-changes.md#hemi-customization-isolation.
-import { mountDesktopCustomizations } from '@deepseek-ai/dsh-hemi-customizations'
+import { configureHemiDesktopIdentity, mountDesktopCustomizations } from '@deepseek-ai/dsh-hemi-customizations'
+import { hemiDesktopMessages } from '@deepseek-ai/dsh-hemi-customizations/desktop-branding'
 import { configurationFailure, channelSaveFailure, configurationMessage } from './update-configuration.ts'
 import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
@@ -38,7 +39,7 @@ import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
-import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
+import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale as resolveOriginalDesktopLocale, resolveDesktopStartupLocale as resolveOriginalDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
@@ -72,6 +73,20 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+
+// Hemi fork: select isolated defaults before preferences or single-instance state.
+const hemiIdentity = configureHemiDesktopIdentity(app)
+const externalProtocol = hemiIdentity?.protocol ?? 'dsh'
+function resolveDesktopLocale(locale: string): ReturnType<typeof resolveOriginalDesktopLocale> {
+  const value = resolveOriginalDesktopLocale(locale)
+  return hemiIdentity === undefined ? value : { ...value, messages: hemiDesktopMessages(value.messages) }
+}
+function resolveDesktopStartupLocale(
+  preference: string | null, languages: readonly string[],
+): ReturnType<typeof resolveOriginalDesktopLocale> {
+  const value = resolveOriginalDesktopStartupLocale(preference, languages)
+  return hemiIdentity === undefined ? value : { ...value, messages: hemiDesktopMessages(value.messages) }
+}
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -1143,7 +1158,7 @@ async function main(): Promise<void> {
   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
     : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: hemiIdentity?.productName ?? 'DeepSeek Harness',
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
@@ -1445,10 +1460,11 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  // Hemi fork: a separate external URL scheme lets both products remain installed.
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient(externalProtocol)
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    if (url === `${externalProtocol}://open` || url === `${externalProtocol}://open/`) focusPrimaryWindow()
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {

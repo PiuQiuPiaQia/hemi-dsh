@@ -1,3 +1,8 @@
+// The packaged coordinator replaces a declaration-only source entry; startup does not exercise imports.
+vi.mock('@deepseek-ai/dsh-hemi-model-access/desktop-import', () => ({
+  createImportCoordinator: () => ({ hasLoginMemoryWork: () => false, disposeForQuit: async () => {} }),
+}))
+
 vi.mock('../src/web-document.ts', () => ({
   authenticateWebHost: async () => 'test-cookie', serveWebDocument: vi.fn(), forwardWebRequest: vi.fn(), removeLegacyHostCookies: async () => {},
 }))

@@ -16,7 +16,7 @@ const roots: string[] = []
 const COMMIT = 'a'.repeat(40)
 const DISTRIBUTION = { DSH_DESKTOP_AUTO_UPDATE_ENV: 'production', HEMI_DESKTOP_GITHUB_REPOSITORY: 'example/hemi-dsh' }
 
-async function fixture(targets: HemiGitHubReleaseOptions['targets'] = ['mac-arm64'], channel: 'stable' | 'nightly' = 'stable'):
+async function fixture(targets: HemiGitHubReleaseOptions['targets'] = ['mac-arm64'], channel: 'stable' | 'nightly' = 'stable', branded = false):
 Promise<HemiGitHubReleaseOptions> {
   const artifactsRoot = await mkdtemp(join(tmpdir(), 'hemi-github-release-'))
   roots.push(artifactsRoot)
@@ -25,7 +25,7 @@ Promise<HemiGitHubReleaseOptions> {
     const directory = join(artifactsRoot, target)
     await mkdir(directory)
     const windows = target === 'win-x64'
-    const stem = `deepseek-harness-${version}-${windows ? 'win' : 'mac'}-${target.endsWith('arm64') ? 'arm64' : 'x64'}`
+    const stem = `${branded ? 'hemi-dsh' : 'deepseek-harness'}-${version}-${windows ? 'win' : 'mac'}-${target.endsWith('arm64') ? 'arm64' : 'x64'}`
     const name = `${stem}.${windows ? 'exe' : 'zip'}`
     const payload = Buffer.from(`inert ${target} update payload`)
     const sha512 = createHash('sha512').update(payload).digest('base64')
@@ -36,7 +36,7 @@ Promise<HemiGitHubReleaseOptions> {
       files: [{ url: name, size: payload.length, sha512 }], path: name, sha512 }))
     await writeFile(join(directory, `${target}-release.json`), JSON.stringify({ schemaVersion: 1, target, version,
       channel, environment: 'production', publicUrl: resolveHemiGitHubUpdate(DISTRIBUTION, target, channel)!.publicUrl,
-      commit: COMMIT, dirty: false }))
+      commit: COMMIT, dirty: false, ...(branded ? { hemiDesktopProduct: 'hemi-dsh' } : {}) }))
   }
   return { repository: 'example/hemi-dsh', branch: 'desktop-update-feeds', version, channel, commit: COMMIT, targets, artifactsRoot }
 }
@@ -407,4 +407,12 @@ describe('production GitHub HTTP client', () => {
       .rejects.toThrow('did not confirm completion')
     expect(fetch).toHaveBeenCalledTimes(1)
   })
+})
+
+it('publishes renamed Hemi artifacts while retaining compatibility with previous completion records', async () => {
+  const current = await prepareHemiGitHubRelease(await fixture(['mac-arm64', 'win-x64'], 'nightly', true))
+  expect(current.assets.every(asset => asset.name.startsWith('hemi-dsh-'))).toBe(true)
+  expect(current.feeds.every(feed => feed.contents.includes('/hemi-dsh-'))).toBe(true)
+  const legacy = await prepareHemiGitHubRelease(await fixture())
+  expect(legacy.assets.every(asset => asset.name.startsWith('deepseek-harness-'))).toBe(true)
 })

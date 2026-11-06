@@ -39,6 +39,10 @@
     "./github-community-setup": {
       "types": "./release/setup.d.mts",
       "default": "./release/setup.mjs"
+    },
+    "./desktop-branding": {
+      "types": "./release/identity.d.mts",
+      "default": "./release/identity.mjs"
     }
   },
   "files": [

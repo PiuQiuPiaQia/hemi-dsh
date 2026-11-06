@@ -310,7 +310,9 @@ describe.skipIf(MODE === 'record')('web e2e: DeepSeek account sign-in in a plain
     for (const id of ['ui-settings-account', 'ui-settings-models']) {
       const entry = [...scaffold.ctx.loader.entries()].find(row => row.options.id === id)
       if (entry === undefined) throw new Error(`Missing native settings entry: ${id}`)
-      await entry.update({ config: { ...entry.options.config, showSettingsSection: false,
+      const config: unknown = entry.options.config
+      if (config === null || typeof config !== 'object' || Array.isArray(config)) throw new Error(`Invalid native settings config: ${id}`)
+      await entry.update({ config: { ...config, showSettingsSection: false,
         ...id === 'ui-settings-account' ? { showLauncher: false } : {},
       } })
     }

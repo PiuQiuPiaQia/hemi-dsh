@@ -31,6 +31,8 @@ The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme
 
 The backdrop layer is a full-viewport body child mounted after `#root` and is visual only. Its sheet opts it out of app-region collection with `-webkit-app-region: initial !important`: the shell's darwin `body > :not(#root)` rule subtracts body-level overlays from the window drag surface by DOM order, and a full-viewport no-drag box would otherwise disable titlebar dragging and its native double-click maximize/restore on macOS.
 
+The plugin occupies the existing sidebar name slot at priority -10 with locale-owned `hemi-dsh` text, shadowing the official wordmark. Removing the plugin restores the original occupant.
+
 <a id="further-exploration"></a>
 ## Further exploration
 
