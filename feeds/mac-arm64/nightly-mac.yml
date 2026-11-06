@@ -1,8 +1,8 @@
-version: 0.2.2-alpha.3.20261106.1
+version: 0.2.2-alpha.3.20261106.2
 files:
-  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261106.1/deepseek-harness-0.2.2-alpha.3.20261106.1-mac-arm64.zip
-    sha512: k/SNXz5gmGk4ejozXRdT7aTDbZGG7970OiGIYVaeg139knO1Q13OvAzF+n588B78+onkFzIPhxYBucWaIgZmQw==
-    size: 363658783
-path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261106.1/deepseek-harness-0.2.2-alpha.3.20261106.1-mac-arm64.zip
-sha512: k/SNXz5gmGk4ejozXRdT7aTDbZGG7970OiGIYVaeg139knO1Q13OvAzF+n588B78+onkFzIPhxYBucWaIgZmQw==
-releaseDate: '2026-11-06T00:53:13.803Z'
+  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261106.2/hemi-dsh-0.2.2-alpha.3.20261106.2-mac-arm64.zip
+    sha512: 2oSMrDR06PbtD9zLpWj9yQ4WkOWRN0Fzjpj15UdxWsRO8RbZUyYWRlV7tAckIKD9NlIyvWqIs7JHyTZDU6LBbQ==
+    size: 363540449
+path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261106.2/hemi-dsh-0.2.2-alpha.3.20261106.2-mac-arm64.zip
+sha512: 2oSMrDR06PbtD9zLpWj9yQ4WkOWRN0Fzjpj15UdxWsRO8RbZUyYWRlV7tAckIKD9NlIyvWqIs7JHyTZDU6LBbQ==
+releaseDate: '2026-11-06T02:06:54.843Z'
