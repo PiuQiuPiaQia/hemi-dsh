@@ -23,6 +23,18 @@ try:
  run('select-test-keychain',['/usr/bin/security','list-keychains','-d','user','-s',str(keychain),*prior])
  cert=run('read-test-der',['/usr/bin/openssl','x509','-in',str(root/'cert.pem'),'-outform','der']);pin=hashlib.sha1(cert).hexdigest()
  requirement='identifier "ai.hemi.isolated-test" and certificate leaf = H"'+pin+'"'
+ (root/'loader.c').write_text('#include <dlfcn.h>\n#include <stdio.h>\nint main(int argc,char**argv){if(argc!=2)return 2;void*p=dlopen(argv[1],RTLD_NOW);if(!p){fputs(dlerror(),stderr);return 1;}dlclose(p);return 0;}\n')
+ (root/'library.c').write_text('int hemi_probe(void){return 42;}\n')
+ run('compile-test-loader',['/usr/bin/xcrun','clang',str(root/'loader.c'),'-o',str(root/'loader')])
+ run('compile-test-library',['/usr/bin/xcrun','clang','-dynamiclib',str(root/'library.c'),'-o',str(root/'probe.dylib')])
+ for file in ['loader','probe.dylib']:
+  run('sign-negative-control',['/usr/bin/codesign','--force','--sign',pin,'--keychain',str(keychain),'--timestamp=none','--options','runtime',str(root/file)])
+ blocked=subprocess.run([str(root/'loader'),str(root/'probe.dylib')],capture_output=True,timeout=20)
+ if blocked.returncode==0 or b'Team ID' not in blocked.stderr:raise RuntimeError('The negative control did not exercise library validation')
+ print('PASS: self-signed hardened runtime negative control rejects a library without an Apple Team ID')
+ run('sign-test-native-runtime',[shutil.which('node'),'apps/desktop/tests/fixtures/hemi-community-runtime.mjs',str(root),pin,str(keychain)])
+ run('native-self-signed-library-loading',[str(root/'loader'),str(root/'probe.dylib')])
+ print('PASS: production runtime signer permits loading the sealed self-signed library')
  for version in ['1','2']:
   app=root/('Test'+version+'.app');contents=app/'Contents';(contents/'MacOS').mkdir(parents=True);(contents/'Resources').mkdir()
   shutil.copyfile('/usr/bin/true',contents/'MacOS'/'Probe')

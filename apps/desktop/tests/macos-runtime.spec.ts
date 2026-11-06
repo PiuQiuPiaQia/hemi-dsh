@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { signMacOSRuntime } from '../scripts/macos-runtime.ts'
+import { signMacOSRuntime, signMacOSRuntimeWithPolicy } from '../scripts/macos-runtime.ts'
 import { signMacOSRuntimeCode, verifyMacOSNotarizedApplication, verifyMacOSRuntimeCode } from '../scripts/verify-macos-signature.mjs'
 
 vi.mock('../scripts/verify-macos-signature.mjs', () => ({
@@ -131,4 +131,27 @@ it.each(['arm64', 'x64'] as const)('selects %s Node entitlements and keeps helpe
       join(import.meta.dirname, '../scripts/jit-entitlements.plist'))
   }
   expect(signMacOSRuntimeCode).toHaveBeenCalledWith(addon, expect.any(String), identity, undefined)
+})
+
+it('uses an explicit signature provider without requiring a company Team ID or notarization', async () => {
+  const path = root()
+  machO(join(path, helperBundle, 'Contents/MacOS/dsh-cua-native'))
+  const node = join(path, 'dependencies/node/bin/node')
+  machO(node)
+  const policy = { verifyApplication: vi.fn(), signFile: vi.fn(async () => {}) }
+  await expect(signMacOSRuntimeWithPolicy(path, 'ai.hemi.dsh.desktop', policy, 'arm64')).resolves.toBe(1)
+  expect(policy.verifyApplication).toHaveBeenCalledExactlyOnceWith(join(path, helperBundle))
+  expect(policy.signFile).toHaveBeenCalledExactlyOnceWith(node, expect.stringMatching(/^ai\.hemi\.dsh\.desktop\.runtime\.[a-f0-9]{64}$/u),
+    join(import.meta.dirname, '../scripts/jit-entitlements.plist'))
+  expect(signMacOSRuntimeCode).not.toHaveBeenCalled()
+  expect(verifyMacOSNotarizedApplication).not.toHaveBeenCalled()
+})
+
+it('rejects an invalid fixed-certificate helper before the custom provider signs any file', async () => {
+  const path = root()
+  machO(join(path, helperBundle, 'Contents/MacOS/dsh-cua-native'))
+  machO(join(path, 'addon.node'))
+  const policy = { verifyApplication: vi.fn(() => { throw new Error('fixed certificate mismatch') }), signFile: vi.fn(async () => {}) }
+  await expect(signMacOSRuntimeWithPolicy(path, 'ai.hemi.dsh.desktop', policy, 'arm64')).rejects.toThrow('fixed certificate mismatch')
+  expect(policy.signFile).not.toHaveBeenCalled()
 })

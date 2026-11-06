@@ -1,5 +1,7 @@
 /** Materialize the complete production runtime before publishing Desktop resources. */
 
+// Hemi fork: community native signatures use a fixed-certificate provider with the shared runtime traversal.
+import { createHemiMacRuntimeSigner, resolveHemiCommunitySigning } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
 import { resolveMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
 import { packagingStep } from './packaging-step.mjs'
 import { spawn } from 'node:child_process'
@@ -30,7 +32,7 @@ import {
   resolveNpmRegistry,
 } from './desktop-release-environment.mjs'
 import {
-  signMacOSRuntime,
+  signMacOSRuntime, signMacOSRuntimeWithPolicy,
 } from './macos-runtime.ts'
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
@@ -164,9 +166,18 @@ async function main(): Promise<void> {
       throw new Error(`desktop runtime: missing required LibreOffice engine ${officeEngine}`)
     }
     if (process.platform === 'darwin' && process.env.DSH_DESKTOP_UNSIGNED !== '1') {
-      const cacheDirectory = resolveMacOSSignatureCacheDirectory(process.env, BUILD_PATHS.root)
-      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntime(DSH_OUTPUT_ROOT, resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), target.arch, cacheDirectory))
-      await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), target.arch, cacheDirectory, 'primary'))
+      const appId = resolveDesktopAppId(process.env)
+      const community = resolveHemiCommunitySigning(process.env, 'darwin')
+      if (community?.kind === 'mac-self-signed') {
+        const policy = createHemiMacRuntimeSigner(community, process.env.CSC_KEYCHAIN)
+        await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntimeWithPolicy(DSH_OUTPUT_ROOT, appId, policy, target.arch))
+        await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntimeWithPolicy(join(RUNTIME_ROOT, 'primary-runtime'), appId, policy, target.arch, 'primary'))
+      } else {
+        const cacheDirectory = resolveMacOSSignatureCacheDirectory(process.env, BUILD_PATHS.root)
+        const signing = resolveMacOSSigningEnvironment(process.env)
+        await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntime(DSH_OUTPUT_ROOT, appId, signing, target.arch, cacheDirectory))
+        await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), appId, signing, target.arch, cacheDirectory, 'primary'))
+      }
     }
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:manifests', () => prepareRuntimeManifests(DSH_OUTPUT_ROOT))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:primary-smoke', async () => smokePrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime')))

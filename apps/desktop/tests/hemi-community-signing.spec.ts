@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { X509Certificate } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
-import { resolveHemiCommunitySigning, hemiMacRequirement, verifyHemiMacApplication } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
+import { createHemiMacRuntimeSigner, resolveHemiCommunitySigning, hemiMacRequirement, verifyHemiMacApplication } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
 import { setupHemiCommunitySigning, cleanupHemiCommunitySigning } from '@deepseek-ai/dsh-hemi-customizations/github-community-setup'
 import { createElectronBuilderConfig } from '../scripts/electron-builder-config.mjs'
 import { loadDesktopPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
@@ -30,6 +30,7 @@ it('uses one committed public certificate and refuses implicit or partial commun
   expect(() => resolveHemiCommunitySigning({ ...COMMUNITY, DSH_DESKTOP_UNSIGNED: '1' }, 'darwin')).toThrow('debug mode')
   const signing = resolveHemiCommunitySigning(COMMUNITY, 'darwin')
   if (signing?.kind !== 'mac-self-signed') throw new Error('expected fixed certificate')
+  expect(() => createHemiMacRuntimeSigner(signing, undefined)).toThrow('scoped signing keychain')
   const certificate = new X509Certificate(readFileSync(signing.certificate))
   expect(signing.sha256).toBe(certificate.fingerprint256.replaceAll(':', '').toLowerCase())
   expect(hemiMacRequirement('ai.hemi.dsh.desktop', signing.identity)).toContain('certificate leaf = H"')

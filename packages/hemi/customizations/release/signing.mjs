@@ -1,8 +1,9 @@
 /** Fixed-certificate Hemi builds, independent of Apple Developer ID and EV signing. */
 import { X509Certificate } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
-import { basename, resolve } from 'node:path'
+import { closeSync, mkdtempSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveHemiGitHubDistribution } from './config.mjs'
 
@@ -114,4 +115,49 @@ export function signHemiMacDiskImage(image, signing, keychain, execute = run) {
   execute('/usr/bin/codesign', ['--force', '--sign', signing.identity, '--timestamp=none',
     ...(keychain === undefined ? [] : ['--keychain', keychain]), image])
   execute('/usr/bin/codesign', ['--verify', '--strict', '-R', `=certificate leaf = H"${signing.identity.toLowerCase()}"`, image])
+}
+
+/**
+ * Supply fixed-certificate checks to the Desktop runtime's shared traversal and entitlement selection.
+ * @param {import('./signing.mjs').HemiMacSigning} signing Pinned public identity.
+ * @param {string | undefined} keychain Unlocked packaging-owned keychain.
+ * @returns {import('./signing.mjs').HemiMacRuntimeSigner} Helper verifier and standalone native signer.
+ */
+export function createHemiMacRuntimeSigner(signing, keychain) {
+  if (!keychain || !isAbsolute(keychain)) throw new Error('Hemi Desktop: native signing requires the scoped signing keychain')
+  return {
+    verifyApplication(application) {
+      const plist = readFileSync(join(application, 'Contents/Info.plist'), 'utf8')
+      const identifier = /<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>/u.exec(plist)?.[1]
+      if (!identifier) throw new Error('Hemi Desktop: native helper has no bundle identifier')
+      verifyHemiMacApplication(application, signing, identifier)
+    },
+    async signFile(file, identifier, entitlements) {
+      const requirement = hemiMacRequirement(identifier, signing.identity)
+      const { execa } = await import('execa')
+      const { default: plist } = await import('plist')
+      const inherited = entitlements === undefined ? {} : plist.parse(readFileSync(entitlements, 'utf8'))
+      if (inherited === null || typeof inherited !== 'object'
+        || ![Object.prototype, null].includes(Object.getPrototypeOf(inherited))) {
+        throw new Error('Hemi Desktop: native entitlements must be a plist dictionary')
+      }
+      // A fixed self-signed identity has no Apple Team ID for native library validation.
+      const contents = plist.build({ ...inherited, 'com.apple.security.cs.disable-library-validation': true })
+      const directory = mkdtempSync(join(tmpdir(), 'hemi-native-entitlements-'))
+      try {
+        const plistFile = join(directory, 'entitlements.plist')
+        writeFileSync(plistFile, contents, { mode: 0o600, flag: 'wx' })
+        try {
+          await execa('/usr/bin/codesign', ['--force', '--sign', signing.identity, '--keychain', keychain,
+            '--identifier', identifier, '--timestamp=none', '--options', 'runtime', '--requirements', `=designated => ${requirement}`,
+            '--entitlements', plistFile, file], { timeout: 120_000, stdio: 'pipe' })
+        } catch (error) {
+          throw new Error(`Hemi Desktop: fixed-certificate native signing failed for ${basename(file)}`)
+        }
+        run('/usr/bin/codesign', ['--verify', '--strict', '--all-architectures', '-R', `=${requirement}`, file])
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    },
+  }
 }

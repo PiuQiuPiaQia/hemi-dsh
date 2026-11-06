@@ -56,6 +56,56 @@ export async function signMacOSRuntime(
   root: string, appId: string, expected: MacOSSigningEnvironment, arch: 'arm64' | 'x64', cacheDirectory?: string,
   kind: 'desktop' | 'primary' = 'desktop',
 ): Promise<number> {
+  const cachedPolicy = cacheDirectory === undefined ? undefined : macOSCachePolicy(process.env.DSH_DESKTOP_MACOS_SIGNING_PROBE ?? '')
+  let hits = 0
+  let misses = 0
+  const count = await signMacOSRuntimeWithPolicy(root, appId, {
+    verifyApplication: application => verifyMacOSNotarizedApplication(application, expected),
+    signFile: async (file, identifier, entitlements) => {
+      const thin = ['cefaedfe', 'cffaedfe', 'feedface', 'feedfacf'].includes(magic(file))
+      if (cacheDirectory !== undefined && cachedPolicy !== undefined && thin) {
+        if (await cachedMacOSSignature(file, cacheDirectory, cachedPolicy(identifier, expected, entitlements))) hits++
+        else misses++
+      } else {
+        await signMacOSRuntimeCode(file, identifier, expected, entitlements)
+        verifyMacOSRuntimeCode(file, expected)
+      }
+    },
+  }, arch, kind)
+  if (cacheDirectory !== undefined) {
+    pruneMacOSSignatureCache(cacheDirectory)
+    console.info(`desktop macOS signing cache: ${hits} hits, ${misses} misses, ${count - hits - misses} uncached`)
+  }
+  return count
+}
+
+// Hemi fork: share inventory, entitlements and draining while providers own signature and helper verification.
+/** Signature checks required before sealing a native runtime inventory. */
+export interface MacOSRuntimeSigningPolicy {
+  /** @param application Complete helper bundle to verify before signing any native file. */
+  verifyApplication(application: string): void
+  /**
+   * @param file Native file.
+   * @param identifier Stable signing identifier.
+   * @param entitlements Optional entitlement plist.
+   * @returns Completion after signing and verification.
+   */
+  signFile(file: string, identifier: string, entitlements: string | undefined): Promise<void>
+}
+
+/**
+ * Sign native runtime files with explicit verification policy, preserving sealed helper bundles and validated aliases.
+ * @param root Self-contained runtime directory.
+ * @param appId Release application identifier.
+ * @param policy Provider that verifies helpers and signs and verifies standalone code.
+ * @param arch Target architecture used for Node entitlements.
+ * @param kind Primary payloads admit validated Python aliases; application runtimes reject links.
+ * @returns Count of signed native files, after every signer settles.
+ */
+export async function signMacOSRuntimeWithPolicy(
+  root: string, appId: string, policy: MacOSRuntimeSigningPolicy, arch: 'arm64' | 'x64',
+  kind: 'desktop' | 'primary' = 'desktop',
+): Promise<number> {
   const inventory = kind === 'primary' ? await primaryRuntimeFiles(root) : inventoryDesktopRuntime(root).map(file => file.path)
   const bundles = new Set<string>()
   const files: string[] = []
@@ -64,10 +114,7 @@ export async function signMacOSRuntime(
     if (bundle !== undefined) bundles.add(bundle)
     else if (MACH_O_MAGICS.has(magic(join(root, path)))) files.push(path)
   }
-  for (const bundle of [...bundles].sort()) verifyMacOSNotarizedApplication(join(root, bundle), expected)
-  const policy = cacheDirectory === undefined ? undefined : macOSCachePolicy(process.env.DSH_DESKTOP_MACOS_SIGNING_PROBE ?? '')
-  let hits = 0
-  let misses = 0
+  for (const bundle of [...bundles].sort()) policy.verifyApplication(join(root, bundle))
   let next = 0
   const workers = Array.from({ length: Math.min(4, files.length) }, async () => {
     for (;;) {
@@ -80,23 +127,11 @@ export async function signMacOSRuntime(
       const entitlementsFile = isNode && arch === 'x64'
         ? 'node-x64-entitlements.plist' : 'jit-entitlements.plist'
       const entitlements = needsJit ? join(import.meta.dirname, entitlementsFile) : undefined
-      const file = join(root, path)
-      const thin = ['cefaedfe', 'cffaedfe', 'feedface', 'feedfacf'].includes(magic(file))
-      if (cacheDirectory !== undefined && policy !== undefined && thin) {
-        if (await cachedMacOSSignature(file, cacheDirectory, policy(identifier, expected, entitlements))) hits++
-        else misses++
-      } else {
-        await signMacOSRuntimeCode(file, identifier, expected, entitlements)
-        verifyMacOSRuntimeCode(file, expected)
-      }
+      await policy.signFile(join(root, path), identifier, entitlements)
     }
   })
   const results = await Promise.allSettled(workers)
   const errors = results.filter(result => result.status === 'rejected').map(result => result.reason as unknown)
   if (errors.length > 0) throw new AggregateError(errors, 'desktop runtime: native signing failed')
-  if (cacheDirectory !== undefined) {
-    pruneMacOSSignatureCache(cacheDirectory)
-    console.info(`desktop macOS signing cache: ${hits} hits, ${misses} misses, ${files.length - hits - misses} uncached`)
-  }
   return files.length
 }

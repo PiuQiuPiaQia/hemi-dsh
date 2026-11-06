@@ -34,3 +34,14 @@ export function signHemiMacDiskImage(
   image: string, signing: HemiMacSigning, keychain: string | undefined,
   execute?: (command: string, args: string[]) => string,
 ): void
+
+/** Signature provider for a native runtime, retaining already sealed helper applications. */
+export interface HemiMacRuntimeSigner {
+  /** Verify the helper's fixed certificate and designated requirement. */
+  verifyApplication(application: string): void
+  /** Sign and verify one Mach-O file with the caller-selected entitlements. */
+  signFile(file: string, identifier: string, entitlements: string | undefined): Promise<void>
+}
+
+/** Create native runtime signing operations backed by the existing scoped Hemi identity. */
+export function createHemiMacRuntimeSigner(signing: HemiMacSigning, keychain: string | undefined): HemiMacRuntimeSigner

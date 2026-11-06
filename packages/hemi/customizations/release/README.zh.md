@@ -46,7 +46,7 @@ description: "通过 GitHub 发布 Hemi Desktop，macOS 使用固定自签名证
 
 本地公开 preset 显式配置 `HEMI_DESKTOP_SIGNING_MODE=community`、GitHub 仓库、`DSH_DESKTOP_AUTO_UPDATE_ENV=production`，并可选 `HEMI_DESKTOP_UPDATE_POLICY=disabled`。省略签名模式时保留常规 DSH 要求。`stable` 和 `nightly` 更新渠道独立于签名方式。COS 上传命令会拒绝 GitHub 安装包。
 
-Mac 打包使用固定证书签名，并校验嵌套代码、全部架构和精确 designated requirement：bundle 标识加证书指纹。流程不请求时间戳服务或 Apple 公证。两个架构的 Computer Use helper 使用同一证书，并校验原生回执和相同签名要求。这不会创建用于 npm 发布的官方公证 helper manifest。macOS 首次授权仍须手动完成；签名一致本身不能证明权限保留。
+Mac 打包使用固定证书签名，并校验嵌套代码、全部架构和精确 designated requirement：bundle 标识加证书指纹。同一证书会在文件清单封存前签署独立原生库和内置 Node/Python 运行时。共享的 Desktop 遍历保留分架构 JIT 权限、已验证的 Python 别名和已封存的辅助应用。自签名原生代码还声明[库校验例外](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.disable-library-validation)，因为这些证书没有加载原生库所需的 Apple Team ID。流程不请求时间戳服务或 Apple 公证。两个架构的 Computer Use helper 使用同一证书，并校验原生回执和相同签名要求。这不会创建用于 npm 发布的官方公证 helper manifest。macOS 首次授权仍须手动完成；签名一致本身不能证明权限保留。
 
 固定 designated requirement 让 Squirrel.Mac 能校验同一身份签出的后续构建。流程继续使用原生更新器，不安装应用换包脚本或系统信任例外。这些包没有 Apple 公证票据；首次安装／打开仍受 macOS 安全批准约束。已有 ad-hoc 或其他签名的安装，须先经过独立验收的手动安装，才能依赖该身份的更新。
 
