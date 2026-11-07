@@ -1,0 +1,14 @@
+- dialog "接入 New API":
+  - heading "接入 New API" [level=2]
+  - button "关闭"
+  - paragraph: 浏览器登录和创建令牌需要桌面应用；在这里可以导入已有令牌
+  - form "New API 导入":
+    - paragraph: 先登录站点，在账号安全设置中获取系统访问令牌，用它读取已有 API 令牌。
+    - text: HTTPS 站点地址
+    - textbox "HTTPS 站点地址"
+    - text: New API 用户 ID
+    - textbox "New API 用户 ID"
+    - text: 系统访问令牌
+    - textbox "系统访问令牌"
+    - button "读取 API 令牌" [disabled]
+  - button "关闭"

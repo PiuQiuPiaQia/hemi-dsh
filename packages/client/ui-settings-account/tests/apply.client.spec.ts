@@ -808,3 +808,24 @@ it('applies API-key defaults through the desktop slot and shared configuration o
   expect(values['ui-settings']).toEqual({ enabled: true })
   expect(values['ui-chat']).toMatchObject({ transcriptView: 'standard' })
 }, 60_000)
+
+it('keeps provider authorization local without global onboarding or default-model initialization', async ({ start }) => {
+  const openExternal = vi.fn(async (_url: string) => {})
+  vi.stubGlobal('dshDesktop', { openExternal })
+  vi.stubGlobal('__DSH_TRANSPORT__', { streamBaseUrl: 'http://localhost:9876/' })
+  vi.stubGlobal(CONTACT_CONFIG_GLOBAL, { desktopOnboarding: false, initializeDefaultModel: false, nativeSignIn: false })
+  const c = await start()
+  const actions = operations(c)
+  const attempt = { id: 'local-desktop-login' as SignInAttemptId, phase: 'waiting-browser' as const,
+    authorizeUrl: 'https://platform.deepseek.com/dsh/authorize' }
+  c.mock.remote.account.startSignIn.mockResolvedValue(ok({ ...view, attempt }))
+  await actions.start()
+  expect(openExternal).toHaveBeenCalledExactlyOnceWith('https://platform.deepseek.com/dsh/authorize?theme=light')
+  expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-onboarding')).toBe(false)
+  c.mock.streams.push('account/watch', { ...stored, attempt: { id: attempt.id, phase: 'succeeded' } })
+  await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().view?.status).toBe('credential-stored') })
+  expect(c.mock.remote.session.initializeDefaultModel).not.toHaveBeenCalled()
+  c.mock.streams.push('account/watch', view)
+  await vi.waitFor(() => { expect(actions.hooks.account.getSnapshot().view?.status).toBe('signed-out') })
+  expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-onboarding')).toBe(false)
+}, 60_000)

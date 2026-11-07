@@ -35,6 +35,8 @@ export const DESKTOP_IPC = {
   fileDragStart: 'dsh-desktop:file-drag-start',
   fileDragRelease: 'dsh-desktop:file-drag-release',
   deviceInfo: 'dsh-desktop:device-info',
+  // Hemi fork: a provider-neutral, sender-authorized browser action.
+  openExternal: 'dsh-desktop:open-external',
   localeBootstrap: 'dsh-desktop:locale-bootstrap',
   localeChanged: 'dsh-desktop:locale-changed',
   updatesChannelGet: 'dsh-desktop:updates-channel-get',
@@ -94,6 +96,12 @@ export interface DesktopUpdatePresentation {
 
 /** Product documents cannot supply update versions, package URLs, or installation authorization. */
 export interface DshDesktopProductApi {
+  /**
+   * Open a validated HTTPS or loopback HTTP link in the system browser.
+   * @param url - user-requested destination.
+   * @returns after the OS accepts the request.
+   */
+  openExternal?(url: string): Promise<void>
   readonly fileActions: DesktopFileActions
   readonly protocolVersion: 1
   readonly newApiImport?: NewApiDesktopBridge

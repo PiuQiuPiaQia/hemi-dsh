@@ -43,9 +43,11 @@ it.each([false, true])('offers Standard, Creator and custom defaults with Coding
     { id: 'standard', isDefault: false }, { id: 'ptc', isDefault: false },
     { id: 'minimal', isDefault: true }, { id: 'cordis', isDefault: false },
     { id: 'mine', name: 'Mine', isDefault: false },
+    { id: 'child', name: 'Child role', isDefault: false, subagentOnly: true },
   ] }, vi.fn(), undefined, enabled)
   expect(screen.queryByRole('button', { name: `${en.setDefault}: ${en.presetPtcName}` }) !== null).toBe(enabled)
   expect(screen.queryByRole('button', { name: `${en.inUse}: ${en.presetMinimalName}` }) !== null).toBe(enabled)
+  expect(screen.queryByRole('button', { name: `${en.setDefault}: Child role` })).toBeNull()
   for (const [id, name] of [['standard', en.presetStandardName], ['cordis', en.presetCordisName], ['mine', 'Mine']]) {
     const button = screen.getByRole<HTMLButtonElement>('button', { name: `${en.setDefault}: ${name}` })
     expect(button.disabled).toBe(false)

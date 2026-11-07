@@ -1,0 +1,7 @@
+- dialog "欢迎使用 Hemi":
+  - main "接入模型，开始工作":
+    - text: Hemi
+    - heading "接入模型，开始工作" [level=1]
+    - paragraph: 连接订阅或 API 服务，使用你选择的模型
+    - button "配置模型"
+    - button "进入工作区"

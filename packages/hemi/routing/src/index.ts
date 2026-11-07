@@ -100,6 +100,13 @@ const ROLE_DISPATCH = [
 export function apply(ctx: Context, config: Config): void {
   if (config.maxDepth !== 'provider-managed') assertSubagentMaxDepth(config.maxDepth)
   const lastPreparedTurn = new WeakMap<Agent, number>()
+  ctx.effect(() => ctx.on('agent/before-user-prompt', async (agent) => {
+    if (agent.model.current() !== undefined || agent.session.header.origin === 'subagent'
+      || ctx.subagents.rootOf(agent) !== agent || ctx.hemiRoutingSettings.modeOfSession(agent.id) !== 'auto') return undefined
+    ctx.hemiRoutingSettings.prepareTurn(agent)
+    await ctx.hemiRoutingSettings.captureStep(agent)
+    return undefined
+  }), 'hemi-routing: initial route admission')
   ctx.effect(() => ctx.on('agent/inbox/claimed', ({ agent, turn }) => {
     if (lastPreparedTurn.get(agent) === turn) return
     lastPreparedTurn.set(agent, turn)

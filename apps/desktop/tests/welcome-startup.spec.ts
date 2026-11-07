@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   beforeRead: vi.fn(async () => {}),
   beforeWelcome: vi.fn(async () => {}),
   copy: vi.fn(),
+  external: vi.fn(async (_url: string) => {}),
   expiryListener: undefined as (() => void) | undefined,
   accountListener: undefined as ((value: AccountView) => void) | undefined,
   accountState: vi.fn<() => Promise<AccountView>>().mockResolvedValue({
@@ -55,6 +56,7 @@ vi.mock('../src/crash-report.ts', async importOriginal => ({
 }))
 vi.mock('electron', () => ({
   clipboard: { writeText: state.copy },
+  shell: { openExternal: state.external },
   app: {
     isPackaged: false,
     name: 'Harness',
@@ -306,4 +308,42 @@ it.each([false, true])('starts welcome onboarding without carrying update focus 
   expect(state.showWorkspace).toHaveBeenCalledOnce()
   expect(state.focusWorkspace).toHaveBeenCalledOnce()
 
+})
+
+
+it('opens a provider-neutral workspace without querying account or credential state', async () => {
+  vi.resetModules()
+  vi.clearAllMocks()
+  state.operations = undefined
+  state.accountListener = undefined
+  state.expiryListener = undefined
+  state.beforeRead.mockRejectedValueOnce(new Error('account RPC must not run'))
+  state.startHost.mockResolvedValueOnce({ url: 'http://127.0.0.1:3080/?token=test', injections: [],
+    startup: { mode: 'workspace', localePreference: 'zh' } })
+  vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
+  vi.stubEnv('DSH_DESKTOP_DEV_PROJECT_DIR', '/development-profile')
+  vi.stubEnv('DSH_DESKTOP_NODE_BINARY', '/runtime/node')
+  vi.stubEnv('DSH_DESKTOP_PNPM_ENTRY', '/runtime/pnpm')
+  vi.stubEnv('DSH_DESKTOP_DSH_DIR', '/runtime/dsh')
+  vi.stubEnv('DSH_DESKTOP_PRIMARY_RUNTIME_DIR', '/runtime/primary-runtime')
+  vi.stubEnv('DSH_DESKTOP_OPEN_DEVTOOLS', '0')
+  vi.stubEnv('DSH_DESKTOP_MANDATORY_UPDATE_CONFIG', undefined)
+  await import('../src/main.ts')
+  await vi.waitFor(() => { expect(state.showWorkspace).toHaveBeenCalledOnce() })
+  expect(state.beforeRead).not.toHaveBeenCalled()
+  expect(state.beforeWelcome).not.toHaveBeenCalled()
+  expect(state.accountState).not.toHaveBeenCalled()
+  expect(state.accountListener).toBeUndefined()
+  expect(state.expiryListener).toBeUndefined()
+  expect(state.operations).toBeUndefined()
+  expect(state.dialogLocale!().id).toBe('zh-CN')
+  const contents = state.contents!
+  const event = { sender: contents, senderFrame: contents.mainFrame }
+  await expect(state.handlers.get(DESKTOP_IPC.localeBootstrap)!(event)).resolves.toEqual({ languages: ['en-US'], preference: 'zh' })
+  await expect(state.handlers.get(DESKTOP_IPC.onboardingApiKey)!(event)).resolves.toBe(false)
+  await state.handlers.get(DESKTOP_IPC.openExternal)!(event, 'https://example.test/authorize')
+  expect(state.external).toHaveBeenCalledExactlyOnceWith('https://example.test/authorize')
+  await expect(state.handlers.get(DESKTOP_IPC.openExternal)!(event, 'file:///private/secret')).rejects.toThrow('HTTPS')
+  await expect(state.handlers.get(DESKTOP_IPC.openExternal)!({ sender: {}, senderFrame: contents.mainFrame }, 'https://example.test')).rejects.toThrow('unowned')
+  state.beforeRead.mockReset()
 })

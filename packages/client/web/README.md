@@ -41,6 +41,8 @@ Boot runs in two stages: the module stage adopts the parser-loaded bootstrap bat
 
 The boot page uses plain DOM and local CSS, so bundle and plugin-activation failures remain visible: it shows one spinner node whose CSS arc grows as entries activate. The spinner and its animation phase persist until the full UI replaces the boot page. When a required plugin fails import or activation, the page names every inactive plugin with the reason (missing service, import failure, or activation error) and marks the required ones, instead of a blank page. An optional plugin's failure appears in one console warning and does not stop the application. The console contains the original import error.
 
+`AppWebEntry` accepts an optional third `presentation` argument with a wordmark, localized loading and failure labels, and a carrier-owned CSS class. This presentation applies before Host readiness and plugin activation; it does not change progress, failure reports, or renderer handoff. Omitting it preserves the default boot page.
+
 <a id="the-shared-module-table"></a>
 ### The shared module table
 

@@ -28,6 +28,15 @@ const stubLanguages = (...tags: string[]): void => {
 }
 
 describe('LocaleRuntime', () => {
+  it('brands registered copy while retaining user parameters and missing keys verbatim', () => {
+    const ctx = new Context()
+    const svc = new LocaleRuntime(ctx, undefined, undefined, 'Hemi')
+    svc.register('brand-test', 'en', { warning: 'DeepSeek Harness: {name}' })
+    const t = svc.bind('brand-test')
+    expect(t('warning', { name: 'DeepSeek Harness user document' })).toBe('Hemi: DeepSeek Harness user document')
+    expect(t('DeepSeek Harness unknown key')).toBe('DeepSeek Harness unknown key')
+  })
+
   beforeEach(() => {
     // A Chinese browser is the baseline these specs assert their zh state on.
     stubLanguages('zh-CN')

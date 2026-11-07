@@ -1,7 +1,7 @@
 /** Model-facing query for a bundled Python, Node.js, and pnpm payload, in place or installed under the Harness home. */
 
-import { cp, lstat, mkdir, mkdtemp, readFile, readlink, rename, rm, stat, symlink } from 'node:fs/promises'
-import { dirname, isAbsolute, join } from 'node:path'
+import { cp, lstat, mkdir, mkdtemp, open, readdir, readFile, readlink, rename, rm, stat, symlink, type FileHandle } from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -71,6 +71,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isDistributionMap(value: unknown): value is Readonly<Record<string, string>> {
   return isRecord(value) && Object.entries(value).every(([name, version]) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(name)
     && typeof version === 'string' && /^\d[\w.!+-]*$/u.test(version))
+}
+
+/** macOS stores resource forks and extended attributes in `._<sibling>` files on volumes without native support. */
+const APPLE_DOUBLE_PREFIX = '._'
+/** Leading header word of every real AppleDouble file; verifies that a `._`-named entry is a sidecar, not payload content. */
+const APPLE_DOUBLE_MAGIC = 0x00051607
+
+function isAppleDoubleName(name: string): boolean {
+  return name.startsWith(APPLE_DOUBLE_PREFIX)
+}
+
+/**
+ * Verify the AppleDouble header, because payload files can legitimately share the `._` prefix.
+ * @param path - Candidate entry, possibly a directory sharing the prefix.
+ * @returns True only for readable files starting with the AppleDouble magic word; false for prefix-named directories.
+ * @throws I/O errors other than EISDIR, so an unreadable candidate fails the copy instead of silently passing as payload.
+ */
+async function isAppleDoubleFile(path: string): Promise<boolean> {
+  let handle: FileHandle | undefined
+  try {
+    handle = await open(path, 'r')
+    const header = Buffer.alloc(4)
+    const { bytesRead } = await handle.read(header, 0, 4, 0)
+    return bytesRead === 4 && header.readUInt32BE(0) === APPLE_DOUBLE_MAGIC
+  } catch (error) {
+    // Opening a `._`-named payload directory fails with EISDIR; any other I/O failure must fail the copy loudly.
+    if ((error as NodeJS.ErrnoException).code !== 'EISDIR') throw error
+    return false
+  } finally {
+    await handle?.close()
+  }
+}
+
+/**
+ * Remove AppleDouble sidecars macOS materialized in the destination while copied files landed.
+ * @param root - Completed copy; directory symlinks are never followed.
+ * @returns Resolves after every verified sidecar file under root is deleted.
+ */
+async function removeAppleDoubleSidecars(root: string): Promise<void> {
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) await removeAppleDoubleSidecars(path)
+    else if (entry.isFile() && isAppleDoubleName(entry.name) && await isAppleDoubleFile(path)) await rm(path, { force: true })
+  }
 }
 
 /**
@@ -161,7 +205,8 @@ export async function primaryRuntimePythonAliases(root: string, manifest: Primar
 }
 
 /**
- * Copy a payload, retaining only validated Python interpreter aliases as relative links.
+ * Copy a payload, retaining only validated Python interpreter aliases as relative links and leaving the destination
+ * free of macOS AppleDouble sidecar files.
  * @param source - Payload directory; all other links are materialized.
  * @param destination - Empty destination owned by the caller.
  * @param manifest - Validated source metadata.
@@ -170,8 +215,16 @@ export async function primaryRuntimePythonAliases(root: string, manifest: Primar
 export async function copyPrimaryRuntime(source: string, destination: string, manifest: PrimaryRuntimeManifest): Promise<void> {
   const aliases = await primaryRuntimePythonAliases(source, manifest)
   const excluded = new Set([...aliases.keys()].map(path => join(source, path)))
-  await cp(source, destination, { recursive: true, dereference: true, filter: path => !excluded.has(path) })
+  // Hemi fork: drop macOS AppleDouble `._` sidecars at both copy edges. Carriers assembled on volumes without
+  // extended-attribute support carry sidecars as regular files, macOS can materialize new ones in the destination
+  // while files land, and `._*.dist-info` entries break importlib.metadata verification; see hemi-fork-changes.md.
+  await cp(source, destination, {
+    recursive: true,
+    dereference: true,
+    filter: async path => !excluded.has(path) && !(isAppleDoubleName(basename(path)) && await isAppleDoubleFile(path)),
+  })
   for (const [path, target] of aliases) await symlink(target, join(destination, path))
+  await removeAppleDoubleSidecars(destination)
 }
 
 /**

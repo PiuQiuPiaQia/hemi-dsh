@@ -82,7 +82,7 @@ export function AgentPresetSection({
   const viewedTitle = viewed === null ? '' : viewedRow === undefined ? viewed.title : presetDisplayText(viewedRow, t).name
   // Creator mode authors presets in conversation; it needs the flow to land a
   // session in and the self-referential preset on the roster.
-  const creator = startCreatorDraft !== undefined && state.rows.some(row => row.id === 'cordis') ? startCreatorDraft : undefined
+  const creator = state.rows.some(row => row.id === 'cordis' && !row.subagentOnly) ? startCreatorDraft : undefined
   /* The custom group is where a preset of one's own appears, so its entry
      stays on screen even while the group is empty. */
   const creatorButton = creator === undefined
@@ -103,7 +103,8 @@ export function AgentPresetSection({
     <p className={css.intro}>{t('sectionIntro')}</p>
     {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
     {([true, false] as const).map((builtIn) => {
-      const rows = state.rows.filter(row => isBuiltInPreset(row) === builtIn
+      // Hemi fork: the default is a main-session choice.
+      const rows = state.rows.filter(row => !row.subagentOnly && isBuiltInPreset(row) === builtIn
         && (developerTools || !requiresCodingTools(row)))
       const entry = builtIn ? null : creatorButton
       if (rows.length === 0 && entry === null) return null

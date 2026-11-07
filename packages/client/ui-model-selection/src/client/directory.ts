@@ -159,8 +159,9 @@ export class ModelDirectory {
     if (this.disposed) return
     const catalog = this.catalog.store.getSnapshot()
     const projected = modelSelectionProjection(this.projected.getSnapshot())
+    // Hemi fork: a deployment can leave its default null until the user selects a model.
     const intended = projected?.next ?? catalog.value?.default
-    const reasoning = intended === undefined ? undefined : this.catalog.reasoningFor(intended)
+    const reasoning = intended === undefined || intended === null ? undefined : this.catalog.reasoningFor(intended)
     const effort = intended?.reasoningEffort ?? reasoning?.defaultEffort
     const retainedEffort = effort === undefined ? undefined
       : reasoning?.efforts.find(level => level.id === effort)?.name ?? effort
@@ -178,7 +179,7 @@ export class ModelDirectory {
       return
     }
     const selection = projected.next ?? catalog.value.default
-    const routable = catalog.value.groups.some(group => group.id === selection.provider
+    const routable = selection !== null && catalog.value.groups.some(group => group.id === selection.provider
       && group.models.some(model => model.id === selection.model))
     this.store.set({
       current: selection,

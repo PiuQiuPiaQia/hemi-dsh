@@ -21,6 +21,7 @@ export interface DesktopElectronBuilderConfig {
     readonly dshDesktopAppId: string
     readonly name?: string
     readonly productName?: string
+    readonly author?: { readonly name: string }
     readonly hemiDesktopProduct?: 'hemi-dsh'
     readonly hemiDesktopSigning?: 'mac-self-signed' | 'windows-unsigned'
   }

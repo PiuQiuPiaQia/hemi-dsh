@@ -41,7 +41,10 @@ afterEach(async () => {
 })
 
 /** One real profile: bundle-inserted routing entries plus the user patch layer ConfigEditor writes. */
-function createProfile(roles: Record<string, Route> = {}): { profile: ProfileContext; readPatch: () => Promise<string> } {
+function createProfile(
+  roles: Record<string, Route> = {},
+  newSession: { newSessionMode?: 'fixed' | 'auto'; newSessionEffort?: 'low' | 'medium' | 'high' | 'max' | null } = {},
+): { profile: ProfileContext; readPatch: () => Promise<string> } {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-hemi-routing-profile-')))
   homes.push(home)
   const dir = join(home, 'profile')
@@ -51,7 +54,7 @@ function createProfile(roles: Record<string, Route> = {}): { profile: ProfileCon
   writeFileSync(join(home, 'package.json'), '{"name":"test-installation"}\n')
   writeFileSync(join(bundle, 'package.json'), JSON.stringify({ name: 'test-hemi-routing-bundle', version: '1.0.0', dsh: { bundle: { patch: 'cordis.patch.yml' } } }))
   writeFileSync(join(bundle, 'cordis.patch.yml'), JSON.stringify([{ insert: [
-    { id: 'hemi-routing-settings', name: 'cordis:hemi-routing-settings', config: { main: MAIN, roles } },
+    { id: 'hemi-routing-settings', name: 'cordis:hemi-routing-settings', config: { main: MAIN, roles, ...newSession } },
     { id: 'hemi-routing', name: 'cordis:hemi-routing', config: { provider: 'spawn' } },
   ] }]))
   writeFileSync(join(dir, 'cordis.yml'), '[]\n')
@@ -96,9 +99,20 @@ async function startHost(profile: ProfileContext): Promise<{ ctx: Context; servi
 }
 
 /** Create one root agent the Remote-mode owner accepts. */
-async function createLead(ctx: Context, id: string): Promise<Agent> {
-  const handle = await ctx.agents.create({ sessionId: SessionId(id), agentOptions: { provider: 'mock', model: 'mock' } })
+async function createLead(ctx: Context, id: string, signal?: AbortSignal): Promise<Agent> {
+  const handle = await ctx.agents.create({
+    sessionId: SessionId(id),
+    agentOptions: { provider: 'mock', model: 'mock' },
+    ...signal === undefined ? {} : { signal },
+  })
   return handle.agent
+}
+
+/** Persisted routing settings value of one host, for restart assertions. */
+function routingValue(ctx: Context): Record<string, unknown> {
+  const row = ctx.settings.describe().find(item => item.ns === 'hemi-routing-settings')
+  if (row === undefined) throw new Error('routing settings are unavailable')
+  return row.value as Record<string, unknown>
 }
 
 describe('settings-pipeline persistence', () => {
@@ -174,6 +188,46 @@ describe('settings-pipeline persistence', () => {
   })
 })
 
+describe('new-conversation preference inheritance through the pipeline', () => {
+  it('persists inherited preferences and re-inherits them after a restart', async () => {
+    const { profile, readPatch } = createProfile(undefined, { newSessionMode: 'auto', newSessionEffort: 'max' })
+    const first = await startHost(profile)
+    await createLead(first.ctx, 'inherit-a')
+    expect(routingValue(first.ctx)).toMatchObject({
+      sessionModes: { 'inherit-a': true }, sessionEfforts: { 'inherit-a': 'max' },
+    })
+    expect(await readPatch()).toContain('inherit-a: true')
+
+    await first.ctx.fiber.dispose()
+    const second = await startHost(profile)
+    expect(second.service.modeOfSession(SessionId('inherit-a'))).toBe('auto')
+    expect(routingValue(second.ctx)).toMatchObject({ sessionEfforts: { 'inherit-a': 'max' } })
+    const leadB = await createLead(second.ctx, 'inherit-b')
+    expect(second.service.modeOf(leadB)).toBe('auto')
+    expect(routingValue(second.ctx)).toMatchObject({
+      sessionModes: { 'inherit-a': true, 'inherit-b': true },
+      sessionEfforts: { 'inherit-a': 'max', 'inherit-b': 'max' },
+    })
+  })
+
+  it('inherits an explicitly remembered fixed default after a restart', async () => {
+    const { profile } = createProfile(undefined, { newSessionMode: 'auto', newSessionEffort: 'max' })
+    const first = await startHost(profile)
+    const lead = await createLead(first.ctx, 'switch-a')
+    await first.service.setEnabled(lead, false)
+    expect(routingValue(first.ctx)).toMatchObject({ sessionModes: { 'switch-a': false }, newSessionMode: 'fixed' })
+
+    await first.ctx.fiber.dispose()
+    const second = await startHost(profile)
+    expect(second.service.modeOfSession(SessionId('switch-a'))).toBe('fixed')
+    expect(routingValue(second.ctx)).toMatchObject({ newSessionMode: 'fixed' })
+    const leadB = await createLead(second.ctx, 'switch-b')
+    expect(second.service.modeOf(leadB)).toBe('fixed')
+    // The remembered effort survives the mode switch and keeps initializing conversations.
+    expect(routingValue(second.ctx)).toMatchObject({ sessionEfforts: { 'switch-a': 'max', 'switch-b': 'max' } })
+  })
+})
+
 /** Loader reconciliation must not depend on a routing cleanup awaiting that same write. */
 describe('mode writes racing Loader unload', () => {
   it.each(['entry', 'root'] as const)('settles a real settings transaction during %s disposal', async (scope) => {
@@ -208,6 +262,45 @@ describe('mode writes racing Loader unload', () => {
       // Only a failing implementation needs this escape from its circular wait.
       escape.resolve(fiber)
       await Promise.all([saved, disposal])
+    }
+  })
+})
+
+/** Creation-time preference saves answer their creation signal instead of joining the reconciliation they race. */
+describe('creation initialization racing Loader unload', () => {
+  it.each(['entry', 'root'] as const)('releases a creation-time preference save during %s disposal', async (scope) => {
+    const { profile } = createProfile(undefined, { newSessionMode: 'auto', newSessionEffort: 'max' })
+    const { ctx } = await startHost(profile)
+    const entry = [...ctx.loader.entries()].find(row => row.options.id === 'hemi-routing-settings')
+    const fiber = entry?.fiber
+    if (fiber === undefined) throw new Error('routing settings fiber is missing')
+    const originalAwait = fiber.await.bind(fiber)
+    const captured = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const escape = Promise.withResolvers<typeof fiber>()
+    // The first reconciliation has captured its previous fibers before calling this.
+    vi.spyOn(fiber, 'await').mockImplementation(async () => {
+      captured.resolve(undefined)
+      await release.promise
+      return Promise.race([originalAwait(), escape.promise])
+    })
+    const controller = new AbortController()
+    const creating = createLead(ctx, `init-unload-${scope}`, controller.signal)
+    await captured.promise
+    const disposal = scope === 'root' ? ctx.fiber.dispose() : fiber.dispose()
+    let disposed = false
+    void disposal.then(() => { disposed = true })
+    // While the save still waits inside reconciliation, the listener must answer
+    // its creation signal instead of holding the announcement chain hostage.
+    controller.abort(new Error(`stop ${scope} init`))
+    await expect(creating).rejects.toThrow(/stop/)
+    try {
+      release.resolve(undefined)
+      await vi.waitFor(() => { expect(disposed).toBe(true) }, { timeout: 2000 })
+    } finally {
+      // Only a failing implementation needs this escape from its circular wait.
+      escape.resolve(fiber)
+      await disposal
     }
   })
 })

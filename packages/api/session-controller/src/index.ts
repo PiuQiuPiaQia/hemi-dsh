@@ -315,13 +315,14 @@ export class SessionController extends TypertRemoteService {
     return this.commands.selectModel(request)
   }
 
+  // Hemi fork: account callers name their provider; the shared Session API does not imply DeepSeek.
   /**
-   * Select the first available account model after login when no provider API key is configured.
+   * Select the first available model from the requested provider when no provider API key is configured.
+   * @param provider - explicitly requested provider route; no provider is implied.
    * @returns after saving the first available model or retaining the existing default.
    */
   @Remote
-  async initializeDefaultModel(): Promise<void> {
-    const provider = 'deepseek-account'
+  async initializeDefaultModel(provider: string): Promise<void> {
     if (await hasProviderApiKey(this.ctx)) return
     const catalog = await buildModelCatalog(this.ctx)
     const model = catalog.groups.find(group => group.id === provider)?.models[0]

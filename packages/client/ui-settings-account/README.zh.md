@@ -28,6 +28,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
+`desktopOnboarding`、`initializeDefaultModel` 与 `nativeSignIn` 默认均为 `true`。Hemi Desktop 将三者显式关闭：账号插件不再注册全局引导，登录后不改写默认型号，授权链接由发起登录的界面通过已鉴权的 `dshDesktop.openExternal` 打开。余额、充值、账号状态及退出操作仍属于该提供方；退出或过期不负责切换工作区窗口。
+
 `showSettingsSection` 与 `showLauncher` 默认均为 `true`。分别设为 `false` 可隐藏账号设置 tab 或侧边栏账号菜单；账号订阅、登录、通知与 `account.connection` 仍然可用。
 
 根作用域的 `account.connection` factory 向其他设置页面提供共享账号状态、操作和余额格式化。调用方可选择本地 `content` 组件并提供标题，默认使用现有账号页展示。该 factory 仅在具有 `account/watch` 访问权限时注册，权限撤销或插件卸载时移除。

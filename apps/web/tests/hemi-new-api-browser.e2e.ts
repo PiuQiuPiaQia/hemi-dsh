@@ -51,7 +51,11 @@ it.skipIf(process.platform !== 'darwin')(
           envelope({ team: { desc: 'Fixture team', ratio: 1 } })
           break
         case '/api/pricing':
-          envelope([{ model_name: 'fixture-model', enable_groups: ['team'], supported_endpoint_types: ['openai'] }])
+          envelope([
+            { model_name: 'fixture-model', enable_groups: ['team'], supported_endpoint_types: ['anthropic', 'openai'] },
+            { model_name: 'anthropic-only', enable_groups: ['team'], supported_endpoint_types: ['anthropic'] },
+            { model_name: 'image-only', enable_groups: ['team'], supported_endpoint_types: ['image-generation'] },
+          ])
           break
         case '/api/token/search':
           envelope({ items: token === undefined ? [] : [token] })

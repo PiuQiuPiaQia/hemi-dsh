@@ -11,14 +11,23 @@ kind: "package-library"
 
 本包集中管理 Electron 主进程与沙箱 preload 需要的非插件 Hemi 适配。功能服务仍由各自的 Hemi 插件提供。桌面壳从本包导入主进程适配，从 `/preload` 导入浏览器安全桥接。
 
-主进程适配创建独立的 New API 登录窗，并注册桌面壳传入的 IPC 通道。每个操作先执行桌面壳的发送方授权检查。桌面壳在关闭已认证 Host 前等待导入任务清理。Preload 入口不导入 Electron 主进程代码。
+主进程适配将隔离的 New API 登录视图嵌入应用主窗口，并注册桌面壳传入的 IPC 通道。每个操作先执行桌面壳的发送方授权检查。桌面壳在关闭已认证 Host 前等待导入任务清理。Preload 入口不导入 Electron 主进程代码。
 
 ## 目录
 
+- [启动页展示](#startup-presentation)
 - [GitHub 发布](#github-releases)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="startup-presentation"></a>
+
+## 启动页展示
+
+`/desktop-branding` 适配使用 Hemi 应用名称，保留 `hemi-dsh` 分发标记、外部协议、安装包前缀和偏好目录。`/desktop-artwork` 拥有黑白分发资源，`/web-branding` 将其应用到显式命名的 Hemi Web 构建。在仓库根目录运行 `node packages/hemi/customizations/release/render-artwork.mjs` 可重新生成资源。
+
+`/desktop-branding` 适配提供本地化加载展示，并读取 Hemi Host 插件的提供方中立启动选项。加载页保留原生布局和浅深色配色，仅使用 Hemi 品牌与状态文案。它不替换原生账号欢迎页：Hemi Desktop 跳过该窗口，将引导放在 Hemi 设置插件中。
 
 <a id="github-releases"></a>
 

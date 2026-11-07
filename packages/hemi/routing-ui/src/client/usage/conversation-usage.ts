@@ -62,25 +62,31 @@ export async function loadConversationUsage(root: SessionId, read: ReadUsageSess
 }
 
 /**
- * Cache-read token share of the complete reported input token count.
+ * Cache-read token share of reported input, with call coverage.
  */
 export interface CacheHitRate {
   ratio: number
+  reportedCalls: number
+  calls: number
 }
 
 /**
  * Cache hits are weighted by input tokens across all models, never averaged percentages.
- * @param models - Usage rows with complete total and cache-read report counts.
+ * Calls without usage remain in the coverage count, never as assumed zero consumption.
+ * @param models - Usage rows whose received reports include full totals and cache reads.
  * @param unavailableSessions - Number of unreadable or external branches; a nonzero count hides the rate.
- * @returns the weighted cache-hit rate, or undefined when complete input counts are unavailable.
+ * @returns the weighted reported cache-hit rate and coverage, or undefined when received reports lack complete input counts.
  */
 export function conversationCacheHit(models: readonly ModelUsageRow[], unavailableSessions = 0): CacheHitRate | undefined {
   if (unavailableSessions > 0 || models.length === 0
-    || models.some(row => row.totalReports < row.calls || row.cacheReadReports < row.calls)) return undefined
+    || models.some(row => row.totalReports !== row.reportedCalls || row.cacheReadReports !== row.reportedCalls)) return undefined
   const input = models.reduce((sum, row) => sum + row.totalTokens - row.outputTokens, 0)
   const read = models.reduce((sum, row) => sum + row.cacheReadTokens, 0)
   if (input <= 0 || read > input) return undefined
-  return { ratio: read / input }
+  return { ratio: read / input,
+    reportedCalls: models.reduce((sum, row) => sum + row.reportedCalls, 0),
+    calls: models.reduce((sum, row) => sum + row.calls, 0),
+  }
 }
 
 /**

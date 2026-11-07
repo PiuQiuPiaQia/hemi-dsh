@@ -202,9 +202,9 @@ type AssistantStreamFrame =
  */
 interface AgentOptions {
   /** Provider route (must have a registered adapter at call time). */
-  provider?: string
+  provider?: string | undefined
   /** Model id interpreted by the selected provider adapter. */
-  model?: string
+  model?: string | undefined
   /** Adapter-owned reasoning effort for the selected provider/model route. */
   reasoningEffort?: ReasoningEffortId | undefined
   /** Maximum output tokens for each conversation-model request. */
@@ -515,9 +515,9 @@ Owns the default model selection independently of any Host or transport. Each op
 ```ts cordis-catalog
 /**
  * Read the current default model selection.
- * @returns a detached provider, model, and optional reasoning selection.
+ * @returns a detached selection, or undefined when both route fields are explicitly null.
  */
-currentSelection(): ModelSelection
+currentSelection(): ModelSelection | undefined
 
 /**
  * Save the complete default model selection. A deployment without a configuration
@@ -609,9 +609,10 @@ async list(): Promise<AgentPreset[]>
 
 /** Resolve an identity without starting an Agent.
  * @param id Explicit preset or the current default.
+ * @param usage Restrict selection when starting a new main session; historical IDs remain resolvable.
  * @returns Current metadata, including failure when activation failed.
  */
-async resolve(id?: string): Promise<AgentPreset>
+async resolve(id?: string, usage?: 'main-session'): Promise<AgentPreset>
 
 /** Read one declaration's child plugin list as YAML, for viewing only.
  * @param agentPreset Preset identity.
@@ -622,9 +623,10 @@ async resolve(id?: string): Promise<AgentPreset>
 /** Bind an unpublished Agent to the current preset revision.
  * @param ctx Agent context from its setup callback.
  * @param id Requested preset, or the default.
+ * @param usage Apply main-session restrictions to the retained revision.
  * @returns Bound preset identity.
  */
-async mount(ctx: Context, id?: string): Promise<AgentPreset>
+async mount(ctx: Context, id?: string, usage?: 'main-session'): Promise<AgentPreset>
 
 /** Join a child to the exact revision retained by its parent.
  * @param ctx Child Agent context.
@@ -649,9 +651,10 @@ serviceFor<K extends string & keyof Context>(agent: { ctx: Context }, name: K): 
 /** Rebind a blank Agent; the caller owns the blank-session check.
  * @param ctx Agent context.
  * @param id Requested preset.
+ * @param usage Apply main-session restrictions to the retained revision.
  * @returns The bound identity.
  */
-async recompose(ctx: Context, id: string): Promise<AgentPreset>
+async recompose(ctx: Context, id: string, usage?: 'main-session'): Promise<AgentPreset>
 
 /** Select a preset before a session starts its first turn. A Session whose
  * log records the preset and whose Agent runs its current revision keeps its
@@ -884,6 +887,23 @@ A validated explicit model choice is about to replace the current route. Listene
  * @mode serial
  */
 'agent/before-user-model-selection'(agent: Agent): undefined | Promise<undefined>
+```
+
+Source: [`packages/core/agent/src/runtime-types.ts`](../../packages/core/agent/src/runtime-types.ts)
+
+<a id="agentbefore-user-prompt--serial"></a>
+
+#### `agent/before-user-prompt` — serial
+
+Resolve an unconfigured Agent's model before admitting a user prompt.
+
+```ts cordis-catalog
+/**
+ * Resolve an unconfigured Agent's model before admitting a user prompt.
+ * @mode serial
+ * @param agent - prompt recipient before user content is admitted.
+ */
+'agent/before-user-prompt'(agent: Agent): undefined | Promise<undefined>
 ```
 
 Source: [`packages/core/agent/src/runtime-types.ts`](../../packages/core/agent/src/runtime-types.ts)

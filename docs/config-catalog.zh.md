@@ -62,9 +62,9 @@ export type Config = z.infer<typeof Config>
 /** Default model selection supplied by plugin configuration. */
 export interface Config {
   /** Registered provider route. */
-  provider: Volatile<string>
+  provider: Volatile<string | null>
   /** Provider-owned model id. */
-  model: Volatile<string>
+  model: Volatile<string | null>
   /** Adapter-owned reasoning effort; omission follows the provider default. */
   reasoningEffort: Volatile<string | undefined>
 }
@@ -160,7 +160,7 @@ export type Config = PresetDefinition
 
 - `inject`: `loader` · `sessionProjections` · `agents`
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/preset/agent-preset-registry/src/preset.ts:13`](../packages/preset/agent-preset-registry/src/preset.ts)
+- `source`: [`packages/preset/agent-preset-registry/src/preset.ts:15`](../packages/preset/agent-preset-registry/src/preset.ts)
 
 ```ts config-catalog
 /** Registry selection policy. */
@@ -640,6 +640,12 @@ export interface Config extends ContactConfig {
 
 /** Questionnaire destination and bonus notice timings shared by Host and Client. */
 export interface ContactConfig {
+  /** Register the account-owned Desktop introduction. */
+  desktopOnboarding: boolean
+  /** Initialize the account provider as a default model after sign-in. */
+  initializeDefaultModel: boolean
+  /** Let the native shell own account authorization browser actions. */
+  nativeSignIn: boolean
   /** Show the built-in account settings navigation entry. */
   showSettingsSection: boolean
   /** Show the sidebar account menu. */
@@ -1736,6 +1742,26 @@ export interface SubscriptionDiscoveryConfig {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-access -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-settings -->
+<a id="deepseek-aidsh-hemi-model-settings"></a>
+
+## `@deepseek-ai/dsh-hemi-model-settings`
+
+- `inject`: `llm`
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/hemi/model-settings/src/index.ts:30`](../packages/hemi/model-settings/src/index.ts)
+
+```ts config-catalog
+/** Hemi-owned desktop introduction preferences. */
+export interface Config {
+  /** Use the workspace without a provider-owned native welcome window. */
+  desktopStartup: boolean
+  /** Explicitly acknowledged provider-neutral introduction. */
+  welcomeCompleted: Volatile<boolean>
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-settings -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-routing -->
 <a id="deepseek-aidsh-hemi-routing"></a>
@@ -4547,7 +4573,13 @@ export interface Config extends PresetSelectionConfig {
   /**
    * Agent options applied to every child; omitted fields use child-loop defaults.
    */
-  agentOptions?: AgentOptions
+  // Hemi fork: persisted defaults omit undefined fields; runtime AgentOptions can expose live undefined accessors.
+  agentOptions?: Omit<AgentOptions, 'provider' | 'model'> & {
+    /** Provider route applied to child agents. */
+    provider?: string
+    /** Provider-owned model id applied to child agents. */
+    model?: string
+  }
   /**
    * Maximum child depth: a non-negative safe integer (`0` forbids delegation),
    * or `'provider-managed'` to send no cap. A numeric cap
@@ -5112,7 +5144,6 @@ export interface Config {
 | `@deepseek-ai/dsh-hemi-backup-ui` | — | [`packages/hemi/backup-ui/src/index.ts`](../packages/hemi/backup-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-memory-ui` | — | [`packages/hemi/memory-ui/src/index.ts`](../packages/hemi/memory-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-access-ui` | — | [`packages/hemi/model-access-ui/src/index.ts`](../packages/hemi/model-access-ui/src/index.ts) |
-| `@deepseek-ai/dsh-hemi-model-settings` | `llm` | [`packages/hemi/model-settings/src/index.ts`](../packages/hemi/model-settings/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-settings-ui` | — | [`packages/hemi/model-settings-ui/src/index.ts`](../packages/hemi/model-settings-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-routing-ui` | — | [`packages/hemi/routing-ui/src/index.ts`](../packages/hemi/routing-ui/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-auto` | `webServer` · `connection` · `loader` | [`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts) |

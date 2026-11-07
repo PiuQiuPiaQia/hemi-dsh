@@ -79,7 +79,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   /** Default preset for a subsequently created session. */
-  get defaultId(): string { return this.config.selectedDefault.get() ?? this.config.default }
+  get defaultId(): string {
+    const selected = this.config.selectedDefault.get()
+    // Hemi fork: a saved default may have become child-only after a profile update.
+    return selected !== undefined && !this.definitions.get(selected)?.config.subagentOnly ? selected : this.config.default
+  }
 
   /**
    * Read the preset recorded for a Session, including selections no longer in the roster.
@@ -193,11 +197,13 @@ export class AgentPresetRegistry extends TypertRemoteService {
   async list(): Promise<AgentPreset[]> {
     const rows = await Promise.all([...this.definitions.values()].map(async (record) => {
       const broken = await this.diagnostic(record)
+      const { subagentOnly } = record.config
       return {
         id: record.config.id,
         ...(record.config.name === undefined ? {} : { name: record.config.name }),
         ...(record.config.description === undefined ? {} : { description: record.config.description }),
         ...(record.config.order === undefined ? {} : { order: record.config.order }),
+        ...(subagentOnly === undefined ? {} : { subagentOnly }),
         ...(broken === undefined ? {} : { broken }),
       }
     }))
@@ -215,15 +221,24 @@ export class AgentPresetRegistry extends TypertRemoteService {
 
   /** Resolve an identity without starting an Agent.
    * @param id Explicit preset or the current default.
+   * @param usage Restrict selection when starting a new main session; historical IDs remain resolvable.
    * @returns Current metadata, including failure when activation failed.
    */
-  async resolve(id?: string): Promise<AgentPreset> {
+  async resolve(id?: string, usage?: 'main-session'): Promise<AgentPreset> {
     const wanted = id ?? this.defaultId
     const record = this.definitions.get(wanted)
     if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
       { agentPreset: wanted, available: [...this.definitions.keys()] })
+    if (usage === 'main-session') this.assertMainSessionPreset(record.config)
     const broken = await this.diagnostic(record)
     return { id: wanted, ...(broken === undefined ? {} : { broken }) }
+  }
+
+  // Hemi fork: fresh main sessions reject child roles; mounting by recorded ID still restores them.
+  private assertMainSessionPreset({ id, subagentOnly }: PresetDefinition): void {
+    if (!subagentOnly) return
+    const reason = `Agent preset "${id}" is reserved for subagents`
+    throw new RemoteError('agent-preset/invalid', reason, { agentPreset: id, reason })
   }
 
   /** Read one declaration's child plugin list as YAML, for viewing only.
@@ -245,7 +260,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
     })
   }
 
-  private async retain(id?: string): Promise<Generation> {
+  private async retain(id?: string, usage?: 'main-session'): Promise<Generation> {
     const wanted = id ?? this.defaultId
     while (true) {
       const record = this.definitions.get(wanted)
@@ -253,6 +268,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
         { agentPreset: wanted, available: [...this.definitions.keys()] })
       const broken = await this.diagnostic(record)
       if (this.definitions.get(wanted) !== record) continue
+      if (usage === 'main-session') this.assertMainSessionPreset(record.config)
       const generation = record.generation
       if (broken !== undefined || generation === undefined) {
         const reason = broken as string
@@ -292,10 +308,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
   /** Bind an unpublished Agent to the current preset revision.
    * @param ctx Agent context from its setup callback.
    * @param id Requested preset, or the default.
+   * @param usage Apply main-session restrictions to the retained revision.
    * @returns Bound preset identity.
    */
-  async mount(ctx: Context, id?: string): Promise<AgentPreset> {
-    const generation = await this.retain(id)
+  async mount(ctx: Context, id?: string, usage?: 'main-session'): Promise<AgentPreset> {
+    const generation = await this.retain(id, usage)
     try {
       await this.bind(ctx, generation)
       return { id: generation.mount.presetId }
@@ -345,10 +362,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
   /** Rebind a blank Agent; the caller owns the blank-session check.
    * @param ctx Agent context.
    * @param id Requested preset.
+   * @param usage Apply main-session restrictions to the retained revision.
    * @returns The bound identity.
    */
-  async recompose(ctx: Context, id: string): Promise<AgentPreset> {
-    const preset = await this.mount(ctx, id)
+  async recompose(ctx: Context, id: string, usage?: 'main-session'): Promise<AgentPreset> {
+    const preset = await this.mount(ctx, id, usage)
     try { this.owner.emit('tools/change') }
     catch (error) { this.owner.logger.warn(`Preset tools observer: ${String(error)}`) }
     return preset
@@ -371,7 +389,8 @@ export class AgentPresetRegistry extends TypertRemoteService {
       const current = this.definitions.get(agentPreset)?.generation
       if (current !== undefined && this.generationFor(agent.ctx) === current
         && this.agentPresetProjectionHandle.stateOf(agent.session) === agentPreset) return agentPreset
-      const preset = await this.recompose(agent.ctx, agentPreset)
+      const usage = agent.session.header.origin === 'subagent' ? undefined : 'main-session'
+      const preset = await this.recompose(agent.ctx, agentPreset, usage)
       agent.session.append('agent-preset/selected', { agentPreset: preset.id })
       return preset.id
     })

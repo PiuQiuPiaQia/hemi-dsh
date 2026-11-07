@@ -58,6 +58,8 @@ const publicNativePackages = new Set([
 ])
 /** Deliberate source payloads whose exact bytes are part of the package's audit surface. */
 const publicationSourceAllowlist: Readonly<Record<string, readonly string[]>> = {
+  // Hemi fork: sandboxed preload imports this exact stylesheet without a Node runtime bundle.
+  '@deepseek-ai/dsh-hemi-customizations': ['src/desktop-startup.css'],
   '@deepseek-ai/node-addon-system': ['src/main.c', 'src/flock.c'],
 }
 /** Public source home recorded in maintained package manifests. */
@@ -190,7 +192,7 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-hemi-memory': ['lib/remote.js'],
   '@deepseek-ai/dsh-hemi-model-access': ['lib/desktop-import.js', 'HEMI-LICENSE'],
   // Hemi fork: plain-Node release tooling is imported before compiling or bundling the desktop shell.
-  '@deepseek-ai/dsh-hemi-customizations': ['lib/preload.js', 'release/*.mjs', 'release/*.d.mts', 'release/*.cer'],
+  '@deepseek-ai/dsh-hemi-customizations': ['lib/preload.js', 'release/*.mjs', 'release/*.d.mts', 'release/*.cer', 'src/desktop-startup.css', 'artwork'],
   // Tools entry points share error classes and invocation stages through runtime chunks.
   '@deepseek-ai/dsh-tools': ['lib/pipeline.js', 'lib/shared-*.js'],
   // The embedded OAR implementation retains its upstream license.

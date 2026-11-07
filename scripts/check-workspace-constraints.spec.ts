@@ -530,6 +530,16 @@ it('publishes CLI runtime declarations and rejects a payload that omits them', (
     .toEqual([expect.stringContaining('@deepseek-ai/dsh: package.json files must be ["lib/*.js","lib/types/*.d.ts"]')])
 })
 
+it('requires Hemi artwork and permits only its explicit preload stylesheet source', () => {
+  const dir = 'packages/hemi/customizations'
+  const manifest = JSON.parse(readFileSync(new URL('../packages/hemi/customizations/package.json', import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
+  expect(checkWorkspaceManifest({ dir, manifest })).toEqual([])
+  expect(checkWorkspaceManifest({ dir, manifest: { ...manifest, files: manifest.files!.filter(file => file !== 'artwork') } }))
+    .toEqual([expect.stringContaining('package.json files must be')])
+  expect(checkWorkspaceManifest({ dir, manifest: { ...manifest, files: [...manifest.files!, 'src/private.ts'] } }).join('\n'))
+    .toContain('must not publish "src/private.ts"')
+})
+
 it('requires the shared Web injection entry in the published payload', () => {
   const manifest = JSON.parse(readFileSync(new URL('../packages/client/web/package.json', import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
   expect(checkWorkspaceManifest({ dir: 'packages/client/web', manifest })).toEqual([])

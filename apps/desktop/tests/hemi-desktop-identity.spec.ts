@@ -23,7 +23,7 @@ it.each([{ override: undefined, preferences: '' }, { override: '/explicit/home',
     getAppPath: () => root, getPath: () => root, setName: vi.fn(), setPath: vi.fn() }
   const environment = { DSH_HOME: override }
   configureHemiDesktopIdentity(application, environment, root)
-  expect(application.setName).toHaveBeenCalledWith('hemi-dsh')
+  expect(application.setName).toHaveBeenCalledWith('Hemi')
   if (preferences) expect(application.setPath).not.toHaveBeenCalled()
   else {
     expect(application.setPath).toHaveBeenCalledWith('userData', join(root, 'hemi-dsh'))
@@ -50,9 +50,9 @@ it.each(['en', 'zh-CN', 'ja', 'es', 'fr', 'de', 'ru', 'pt'])('keeps %s wording a
   const original = resolveDesktopLocale(id).messages
   const messages = hemiDesktopMessages(original)
   expect(Object.keys(messages)).toEqual(Object.keys(original))
-  expect(messages.aboutProduct).toBe('hemi-dsh')
-  expect(messages.quitApplication).toContain('hemi-dsh')
-  expect(messages.welcomeBrand).toBe('hemi-dsh')
+  expect(messages.aboutProduct).toBe('Hemi')
+  expect(messages.quitApplication).toContain('Hemi')
+  expect(messages.welcomeBrand).toBe('Hemi')
   expect(original.aboutProduct).toBe('DeepSeek Harness')
 })
 
@@ -61,10 +61,11 @@ it('uses matching bundle, artifact and external protocol names for the GitHub fo
     HEMI_DESKTOP_GITHUB_REPOSITORY: 'example/hemi-dsh', HEMI_DESKTOP_UPDATE_POLICY: 'disabled', HEMI_DESKTOP_SIGNING_MODE: 'community' }
   const product = resolveDesktopProduct(environment)
   const config = createElectronBuilderConfig(environment, 'darwin', 'arm64')
-  expect(product.productName).toBe('hemi-dsh')
-  expect(config.productName).toBe('hemi-dsh')
+  expect(product.productName).toBe('Hemi')
+  expect(config.productName).toBe('Hemi')
   expect(config.extraMetadata.hemiDesktopProduct).toBe('hemi-dsh')
-  expect(config.protocols).toEqual([{ name: 'hemi-dsh', schemes: ['hemi-dsh'] }])
+  expect(config.extraMetadata.author).toEqual({ name: 'Hemi' })
+  expect(config.protocols).toEqual([{ name: 'Hemi', schemes: ['hemi-dsh'] }])
   expect(config.artifactName).toMatch(/^hemi-dsh-/)
   expect(resolveDesktopProduct({}).productName).toBe('DeepSeek Harness')
 })

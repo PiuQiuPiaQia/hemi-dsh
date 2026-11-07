@@ -55,7 +55,10 @@ function resolveRequest(ctx: Context, input: WebhookSessionRequest): ResolvedWeb
   }
   let agentOptions: AgentOptions
   if (model === undefined) {
-    agentOptions = { ...ctx.agentDefaultModel.currentSelection() }
+    // Hemi fork: an unconfigured GUI default cannot execute a webhook task.
+    const selection = ctx.agentDefaultModel.currentSelection()
+    if (selection === undefined) throw new TypeError('webhook Session requires an explicit model or configured default')
+    agentOptions = { ...selection }
   } else {
     const modelRecord = model as Record<string, unknown>
     const provider = requiredString(modelRecord, 'provider')
@@ -99,7 +102,8 @@ export async function createWebhookSession(
 ): Promise<void> {
   const resolved = resolveRequest(ctx, request)
   ctx.permissionPresets.resolve(resolved.permissionPreset)
-  const preset = await ctx.agentPresets.resolve(resolved.agentPreset)
+  // Hemi fork: a webhook creates a fresh main session.
+  const preset = await ctx.agentPresets.resolve(resolved.agentPreset, 'main-session')
   await using presetScope = await ctx.agentPresets.acquireScope(preset.id)
   void presetScope
   signal.throwIfAborted()
@@ -113,7 +117,7 @@ export async function createWebhookSession(
     meta: { cwd: workspace.path, agentPreset: preset.id },
     agentOptions: resolved.agentOptions,
     setup: async (agentCtx) => {
-      await ctx.agentPresets.mount(agentCtx, preset.id)
+      await ctx.agentPresets.mount(agentCtx, preset.id, 'main-session')
     },
   })
 

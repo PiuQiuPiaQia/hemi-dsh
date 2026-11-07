@@ -76,6 +76,8 @@ Every authenticated browser persists the preference through the Host settings se
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
+The client build title substitutes the proper name `DeepSeek Harness` in registered dictionary templates before parameter interpolation. User-supplied parameters and missing-key fallbacks remain verbatim. Without a distribution title, the native name remains.
+
 <details>
 <summary>Implementation internals — click to expand</summary>
 

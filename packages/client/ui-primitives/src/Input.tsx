@@ -11,9 +11,9 @@ import css from './Input.module.css'
  * @param ref - the native input, cleared when it unmounts.
  * @returns wrapper span containing the native input; input attributes pass through.
  */
+// Hemi fork: native input attributes accept absent CSS Module class names without narrowing React props.
 export const Input = forwardRef<HTMLInputElement, {
   icon?: ReactNode
-  className?: string
 } & InputHTMLAttributes<HTMLInputElement>>(function Input({ icon, className, ...rest }, ref) {
   return (
     <span className={clsx(css.wrap, className)}>

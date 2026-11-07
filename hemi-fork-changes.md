@@ -7,26 +7,39 @@
 <a id="hemi-customization-isolation"></a>
 ## Hemi 定制归属与上游合并
 
+普通 SSD 工作目录在 `pnpm-workspace.yaml` 使用 `storeDir: .pnpm-store` 与 `packageImportMethod: copy`，缓存随项目保存，不依赖挂载映像或全局配置。ExFAT 开发目录的 Git hooks 安装由 `scripts/install-lefthook.mjs` 处理：排他创建的锁先写入并同步，再记录稳定的文件身份；FSKit 在分配文件数据后可能更换临时 inode。锁释放仍核对设备、inode 和随机所有者记录，拒绝删除被替换的锁。安装发生在插件启动之前，因此该通用文件系统修复保留在上游脚本；合并上游时核对锁发布顺序、并发安装与替换锁的回归。
+
 当前归属与合并核对以本节为准；下方日期条目保留实施记录。
 
 功能与组件优先放入 `packages/hemi/` 的所属插件。非插件的 Electron 适配集中在 `packages/hemi/customizations/`，桌面壳通过包入口导入；皮肤继续由 `packages/client/ui-hemi-skins/` 插件提供，独立安装层保留在 `plugins/`。详见[目录规则](packages/hemi/README.md)。
 
 GitHub 桌面分发由 `packages/hemi/customizations/release/` 拥有，参考原 Hemi 的公开 generic 清单与单一 publisher，保留 DSH 原生渠道、任务停止确认和安装。Releases 存放固定版本附件，独立分支按目标和渠道保存清单，因此单平台发布无需跨架构合并或中继。`apps/desktop/scripts/desktop-auto-update-environment.mjs` 在统一解析入口调用 Hemi 适配并拒绝误用 COS；`desktop-package-environment.mjs` 只增加文件管理的 Hemi 配置，过滤父进程重定向；`desktop-policy-environment.mjs` 及声明文件允许显式关闭独立策略服务。没有现成的分发 provider 注册入口，因此保留这些窄打包接入，客户端主进程与更新状态机不修改。`scripts/check-workspace-constraints.ts` 仅为该私有适配包登记预编译阶段使用的 `.mjs` 发布工具、声明文件与公开证书，不放宽其他包的文件规则。新的薄 CLI `hemi-github-release.ts` 和 `apps/desktop/package.json` 接入自有发布器，`.github/workflows/hemi-desktop-release.yml` 默认使用 GitHub 托管 runner 和社区签名，可选正式证书机器，独立于上游 COS 工作流。验证涵盖原生清单解析、完成记录与哈希、失败恢复及工作流顺序；真实签名发版、公网下载和已安装升级仍由发布操作者验收。合并上游时核对分发解析、dotenv 隔离、显式策略关闭、完整打包记录、非强制分支写入，以及上游是否已有可替代的配置入口。
 
-Hemi 桌面身份由 `customizations/release/identity.mjs` 和 `src/desktop-identity.ts` 拥有。`desktop-product.mjs` 将文件管理的 GitHub 分发映射到 `hemi-dsh` 应用、可执行文件、安装包及外部协议；builder、打包与冒烟路径共用选择结果；`installer-locales.mjs` 的通用产品名参数只替换生成文案，保留原始翻译和默认名称。主进程在读取偏好、日志和实例锁前应用显式包标记，采用独立 userData 和 `~/.hemi-dsh` 默认目录，保留明确指定的 DSH_HOME，不搬迁旧数据。`client-build-environment.ts` 和 `build.ts` 仅增加通用发行方标题输入，默认官方标题不变；Hemi 皮肤插件通过已有侧栏名称插槽覆盖字标。应用 ID、证书和 feed URL 保持一致，旧完成记录仍可恢复发布。合并上游时核对启动顺序、文件名推导、数据路径优先级、品牌插槽卸载和产物标题记录。
+Hemi 桌面身份由 `customizations/release/identity.mjs` 和 `src/desktop-identity.ts` 拥有。`desktop-product.mjs` 将文件管理的 GitHub 分发映射到 Hemi 应用与可执行文件，保留 `hemi-dsh` 安装包前缀、分发标记及外部协议；builder、打包与冒烟路径共用选择结果；`installer-locales.mjs` 的通用产品名参数只替换生成文案，保留原始翻译和默认名称。主进程在读取偏好、日志和实例锁前应用显式包标记，采用独立 userData 和 `~/.hemi-dsh` 默认目录，保留明确指定的 DSH_HOME，不搬迁旧数据。`client-build-environment.ts` 和 `build.ts` 仅增加通用发行方标题输入，默认官方标题不变；Hemi 皮肤插件通过已有侧栏名称插槽覆盖字标。应用 ID、证书和 feed URL 保持一致，旧完成记录仍可恢复发布。合并上游时核对启动顺序、文件名推导、数据路径优先级、品牌插槽卸载和产物标题记录。
 
 GitHub 社区签名由自有 `release/signing.mjs`、`setup.mjs`、`cua.mjs` 管理，复用原 Hemi 固定证书的公开部分，私钥仅由现有 P12 secrets 提供。macOS 使用固定叶证书要求、无时间戳、不公证；Windows 明确未签名。桌面 `electron-builder-config.mjs`、声明文件、`macos-signing-keychain.mjs`、`package-target.ts`、`prepare-dsh.ts` 和环境加载器仅按文件中显式模式接入，不改变 DSH 默认正式签名和 COS 流程。`macos-runtime.ts` 提供通用签名策略入口，复用现有遍历、JIT 权限、Python 别名校验和并发收敛，Hemi 自有策略签署固定证书、继承 JIT 权限并为无 Team ID 的运行时补充库校验例外，验证封存 helper；正式证书与缓存策略保留。原生 CUA `build_app.py` 增加可选时间戳及 requirements 参数，在写入内容摘要清单前签名，默认行为不变；社区 helper 不伪造官方 npm 公证清单。私有配置与临时钥匙串只清理自有路径，不修改证书信任，也不生成或轮换 Hemi 密钥。隔离证书的真实 Electron 验证已通过 Squirrel.Mac 接受变更应用；正式安装、系统权限延续和公网升级仍需实际发版验收。合并上游时核对自定义 signer 调用、证书固定要求、凭据生命周期、helper 清单、完成记录模式和签名验证开关。
+
+AppleDouble 防污染由[共享运行时复制](packages/skill/tool-workspace-dependencies/src/index.ts)负责：复制前按文件名前缀与二进制魔数过滤源副文件，复制结束后清理目的端新生成的副文件，保留同前缀合法内容和 Python 相对别名，不跟随目的目录链接，不吞读取失败。[构建身份](scripts/primary-runtime/prepare.ts)递增组装代数，使旧污染缓存重新安装。这一流程发生在插件启动前，没有可用的插件扩展入口；Python 标准库、包版本完整性检查及运行时自检保持不变。构建器清理旧运行时与 Office 资源目录时使用 Node 原生有界重试处理瞬态 ENOTEMPTY，持续失败仍中止准备，不混用旧产物和新产物。开发版应用的[生成包装](apps/desktop/scripts/development-app.ts)在复制 Electron 后、签名前移除真实 AppleDouble 文件；ditto 的属性选项不能过滤已存在的普通副文件，原 Electron 包和签名身份保持不变。[开发启动](apps/desktop/scripts/dev.ts)及冷启动包装清除 GUI 继承的 ELECTRON_RUN_AS_NODE，Host 子进程仍由自己的启动器设置 Node 模式。验证包括 117 项定向回归及外置盘目标的 Python、Office 文档读写、pip check 和 pnpm 版本检查。合并上游时核对复制双端清理、合法文件保留、错误传播和缓存失效；上游提供等价实现后移除本补丁。
 
 模型菜单的组件、样式、替代选型状态和注册现由 `routing-ui/src/client/model-picker/` 拥有。原生 `ui-model-selection` 恢复自己的组件和目录服务，保留 `/model`；通用 `showComposer` 配置默认开启，Hemi 组合显式关闭并由路由 UI 插件注册菜单。菜单共用原生目录，不复制目录控制器。定制菜单样式和排序随所属组件维护。推理强度在模型按钮右侧独立展示，沿用原生能力判断和选型保存，自动路由在同一位置展示按会话保存的四档选择器；此布局只修改 Hemi 自有组件。
 
 推理能力缺失时，由 `hemi/model-access/src/protocol-reasoning.ts` 提供协议默认档位；`llm/llm-pi-ai` 提供通用的临时配置瀑布和型号默认档位解析，目录、设置校验和请求共用同一结果，无 Hemi 插件时保持上游行为。自动路由的四档、会话保存与型号映射归 `hemi/routing`，界面归 `hemi/routing-ui`；现有同步选型钩子无法等待型号能力，因此映射放在已有等待式 pre-step，保留原生子任务绑定和生命周期。合并上游须核对未知能力、显式禁用、默认值与实际字段发送，以及四档选择不退出自动路由。
 
+新会话偏好继承归 `hemi/routing`，通过已有串行 `agent/created` 钩子，仅为真正新建的普通会话保存模式与自动路由强度快照。`newSessionMode`、`newSessionEffort` 与显式选择同事务保存，初始默认和旧会话回退保持原样；新会话采样等待偏好事务完成及回滚，取消创建不阻塞 Loader 卸载。恢复、分叉、子会话及复用草稿不重新初始化。固定型号与强度仍使用原生默认服务，Hemi 菜单重新选择当前值时也提交显式选择。未增加上游运行时代码修改；接口说明由生成器维护。合并时核对原生创建来源、初始化取消信号、设置事务与菜单选型回调，保持原生子任务生命周期。验证包括 171 项 Host/界面回归，以及 Chromium、WebKit 两项真实组合场景和新会话显示预期，覆盖自动与固定模式继承、强度保存及旧会话隔离；没有请求真实模型或更新用户安装的应用。限定代码的 lint、两个 Hemi 包类型检查、中英文配对与最新产物构建 8 项均通过，Client 聚合检查通过。Host 聚合检查受并行改动中默认模型可空类型的未更新消费者阻塞，接口目录再生成受同批桌面引导 Remote 的 JSDoc 缺失阻塞；未改动或绕过这些检查。
+
 模型导入的完整 ID 匹配与默认能力展示归 `hemi/model-access/src/model-catalog.ts` 和 `hemi/model-access-ui`。现有 profile 瀑布无法独立表达“继承输出容量但不设置请求上限”，因此 `llm-pi-ai/src/catalog.ts`、`config.ts` 保留通用 `catalogProvider` 引用及校验，只继承名称、输入类型和容量；`index.ts` 导出目录读取及默认值，确保 Hemi 使用已发布入口而非源码路径。合并上游须核对引用失效报错、显式覆盖优先、原连接传输保持独立及未修改默认值的保存行为。实际验证包括 117 项定向测试、型号设置浏览器回放、构建包入口导入冒烟、`build:artifacts`、`build:check`、`doc-sync` 与定向 lint。
 
 独立推理选择器的浏览器场景为 `apps/web/tests/hemi-effort-picker.e2e.ts`；`apps/web/tsconfig.json` 排除该 Host 场景，`tsconfig.host.json` 负责检查，产品运行时无需新增扩展点。实际验证包括 29 项菜单行为测试、Chromium/WebKit 浅深色与 390px/1280px 布局、保存和焦点恢复、`build:artifacts`、`build:check` 与 `doc-sync`；合并上游时须保留两组按钮和对应测试的能力判断。
 
+记忆、备份与模型接入页的控件组合归各自的 `packages/hemi/*-ui` 插件，使用现有 `Button`、`Input`、`Switch`、`SegmentedControl`，不修改公共设置外壳、配置表单、Remote 或保存策略。现有模型接入浏览器用例按标准 tab 语义选择接入方式，无需新的运行时扩展。验证包括 34 项组件回归、三个 UI 包类型检查、Client 聚合检查、限定 lint 和 12 组源码组件的明暗／390px 与桌面渲染；真实 Host 的记忆保存、冲突与重新加载场景通过。全仓 Host 检查及 GUI 聚合未全部通过，三页的完整组合复验受系统原生依赖加载阻塞，未作为成功证据。合并时保留公共控件依赖、字段标签、键盘切换、草稿保留和窄屏布局；源码构建不替换运行中的安装版。
+
+New API 的 API tab 入口、引导弹窗、关闭后草稿和进度保留、导入完成后的列表刷新归 `hemi/model-access-ui`。设置页只保留订阅与 API 两类，桌面弹窗默认使用 HTTPS，站点登录视图内嵌于弹窗；用户完成登录后，在同一处核验账号并进入模型选择。没有桌面桥接时保留已有令牌导入。登录视图的 IPC 和隔离配置归 `hemi/customizations`，设置框架及原生创建与撤销事务保持原有职责。已有 `apps/web/tests/hemi-model-access.e2e.ts` 和 `hemi-model-settings.e2e.ts` 更新入口定位并覆盖真实 Host 组合，外部站点和原生 IPC 端点使用测试替身；390px／1280px 明暗截图、键盘返回和草稿继续已验证。合并时保留成功后列表重读、再次接入、关闭不等于取消，以及未完成撤销的明确提示；源码构建不替换安装版应用。
+
+选择模型弹窗的文案、搜索布局、列表滚动与选中反馈归 `hemi/model-access-ui`，使用独立 CSS Module，不修改通用 Modal 或全局主题。`apps/web/tests/hemi-model-access.e2e.ts` 在既有真实组合场景中覆盖列表、确认添加与读取失败，并记录选择弹窗的 ARIA 预期；浅深色的 390px、1280px 和矮窗口截图及主按钮文字对比度断言通过。合并上游时核对原生 Modal 的高度约束、搜索无障碍名称、筛选后的选择保留及刷新语义；源码构建不替换运行中的安装版。
 
 独立安装层使用插槽优先级覆盖旧官方模型菜单，并复用其已声明的标签和选项子插槽；支持 `showComposer` 的 Hemi 组合则关闭原生菜单。四个角色 preset 的来源为 `packages/hemi/routing/roles.patch.yml`；`plugins/hemi-model-routing/sync-config.mjs` 生成内置角色配置和独立安装配置，打包与路由组合测试拒绝配置漂移。独立层覆写匹配版本的 standard preset，保留原生异步行为。
+
+Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`。原生 roster 没有区分主会话和委派用途的扩展点，因此 `preset/agent-preset` 与 `preset/agent-preset-registry` 接受并传递通用标记，`client/ui-agent-preset` 在模式菜单和默认设置读取该标记。`api/session-controller`、`experimental/webhook` 与注册表的空白会话切换在接受新主会话选型时校验实际加载的版本。旧角色默认值回到部署默认值，已有会话恢复、分叉与委派仍按 ID 加载。合并上游时核对标记的缺省行为、旧默认值、历史标签和子会话的原生绑定；有等价扩展后移除 fork 接入。486 项定向测试和 4 项构建后 Web 场景通过，涵盖两个入口、旧默认值、四角色原生委派、模型绑定和录制会话回放。
 
 | 上游文件或模块 | 保留修改的背景 | 合并上游时核对 |
 | --- | --- | --- |
@@ -173,7 +186,7 @@ GitHub 社区签名由自有 `release/signing.mjs`、`setup.mjs`、`cua.mjs` 管
 
 - `packages/hemi/model-access-ui` 注册独立的「模型接入」入口，由桌面 profile 启用。
 - `packages/hemi/model-access` 复用 DSH OAuth 和凭据存储，接入 ChatGPT Codex 与 GLM Coding Plan 的额度查询，并迁移 GLM 的项目令牌续签和签名推理。DSH Pi 适配器入口只额外导出已有的配置和凭据工具。
-- `packages/hemi/customizations/src/desktop-new-api.ts` 将旧 Hemi 的 New API 浏览器导入流程接到独立登录窗。用户确认计划后创建并验证令牌，Host 一次保存同批路由，导入中断后可核对创建结果并恢复。已有令牌导入仍可使用。
+- `packages/hemi/customizations/src/desktop-new-api.ts` 将 New API 登录视图嵌入桌面主窗口。用户确认计划后创建并验证令牌，Host 一次保存同批路由，导入中断后可核对创建结果并恢复。已有令牌导入仍可使用。
 
 - 「模型接入」使用独立设置 ID，提供 Hemi 订阅、New API 和 API Key 三种接入方式。DSH 原模型编辑器及「模型」设置入口保留，桌面 profile 沿用原生导航默认值，自定义页面提供路由与连接测试。
 
@@ -231,3 +244,39 @@ GitHub 社区签名由自有 `release/signing.mjs`、`setup.mjs`、`cua.mjs` 管
 - 原生账号插件增加默认开启的通用 `showSettingsSection`、`showLauncher` 配置，只控制账号设置和侧边栏入口，不停用账号状态、登录、通知或 `account.connection`。桌面组合关闭这两个入口，并使用已有配置关闭原生「模型」入口；Web 默认行为保持原样。Hemi 的账号操作集中在「模型接入」订阅卡片中。合并上游时核对原生入口配置与权限生命周期，有等价接口时移除本地扩展。
 - 验证：35 项账号配置与注册测试、Host／Client 聚合检查、隐藏导航的真实 Loader／浏览器验收通过。当前 Electron 已完整重启，确认账号 tab、模型 tab 和侧边栏用户信息均已隐藏，「模型接入」中的 DeepSeek 余额与型号仍可用。全量 GUI 首轮出现超时，9 个失败文件单独复查的 185 项全部通过。
 - 提交检查保留全仓 `doc-sync` 失败记录：未改动的 README 章节和 Agent Notes 格式检查未通过。本批次局部 lint、浏览器验收及其重放通过；全量 GUI 首轮的 9 个失败文件复查全部通过。
+
+## 2026-11-06 · 通用 Desktop 启动
+
+- `packages/hemi/model-settings` 提供显式启用的 workspace 启动策略和本地首次引导状态，`model-settings-ui` 复用 `settings.onboarding`，提供「配置模型」与「进入工作区」。配置完成标记先持久化，失败可重试；已有默认模型或旧引导完成记录的用户跳过介绍。引导不读取账号、余额或凭据。
+- 品牌与多语言加载文案归 `packages/hemi/customizations/release/identity.mjs`，加载样式归 `src/desktop-startup.css`。`client/web` 的 `BootPage`、`AppWebEntry` 与 Web 入口只接收通用可选展示参数；加载界面早于插件激活，不能使用已激活的 UI 插槽。显式打包标记选择 Hemi 加载展示；未标记的开发构建保留原生加载页。原生账号欢迎页不作品牌替换。
+- Electron Host 通过 customizations 读取插件策略，并经 ready IPC 发送通用 workspace/locale 参数。`host-process` 校验 IPC，`main` 在该模式直接打开工作区，不启动原生账号欢迎页、账号启动监听或账号 locale bootstrap；取消退出也不回到账号欢迎窗。没有策略时保留原生启动。`ipc`、`preload-app` 和 `main` 提供可选、发送方受限的系统浏览器打开能力，拒绝非 HTTPS／本机 HTTP、URL 凭据和不受信任发送方。
+- 原生 `ui-settings-account` 增加默认开启的 `desktopOnboarding`、`initializeDefaultModel`、`nativeSignIn` 配置。Hemi Desktop 在组合层关闭三项；DeepSeek 仍使用原有订阅卡片与账号服务，登录由通用系统浏览器能力完成，登录和退出不改变全局启动页或默认型号。账号插件缺席时，Hemi 的订阅 factory 使用空 fallback。Hemi 组合默认停用账号关联的产品分析与遥测导出插件。
+- `agent-default-model` 支持 provider/model 同时为 null，并在加载和设置更新时拒绝半配置。Session 目录以 null 表示无默认型号，空会话通过 live accessor 继承之后保存的选择。`session-controller` 在入队和附件接纳前拒绝无型号提示，并提供通用 `agent/before-user-prompt` 扩展点，让 Hemi 自动路由插件选出首个型号；没有更改原生循环调度。输入框本地化提示并保留草稿。原生账号初始化显式传入 provider，headless/webhook 在依赖默认型号时明确报错。`AgentOptions`、压缩上下文和 subagent 配置类型同步更新。
+- 上游保留文件为启动宿主、原生账号 UI、默认型号／Session API 与其直接消费者；品牌、首次引导、自动路由和产品组合决策留在 Hemi 自有目录。`ui-primitives/Input` 移除重复的 className 字段，继承原生 HTML 属性类型；Web 测试在 client/host 编译面分别排除和登记。新增升级指南说明可空默认值及显式 provider 参数，目录从源声明生成。
+- 合并上游时核对：可空默认型号的全部消费者、首个提示准入与自动路由、原生账号配置默认值、ready IPC 的可选性、无账号插件的订阅 factory、沙箱 preload 和冷启动品牌参数。上游提供等价扩展点后移除对应适配；不迁移或重写用户账号、凭据和 Session 历史。
+- 验证：最新 `build:artifacts` 的 8 项与随后 `build:check` 的 Host／Client 两项通过，`doc-sync` 的 43 项、客户端文案检查和定向 lint 通过。默认型号、账号 UI、自动路由、无型号提示、桌面启动及进程通信的定向回归通过；headless／webhook 的 93 项回归和 4 项已构建沙箱 preload 检查通过。无 DeepSeek 账号插件的真实 Loader／浏览器首启与快照重放通过，覆盖引导、模型设置、发送前拒绝、保存默认值、空会话继承和刷新；浅深色截图已检查。未执行真实模型推理，未替换已安装应用；主进程改动需完整退出并重启开发版。
+
+## 2026-11-07 · Desktop 启动依赖读取
+
+- 旧 HFS 磁盘映像的冷读取会将小型清单读取拖到数百毫秒；原生安装依赖图逐项读取，使窗口长期停在加载页。`packages/boot/app-boot/src/profile.ts` 对物理文件系统使用有上限的并发批次，按原广度优先顺序提交成功结果；缺失的较早声明不抢占后续有效依赖，读取完成顺序不改变首个错误。pkg 虚拟文件系统继续使用原有同步文件操作。解析在插件挂载之前发生，现有插件扩展点无法处理此阶段；改动是通用启动能力，没有加入 Hemi 提供方分支。
+- `scripts/client-build-environment.ts` 在 Git 已确认受跟踪改动时直接返回脏工作区状态，其他情况仍使用完整状态检查，保留未跟踪文件、子模块和无首个提交仓库的处理。此处属于构建工具，没有更改发布或模型策略。README 与双语记录同步更新；新测试归 app-boot 所有。
+- 验证使用已准备的 SSD 普通目录；从原工作区原样补回迁移漏掉的 `ProviderUsage.tsx`。原生 Desktop 预览使用独立用户数据和匹配版本的已安装运行时资源，实际窗口已显示「欢迎使用 Hemi」及两个入口，保留在引导页。旧安装实例与账号配置未改动。
+- 验证：287 项定向回归、格式修正后的 3 项并发／顺序回归、定向 lint、完整 `build:artifacts`、随后 Host／Client `build:check`、43 项 `doc-sync` 和无 DeepSeek 账号插件的浏览器快照重放通过。289 包的独立构建产物对照在每次读取固定延迟 5 ms 的模拟场景中，串行两次为 2179／2175 ms，并发为 135／134 ms，全部有序条目一致；虚拟文件系统回退结果一致。这是模拟 I/O 对照，不代表真实冷启动的加速比例。
+- 合并上游时核对：依赖的广度优先优先级、同名包较早声明缺失、首个错误顺序、虚拟文件系统和读取任务收尾；上游提供等价读取策略后评估移除本地改动。
+
+## 2026-11-07 · 沿用原生启动欢迎样式
+
+- `packages/hemi/model-settings-ui` 的首次引导按原生 `apps/desktop/renderer/welcome.css` 的整页结构展示：上方品牌、中部说明、下方两个纵排的 240×44 按钮。移除悬浮卡片和重复品牌标题，保留共享 Modal 的焦点、Tab 与 Escape 管理；背景使用原生实色层，避免工作区半透明皮肤透出内容。Hemi 只拥有品牌文案、通用模型配置入口及完成状态，不引入账号或充值依赖。
+- 移除 Hemi 的 `customizations/src/desktop-startup.css`、此前加在 `apps/web/src/main.ts` 的样式导入，以及 Web 对该适配包的开发依赖。加载页继续使用原生布局、尺寸和配色，仅通过已有展示参数改变品牌与本地化状态文案。本次没有新增上游扩展或持久化字段。
+- 验证：8 项欢迎页／加载文案测试、无 DeepSeek 账号插件的真实 Loader／浏览器快照重放、定向 lint、8 项 `build:artifacts` 和随后两项 Host／Client `build:check` 通过；移除无用依赖后再次完成 10 项完整构建检查。43 项 `doc-sync`、包依赖检查和依赖目录检查通过。浏览器检查 1280×820、1024×660、600×600、360×640 下的整页覆盖、按钮位置和溢出，并检查浅深色截图；原生开发实例已加载新版，保留在欢迎页。未替换已安装应用。
+- 合并上游时对照原生 Welcome 的字体、布局、按钮尺寸和主题令牌；若原生提供可配置的纯展示欢迎组件，再以该组件替换 Hemi 内的样式适配。
+
+Hemi 黑白波浪 H 的源图由皮肤插件拥有，桌面与 Web 分发资源由 `customizations/release/render-artwork.mjs` 生成。builder 与 Web 构建通过窄适配选择资源，未启用 Hemi 发行身份时保留上游资源。侧栏、首页沿用已有品牌插槽；`ui-chat` 只新增通用运行图案插槽，不改变计时或播报。`client/locale` 在用户参数插值前按构建标题替换字典中的产品专名，不修改用户内容。Desktop 组合停用上游反馈、日志上报及相关入口；Hemi Host 插件提供被记录的产品提示身份，桌面启动适配提供请求归属环境设置。数据目录、应用 ID、更新地址和签名身份不变。合并上游时核对插槽卸载、字典与用户文本隔离、上报器缺席、资源构建选择和旧偏好路径。
+
+上述分发接线保留在 `apps/desktop/scripts/electron-builder-config.mjs`、`package-target.ts` 和 `apps/web/vite.config.ts`；通用扩展保留在 `client/locale/src/client/index.ts`、`client/ui-chat/src/client/` 与 `llm/llm/src/attribution.ts`。`scripts/check-workspace-constraints.ts` 仅允许 Hemi 资源目录和 preload 所需的单个 CSS 源文件，并拒绝缺失资源或额外源码；Host/Client 测试归属由各自 tsconfig 显式声明。
+
+品牌定制验证包括带 Hemi 标题的 `build:artifacts`、其后的 `build:check`、274 项定向单测、三个 Web 真实组合场景、43 项 `doc-sync` 检查及包清单约束；定向类型感知 lint 通过。全仓 lint 仍报告未修改文件中的六处既有类型断言问题。没有发布安装包或覆盖已安装客户端，macOS/Windows 原生安装效果仍需在打包后验证。
+
+反馈入口回归使用 Web scaffold 的显式 `profile.name: desktop` 执行真实分发条件，不以覆盖层强制停用被测行；覆盖消息好／差评、会话更多菜单、输入框加号菜单及 `/feedback` 候选缺席，同时验证本地日志下载和 Markdown 复制入口保留。当前安装版仍需通过后续打包安装更新，源码测试不代表运行中的客户端已更新。
+
+Hemi 侧栏名称由皮肤插件展示为 Hemi 与黑底白字 `dsh` 标签，标签复用原生 `Tag`。空图案占用者抑制原生侧栏 Logo 回退，插件样式按品牌插槽与侧栏切换按钮移除图案占位，并在折叠时保留原生展开图标；首页中部和运行状态图案保持不变。合并上游时核对这两个公共属性选择器与图案宿主关系，避免空白间距或不可见展开按钮。

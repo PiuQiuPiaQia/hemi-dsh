@@ -224,6 +224,8 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.chat.flow', () => ctx.slots.register({
     name: 'conversation.chat.flow', locale: NS, store: chatStore,
     children: {
+      // Hemi fork: a generic artwork slot preserves native status timing and accessibility.
+      'conversation.chat.running.mark': { kind: 'single', scope: 'root' },
       'conversation.chat.node': { kind: 'keyed', scope: 'session', inject: CHAT_NODE_INJECT },
     },
     inject: (sessionId: SessionId): ChatFlowDataInjected => {

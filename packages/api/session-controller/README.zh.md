@@ -29,6 +29,8 @@ kind: "package-reference"
 
 控制器通过可选服务方法 `agentPresets.presetForSession(session)` 读取 Session 已记录的预设。null 结果表示未记录预设；服务缺席表示控制器无法获知预设身份。
 
+`session.create` 对仅供子智能体使用的预设返回 `agent-preset/invalid`。恢复或分叉已有 Session 时仍可使用其记录的预设。
+
 历史页与 follow opening 快照为每个持久 Session 事件携带一条 `{ type: 'event', event: SessionWireEvent }` record。Client 把每条已接受 record 保留为一个持久 `SessionEventLikeEntry`；Assistant token 边界保留在 `assistant/message` 或 `assistant/attempt` 的紧凑流内。工具参数、结果内容、失败信息和 `tool/result.data.meta` 原样通过；控制器不解析工具定义、不运行展示转换器，也不附加 UI 数据。
 
 Client journal 在发布 follow 快照、live entry 或历史页之前验证当前 Session 事件 envelope。它复用浏览器安全的 Session validator，检查必需的 surface marker、精确的 replacement endpoint、更早且唯一的 source seq、内嵌 Assistant 提供方元数据、request header 可选字段的省略规则以及工具错误一致性。无效 record 直接失败，不删除字段或归一化；范围成员与来源存在性仍由 Host 的持久日志检查。
@@ -90,7 +92,9 @@ Client 的首次 `follow`、重连首屏与 `loadOlder()` 至少请求 50 条以
 
 当 `connection`、`fs` 与 `attachments` 均被组合时，`SessionMediaReferences` 在鉴权 `connection.fetch` 通道上挂载 `GET|HEAD /api/file?path=<绝对路径>`。它通过 `ctx.fs` 读取普通文件，包括已注册工作区之外的临时路径与远程提供方中的文件。目录包含关系与 MIME 类别均不限制访问；`mime-types` 提供响应类型，未知扩展名使用 `application/octet-stream`。GET 复用 `readBytes` 执行读取前及读取中的字节限制；HEAD 只读取元数据。所有文件均使用 `ctx.attachments.imageLimits.maxImageBytes`（通常为 50 MiB）；超过此上限返回 413。`v` 参数与文件当前 `ctx.fs` 版本不同（包括没有该参数）的请求，会收到 `private, no-store` 的 302，跳转到只含 `path` 与当前 `v` 的同一路由；版本化响应为 `private, max-age=31536000, immutable`，因此浏览器在文件变化前复用缓存内容，私有文件内容可能进入浏览器磁盘缓存。响应包含完整文件，忽略 Range，并携带 `nosniff` 与沙箱 CSP，使直接打开的 HTML/SVG 无法以 API 源身份执行脚本。客户端重写位于 `ui-chat`（`AssistantMarkdown`）；音视频文件响应已可用，Markdown 音视频播放器节点仍是独立工作。
 
-GUI 模型选择要求确切提供方／模型对出现在可用目录中；不可用的选择以 `session/model-unavailable` 拒绝。提示词准入保留已保存的路由，不按目录可用性阻断发送，由请求执行报告凭据缺失或模型不可用。`initializeDefaultModel()` 在账号登录后、其他提供方均未配置 API key 时，将第一个可用账号模型保存为默认模型；凭据检查使用已配置的引用，不依赖模型是否可用。提供方没有可用模型时，初始化以 `session/provider-models-unavailable` 拒绝。可用性变化不会替换模型或改写会话选择。
+GUI 模型选择要求确切提供方／模型对出现在可用目录中；不可用的选择以 `session/model-unavailable` 拒绝。提示词准入保留已保存的路由，不按目录可用性阻断发送，由请求执行报告凭据缺失或模型不可用。`initializeDefaultModel(provider)` 在其他提供方均未配置 API key 时，将显式指定提供方的第一个可用模型保存为默认模型；凭据检查使用已配置的引用，不依赖模型是否可用。提供方没有可用模型时，初始化以 `session/provider-models-unavailable` 拒绝。可用性变化不会替换模型或改写会话选择。
+
+型号目录的 `default` 可为空。未配置型号的空白会话仍可创建；发送前允许路由插件通过 `agent/before-user-prompt` 提供首个路由，之后仍未选择型号则以 `session/model-not-selected` 拒绝，消息内容不会入队或写入日志。已有会话选型与不可用型号的请求诊断保持原有行为。
 
 `selectModel` 成功返回表示会话模型选择已记录，不等待默认 profile 设置保存。循环注册该投影；变更从下一个步骤开始生效，已准备的步骤保留捕获的选择。默认设置在后台按提交顺序保存；保存失败会记录警告，并保留会话选择。尚未记录选择或请求的会话通过 `AgentOptions` 的动态访问器读取最近一次成功保存的默认值。显式选择即使与默认值相同也会记录。省略推理强度会清除显式强度，让每次请求使用适配器默认值。
 

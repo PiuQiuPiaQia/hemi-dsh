@@ -11,6 +11,7 @@ import { syncNativeTheme } from './preload-theme.ts'
 import { syncWindowsAppearance } from './preload-windows.ts'
 import { installMandatoryUpdateOverlay } from './preload-mandatory-overlay.ts'
 // Hemi fork: keep the sandboxed bridge adapter separate from the shell preload.
+import { hemiBootPresentation } from '@deepseek-ai/dsh-hemi-customizations/desktop-branding'
 import { createNewApiPreloadBridge } from '@deepseek-ai/dsh-hemi-customizations/preload'
 import { createDesktopBrowserBridge } from './preload-browser.ts'
 import type { FileDragHandle } from '@deepseek-ai/dsh-util-file-drag'
@@ -18,6 +19,8 @@ import type { FileDragHandle } from '@deepseek-ai/dsh-util-file-drag'
 function createProductApi(): DshDesktopProductApi {
   return {
     protocolVersion: 1,
+    // Hemi fork: provider plugins own login attempts; the shell only opens validated links.
+    openExternal: url => ipcRenderer.invoke(DESKTOP_IPC.openExternal, url) as Promise<void>,
     fileActions: {
       save: request => ipcRenderer.invoke(DESKTOP_IPC.fileSave, request) as Promise<FileSaveResult>,
       readClipboardImage: url => ipcRenderer.invoke(DESKTOP_IPC.clipboardImageRead, url) as
@@ -90,6 +93,9 @@ function createProductApi(): DshDesktopProductApi {
 }
 
 if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
+  // Hemi fork: startup branding must precede Host readiness and plugin activation.
+  const bootPresentation = hemiBootPresentation(process.argv)
+  if (bootPresentation !== undefined) contextBridge.exposeInMainWorld('dshBootPresentation', bootPresentation)
   contextBridge.exposeInMainWorld('dshOnboarding', {
     hasApiKey: () => ipcRenderer.invoke(DESKTOP_IPC.onboardingApiKey) as Promise<boolean>,
     setActive: (active: boolean) => { ipcRenderer.send(DESKTOP_IPC.onboardingActive, active) },

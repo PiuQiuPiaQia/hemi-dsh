@@ -13,9 +13,16 @@ The Desktop profile adds a separate Model Connections settings entry. Its Hemi c
 
 ## Table of Contents
 
+- [Desktop introduction](#desktop-introduction)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="desktop-introduction"></a>
+
+## Desktop introduction
+
+The Desktop introduction uses the existing `settings.onboarding` coordinator and the shared modal's keyboard/focus ownership. Its full-page presentation follows the native Desktop Welcome layout, typography and vertically stacked 240×44 actions, without a floating card. It offers Model connections or workspace entry without sign-in, credit or provider selection. Completion is saved before navigation; a failed save retains the introduction and exposes retry. The Hemi-owned page opens `hemi-model-access`; the desktop shell has no dependency on that section id.
 
 ## Model Experience
 

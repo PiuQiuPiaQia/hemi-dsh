@@ -11,7 +11,7 @@ kind: "package-reference"
 
 打开 **设置 → 记忆** 可编辑长期记忆、指定日期的日志和便签。点击保存会写入文件。如果打开后文件发生变化，页面会保留草稿并提示重新加载。Web App bundle 挂载此客户端插件和 [Host 设置服务](../memory/README.zh.md)。
 
-自动记忆行为由 [Host 插件](../memory/README.zh.md#automatic-memory)负责。页面说明自动载入、压缩交接和退出摘要，并提示辅助摘要用量按模型记录。
+在「记忆」标题下选择记忆类型，每日日志还需选择日期。编辑器在正文旁保留保存、错误和冲突提示。自动记忆行为见 [Host 插件文档](../memory/README.zh.md#automatic-memory)。
 
 ## 目录
 

@@ -7,8 +7,13 @@ export class BrowserLogin {
   private navigated = false
   private attempt: SignInAttemptId | undefined
 
-  /** @param destination - maps the Host authorization URL to the page the tab opens, read when the tab navigates. */
-  constructor(private readonly destination: (authorizeUrl: string) => string) {}
+  /**
+   * @param destination - maps the Host authorization URL at navigation time.
+   * @param openExternal - optional sender-authorized system browser operation, replacing popup ownership.
+   * @param failed - visible failure reporter for a rejected system browser operation.
+   */
+  constructor(private readonly destination: (authorizeUrl: string) => string,
+    private readonly openExternal?: (url: string) => Promise<void>, private readonly failed?: () => void) {}
 
   /**
    * Preopen a tab and bind it to the attempt returned by the Host.
@@ -30,6 +35,7 @@ export class BrowserLogin {
   /** Preopen a tab during the user's click; blocked popups need the copy-link route. */
   begin(): void {
     this.dispose()
+    if (this.openExternal !== undefined) return
     this.popup = window.open('about:blank', '_blank')
     if (this.popup) this.popup.opener = null
   }
@@ -63,7 +69,13 @@ export class BrowserLogin {
     }
     if (!attempt?.authorizeUrl || this.navigated) return
     this.navigated = true
-    if (this.popup && !this.popup.closed) this.popup.location.replace(this.destination(attempt.authorizeUrl))
+    const destination = this.destination(attempt.authorizeUrl)
+    if (this.openExternal !== undefined) {
+      const owned = this.attempt
+      void this.openExternal(destination).catch((_error: unknown) => {
+        if (this.attempt === owned) { this.navigated = false; this.failed?.() }
+      })
+    } else if (this.popup && !this.popup.closed) this.popup.location.replace(destination)
   }
 
   /** Close the owned authorization tab and stop following its attempt. */

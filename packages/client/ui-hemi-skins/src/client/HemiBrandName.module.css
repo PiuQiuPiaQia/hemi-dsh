@@ -1,0 +1,28 @@
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* The edition uses the requested fixed monochrome palette in both themes. */
+.edition[data-tone='solid'] {
+  background: #000;
+  color: #fff;
+  border: 0.5px solid #fff4;
+  letter-spacing: 0;
+}
+
+.noMark {
+  display: none;
+}
+
+/* Remove the mark's host wrapper as well, so its adjacent gap disappears. */
+:global(span):has(> :global([data-slot='sidebar.brand.mark']) .noMark) {
+  display: none;
+}
+
+/* The collapsed rail normally uses its logo as the expand control's resting icon. */
+:global([data-sidebar-toggle][type='button']):has(.noMark) > :global(svg) {
+  display: inline;
+}

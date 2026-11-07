@@ -123,6 +123,11 @@ export const InputBar = memo(function InputBar({
   useEffect(() => {
     if (promptError === null) return
     const { error } = promptError
+    // Hemi fork: an unconfigured model is an actionable local setup state, not a raw transport diagnostic.
+    if (error.code === 'session/model-not-selected') {
+      showToast(t('error.modelNotSelected'))
+      return
+    }
     if (error.code === 'session/writer-held') {
       showToast(t('error.sessionInUse'))
       return

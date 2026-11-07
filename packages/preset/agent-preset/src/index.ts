@@ -18,6 +18,8 @@ export default class AgentPreset {
     name: z.string(),
     description: z.string(),
     order: z.number(),
+    // Hemi fork: preserve the registry's child-only declaration in Loader config.
+    subagentOnly: z.boolean(),
     // Cordis owns individual plugin schemas; the registry validates entry structure.
     plugins: z.array(z.any()).required(),
   }) as z<Config>

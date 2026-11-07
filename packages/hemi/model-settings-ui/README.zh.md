@@ -13,9 +13,16 @@ kind: "package-reference"
 
 ## 目录
 
+- [桌面引导](#desktop-introduction)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="desktop-introduction"></a>
+
+## 桌面引导
+
+Desktop 引导复用已有的 `settings.onboarding` 协调器与共享弹窗的键盘和焦点管理。整页展示沿用原生 Desktop Welcome 的布局、字体和纵向排列的 240×44 按钮，不显示悬浮卡片。提供模型接入或进入工作区两个入口，不包含登录、充值或提供方选型。完成标记在导航前保存；保存失败时保留引导并允许重试。Hemi 自有页面打开 `hemi-model-access`，桌面壳不依赖该设置页标识。
 
 ## 模型体验
 

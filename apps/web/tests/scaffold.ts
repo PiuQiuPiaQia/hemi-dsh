@@ -337,6 +337,8 @@ export interface LaunchOptions {
    * an overlay, leaving changes for the next start.
    */
   profile?: {
+    /** Profile identity used by deployment-specific bundle expressions; defaults to scaffold. */
+    name?: string
     hmr?: boolean
     /** Launcher-owned invocation and environment for profile package operations. */
     packageManager?: ProfileContext['packageManager']
@@ -723,7 +725,8 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
   }
 
   // Live fields use a shared deployment layer; process-specific ports and roots stay in CLI overlays.
-  const formEntries = new Set(['agent-default-model', 'agent-preset-registry', 'llm-deepseek', 'llm-pi-ai',
+  // Hemi fork: the Desktop introduction marker uses the same persisted deployment layer.
+  const formEntries = new Set(['hemi-model-settings', 'agent-default-model', 'agent-preset-registry', 'llm-deepseek', 'llm-pi-ai',
     'web', 'web-search-deepseek', 'web-deepseek-api', 'agent-loop', 'subagent', 'bash-sandbox', 'pwsh-sandbox',
     'session-log-deepseek', 'ui-theme', 'locale', 'ui-chat', 'ui-conversation', 'ui-settings', 'ui-settings-general', 'permission'])
   const formDefaults: PatchOptions[] = []
@@ -758,7 +761,9 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       publicProxy = await startPrefixProxy({ prefix: publicPrefix })
     }
     process.chdir(workspaceCwd)
-    const profileDir = join(harnessHome, 'profiles', 'scaffold')
+    // Hemi fork: exercise deployment expressions without replacing the product rows under test.
+    const profileName = options.profile?.name ?? 'scaffold'
+    const profileDir = join(harnessHome, 'profiles', profileName)
     const extraLayers: Profile['layers'] = await Promise.all((options.extraInstallAnchors ?? []).map(async (anchor) => {
       const manifest = JSON.parse(await readFile(anchor, 'utf8')) as { name?: unknown }
       if (typeof manifest.name !== 'string' || manifest.name === '') {
@@ -778,7 +783,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       }
     }))
     const profile: Profile = { skippedBundles: [],
-      name: 'scaffold',
+      name: profileName,
       dir: profileDir,
       layers: extraLayers,
       patchPath: join(profileDir, 'cordis.patch.yml'),
@@ -815,7 +820,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       manifest.dependencies = dependencies
       await writeFile(join(profileDir, 'package.json'), JSON.stringify(manifest, null, 2) + '\n')
       profileContext = {
-        name: 'scaffold', dir: profileDir, patchPath: profile.patchPath, installAnchor: INSTALL_ANCHOR,
+        name: profileName, dir: profileDir, patchPath: profile.patchPath, installAnchor: INSTALL_ANCHOR,
         ...options.profile?.packageManager === undefined ? {} : { packageManager: options.profile.packageManager },
         cwd: workspaceCwd, home: harnessHome,
         startedBundles: loadProfileDirectory('dsh', profileDir, INSTALL_ANCHOR).layers.map(layer => layer.packageName),

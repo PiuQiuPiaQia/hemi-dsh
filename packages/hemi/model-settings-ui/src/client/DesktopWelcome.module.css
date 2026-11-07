@@ -1,0 +1,133 @@
+/* Native Desktop welcome geometry: apps/desktop/renderer/welcome.css.
+   Provider-neutral content and actions remain owned by this Hemi view. */
+.page {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  gap: 8px;
+  padding: 6px 16px;
+  overflow: auto;
+  border-radius: 0;
+  /* The workspace skin can make bg-base translucent; first-run content covers it. */
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: none;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family-brand);
+  font-weight: 300;
+  user-select: none;
+}
+
+.titlebar {
+  flex: 0 0 36px;
+  -webkit-app-region: drag;
+}
+
+.welcome {
+  display: grid;
+  flex: 1;
+  min-height: 440px;
+  grid-template-rows: 40px minmax(160px, 1fr) 104px;
+  justify-items: center;
+  align-items: center;
+  padding: 24px 48px 76px;
+}
+
+.brand {
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 40px;
+}
+
+.tagline {
+  max-width: 480px;
+  text-align: center;
+}
+
+.tagline h1 {
+  margin: 0;
+  font-family: var(--dsw-font-family);
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 40px;
+  text-wrap: balance;
+}
+
+.tagline p {
+  margin: 8px 0 0;
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--dsw-font-family);
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 28px;
+  text-wrap: balance;
+}
+
+.actions {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 240px;
+  max-width: 100%;
+}
+
+.actions button {
+  flex: none;
+  height: 44px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  -webkit-app-region: no-drag;
+  transition: background-color var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.actions .primary {
+  background: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-primary-inverted);
+}
+
+.actions .secondary {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-button-elevated-fill);
+}
+
+.actions button:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .actions .primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--dsw-alias-label-primary) 80%, var(--dsw-alias-bg-base));
+  }
+
+  .actions .secondary:hover:not(:disabled) {
+    background: var(--dsw-alias-button-floating-hover);
+  }
+}
+
+.error {
+  position: absolute;
+  top: 100%;
+  width: 100%;
+  margin: 12px 0 0;
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .welcome { padding-inline: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actions button { transition: none; }
+}

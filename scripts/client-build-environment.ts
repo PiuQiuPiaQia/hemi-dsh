@@ -107,6 +107,13 @@ export function repositoryGitDirty(root: string): boolean | undefined {
   })
   if (probe.error !== undefined || probe.status !== 0 || probe.stdout.trim() !== 'true') return undefined
 
+  // Hemi fork: known tracked changes already establish dirty metadata; avoid scanning development caches unnecessarily.
+  const tracked = spawnSync('git', ['diff', '--quiet', '--ignore-submodules=none', 'HEAD', '--'], {
+    cwd: root,
+    stdio: 'ignore',
+  })
+  if (tracked.status === 1) return true
+
   const status = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=normal'], {
     cwd: root,
     encoding: 'utf8',

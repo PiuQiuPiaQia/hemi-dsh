@@ -103,12 +103,14 @@ describe('the new-session chip', () => {
   it.each([false, true])('offers Standard, Creator and custom presets with Developer tools %s', (enabled) => {
     const actions = renderSeat({ options: [
       { id: 'standard' }, { id: 'ptc' }, { id: 'minimal' }, { id: 'cordis' }, { id: 'mine' },
+      { id: 'child', name: 'Child role', subagentOnly: true },
     ] }, undefined, undefined, enabled)
 
     fireEvent.click(screen.getByRole('button'))
     expect(screen.getAllByRole('menuitem')).toHaveLength(enabled ? 5 : 3)
     expect(screen.getByRole('menuitem', { name: /^Standard mode/ })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /^mine/ })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /^Child role/ })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: /^PTC mode/ }) !== null).toBe(enabled)
     expect(screen.queryByRole('menuitem', { name: /^Minimal mode/ }) !== null).toBe(enabled)
     fireEvent.click(screen.getByRole('menuitem', { name: /^Creator mode/ }))

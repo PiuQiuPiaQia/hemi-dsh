@@ -11,14 +11,23 @@ English | [中文](README.zh.md)
 
 This package owns non-plugin Hemi adapters required by the Electron main process and sandboxed preload. Feature services remain in their Hemi plugins. The desktop shell imports the main adapter from this package and the browser-safe bridge from `/preload`.
 
-The main adapter creates the isolated New API login window and registers the shell-provided IPC channel. Every operation runs the shell's sender authorization first. The shell disposes import work before shutting down the authenticated Host. The preload entry imports no Electron main-process code.
+The main adapter embeds the isolated New API sign-in view in the product window and registers the shell-provided IPC channel. Every operation runs the shell's sender authorization first. The shell disposes import work before shutting down the authenticated Host. The preload entry imports no Electron main-process code.
 
 ## Table of Contents
 
+- [Startup presentation](#startup-presentation)
 - [GitHub releases](#github-releases)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="startup-presentation"></a>
+
+## Startup presentation
+
+The `/desktop-branding` adapter names the application Hemi while retaining the `hemi-dsh` distribution marker, external protocol, artifact prefix and preference directory. `/desktop-artwork` owns monochrome distribution resources; `/web-branding` applies them to explicitly named Hemi Web builds. Regenerate the resources with `node packages/hemi/customizations/release/render-artwork.mjs` from the repository root.
+
+The `/desktop-branding` adapter supplies localized boot presentation and reads the Hemi Host plugin’s provider-neutral startup contribution. Loading retains the native layout and light/dark palette, with Hemi branding and status copy. It does not replace the native account Welcome: Hemi Desktop bypasses that window and hosts its introduction in the Hemi settings plugin.
 
 <a id="github-releases"></a>
 

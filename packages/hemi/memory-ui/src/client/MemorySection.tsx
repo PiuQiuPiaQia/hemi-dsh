@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MemorySnapshot, StoreTarget } from '@deepseek-ai/dsh-hemi-memory/settings'
 import css from './MemorySection.module.css'
@@ -71,14 +72,12 @@ export function MemorySection({ t, actions }: PropsLocale<'hemi-memory'> & { act
 
   return (
     <section className={css.section} aria-label={t('nav')}>
-      <p className={css.description}>{t('description')}</p>
-      <p className={css.description}>{t('automation')}</p>
-      <p className={css.description}>{t('usage')}</p>
+      <h2 className={css.title}>{t('nav')}</h2>
       <div className={css.card}>
         <div className={css.controls}>
           <label>
             {t('store')}
-            <select value={target} disabled={dirty || notice === 'saving'} onChange={(event) => {
+            <select className={css.select} value={target} disabled={dirty || notice === 'saving'} onChange={(event) => {
               const next = stores.find(store => store === event.currentTarget.value)
               if (next === undefined || next === target) return
               resetEditor(next === 'daily' && date === '' ? null : 'loading')
@@ -90,7 +89,7 @@ export function MemorySection({ t, actions }: PropsLocale<'hemi-memory'> & { act
           {target === 'daily' && (
             <label>
               {t('date')}
-              <input type="date" value={date} disabled={dirty || notice === 'saving'} onChange={(event) => {
+              <Input className={css.date ?? ''} type="date" value={date} disabled={dirty || notice === 'saving'} onChange={(event) => {
                 const next = event.currentTarget.value
                 if (next === date) return
                 resetEditor(next === '' ? null : 'loading')
@@ -109,15 +108,15 @@ export function MemorySection({ t, actions }: PropsLocale<'hemi-memory'> & { act
             }} />
         </label>
         <div className={css.actions}>
-          <button type="button" disabled={!dirty || busy || notice === 'conflict'} onClick={() => { void save() }}>
+          <Button variant="primary" size="sm" disabled={!dirty || busy || notice === 'conflict'} onClick={() => { void save() }}>
             {t('save')}
-          </button>
-          <button type="button" disabled={busy || logDate === ''} onClick={() => {
+          </Button>
+          <Button variant="outline" size="sm" disabled={busy || logDate === ''} onClick={() => {
             resetEditor('loading')
             setReload(count => count + 1)
           }}>
             {t(dirty ? 'discard' : 'reload')}
-          </button>
+          </Button>
         </div>
         <div className={css.status} role="status">{notice === null ? dirty && t('unsaved') : t(notice)}</div>
       </div>

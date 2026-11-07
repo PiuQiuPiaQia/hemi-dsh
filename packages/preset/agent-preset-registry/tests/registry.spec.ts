@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import AgentRegistry, { assembleContextFor } from '@deepseek-ai/dsh-agent'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { entryListProblem } from '../src/index.ts'
 import { currentKey, harness, declare, contribution, agentOn, liveRegistries, plugin } from './harness.ts'
 import { omitsGeneratedPage } from '../../../settings/settings/tests/live-config.ts'
@@ -227,6 +228,30 @@ it('resolves the saved default over the deployment default, and drops a removed 
   expect(ctx.agentPresets.defaultId).toBe('minimal')
   await live.replace({ default: 'standard' })
   expect(ctx.agentPresets.defaultId).toBe('standard')
+})
+
+it('keeps child-only presets available by recorded ID while excluding them from main-session selection', async () => {
+  const ctx = await harness({ live: true })
+  contexts.push(ctx)
+  await declare(ctx, contribution('standard'))
+  await declare(ctx, { ...contribution('role'), subagentOnly: true })
+  await liveRegistries.get(ctx)!.update({ selectedDefault: 'role' })
+
+  expect(ctx.agentPresets.defaultId).toBe('standard')
+  expect((await ctx.agentPresets.remoteExportList()).presets).toContainEqual(expect.objectContaining({
+    id: 'role', subagentOnly: true, isDefault: false,
+  }))
+  await expect(ctx.agentPresets.resolve('role', 'main-session')).rejects.toThrow('reserved for subagents')
+  expect(await ctx.agentPresets.resolve(undefined, 'main-session')).toEqual({ id: 'standard' })
+  const main = await agentOn(ctx, 'main')
+  await expect(ctx.agentPresets.select(main, 'role')).rejects.toThrow('reserved for subagents')
+  expect(ctx.agentPresets.composedPreset(main.ctx)).toBe('standard')
+  const recorded = await ctx.agentPresets.resolve('role')
+  const existing = await agentOn(ctx, 'existing', recorded.id)
+  expect(ctx.agentPresets.composedPreset(existing.ctx)).toBe('role')
+  const child = await ctx.agents.create({ sessionId: SessionId('child'), meta: { origin: 'subagent' } })
+  expect(await ctx.agentPresets.select(child.agent, 'role')).toBe('role')
+  expect(ctx.agentPresets.composedPreset(child.agent.ctx)).toBe('role')
 })
 
 it('ignores a retired modeSelectionEnabled field in the user patch', async () => {

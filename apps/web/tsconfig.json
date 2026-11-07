@@ -23,6 +23,10 @@
   // this client-registered project must not also hold them (one program
   // cannot see both sides of the cordis Context merges).
   "exclude": [
+    "tests/hemi-feedback-visibility.e2e.ts",
+    // Hemi fork: the branding e2e consumes Host declarations through its scaffold.
+    "tests/hemi-branding.e2e.ts",
+    "tests/hemi-desktop-startup.e2e.ts",
     "tests/sidebar-drawer.e2e.ts",
     "tests/creation-recommendations.e2e.ts",
     "tests/plugin-recommendations.e2e.ts",

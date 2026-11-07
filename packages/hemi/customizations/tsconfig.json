@@ -10,6 +10,9 @@
   "references": [
     {
       "path": "../model-access"
+    },
+    {
+      "path": "../model-settings"
     }
   ]
 }

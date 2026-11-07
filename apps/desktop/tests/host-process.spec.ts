@@ -334,6 +334,8 @@ ${HTTP_HOST}`)
   it.each([
     ["process.send({ type: 'fatal', message: 'startup failed' }); process.disconnect()", 'startup failed'],
     ["process.send({ type: 'ready', url: 4 })", 'invalid IPC event'],
+    ["process.send({ type: 'ready', url: 'http://127.0.0.1/', startup: { mode: 'account', localePreference: null } })", 'invalid IPC event'],
+    ["process.send({ type: 'ready', url: 'http://127.0.0.1/', startup: { mode: 'workspace', localePreference: 4 } })", 'invalid IPC event'],
     ["process.send({ type: 'fatal', message: 'startup failed', diagnostic: 42 })", 'invalid IPC event'],
     ['process.exit(0)', 'host stopped'],
   ])('rejects startup when the child fails before readiness: %s', async (source, message) => {

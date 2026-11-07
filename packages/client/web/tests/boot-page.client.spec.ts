@@ -11,6 +11,19 @@ function mount() {
 }
 
 describe('BootPage', () => {
+  it('keeps carrier branding and failure reporting available before plugins load', () => {
+    const el = document.createElement('div')
+    const page = new BootPage(el, { wordmark: 'Example', loadingLabel: 'Starting…', failedLabel: 'Could not start', className: 'example-boot' })
+    expect(el.textContent).toBe('ExampleStarting…')
+    page.setTotal(2)
+    page.setState('first', 'active')
+    expect(el.querySelector<HTMLElement>('[data-dsh-boot-spinner]')?.style.getPropertyValue('--dsh-boot-arc')).toBe('180deg')
+    page.fail('Host unavailable')
+    expect(el.textContent).toContain('ExampleCould not startHost unavailable')
+    page.dispose()
+    expect(el.childNodes).toHaveLength(0)
+  })
+
   it('draws the loading skeleton before any plugin state arrives', () => {
     const { el } = mount()
     expect(el.firstElementChild?.getAttribute('data-dsh-boot')).toBe('')

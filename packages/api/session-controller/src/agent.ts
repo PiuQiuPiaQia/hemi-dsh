@@ -228,7 +228,7 @@ export class ApiSessionAgentController {
    */
   async createSession(request: ApiSessionCreateRequest): Promise<ApiSessionCreated> {
     const named = request.sessionId
-    if (named === undefined) return this.created(await this.createMinted(request.cwd, await this.composeAgent(request.agentPreset)))
+    if (named === undefined) return this.created(await this.createMinted(request.cwd, await this.composeAgent(request.agentPreset, 'create')))
     return this.inOrder(named, async () => this.created(await this.claim(named, request)))
   }
 
@@ -256,19 +256,22 @@ export class ApiSessionAgentController {
   /**
    * Resolve the preset id and pre-publication Agent setup for a create or resume.
    * @param presetId - requested preset or the configured default when omitted.
+   * @param purpose - fresh selection or restoration of a recorded composition.
    * @returns the resolved preset identity and Agent setup callback.
    */
-  async composeAgent(presetId: string | undefined): Promise<ApiSessionComposition> {
+  async composeAgent(presetId: string | undefined, purpose: 'create' | 'restore'): Promise<ApiSessionComposition> {
     const presets = this.ctx.get('agentPresets')
     if (presets === undefined) {
       return { setup: (agentCtx) => { installModelSelection(agentCtx) } }
     }
-    const resolvedId = (await presets.resolve(presetId)).id
+    // Hemi fork: restrict fresh main-session choices while preserving recorded preset IDs.
+    const usage = purpose === 'create' ? 'main-session' : undefined
+    const resolvedId = (await presets.resolve(presetId, usage)).id
     return {
       agentPreset: resolvedId,
       setup: async (agentCtx) => {
         installModelSelection(agentCtx)
-        await presets.mount(agentCtx, resolvedId)
+        await presets.mount(agentCtx, resolvedId, usage)
       },
     }
   }
@@ -305,7 +308,7 @@ export class ApiSessionAgentController {
     if (hasApiSessionSubagentOwner({ header: observation.header })) {
       throw new ApiSessionSubagentOwnership(sessionId)
     }
-    const composition = await this.composeAgent(this.presetForObservation(observation))
+    const composition = await this.composeAgent(this.presetForObservation(observation), 'restore')
     const published = this.ctx.sessions.get(sessionId)
     if (published !== undefined && hasApiSessionSubagentOwner(published)) {
       throw new ApiSessionSubagentOwnership(sessionId)
@@ -339,7 +342,7 @@ export class ApiSessionAgentController {
       if (live.session.header.cwd !== request.cwd) {
         throw new ApiSessionCwdConflict(live.id, request.cwd, live.session.header.cwd)
       }
-      const composition = await this.composeAgent(request.agentPreset)
+      const composition = await this.composeAgent(request.agentPreset, 'create')
       return await this.reuseLive(live, request, composition) ?? this.createMinted(request.cwd, composition)
     }
     let observation: SessionObservation
@@ -347,7 +350,7 @@ export class ApiSessionAgentController {
       observation = await this.ctx.sessionQuery.observeSession(sessionId)
     } catch (error: unknown) {
       if (!(error instanceof SessionQueryError) || error.code !== 'SESSION_QUERY_SESSION_NOT_FOUND') throw error
-      return this.createAgent(sessionId, request.cwd, await this.composeAgent(request.agentPreset))
+      return this.createAgent(sessionId, request.cwd, await this.composeAgent(request.agentPreset, 'create'))
     }
     let reusable: boolean
     {
@@ -360,7 +363,7 @@ export class ApiSessionAgentController {
       }
       reusable = request.reusable(sessionId) && !observed.events.some(event => event.type === 'turn/start')
     }
-    const composition = await this.composeAgent(request.agentPreset)
+    const composition = await this.composeAgent(request.agentPreset, 'create')
     if (!reusable) return this.createMinted(request.cwd, composition)
     this.assertPresetApplicable(sessionId, request.agentPreset)
     try {
@@ -452,11 +455,11 @@ export class ApiSessionAgentController {
 
   private agentOptions(): AgentOptions {
     const defaults = this.ctx.agentDefaultModel
-    // A Session that records no selection or request follows default changes.
+    // Hemi fork: live defaults may start unconfigured, then become selected without recreating the blank Session.
     return {
-      get provider() { return defaults.currentSelection().provider },
-      get model() { return defaults.currentSelection().model },
-      get reasoningEffort() { return defaults.currentSelection().reasoningEffort },
+      get provider() { return defaults.currentSelection()?.provider },
+      get model() { return defaults.currentSelection()?.model },
+      get reasoningEffort() { return defaults.currentSelection()?.reasoningEffort },
     }
   }
 

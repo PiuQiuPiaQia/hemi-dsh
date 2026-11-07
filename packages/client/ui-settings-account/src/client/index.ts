@@ -63,10 +63,14 @@ export function apply(ctx: Context): void {
   const page = globalThis as Partial<Record<typeof CONTACT_CONFIG_GLOBAL, unknown>>
   const config = ContactConfig(page[CONTACT_CONFIG_GLOBAL] ?? {})
   let snapshot: AccountSnapshot = {
-    view: undefined, details: undefined, avatar: undefined, failed: false, loginVisible: false, desktopOnboardingVisible: desktop,
+    view: undefined, details: undefined, avatar: undefined, failed: false, loginVisible: false,
+    desktopOnboardingVisible: desktop && config.desktopOnboarding,
   }
-  // Desktop main opens the authorization page natively; a plain browser opens it in a tab it owns.
-  const browser = new BrowserLogin(url => authorizeUrlWithTheme(url, ctx.theme.getTheme().active.colorScheme))
+  // Hemi fork: the provider UI owns external authorization when the shell does not watch accounts.
+  const nativeBrowser = (globalThis as { dshDesktop?: { openExternal?: (url: string) => Promise<void> } }).dshDesktop?.openExternal
+  const browser = new BrowserLogin(url => authorizeUrlWithTheme(url, ctx.theme.getTheme().active.colorScheme),
+    desktop && !config.nativeSignIn ? nativeBrowser : undefined,
+    () => { publish({ ...snapshot, loginFailed: true }) })
   ctx.effect(() => () => { browser.dispose() }, 'account: pending browser window')
   const listeners = new Set<() => void>()
   const publish = (value: AccountSnapshot) => { snapshot = value; for (const listener of listeners) listener() }
@@ -169,9 +173,9 @@ export function apply(ctx: Context): void {
         frame.accept()
         if (frame.value.status === 'credential-stored') notices.begin()
         else notices.end()
-        if (initialize) void (async () => {
+        if (initialize && config.initializeDefaultModel) void (async () => {
           try {
-            const initialized = await ctx.remote.session.initializeDefaultModel()
+            const initialized = await ctx.remote.session.initializeDefaultModel('deepseek-account')
             if (!initialized.ok) console.error('[deepseek-account] default model initialization failed', { reason: 'refused' })
           } catch (_error) {
             console.error('[deepseek-account] default model initialization failed', { reason: 'disconnected' })
@@ -256,6 +260,7 @@ export function apply(ctx: Context): void {
       },
     },
     async start() {
+      if (desktop && !config.nativeSignIn && nativeBrowser === undefined) throw new Error('Desktop browser integration is unavailable')
       publish({ ...snapshot, loginVisible: true, loginFailed: false })
       const transport = (globalThis as typeof globalThis & {
         __DSH_TRANSPORT__?: { streamBaseUrl?: string }
@@ -268,7 +273,7 @@ export function apply(ctx: Context): void {
         return result.value
       }
       try {
-        if (desktop) await request()
+        if (desktop && config.nativeSignIn) await request()
         else await browser.start(request, () => snapshot.view)
       } catch (error) {
         publish({ ...snapshot, loginFailed: true })
@@ -287,7 +292,7 @@ export function apply(ctx: Context): void {
       throw result.error
     },
   }
-  if (desktop) {
+  if (desktop && config.desktopOnboarding) {
     const controller = new DesktopOnboardingController(
       ctx.configForms.get<OnboardingSettings>(DESKTOP_ONBOARDING_NAMESPACE),
       ctx.configForms.get<{ transcriptView?: TranscriptViewMode | null; performanceUsage: 'compact' | 'detailed' }>('ui-chat'),

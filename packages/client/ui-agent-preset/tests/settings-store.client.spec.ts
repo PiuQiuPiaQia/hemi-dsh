@@ -10,6 +10,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { RemoteErrorCode } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { AgentPresetRoster } from '@deepseek-ai/dsh-agent-preset-registry/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController,
@@ -198,7 +199,7 @@ describe('the agent-preset roster store', () => {
 describe('the new-session chip controller', () => {
   /** A chip over a current session the test can move. */
   function chip(
-    presets: { id: string; isDefault: boolean }[],
+    presets: AgentPresetRoster['presets'],
     current: SeatSession | undefined | (() => SeatSession | undefined),
     options: {
       writes?: Recorded[]
@@ -280,20 +281,24 @@ describe('the new-session chip controller', () => {
     })
   })
 
-  it('shows the first preset when the roster marks none default', async () => {
-    const controller = chip([{ id: 'minimal', isDefault: false }], undefined)
+  it('shows the first main-session preset when the roster marks none default', async () => {
+    const controller = chip([
+      { id: 'child', name: 'Child role', isDefault: false, subagentOnly: true },
+      { id: 'minimal', isDefault: false },
+    ], undefined)
 
     await controller.load()
 
     // Settings can name a preset that was since deleted; the chip still has
     // to open on something rather than render nothing.
     expect(controller.store.getSnapshot().current).toBe('minimal')
+    expect(controller.store.getSnapshot().options).toContainEqual({ id: 'child', name: 'Child role', subagentOnly: true })
   })
 
   it('carries the display metadata into the menu rows', async () => {
     const controller = chip([
       { id: 'standard', isDefault: true, name: '标准模式', description: '完整的编码 agent。' },
-    ] as never, undefined)
+    ], undefined)
 
     await controller.load()
 

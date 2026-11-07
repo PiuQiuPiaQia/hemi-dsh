@@ -20,6 +20,15 @@ vi.mock('../src/preload-mandatory-overlay.ts', () => ({ installMandatoryUpdateOv
 beforeEach(() => { vi.stubGlobal('process', { ...process, isMainFrame: true }) })
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules() })
 
+it('supplies startup branding only to the application document', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  vi.stubGlobal('process', { ...process, argv: ['--dsh-desktop-product=hemi-dsh', '--dsh-desktop-locale=zh-CN'] })
+  await import('../src/preload-app.ts')
+  expect(electron.contextBridge.exposeInMainWorld).toHaveBeenCalledWith('dshBootPresentation', {
+    wordmark: 'Hemi', loadingLabel: '正在启动 Hemi…', failedLabel: 'Hemi 启动失败', className: 'hemi-startup',
+  })
+})
+
 it('reads only native login API-key presence through the onboarding bridge', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/'))
   electron.ipcRenderer.invoke.mockResolvedValueOnce(true)

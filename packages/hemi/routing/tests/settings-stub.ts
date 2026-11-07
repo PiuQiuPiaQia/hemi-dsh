@@ -1,16 +1,25 @@
 /** Typed in-memory Settings and volatile-config stand-in shared by the routing tests. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { HemiRoutingEffort, Route } from '../src/types.ts'
+import type { HemiRoutingEffort, HemiRoutingMode, Route } from '../src/types.ts'
 import { SETTINGS_NAMESPACE } from '../src/settings.ts'
 
 /** Backing document the volatile config reads and every settings write mutates. */
 export interface RoutingConfigDocument {
   defaultReasoningEffort: HemiRoutingEffort
+  newSessionMode: HemiRoutingMode
+  newSessionEffort: HemiRoutingEffort | null
   sessionEfforts: Record<string, HemiRoutingEffort>
   main: Route | null
   roles: Record<string, Route>
   sessionModes: Record<string, boolean>
+}
+
+/** One path-addressed write the settings pipeline accepts. */
+export interface RoutingSettingsOp {
+  op: 'set'
+  path: readonly string[]
+  value: unknown
 }
 
 /** Behavior planned for one upcoming settings write. */
@@ -30,10 +39,13 @@ export class MutableRoutingSettings {
   readonly writes = { mutate: 0 }
   /** Attempted writes per operation, including held and failed ones. */
   readonly attempts = { mutate: 0 }
+  /** Ops of every attempted mutate call, in call order, for same-transaction assertions. */
+  readonly opLog: RoutingSettingsOp[][] = []
 
   constructor(initial: Partial<RoutingConfigDocument> = {}) {
     this.document = { main: initial.main ?? null, roles: initial.roles ?? {}, sessionModes: initial.sessionModes ?? {},
       defaultReasoningEffort: initial.defaultReasoningEffort ?? 'high', sessionEfforts: initial.sessionEfforts ?? {},
+      newSessionMode: initial.newSessionMode ?? 'fixed', newSessionEffort: initial.newSessionEffort ?? null,
     }
   }
 
@@ -44,6 +56,8 @@ export class MutableRoutingSettings {
     sessionModes: { get(): Record<string, boolean> }
     sessionEfforts: { get(): Record<string, HemiRoutingEffort> }
     defaultReasoningEffort: { get(): HemiRoutingEffort }
+    newSessionMode: { get(): HemiRoutingMode }
+    newSessionEffort: { get(): HemiRoutingEffort | null }
   } {
     return {
       main: { get: () => this.document.main },
@@ -51,6 +65,8 @@ export class MutableRoutingSettings {
       sessionModes: { get: () => this.document.sessionModes },
       sessionEfforts: { get: () => this.document.sessionEfforts },
       defaultReasoningEffort: { get: () => this.document.defaultReasoningEffort },
+      newSessionMode: { get: () => this.document.newSessionMode },
+      newSessionEffort: { get: () => this.document.newSessionEffort },
     }
   }
 
@@ -66,8 +82,14 @@ export class MutableRoutingSettings {
     }
   }
 
-  /** Replace the main/roles config directly, like a settings-card edit. */
-  setConfig(next: { main?: Route | null; roles?: Record<string, Route> }): void {
+  /** Replace config values directly, like a settings-card edit or a profile reload. */
+  setConfig(next: {
+    main?: Route | null
+    roles?: Record<string, Route>
+    newSessionMode?: HemiRoutingMode
+    newSessionEffort?: HemiRoutingEffort | null
+    defaultReasoningEffort?: HemiRoutingEffort
+  }): void {
     this.document = { ...this.document, ...next }
   }
 
@@ -81,13 +103,26 @@ export class MutableRoutingSettings {
     for (const resume of this.held.splice(0)) resume()
   }
 
-  /** Apply one path-addressed mode write to the backing document. */
-  async mutate(ns: string, ops: readonly { op: 'set'; path: readonly string[]; value: unknown }[]): Promise<void> {
+  /** Apply one path-addressed settings write to the backing document. */
+  async mutate(ns: string, ops: readonly RoutingSettingsOp[]): Promise<void> {
     this.attempts.mutate += 1
+    this.opLog.push(ops.map(op => ({ op: op.op, path: [...op.path], value: op.value })))
     await this.settle()
     if (ns !== SETTINGS_NAMESPACE) throw new Error(`settings stub: unexpected namespace "${ns}"`)
     for (const op of ops) {
       const [head, key] = op.path
+      if (head === 'newSessionMode' && key === undefined) {
+        if (op.value !== 'fixed' && op.value !== 'auto') throw new Error('settings stub: newSessionMode values are fixed or auto')
+        this.document = { ...this.document, newSessionMode: op.value }
+        continue
+      }
+      if (head === 'newSessionEffort' && key === undefined) {
+        if (op.value !== null && (typeof op.value !== 'string' || !['low', 'medium', 'high', 'max'].includes(op.value))) {
+          throw new Error('settings stub: newSessionEffort values are null or a routing effort')
+        }
+        this.document = { ...this.document, newSessionEffort: op.value as HemiRoutingEffort | null }
+        continue
+      }
       if (head === 'sessionEfforts' && key !== undefined && ['low', 'medium', 'high', 'max'].includes(String(op.value))) {
         this.document = { ...this.document, sessionEfforts: { ...this.document.sessionEfforts, [key]: op.value as HemiRoutingEffort } }
         continue

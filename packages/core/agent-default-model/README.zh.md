@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 配置默认值
 
-组合要求提供 provider 和模型。即使没有挂载配置编辑器，消费者也可读取即时引用。
+组合可以提供 provider 和模型，也可以将两者同时留空。即使没有挂载配置编辑器，消费者也可读取即时引用。
 
 ```yaml
 - name: '@deepseek-ai/dsh-agent-default-model'
@@ -40,14 +40,14 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `provider` | 必填 | 新 agent 使用的已注册提供方路由 |
-| `model` | 必填 | 新 agent 使用的、由提供方持有的模型 id |
+| `provider` | `null` | 新 agent 使用的已注册提供方路由 |
+| `model` | `null` | 新 agent 使用的、由提供方持有的模型 id |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-agent-default-model) 列出所有接受的字段。`reasoningEffort` 是可选的；保存不含此字段的选择，会从 profile 的完整配置覆盖中移除此字段。
 
 ### 读取与更改默认值
 
-`currentSelection()` 为新创建的 agent 返回一份独立的 `{ provider, model, reasoningEffort? }`；`saveSelection()` 为后续 agent 保存完整选择。
+`currentSelection()` 为新创建的 agent 返回一份独立的 `{ provider, model, reasoningEffort? }`；`saveSelection()` 为后续 agent 保存完整选择。 两个路由字段默认为 `null`，也可同时保持未设置，此时 `currentSelection()` 返回 `undefined`，供未配置型号的工作区使用；仅一个字段为空会在加载时拒绝。
 
 ```text
 const selection = ctx.agentDefaultModel.currentSelection()

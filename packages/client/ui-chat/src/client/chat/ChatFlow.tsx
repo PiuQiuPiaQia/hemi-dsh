@@ -93,8 +93,9 @@ export const ChatFlow = memo(function ChatFlow({
   // the status slot (hidden) until its actions row takes the slot in the same commit.
   return [
     ...rows, ...leadingRows, ...openingRows,
+    // Hemi fork: the flow owns renderer authorization for the running artwork extension.
     ...running || holding ? [<RunningStatus key="running" startTime={runningStartTime} paused={disconnected}
-      holding={holding} t={t} />] : [],
+      holding={holding} t={t} renderSlot={renderSlot} />] : [],
     ...pendingRows,
   ]
 })

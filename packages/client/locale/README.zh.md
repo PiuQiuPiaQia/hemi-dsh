@@ -76,6 +76,8 @@ export function apply(ctx) {
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
+客户端构建标题在参数插值前替换已注册字典模板中的专名 `DeepSeek Harness`。用户传入的参数和缺失键回退保持原样，未指定发行名称时保留原生名称。
+
 <details>
 <summary>实现细节——点击展开</summary>
 

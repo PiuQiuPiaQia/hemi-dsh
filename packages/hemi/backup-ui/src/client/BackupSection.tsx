@@ -4,6 +4,7 @@
  * through the `hemiBackup` Remote namespace.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BackupSetView, BackupStateView, RestorePreview } from './types.ts'
 import css from './BackupSection.module.css'
@@ -90,7 +91,7 @@ export function BackupSection(props: BackupSectionProps) {
     restoreCancel,
   } = props
   const [state, setState] = useState<BackupStateView | null>(null)
-  const [draft, setDraft] = useState<TargetDraft>({ kind: 'local', dir: '', url: '', username: '', password: '', remoteDir: 'hemi-backups' })
+  const [draft, setDraft] = useState<TargetDraft>({ kind: 'local', dir: '', url: 'https://dav.jianguoyun.com/dav/', username: '', password: '', remoteDir: 'hemi-backups' })
   const [schedule, setSchedule] = useState<{ enabled: boolean; interval: 'daily' | 'weekly' }>({ enabled: false, interval: 'daily' })
   const [keep, setKeep] = useState('5')
   const [sets, setSets] = useState<readonly BackupSetView[]>([])
@@ -185,7 +186,7 @@ export function BackupSection(props: BackupSectionProps) {
   return (
     <section className={css.section} aria-label={t('nav')}>
       <header className={css.header}>
-        <h3 className={css.title}>{t('title')}</h3>
+        <h2 className={css.title}>{t('title')}</h2>
         <p className={css.description}>{t('description')}</p>
       </header>
 
@@ -202,8 +203,9 @@ export function BackupSection(props: BackupSectionProps) {
         </div>
 
         <div className={css.row}>
-          <span className={css.key}>{t('targetKind')}</span>
+          <label className={css.key} htmlFor="hemi-backup-kind">{t('targetKind')}</label>
           <select
+            id="hemi-backup-kind"
             className={css.select}
             value={draft.kind}
             disabled={busy !== null}
@@ -216,9 +218,9 @@ export function BackupSection(props: BackupSectionProps) {
         {draft.kind === 'local' ? (
           <div className={css.row}>
             <label className={css.key} htmlFor="hemi-backup-dir">{t('targetDir')}</label>
-            <input
+            <Input
               id="hemi-backup-dir"
-              className={css.input}
+              className={css.input ?? ''}
               value={draft.dir}
               placeholder={t('localPathHint')}
               onChange={bindDraft((previous, value) => ({ ...previous, dir: value }))}
@@ -228,17 +230,17 @@ export function BackupSection(props: BackupSectionProps) {
           <>
             <div className={css.row}>
               <label className={css.key} htmlFor="hemi-backup-url">{t('targetUrl')}</label>
-              <input id="hemi-backup-url" className={css.input} value={draft.url} placeholder={t('webdavUrlHint')} onChange={bindDraft((previous, value) => ({ ...previous, url: value }))} />
+              <Input id="hemi-backup-url" className={css.input ?? ''} value={draft.url} placeholder={t('webdavUrlHint')} onChange={bindDraft((previous, value) => ({ ...previous, url: value }))} />
             </div>
             <div className={css.row}>
               <label className={css.key} htmlFor="hemi-backup-user">{t('targetUsername')}</label>
-              <input id="hemi-backup-user" className={css.input} value={draft.username} onChange={bindDraft((previous, value) => ({ ...previous, username: value }))} />
+              <Input id="hemi-backup-user" className={css.input ?? ''} value={draft.username} onChange={bindDraft((previous, value) => ({ ...previous, username: value }))} />
             </div>
             <div className={css.row}>
               <label className={css.key} htmlFor="hemi-backup-password">{t('targetPassword')}</label>
-              <input
+              <Input
                 id="hemi-backup-password"
-                className={css.input}
+                className={css.input ?? ''}
                 type="password"
                 value={draft.password}
                 placeholder={state?.hasPassword === true ? t('targetPasswordSaved') : ''}
@@ -247,53 +249,54 @@ export function BackupSection(props: BackupSectionProps) {
             </div>
             <div className={css.row}>
               <label className={css.key} htmlFor="hemi-backup-remote">{t('targetRemoteDir')}</label>
-              <input id="hemi-backup-remote" className={css.input} value={draft.remoteDir} onChange={bindDraft((previous, value) => ({ ...previous, remoteDir: value }))} />
+              <Input id="hemi-backup-remote" className={css.input ?? ''} value={draft.remoteDir} onChange={bindDraft((previous, value) => ({ ...previous, remoteDir: value }))} />
             </div>
             <p className={css.help}>{t('targetHelp')}</p>
             <p className={css.help}>{t('plaintextNote')}</p>
           </>
         )}
         <div className={css.actions}>
-          <button type="button" className={css.button} disabled={busy !== null} onClick={() => void guard('test', async () => {
+          <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void guard('test', async () => {
             const result = await testConnection(draft)
             setNotice({ ok: result.ok, text: result.ok ? t('testOk') : result.message ?? t('saveFailed') })
           })}>
             {busy === 'test' ? t('testing') : t('test')}
-          </button>
-          <button type="button" className={css.buttonPrimary} disabled={busy !== null} onClick={() => void guard('target', async () => {
+          </Button>
+          <Button variant="primary" size="sm" disabled={busy !== null} onClick={() => void guard('target', async () => {
             await saveTarget(draft)
             setNotice({ ok: true, text: t('saved') })
             await refresh()
             await refreshList()
           })}>
             {busy === 'target' ? t('saving') : t('save')}
-          </button>
-          <button type="button" className={css.buttonPrimary} disabled={busy !== null || !hasTarget} onClick={() => void guard('run', async () => {
+          </Button>
+          <Button variant="primary" size="sm" disabled={busy !== null || !hasTarget} onClick={() => void guard('run', async () => {
             const result = await runNow()
             setNotice({ ok: result.ok, text: result.ok ? t('saved') : result.message ?? t('saveFailed') })
             await refresh()
             await refreshList()
           })}>
             {busy === 'run' || state?.isRunning === true ? t('running') : t('runNow')}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className={css.card}>
         <div className={css.row}>
           <span className={css.key}>{t('scheduleEnabled')}</span>
-          <input
-            type="checkbox"
+          <Switch
             checked={schedule.enabled}
+            label={t('scheduleEnabled')}
             disabled={busy !== null}
-            onChange={(event) => {
-              setSchedule(previous => ({ ...previous, enabled: event.target.checked }))
+            onChange={(next) => {
+              setSchedule(previous => ({ ...previous, enabled: next }))
             }}
           />
         </div>
         <div className={css.row}>
-          <span className={css.key}>{t('scheduleTitle')}</span>
+          <label className={css.key} htmlFor="hemi-backup-interval">{t('scheduleTitle')}</label>
           <select
+            id="hemi-backup-interval"
             className={css.select}
             value={schedule.interval}
             disabled={busy !== null || !schedule.enabled}
@@ -307,9 +310,9 @@ export function BackupSection(props: BackupSectionProps) {
         </div>
         <div className={css.row}>
           <label className={css.key} htmlFor="hemi-backup-keep">{t('keepCount')}</label>
-          <input
+          <Input
             id="hemi-backup-keep"
-            className={css.input}
+            className={css.input ?? ''}
             type="number"
             min={1}
             max={50}
@@ -322,20 +325,20 @@ export function BackupSection(props: BackupSectionProps) {
         </div>
         <p className={css.help}>{t('keepHelp')}</p>
         <div className={css.actions}>
-          <button type="button" className={css.buttonPrimary} disabled={busy !== null} onClick={() => void guard('schedule', async () => {
+          <Button variant="primary" size="sm" disabled={busy !== null} onClick={() => void guard('schedule', async () => {
             await saveSchedule(schedule, Math.min(Math.max(Number(keep) || 5, 1), 50))
           })}>
             {busy === 'schedule' ? t('saving') : t('saveSchedule')}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className={css.card}>
         <div className={css.listHead}>
           <span className={css.key}>{t('listTitle')}</span>
-          <button type="button" className={css.button} disabled={busy !== null || !hasTarget} onClick={() => void guard('list', refreshList)}>
+          <Button variant="outline" size="sm" disabled={busy !== null || !hasTarget} onClick={() => void guard('list', refreshList)}>
             {busy === 'list' ? t('refreshing') : t('refresh')}
-          </button>
+          </Button>
         </div>
         {!hasTarget
           ? <p className={css.help}>{t('listConfigureFirst')}</p>
@@ -350,9 +353,9 @@ export function BackupSection(props: BackupSectionProps) {
                       {set.broken === true ? ` · ${t('broken')}` : ` · ${formatBytes(set.packedBytes)}`}
                     </span>
                     <span className={css.listAside}>
-                      <button
-                        type="button"
-                        className={css.button}
+                      <Button
+                        variant="outline"
+                        size="sm"
                         disabled={busy !== null || set.broken === true}
                         onClick={() => void guard('prepare', async () => {
                           const result = await restorePrepare(set.name)
@@ -361,10 +364,10 @@ export function BackupSection(props: BackupSectionProps) {
                         })}
                       >
                         {busy === 'prepare' ? t('preparing') : t('restore')}
-                      </button>
-                      <button
-                        type="button"
-                        className={css.button}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         disabled={busy !== null}
                         onClick={() => void guard('delete', async () => {
                           if (!window.confirm(t('deleteConfirm'))) return
@@ -374,7 +377,7 @@ export function BackupSection(props: BackupSectionProps) {
                         })}
                       >
                         {busy === 'delete' ? t('deleting') : t('delete')}
-                      </button>
+                      </Button>
                     </span>
                   </li>
                 ))}
@@ -396,19 +399,19 @@ export function BackupSection(props: BackupSectionProps) {
           <p className={css.help}>{t('mergeNote')}</p>
           <p className={css.help}>{t('restartNote')}</p>
           <div className={css.actions}>
-            <button type="button" className={css.button} disabled={busy !== null} onClick={() => {
+            <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => {
               setRestore(null)
               void restoreCancel().catch(() => {})
             }}>
               {t('cancel')}
-            </button>
-            <button type="button" className={css.buttonPrimary} disabled={busy !== null} onClick={() => void guard('apply', async () => {
+            </Button>
+            <Button variant="primary" size="sm" disabled={busy !== null} onClick={() => void guard('apply', async () => {
               const result = await restoreApply()
               setNotice({ ok: result.ok, text: result.ok ? t('applied') : result.message ?? t('applyFailed') })
               setRestore(null)
             })}>
               {busy === 'apply' ? t('applying') : t('apply')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

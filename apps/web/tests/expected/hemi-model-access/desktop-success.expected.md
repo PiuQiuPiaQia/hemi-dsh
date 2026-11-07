@@ -1,0 +1,12 @@
+- dialog "接入 New API":
+  - heading "接入 New API" [level=2]
+  - button "关闭"
+  - region "New API 浏览器登录导入":
+    - list "接入 New API":
+      - listitem: 登录站点
+      - listitem: 选择模型
+      - listitem: 创建并导入
+    - paragraph: https://newapi.example.test · Fixture user
+    - paragraph: 令牌名称 · Hemi-fixture
+    - status: 已导入 1 个模型，可在「模型接入」中管理。
+  - button "完成"

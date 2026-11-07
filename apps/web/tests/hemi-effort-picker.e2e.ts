@@ -106,6 +106,46 @@ it.each([{ name: 'Chromium', engine: chromium }, { name: 'WebKit', engine: webki
     expect(scaffold.ctx.hemiRoutingSettings.modeOf(lead)).toBe('auto')
     await page.reload({ waitUntil: 'load' })
     await expect.poll(() => routingEffort.textContent()).toBe('最高')
+
+    await connectFreshWorkspaceZh(page, scaffold.workspaceCwd, 'inherited-auto')
+    const inheritedAgent = () => scaffold.ctx.agents.list().find(agent => agent.session.header.cwd === join(scaffold.workspaceCwd, 'inherited-auto'))
+    await expect.poll(() => inheritedAgent()?.id).toBeDefined()
+    const inherited = inheritedAgent()
+    if (inherited === undefined) throw new Error('Missing inherited conversation')
+    await page.locator(`[data-conversation-session="${inherited.id}"]`).waitFor()
+    const inheritedModel = page.getByRole('button', { name: /^选择模型/ })
+    await expect.poll(() => inheritedModel.textContent()).toBe('自动路由')
+    await expect.poll(() => routingEffort.textContent()).toBe('最高')
+    const automatic = { model: await inheritedModel.textContent(), effort: await routingEffort.textContent() }
+    expect(scaffold.ctx.hemiRoutingSettings.modeOf(inherited)).toBe('auto')
+    await routingEffort.click()
+    await page.getByRole('menuitem', { name: '低', exact: true }).click()
+    await expect.poll(() => routingEffort.textContent()).toBe('低')
+    expect(scaffold.ctx.settings.describe().find(row => row.ns === 'hemi-routing-settings')?.value)
+      .toMatchObject({ sessionEfforts: { [lead.id]: 'max', [inherited.id]: 'low' } })
+
+    await inheritedModel.click()
+    await page.getByRole('menuitemradio', { name: 'Acme Think', exact: true }).click()
+    await effort.waitFor()
+    await effort.click()
+    await page.getByRole('menuitem', { name: 'High', exact: true }).click()
+    await expect.poll(() => scaffold.ctx.agentDefaultModel.currentSelection()).toMatchObject({
+      provider: 'acme-gateway', model: 'acme-think', reasoningEffort: 'high',
+    })
+    await connectFreshWorkspaceZh(page, scaffold.workspaceCwd, 'inherited-fixed')
+    const fixedAgent = () => scaffold.ctx.agents.list().find(agent => agent.session.header.cwd === join(scaffold.workspaceCwd, 'inherited-fixed'))
+    await expect.poll(() => fixedAgent()?.id).toBeDefined()
+    const finalConversation = fixedAgent()
+    if (finalConversation === undefined) throw new Error('Missing fixed conversation')
+    await page.locator(`[data-conversation-session="${finalConversation.id}"]`).waitFor()
+    expect(scaffold.ctx.hemiRoutingSettings.modeOf(finalConversation)).toBe('fixed')
+    await expect.poll(() => inheritedModel.textContent()).toBe('Acme Think')
+    await expect.poll(() => effort.textContent()).toBe('High')
+    const fixed = { model: await inheritedModel.textContent(), effort: await effort.textContent() }
+    await compareOrRefreshGolden(fileURLToPath(new URL('./expected/hemi-effort-picker/inherited.expected.md', import.meta.url)),
+      JSON.stringify({ automatic, fixed }, null, 2), webSnapshotMode())
+    expect(scaffold.ctx.hemiRoutingSettings.modeOf(lead)).toBe('auto')
+    expect(scaffold.ctx.hemiRoutingSettings.modeOf(inherited)).toBe('fixed')
     expect(tripwire.pageErrors).toEqual([])
   },
 )

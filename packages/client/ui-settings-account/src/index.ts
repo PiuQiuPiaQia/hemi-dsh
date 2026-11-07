@@ -25,6 +25,9 @@ export interface Config extends ContactConfig {
 
 /** Configuration projected through the account plugin's shared form. */
 export const Config = z.object({
+  desktopOnboarding: ContactConfigFields.desktopOnboarding,
+  initializeDefaultModel: ContactConfigFields.initializeDefaultModel,
+  nativeSignIn: ContactConfigFields.nativeSignIn,
   showSettingsSection: ContactConfigFields.showSettingsSection,
   showLauncher: ContactConfigFields.showLauncher,
   contactFormUrl: ContactConfigFields.contactFormUrl,
@@ -51,6 +54,7 @@ export function apply(ctx: Context, config: Config): void {
   })
   ctx.on('webserver/index-inject', (table) => {
     table.push({ kind: 'global', name: CONTACT_CONFIG_GLOBAL, value: {
+      desktopOnboarding: config.desktopOnboarding, initializeDefaultModel: config.initializeDefaultModel, nativeSignIn: config.nativeSignIn,
       showSettingsSection: config.showSettingsSection, showLauncher: config.showLauncher,
       contactFormUrl: config.contactFormUrl, contactSource: config.contactSource,
       bonusAckRetryDelayMs: config.bonusAckRetryDelayMs, bonusAckRetryMaxDelayMs: config.bonusAckRetryMaxDelayMs,

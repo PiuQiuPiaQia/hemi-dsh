@@ -23,6 +23,7 @@
 
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { access, readFile, realpath } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
@@ -314,15 +315,80 @@ function profileDependencyNames(manifest: ProfileManifest): string[] {
     ...Object.keys(manifest.optionalDependencies ?? {})]
 }
 
-/** Resolve the installation packages that the runtime resolver supplies to every profile. */
-function collectInstallationScopePackages(
+interface InstallationDependencyCandidate {
+  readonly anchor: string
+  readonly order: number
+}
+
+type InstallationDependencyResult =
+  | { readonly kind: 'missing'; readonly order: number }
+  | { readonly kind: 'failed'; readonly order: number; readonly error: unknown }
+  | {
+    readonly kind: 'resolved'
+    readonly order: number
+    readonly name: string
+    readonly dir: string
+    readonly manifestPath: string
+    readonly manifest: ProfileManifest
+    readonly declarer: string
+  }
+
+/** pkg supplies synchronous virtual-file operations; physical installations can overlap independent reads. */
+function virtualModuleFilesystem(): boolean {
+  return (process as NodeJS.Process & { pkg?: unknown }).pkg !== undefined
+}
+
+async function installationPackageDirectory(anchor: string, name: string): Promise<string | undefined> {
+  if (virtualModuleFilesystem()) return packageDirFromAnchor(anchor, name)
+  for (const searchPath of createRequire(anchor).resolve.paths(name) ?? []) {
+    const candidate = join(searchPath, name)
+    try {
+      await access(join(candidate, 'package.json'))
+    } catch (_error) {
+      // Match existsSync: a failed probe continues Node's ancestor lookup.
+      continue
+    }
+    return candidate
+  }
+  return undefined
+}
+
+async function installationDependency(
+  name: string, candidates: readonly InstallationDependencyCandidate[], skippedBundles: ReadonlySet<string>,
+): Promise<InstallationDependencyResult> {
+  for (const candidate of candidates) {
+    try {
+      const dir = await installationPackageDirectory(candidate.anchor, name)
+      if (dir === undefined) continue
+      const manifestPath = join(virtualModuleFilesystem() ? realModuleDirectory(dir) : await realpath(dir), 'package.json')
+      let manifest: ProfileManifest
+      try {
+        if (skippedBundles.has(name)) manifest = readProfileManifest('dsh', dir)
+        else if (virtualModuleFilesystem()) manifest = readPackageManifest(manifestPath)
+        else manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ProfileManifest
+      } catch (error) {
+        if (!skippedBundles.has(name)) throw error
+        continue
+      }
+      return { kind: 'resolved', order: candidate.order, name, dir, manifestPath, manifest, declarer: candidate.anchor }
+    } catch (error) {
+      // Fail in traversal order after every owned read settles, rather than in filesystem completion order.
+      return { kind: 'failed', order: candidate.order, error }
+    }
+  }
+  return { kind: 'missing', order: 0 }
+}
+
+// Hemi fork: slow development volumes must not serialize the complete installation's manifest reads.
+/** Resolve installation packages in bounded batches, retaining breadth-first, first-successful-resolution precedence. */
+async function collectInstallationScopePackages(
   installAnchor: string, skippedBundles: ReadonlySet<string>,
-): {
+): Promise<{
   packageNames: ReadonlySet<string>
   packageDirs: ReadonlyMap<string, string>
   declarers: ReadonlyMap<string, string>
   versions: ReadonlyMap<string, string | undefined>
-} {
+}> {
   // Real declaring paths keep workspace symlinks under node_modules from disabling tsx path mappings.
   const canonicalAnchor = join(realModuleDirectory(dirname(installAnchor)), basename(installAnchor))
   const appManifest = readPackageManifest(canonicalAnchor)
@@ -337,32 +403,34 @@ function collectInstallationScopePackages(
     declarers.set(appManifest.name, canonicalAnchor)
     versions.set(appManifest.name, appManifest.version)
   }
-  // BFS over the resolvable dependency graph; the visited set is the link
-  // map itself (first resolution wins, matching Node's own nearest-wins).
+  // Resolution is committed in BFS order even when sibling reads finish in another order.
   const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: canonicalAnchor, manifest: appManifest }]
-  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
-    // Peer dependencies participate: Service Definition packages (dsh-subprocess,
-    // dsh-compaction, ...) are peers of their implementations, never plain
-    // dependencies, yet out-of-tree plugins import them directly.
-    /* v8 ignore next -- a real app manifest always declares dependencies */
-    for (const dep of profileDependencyNames(next.manifest)) {
-      if (links.has(dep)) continue
-      const dir = packageDirFromAnchor(next.anchor, dep)
-      // A declared-but-uninstalled dependency cannot be a loader-visible
-      // plugin; skip it rather than fail the whole boot.
-      if (dir === undefined) continue
-      const manifestPath = join(realModuleDirectory(dir), 'package.json')
-      let manifest: ProfileManifest
-      try {
-        manifest = skippedBundles.has(dep) ? readProfileManifest('dsh', dir) : readPackageManifest(manifestPath)
-      } catch (error) {
-        if (!skippedBundles.has(dep)) throw error
-        continue
+  const batchSize = 16
+  while (queue.length > 0) {
+    const batch = queue.splice(0, batchSize)
+    const candidates = new Map<string, InstallationDependencyCandidate[]>()
+    let order = 0
+    for (const next of batch) {
+      for (const dep of profileDependencyNames(next.manifest)) {
+        if (links.has(dep)) continue
+        const group = candidates.get(dep) ?? []
+        group.push({ anchor: next.anchor, order: order++ })
+        candidates.set(dep, group)
       }
-      links.set(dep, dir)
-      declarers.set(dep, next.anchor)
-      versions.set(dep, manifest.version)
-      queue.push({ anchor: manifestPath, manifest })
+    }
+    const groups = [...candidates]
+    const results: InstallationDependencyResult[] = []
+    for (let offset = 0; offset < groups.length; offset += batchSize) {
+      results.push(...await Promise.all(groups.slice(offset, offset + batchSize)
+        .map(([name, anchors]) => installationDependency(name, anchors, skippedBundles))))
+    }
+    for (const result of results.sort((left, right) => left.order - right.order)) {
+      if (result.kind === 'missing') continue
+      if (result.kind === 'failed') throw result.error
+      links.set(result.name, result.dir)
+      declarers.set(result.name, result.declarer)
+      versions.set(result.name, result.manifest.version)
+      queue.push({ anchor: result.manifestPath, manifest: result.manifest })
     }
   }
   return { packageNames: new Set(links.keys()), packageDirs: links, declarers, versions }
@@ -389,7 +457,7 @@ export async function createRuntimeResolution(
   const { installAnchor, profile, home = resolveDshHome() } = options
   const profilesDir = join(home, PROFILES_DIR)
   const manifest = readOptionalProfileManifest(profile)
-  const { packageNames, packageDirs, declarers, versions } = collectInstallationScopePackages(
+  const { packageNames, packageDirs, declarers, versions } = await collectInstallationScopePackages(
     installAnchor, new Set(profile?.skippedBundles.map(skipped => skipped.packageName)),
   )
   const profileDeclarers = new Map<string, string>()

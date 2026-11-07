@@ -35,6 +35,8 @@ export interface BrowserImportState {
   groups: { name: string; desc: string }[]
   candidates: { modelName: string; apis: string[]; unsupported: string[] }[]
   candidatesGroup: string | null
+  siteLoading?: boolean
+  siteNavigationBlocked?: boolean
   selection?: BrowserSelection | null
   preview?: { planHash: string; providers: { name: string; api: string; baseUrl: string; models: string[] }[] } | null
   error?: { code: string; message: string; retryTarget?: string } | null
@@ -50,6 +52,7 @@ export interface BrowserImportState {
  */
 export interface BrowserImportResponse {
   ok: boolean
+  code?: string
   message?: string
   state?: BrowserImportState | null
   pending?: { operationId: string; siteOrigin?: string; phase: string; readable: boolean }[]
@@ -63,14 +66,17 @@ export interface BrowserImportInput {
   operationId?: string
   revision?: number
   planHash?: string
-  selection?: BrowserSelection
+  /** Model requests omit the protocol to let the coordinator resolve it from the selected group. */
+  selection?: Omit<BrowserSelection, 'models'> & { models: { modelName: string; api?: string }[] }
   target?: string
+  /** Login viewport in renderer CSS pixels; null hides it while keeping the site session. */
+  bounds?: { x: number; y: number; width: number; height: number } | null
 }
 
 /**
  * Commands supported by the desktop import coordinator.
  */
-export type BrowserImportAction = 'start' | 'getState' | 'showBrowser' | 'listPending' | 'checkLogin'
+export type BrowserImportAction = 'start' | 'getState' | 'setBrowserBounds' | 'focusBrowser' | 'listPending' | 'checkLogin'
   | 'setSelection' | 'submit' | 'retry' | 'pause' | 'resume' | 'cancel' | 'resumePending'
 
 /**
@@ -92,12 +98,12 @@ export interface DesktopImportCoordinator extends CoordinatorCommands {
 }
 
 /**
- * Native account window, encrypted storage and profile operations used by the coordinator.
+ * Native sign-in view, encrypted storage and profile operations used by the coordinator.
  */
 export interface DesktopImportDependencies {
   getMainWindow: () => unknown
-  // Browser and Session are supplied by Electron, which this package never imports.
-  createWindow: (options: never) => unknown
+  // The view and its session are supplied by Electron, which this package never imports.
+  createView: (parent: never, options: never) => unknown
   sessionFromPartition: (partition: string) => unknown
   safeStorage: {
     isEncryptionAvailable: () => boolean
@@ -114,7 +120,7 @@ export interface DesktopImportDependencies {
 
 /**
  * The desktop bundle supplies the implementation from legacy/new-api.
- * @param dependencies - Native account-window, storage and profile services owned by the desktop shell.
+ * @param dependencies - Native sign-in view, storage and profile services owned by the desktop shell.
  * @returns the native import operation owner; dispose it before Host shutdown.
  */
 export declare function createImportCoordinator(dependencies: DesktopImportDependencies): DesktopImportCoordinator

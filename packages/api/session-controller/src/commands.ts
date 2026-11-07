@@ -258,9 +258,10 @@ export class SessionCommandController {
       )
     }
     const childId = brandString<SessionId>(`session-${randomUUID()}`)
-    const composition = await this.agents.composeAgent(this.agents.presetForObservation(source))
+    // Hemi fork: a fork inherits the source's recorded composition.
+    const composition = await this.agents.composeAgent(this.agents.presetForObservation(source), 'restore')
     try {
-      const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
+      const selection = this.ctx.agentDefaultModel.currentSelection()
       await this.ctx.agents.create({
         sessionId: childId,
         seed,
@@ -272,7 +273,7 @@ export class SessionCommandController {
             ? {}
             : { agentPreset: composition.agentPreset }),
         },
-        agentOptions: { provider, model },
+        agentOptions: selection === undefined ? {} : { provider: selection.provider, model: selection.model },
         setup: composition.setup,
       })
     } catch (error) {
@@ -306,6 +307,13 @@ export class SessionCommandController {
   async prompt(request: SessionPromptRequest, source: MessageSource): Promise<SessionPromptValue> {
     const agent = await this.resolveAgent(request.sessionId)
     if (hasPromptRequest(agent, request.requestId)) return { accepted: true }
+    // Hemi fork: an unconfigured blank Session must not enqueue a model request.
+    if (agent.model.current() === undefined) {
+      await agent.ctx.serial('agent/before-user-prompt', agent)
+    }
+    if (agent.model.current() === undefined) {
+      throw new RemoteError('session/model-not-selected', 'Select a model before sending a message.', {})
+    }
     const admission = resolvePromptFileReceipts(
       request.content,
       receiptId => this.ctx.fileUploads.resolve(agent, receiptId),

@@ -1,14 +1,14 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import { createBigModelTestProvider } from './fixtures/hemi/bigmodel-peer.mjs'
-import { launchWebScaffold } from './scaffold.ts'
+import { captureStableAria, compareOrRefreshGolden, launchWebScaffold, webSnapshotMode } from './scaffold.ts'
 import { ZH_BROWSER_LOCALE } from './support.ts'
 
-it('authorizes a subscription, shows its quota, and imports a New API token from a separate page', async () => {
+it('authorizes a subscription, shows its quota, and imports a New API token from the API dialog', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'hemi-model-access-test-'))
   onTestFinished(() => rm(scratch, { recursive: true, force: true }))
   const patch = join(scratch, 'hemi.patch.yml')
@@ -19,7 +19,8 @@ it('authorizes a subscription, shows its quota, and imports a New API token from
   const bigmodel = createBigModelTestProvider()
   bigmodel.state.pending = 1
   const access = `test.${Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'test-account' } })).toString('base64url')}.test`
-  let codexModels = ['codex-live-only-a']
+  let codexModels = ['codex-live-only-a', 'organization/model-with-a-long-name-and-extended-context-window-2026-11',
+    ...Array.from({ length: 18 }, (_, index) => `catalog-model-${index + 1}`)]
   let catalogUnavailable = false
   let codexCatalogRequests = 0
   let glmCatalogRequests = 0
@@ -135,6 +136,58 @@ it('authorizes a subscription, shows its quota, and imports a New API token from
   const livePicker = page.getByRole('dialog', { name: '选择模型', exact: true })
   await livePicker.getByRole('checkbox', { name: 'codex-live-only-a', exact: true }).waitFor()
   expect(await livePicker.getByRole('checkbox', { name: 'hidden-model', exact: true }).count()).toBe(0)
+  expect(await livePicker.getByText('从服务端获取当前型号列表，保留已有接入').count()).toBe(0)
+  await livePicker.getByRole('checkbox', { name: 'codex-live-only-a', exact: true }).check()
+  expect(await livePicker.getByRole('status').innerText()).toBe('已选 1 个')
+  // Hemi fork: the shared Web scaffold verifies the model-access picker through the shipped composition.
+  const pickerExpected = join(import.meta.dirname, 'expected/hemi-model-access/model-picker.expected.md')
+  await compareOrRefreshGolden(pickerExpected,
+    await captureStableAria(page, '[role="dialog"][aria-label="选择模型"]', scaffold.workspaceCwd), webSnapshotMode())
+  const artifactRoot = join(import.meta.dirname, '../../../.artifacts')
+  await mkdir(artifactRoot, { recursive: true })
+  const pickerScreenshots = await mkdtemp(join(artifactRoot, 'model-picker-'))
+  console.log(`Model picker screenshots: ${pickerScreenshots}`)
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(colorScheme === 'dark')
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 800, height: 390 }]) {
+      await page.setViewportSize(viewport)
+      const bounds = await livePicker.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds!.x).toBeGreaterThanOrEqual(0)
+      expect(bounds!.y).toBeGreaterThanOrEqual(0)
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width)
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height)
+      for (const action of ['取消', '添加选中型号']) {
+        const button = await livePicker.getByRole('button', { name: action, exact: true }).boundingBox()
+        expect(button).not.toBeNull()
+        expect(button!.y + button!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height)
+      }
+      expect(await livePicker.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+      const primaryContrast = await livePicker.getByRole('button', { name: '添加选中型号', exact: true }).evaluate((element) => {
+        const style = getComputedStyle(element)
+        const canvas = document.createElement('canvas')
+        canvas.width = 1; canvas.height = 1
+        const context = canvas.getContext('2d')!
+        const luminance = (color: string): number => {
+          context.fillStyle = color
+          context.fillRect(0, 0, 1, 1)
+          const channels = Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3).map((value) => {
+            const normalized = value / 255
+            return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
+          })
+          return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
+        }
+        const ink = luminance(style.color)
+        const fill = luminance(style.backgroundColor)
+        return (Math.max(ink, fill) + 0.05) / (Math.min(ink, fill) + 0.05)
+      })
+      expect(primaryContrast).toBeGreaterThanOrEqual(4.5)
+      await page.screenshot({ path: join(pickerScreenshots, `${colorScheme}-${viewport.width}x${viewport.height}.png`) })
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.emulateMedia({ colorScheme: 'light' })
   codexModels = ['codex-live-only-b']
   await livePicker.getByRole('button', { name: '刷新', exact: true }).click()
   await livePicker.getByRole('checkbox', { name: 'codex-live-only-b', exact: true }).waitFor()
@@ -211,8 +264,14 @@ it('authorizes a subscription, shows its quota, and imports a New API token from
   expect(chunks).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'finish', reason: { kind: 'stop' } })]))
   expect(bigmodel.state).toMatchObject({ issued: 1, handshakes: 1, modelCalls: 1 })
 
-  await panel.getByRole('button', { name: 'New API', exact: true }).click()
-  const newApi = panel.getByRole('region', { name: 'New API 导入' })
+  expect(await panel.getByRole('tab').count()).toBe(2)
+  await panel.getByRole('tab', { name: 'API', exact: true }).click()
+  await panel.getByRole('button', { name: '接入 New API', exact: true }).click()
+  const newApi = page.getByRole('dialog', { name: '接入 New API', exact: true })
+  const expected = join(import.meta.dirname, 'expected/hemi-model-access')
+  await mkdir(expected, { recursive: true })
+  await compareOrRefreshGolden(join(expected, 'existing-token.expected.md'),
+    await captureStableAria(page, '[role="dialog"][aria-label="接入 New API"]', scaffold.workspaceCwd), webSnapshotMode())
   await newApi.getByLabel('HTTPS 站点地址').fill('https://newapi.example.test')
   await newApi.getByLabel('New API 用户 ID').fill('42')
   await newApi.getByLabel('系统访问令牌').fill('test-management-token')
@@ -224,10 +283,162 @@ it('authorizes a subscription, shows its quota, and imports a New API token from
   await newApi.getByRole('button', { name: '导入模型' }).click()
   await newApi.getByText('已导入 1 个模型，可在「模型接入」中管理。').waitFor()
   expect(await newApi.getByLabel('系统访问令牌').inputValue()).toBe('')
+  await newApi.getByRole('button', { name: '完成', exact: true }).click()
+  await newApi.waitFor({ state: 'detached' })
+  await panel.getByRole('group', { name: 'imported-model', exact: true }).waitFor()
   const imported = scaffold.ctx.llm.listProviders().find(provider => provider.id.startsWith('new-api-'))
   expect(imported).toBeDefined()
   expect(await scaffold.ctx.llm.listModels(imported!.id)).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'imported-model' })]))
   const config = await readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8')
   expect(config).not.toMatch(/test-management-token|test-model-token|test-refresh/)
+  expect(errors).toEqual([])
+})
+
+it('guides desktop New API sign-in and token creation in one responsive dialog', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'hemi-newapi-dialog-test-'))
+  onTestFinished(() => rm(scratch, { recursive: true, force: true }))
+  const patch = join(scratch, 'hemi.patch.yml')
+  await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
+    + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n')
+  const scaffold = await launchWebScaffold({ developerTools: false, extraOverlayPath: patch })
+  onTestFinished(() => scaffold.close())
+  const browser = await chromium.launch()
+  onTestFinished(() => browser.close())
+  const page = await browser.newPage({ locale: ZH_BROWSER_LOCALE, viewport: { width: 1280, height: 820 }, hasTouch: true })
+  const login = {
+    operationId: 'dialog-import', revision: 1, phase: 'login', control: 'user', siteOrigin: 'https://newapi.example.test',
+    accountLabel: null, tokenName: null, groups: [], candidates: [], candidatesGroup: null, can: { checkLogin: true, cancel: true },
+  }
+  const selecting = {
+    ...login, revision: 2, phase: 'selecting', accountLabel: 'Fixture user',
+    groups: [{ name: 'team', desc: 'Team' }], candidatesGroup: 'team',
+    candidates: [{ modelName: 'fixture-model', apis: ['openai-completions'], unsupported: [] }],
+    selection: { group: 'team', budgetMode: 'unlimited', expiryMode: 'never', models: [] },
+    can: { setSelection: true, submit: true, cancel: true },
+  }
+  const preview = {
+    ...selecting, revision: 3,
+    preview: { planHash: 'fixture-plan', providers: [{ name: 'New API team', api: 'openai-completions',
+      baseUrl: 'https://newapi.example.test/v1', models: ['fixture-model'] }] },
+  }
+  const creating = { ...preview, revision: 4, phase: 'creating', tokenName: 'Hemi-fixture', can: { pause: true, cancel: true } }
+  const success = { ...creating, revision: 5, phase: 'success', result: { providerIds: ['new-api-fixture'], modelKeys: ['fixture-model'] }, can: {} }
+  let current: object | null = null
+  let finish = false
+  const calls: { action: string; fields: Record<string, unknown> }[] = []
+  await page.exposeFunction('hemiNewApiInvoke', async (action: string, fields: Record<string, unknown> = {}) => {
+    calls.push({ action, fields })
+    if (action === 'start') current = login
+    else if (action === 'checkLogin') current = selecting
+    else if (action === 'setSelection') current = preview
+    else if (action === 'submit') current = creating
+    else if (action === 'getState' && finish) current = success
+    return { ok: true, state: current, pending: [] }
+  })
+  // Only the native IPC endpoint is replaced; settings, Modal, forms and Host composition are real.
+  await page.addInitScript('globalThis.dshDesktop = { protocolVersion: 1, newApiImport: { invoke: (...args) => globalThis.hemiNewApiInvoke(...args) } }')
+  const errors: Error[] = []
+  page.on('pageerror', (error) => { errors.push(error) })
+  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: '设置', exact: true })
+  await settings.getByRole('button', { name: '模型接入', exact: true }).click()
+  const panel = settings.getByRole('region', { name: '模型接入', exact: true })
+  await panel.getByRole('tab', { name: 'API', exact: true }).click()
+  const entry = panel.getByRole('button', { name: '接入 New API', exact: true })
+  await entry.click()
+  const dialog = page.getByRole('dialog', { name: '接入 New API', exact: true })
+  expect(await dialog.getByLabel('站点协议').inputValue()).toBe('https')
+  await dialog.getByLabel('New API 站点地址').fill('newapi.example.test')
+  await dialog.getByRole('button', { name: '打开站点登录', exact: true }).click()
+  await dialog.getByRole('button', { name: '登录完成，继续', exact: true }).waitFor()
+  expect(await dialog.locator('li[aria-current="step"]').innerText()).toBe('登录站点')
+  const expected = join(import.meta.dirname, 'expected/hemi-model-access')
+  await mkdir(expected, { recursive: true })
+  await compareOrRefreshGolden(join(expected, 'desktop-sign-in.expected.md'),
+    await captureStableAria(page, '[role="dialog"][aria-label="接入 New API"]', scaffold.workspaceCwd), webSnapshotMode())
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 820 })
+    await expect.poll(() => {
+      const bounds = calls.filter(call => call.action === 'setBrowserBounds').at(-1)?.fields.bounds
+      if (bounds === null || typeof bounds !== 'object') return false
+      const { x, y, width: viewWidth, height } = bounds as { x: number; y: number; width: number; height: number }
+      return x >= 24 && y >= 24 && x + viewWidth <= width - 24 && height >= 300
+    }).toBe(true)
+    expect(await dialog.getByRole('button', { name: '登录完成，继续', exact: true }).isVisible()).toBe(true)
+  }
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'detached' })
+  await expect.poll(() => calls.filter(call => call.action === 'setBrowserBounds').at(-1)?.fields.bounds).toBe(null)
+  expect(await entry.evaluate(element => element === document.activeElement)).toBe(true)
+  expect(calls.some(call => call.action === 'cancel')).toBe(false)
+  await entry.click()
+  await dialog.getByRole('button', { name: '登录完成，继续', exact: true }).click()
+  await dialog.getByRole('checkbox', { name: 'fixture-model', exact: true }).check({ timeout: 5000 }).catch(async (error: unknown) => {
+    throw new Error(`${await dialog.innerText()}\n${JSON.stringify(calls)}`, { cause: error })
+  })
+  await dialog.getByLabel('额度（美元，留空则不限）').fill('8')
+  await dialog.getByLabel('有效期（天，留空则长期有效）').fill('7')
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'detached' })
+  await entry.click()
+  expect(await dialog.getByLabel('额度（美元，留空则不限）').inputValue()).toBe('8')
+  expect(await dialog.getByRole('checkbox', { name: 'fixture-model', exact: true }).isChecked()).toBe(true)
+  const importModels = dialog.getByRole('button', { name: '导入模型', exact: true })
+  await importModels.waitFor()
+  expect(calls.some(call => call.action === 'submit')).toBe(false)
+  await compareOrRefreshGolden(join(expected, 'desktop-selection.expected.md'),
+    await captureStableAria(page, '[role="dialog"][aria-label="接入 New API"]', scaffold.workspaceCwd), webSnapshotMode())
+  const artifactsRoot = join(import.meta.dirname, '../../../.artifacts')
+  await mkdir(artifactsRoot, { recursive: true })
+  const shots = await mkdtemp(join(artifactsRoot, 'newapi-dialog-'))
+  console.log(`New API dialog screenshots: ${shots}`)
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 820 })
+    for (const dark of [false, true]) {
+      await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light', reducedMotion: 'reduce' })
+      await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(dark)
+      const geometry = await dialog.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+          overflow: element.scrollWidth - element.clientWidth, pageOverflow: document.documentElement.scrollWidth - innerWidth,
+          inputFont: parseFloat(getComputedStyle(element.querySelector('input[type="number"]')!).fontSize) }
+      })
+      expect(geometry.left).toBeGreaterThanOrEqual(23)
+      expect(geometry.right).toBeLessThanOrEqual(width - 23)
+      expect(geometry.top).toBeGreaterThanOrEqual(23)
+      expect(geometry.bottom).toBeLessThanOrEqual(797)
+      expect(geometry.overflow).toBeLessThanOrEqual(1)
+      expect(geometry.pageOverflow).toBeLessThanOrEqual(1)
+      expect(geometry.inputFont).toBeGreaterThanOrEqual(16)
+      await page.screenshot({ path: join(shots, `selection-${width}-${dark ? 'dark' : 'light'}.png`), animations: 'disabled' })
+    }
+  }
+  await importModels.click()
+  await dialog.getByText('正在创建令牌、验证模型并保存接入…', { exact: true }).waitFor()
+  expect(await dialog.locator('li[aria-current="step"]').innerText()).toBe('创建并导入')
+  finish = true
+  await dialog.getByRole('button', { name: '完成', exact: true }).waitFor()
+  expect(await dialog.getByLabel('New API 站点地址').count()).toBe(0)
+  await compareOrRefreshGolden(join(expected, 'desktop-success.expected.md'),
+    await captureStableAria(page, '[role="dialog"][aria-label="接入 New API"]', scaffold.workspaceCwd), webSnapshotMode())
+  await dialog.getByRole('button', { name: '完成', exact: true }).click()
+  await dialog.waitFor({ state: 'detached' })
+  expect(calls.filter(call => call.action === 'start')).toHaveLength(1)
+  expect(calls.find(call => call.action === 'start')?.fields).toMatchObject({ siteUrl: 'https://newapi.example.test' })
+  expect(calls.find(call => call.action === 'setSelection')?.fields).toMatchObject({ selection: {
+    group: 'team', models: [{ modelName: 'fixture-model' }], budgetUsd: 8, expiryDays: 7,
+  } })
+  expect(calls.filter(call => call.action === 'submit')).toEqual([{
+    action: 'submit', fields: { planHash: 'fixture-plan', operationId: 'dialog-import', revision: 3 },
+  }])
+  await entry.click()
+  await dialog.getByLabel('站点协议').selectOption('http')
+  await dialog.getByLabel('New API 站点地址').fill('another.example.test:8080')
+  finish = false
+  await dialog.getByRole('button', { name: '打开站点登录', exact: true }).click()
+  await dialog.getByRole('button', { name: '登录完成，继续', exact: true }).waitFor()
+  expect(calls.filter(call => call.action === 'start')).toHaveLength(2)
+  expect(calls.filter(call => call.action === 'start')[1]?.fields).toMatchObject({ siteUrl: 'http://another.example.test:8080' })
   expect(errors).toEqual([])
 })

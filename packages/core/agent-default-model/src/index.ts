@@ -23,9 +23,9 @@ declare module '@deepseek-ai/cordis' {
 /** Default model selection supplied by plugin configuration. */
 export interface Config {
   /** Registered provider route. */
-  provider: Volatile<string>
+  provider: Volatile<string | null>
   /** Provider-owned model id. */
-  model: Volatile<string>
+  model: Volatile<string | null>
   /** Adapter-owned reasoning effort; omission follows the provider default. */
   reasoningEffort: Volatile<string | undefined>
 }
@@ -49,25 +49,44 @@ export class AgentDefaultModelConfig extends Service {
   private saves: Promise<void> = Promise.resolve()
 
   static Config = z.object({
-    provider: z.string().required().volatile(),
-    model: z.string().required().volatile(),
+    // Hemi fork: an explicitly unconfigured deployment can create blank Sessions without a provider.
+    provider: z.union([z.string(), z.const(null)]).default(null).volatile(),
+    model: z.union([z.string(), z.const(null)]).default(null).volatile(),
     reasoningEffort: z.string().volatile(),
   })
 
   constructor(private readonly ownerContext: Context, private config: Config) {
+    if ((config.provider.get() === null) !== (config.model.get() === null)) {
+      throw new Error('Default provider and model must both be configured or both be null')
+    }
     super(ownerContext, 'agentDefaultModel')
+
+    // Hemi fork: reject a partial route before a volatile settings update can be committed.
+    ownerContext.on('internal/config', (fiber, next) => {
+      const raw: unknown = next()
+      if (fiber !== ownerContext.fiber) return raw
+      const candidate = AgentDefaultModelConfig.Config(raw as Parameters<typeof AgentDefaultModelConfig.Config>[0])
+      if ((candidate.provider.get() === null) !== (candidate.model.get() === null)) {
+        throw new Error('Default provider and model must both be configured or both be null')
+      }
+      return raw
+    })
 
     ownerContext.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ownerContext.fiber)) })
   }
 
   /**
    * Read the current default model selection.
-   * @returns a detached provider, model, and optional reasoning selection.
+   * @returns a detached selection, or undefined when both route fields are explicitly null.
    */
-  currentSelection(): ModelSelection {
+  currentSelection(): ModelSelection | undefined {
+    const provider = this.config.provider.get()
+    const model = this.config.model.get()
+    if (provider === null && model === null) return undefined
+    if (provider === null || model === null) throw new Error('Default provider and model must both be configured or both be null')
     const reasoningEffort = this.config.reasoningEffort.get()
     return selection({
-      provider: this.config.provider.get(), model: this.config.model.get(),
+      provider, model,
       ...reasoningEffort === undefined ? {} : { reasoningEffort },
     })
   }

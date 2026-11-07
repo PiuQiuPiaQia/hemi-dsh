@@ -24,6 +24,7 @@ declare module '@deepseek-ai/dsh-system-prompt' {
   }
 }
 
+// Hemi fork: live route accessors may be explicitly undefined before provider-neutral setup.
 /**
  * Merge-extensible agent options. Route fields may be live accessors until the
  * Session records a selection or request; step preparation captures their value.
@@ -31,9 +32,9 @@ declare module '@deepseek-ai/dsh-system-prompt' {
  */
 export interface AgentOptions {
   /** Provider route (must have a registered adapter at call time). */
-  provider?: string
+  provider?: string | undefined
   /** Model id interpreted by the selected provider adapter. */
-  model?: string
+  model?: string | undefined
   /** Adapter-owned reasoning effort for the selected provider/model route. */
   reasoningEffort?: ReasoningEffortId | undefined
   /** Maximum output tokens for each conversation-model request. */
@@ -282,6 +283,13 @@ declare module '@deepseek-ai/cordis' {
      * @mode serial
      */
     'agent/before-user-model-selection'(agent: Agent): undefined | Promise<undefined>
+    // Hemi fork: routing supplies the first model before admission, preserving native loop scheduling.
+    /**
+     * Resolve an unconfigured Agent's model before admitting a user prompt.
+     * @mode serial
+     * @param agent - prompt recipient before user content is admitted.
+     */
+    'agent/before-user-prompt'(agent: Agent): undefined | Promise<undefined>
     // ---- lifecycle ----
     /**
      * An entered agent is ready for per-agent initialization after factory setup.

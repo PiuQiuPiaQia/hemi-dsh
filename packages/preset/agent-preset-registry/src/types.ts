@@ -14,6 +14,8 @@ export interface AgentPresetRow {
   readonly name?: string
   /** One sentence on what this preset is for. */
   readonly description?: string
+  /** Whether the preset is reserved for child Agents. */
+  readonly subagentOnly?: boolean
   /** Why this preset cannot compose a session; absent when it can. */
   readonly broken?: string
 }

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The profile owner can connect ChatGPT Codex, Claude and GitHub Copilot using Harness OAuth, and GLM Coding Plan using the migrated Hemi authorization flow. ChatGPT Codex and GLM Coding Plan have quota queries. On desktop, the New API coordinator uses an isolated sign-in window, verifies the site account, discovers models by group and creates a token from the confirmed plan. The owner can also import an existing token manually.
+The profile owner can connect ChatGPT Codex, Claude and GitHub Copilot using Harness OAuth, and GLM Coding Plan using the migrated Hemi authorization flow. ChatGPT Codex and GLM Coding Plan have quota queries. On desktop, the New API coordinator uses an isolated sign-in view, verifies the site account, discovers models by group and creates a token from the confirmed plan. The owner can also import an existing token manually.
 
 ## Table of Contents
 
@@ -26,6 +26,8 @@ Other subscription discovery performs a new network request on every open or ref
 Imported API models inherit names, input types and token capacities by exact id from the installed catalog. OpenAI and Anthropic canonical entries take priority; other matches require the same protocol and agreeing capabilities. Unknown or ambiguous ids retain route defaults. The ephemeral `catalogProvider` reference preserves explicit overrides and never imports vendor endpoints, authentication, compatibility flags or request output caps. Existing connections use the same resolution without rewriting saved settings.
 
 For a configured model absent from the installed catalog and without an explicit reasoning offer, `reasoningFallbacks` supplies protocol effort choices: OpenAI Chat Completions and Responses default to `medium`; Anthropic Messages defaults to `high`. Explicit offers, explicit disabling and installed catalog entries take priority. These defaults are ephemeral, apply to both selectors and requests, and do not rewrite saved connections. Anthropic fallback models use adaptive thinking unless explicitly configured otherwise.
+
+Desktop New API import resolves each model’s request protocol from the site’s declarations, preferring OpenAI Chat Completions when the site declares both it and Anthropic Messages. It verifies the chosen protocol with the new token before saving.
 
 Remote request and response fields are defined in [`src/types.ts`](src/types.ts).
 

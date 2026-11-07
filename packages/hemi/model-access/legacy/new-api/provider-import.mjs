@@ -34,6 +34,7 @@ const AUTOMATION_PHASES = new Set(['preflight', 'creating', 'reconciling', 'read
 
 const ERROR_MESSAGES = {
   BAD_URL: '站点地址不可用',
+  OPEN_SITE: '无法打开站点登录页面。请取消本次接入，检查地址和网络后重试',
   UNSUPPORTED: '这个站点不像受支持的 New API 部署',
   LOGIN_REQUIRED: '站点要求重新登录',
   ACCOUNT_CHANGED: '登录的账号和这次导入不一致',
@@ -95,11 +96,11 @@ function withTimeout(promise, ms, code = 'NETWORK') {
 }
 
 /**
- * @param {{ getMainWindow: Function, WebContentsView: any, sessionFromPartition: any, safeStorage: any, getProfilesStore: Function, journalDirPath: string, env?: object, now?: Function, log: {info: Function, warn: Function}, fetchImpl?: Function, journalFs?: object }} deps
+ * @param {{ getMainWindow: Function, createView: Function, sessionFromPartition: any, safeStorage: any, getProfilesStore: Function, journalDirPath: string, env?: object, now?: Function, log: {info: Function, warn: Function}, fetchImpl?: Function, journalFs?: object }} deps
  */
 export function createImportCoordinator({
   getMainWindow,
-  createWindow,
+  createView,
   sessionFromPartition,
   safeStorage,
   getProfilesStore,
@@ -118,6 +119,7 @@ export function createImportCoordinator({
   let ownerSender = null; // (dto) => void，由 IPC 层注入
 
   function publish(op) {
+    if (op.phase !== 'login') op.browser?.hide();
     op.revision += 1;
     try {
       ownerSender?.(publicState(op));
@@ -195,6 +197,12 @@ export function createImportCoordinator({
   function providerBaseUrlFor(api, apiBaseUrl) {
     const base = String(apiBaseUrl ?? '').replace(/\/+$/, '');
     return api === 'anthropic-messages' ? base : `${base}/v1`;
+  }
+
+  async function loadModelCandidates(op, group) {
+    if (op.candidatesGroup === group) return;
+    op.candidates = await withTimeout(op.adapter.readModelCandidates(group), 15000);
+    op.candidatesGroup = group;
   }
 
   function buildPreview(op, selection) {
@@ -576,6 +584,7 @@ export function createImportCoordinator({
     if (!op.browser) return;
     const browser = op.browser;
     op.browser = null;
+    op.browserLoading = null;
     op.siteLoading = false;
     op.witness?.dispose?.();
     op.witness = null;
@@ -593,12 +602,7 @@ export function createImportCoordinator({
     }
   }
 
-  /** 站内导航是否放行 http：跟着站点协议走（入口下拉显式选了 http 的自建站）。 */
-  function siteAllowsInsecure(op) {
-    return op.siteOrigin.startsWith('http://');
-  }
-
-  function loginMemoryOptions(op) {
+  function loginOptions(op) {
     return {
       loginStore,
       onLoginMemoryError(message) {
@@ -606,22 +610,28 @@ export function createImportCoordinator({
         op.loginMemoryError = message;
         publish(op);
       },
+      onNavigationBlocked() {
+        if (active !== op || op.phase !== 'login' || op.siteNavigationBlocked) return;
+        op.siteNavigationBlocked = true;
+        publishQuiet(op);
+      },
+      onRenderProcessGone() {
+        if (active === op && op.phase === 'login') failOp(op, 'OPEN_SITE');
+      },
     };
   }
 
   /** 站内面板动作前的浏览器保障（恢复站点 profile；失效时仍交给 LOGIN_REQUIRED 流程）。 */
   async function ensurePanel(op) {
-    if (op.adapter) return;
+    if (op.adapter) return op.browserLoading;
     const mainWindow = getMainWindow();
     if (!mainWindow) throw Object.assign(new Error('主窗口不可用'), { code: 'INTERNAL' });
     op.browser = createImportBrowser({
-      createWindow,
+      createView,
       sessionFromPartition,
       mainWindow,
       siteOrigin: op.siteOrigin,
-      operationId: op.operationId,
-      allowInsecure: siteAllowsInsecure(op),
-      ...loginMemoryOptions(op),
+      ...loginOptions(op),
       onContentReady: contentReadyCallback(op),
     });
     op.siteLoading = true;
@@ -632,7 +642,8 @@ export function createImportCoordinator({
       if (active === op && op.control === 'hemi') op.abortRequested = true;
     });
     mainWindow.on('hide', op.onWindowHidden);
-    await op.browser.loadInitial(`${op.siteOrigin}/`).catch(() => undefined);
+    op.browserLoading = op.browser.loadInitial(`${op.siteOrigin}/`);
+    return op.browserLoading;
   }
 
   function requireOwner(event) {
@@ -679,6 +690,7 @@ export function createImportCoordinator({
       loginMemoryError: op.loginMemoryError ?? null,
       /** 站点页首屏加载中：原生视图尚未放出，渲染层画加载动画。 */
       siteLoading: op.siteLoading ?? false,
+      siteNavigationBlocked: op.siteNavigationBlocked ?? false,
       can: {
         checkLogin: op.phase === 'login',
         setSelection: op.phase === 'selecting',
@@ -771,13 +783,11 @@ export function createImportCoordinator({
       active = op;
       try {
         op.browser = createImportBrowser({
-          createWindow,
+          createView,
           sessionFromPartition,
           mainWindow,
           siteOrigin: op.siteOrigin,
-          operationId,
-          allowInsecure: siteAllowsInsecure(op),
-          ...loginMemoryOptions(op),
+          ...loginOptions(op),
           onContentReady: contentReadyCallback(op),
         });
         op.siteLoading = true;
@@ -802,7 +812,12 @@ export function createImportCoordinator({
         op.phase = 'login';
         op.control = 'user';
         publish(op);
-        await op.browser.loadInitial(`${op.siteOrigin}/`);
+        try {
+          op.browserLoading = op.browser.loadInitial(`${op.siteOrigin}/`);
+          await op.browserLoading;
+        } catch (_error) {
+          if (active === op && op.phase === 'login') failOp(op, 'OPEN_SITE');
+        }
         return { ok: true, state: publicState(op) };
       } catch (error) {
         failOp(op, error?.code && ERROR_MESSAGES[error.code] ? error.code : 'INTERNAL', {});
@@ -867,7 +882,6 @@ export function createImportCoordinator({
         if (retryTarget) {
           // 自动化中途失效的恢复：从断点继续（不重新创建）。
           op.error = null;
-          op.browser?.hide();
           op.abortRequested = false;
           op.control = 'hemi';
           op.phase = retryTarget;
@@ -883,10 +897,18 @@ export function createImportCoordinator({
           return { ok: true, state: publicState(op) };
         }
         op.groups = groups;
+        let catalogUnavailable = false;
+        if (groups.length === 1) {
+          try {
+            await loadModelCandidates(op, groups[0].name);
+          } catch (_error) {
+            catalogUnavailable = true;
+          }
+        }
         op.phase = 'selecting';
-        op.browser?.hide();
         op.error = null;
         publish(op);
+        if (catalogUnavailable) return { ok: false, code: 'CATALOG_UNAVAILABLE', state: publicState(op) };
         return { ok: true, state: publicState(op) };
       } catch (error) {
         if (error?.code === 'LOGIN_REQUIRED') {
@@ -923,9 +945,10 @@ export function createImportCoordinator({
 
       // 候选按当前组实时读站点（切组后旧型号草稿不沿）。空模型也允许同步——
       // 分组一选定就回候选列表供勾选；「至少一个模型」的门槛在提交。
-      if (op.candidatesGroup !== group) {
-        op.candidates = await withTimeout(op.adapter.readModelCandidates(group), 15000);
-        op.candidatesGroup = group;
+      try {
+        await loadModelCandidates(op, group);
+      } catch (_error) {
+        return { ok: false, code: 'CATALOG_UNAVAILABLE', state: publicState(op) };
       }
       if (!rawModels.length) {
         op.selection = null;
@@ -937,9 +960,12 @@ export function createImportCoordinator({
       const models = [];
       for (const raw of rawModels) {
         const modelName = String(raw?.modelName ?? '');
-        const api = String(raw?.api ?? '');
         const candidate = op.candidates.find((item) => item.modelName === modelName);
         if (!candidate) throw new Error(`「${modelName}」不在这个分组里`);
+        // Prefer Chat Completions when the site advertises both supported APIs.
+        const api = raw?.api === undefined
+          ? (candidate.apis.includes('openai-completions') ? 'openai-completions' : candidate.apis[0])
+          : raw.api;
         if (!candidate.apis.includes(api)) throw new Error(`「${modelName}」不支持所选协议`);
         if (models.some((item) => item.modelName === modelName)) continue;
         models.push({ modelName, api });
@@ -1192,13 +1218,30 @@ export function createImportCoordinator({
       return { ok: true, state: publicState(op) };
     },
 
-    async showBrowser(event) {
-      if (!requireOwner(event)) throw new Error('只有主窗口能打开登录窗口');
-      if (active?.phase === 'login') {
-        await ensurePanel(active);
-        active.browser?.show();
+    async setBrowserBounds(event, { operationId, bounds }) {
+      if (!requireOwner(event)) throw new Error('只有主窗口能显示站点登录页面');
+      const op = active;
+      if (op?.operationId !== operationId || op.phase !== 'login') return { ok: true };
+      if (bounds === null) {
+        op.browser?.hide();
+        return { ok: true };
       }
-      return { ok: true, state: active ? publicState(active) : null };
+      // ensurePanel installs the view synchronously before awaiting its first document.
+      // A later bounds update or close always wins while that document is loading.
+      const loading = ensurePanel(op);
+      op.browser?.setBounds(bounds);
+      try {
+        await loading;
+      } catch (_error) {
+        if (active === op && op.phase === 'login') failOp(op, 'OPEN_SITE');
+      }
+      return { ok: true };
+    },
+
+    focusBrowser(event, { operationId }) {
+      if (!requireOwner(event)) throw new Error('只有主窗口能聚焦站点登录页面');
+      if (active && active.operationId === operationId && active.phase === 'login') active.browser?.focus();
+      return { ok: true };
     },
 
     /** 退出前回收：只停操作/收浏览器，不依赖这次异步写保事务（journal 已在各边界 durable）。 */

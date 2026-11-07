@@ -183,8 +183,10 @@ export class LocaleRuntime {
    * @param host - durable preference scope owned by the providing plugin;
    * absent compositions (standalone dictionary registries) stay process-local.
    * @param bootstrap - native initialization; absent in ordinary browsers.
+   * @param productName - Distribution-owned proper name substituted in registered copy before user parameters.
    */
-  constructor(ctx: ClientContext, host?: ConfigForm<LocaleSettings>, private readonly bootstrap?: LocaleBootstrap) {
+  constructor(ctx: ClientContext, host?: ConfigForm<LocaleSettings>, private readonly bootstrap?: LocaleBootstrap,
+    private readonly productName = 'DeepSeek Harness') {
     this.ctx = ctx
     this.host = host
     for (const locale of BUILT_IN_LOCALES) this.catalog.set(localeKey(locale.id), locale)
@@ -469,9 +471,10 @@ export class LocaleRuntime {
 
   private translate(ns: string, key: string, params?: Record<string, unknown>): string {
     const chain = this.fallbackChain(this.snapshot.active)
-    const template = this.lookup(ns, key, chain)
+    const registered = this.lookup(ns, key, chain)
       ?? (ns !== COMMON_NS ? this.lookup(COMMON_NS, key, chain) : undefined)
-      ?? key
+    // Hemi fork: distribution naming applies only to owned copy, never interpolated user content.
+    const template = registered?.replaceAll('DeepSeek Harness', this.productName) ?? key
     if (!params) return template
     return template.replace(/\{(\w+)\}/g, (match, name: string) =>
       name in params ? String(params[name]) : match)
@@ -579,7 +582,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     bootstrap = parseLocaleBootstrap(value)
   }
   const host = ctx.configForms.get<LocaleSettings>(LOCALE_SETTINGS_NAMESPACE)
-  const locale = new LocaleRuntime(ctx, host, bootstrap)
+  const locale = new LocaleRuntime(ctx, host, bootstrap, process.env.DSH_CLIENT_TITLE ?? 'DeepSeek Harness')
   for (const [id, label] of [['ja', '日本語'], ['es', 'Español'], ['fr', 'Français'], ['de', 'Deutsch'], ['ru', 'Русский'], ['pt', 'Português']] as const) {
     ctx.effect(() => locale.addLanguage({ id, label, fallback: 'en' }), `locale: ${id} language`)
   }

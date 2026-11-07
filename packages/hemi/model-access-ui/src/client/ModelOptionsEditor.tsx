@@ -1,6 +1,6 @@
 /** Explicit per-model capability editing for drafts and saved connections. */
 import { useState } from 'react'
-import { Button, IconSettingsOutlineRegular, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconSettingsOutlineRegular, Input, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelOptions, ModelOptionsView } from '@deepseek-ai/dsh-hemi-model-access/types'
 import type { ModelAccessActions } from './types.ts'
@@ -59,13 +59,13 @@ export function ModelOptionsEditor({ model, options, effective, save, close, t }
         }}>{t(busy ? 'loading' : 'saveModel')}</Button>
       </div>}>
       <div className={css.dialogForm}>
-        <label>{t('modelDisplayName')}<input value={name} disabled={busy} placeholder={model}
+        <label>{t('modelDisplayName')}<Input className={css.input ?? ''} value={name} disabled={busy} placeholder={model}
           onChange={(event) => { setName(event.currentTarget.value) }} /></label>
         <div className={css.capacityFields}>
-          <label>{t('contextWindow')}<input inputMode="numeric" value={context} disabled={busy}
+          <label>{t('contextWindow')}<Input className={css.input ?? ''} inputMode="numeric" value={context} disabled={busy}
             aria-invalid={contextWindow !== undefined && (!Number.isSafeInteger(contextWindow) || contextWindow <= 0)}
             onChange={(event) => { setContext(event.currentTarget.value) }} /></label>
-          <label>{t('maxTokens')}<input inputMode="numeric" value={output} disabled={busy}
+          <label>{t('maxTokens')}<Input className={css.input ?? ''} inputMode="numeric" value={output} disabled={busy}
             aria-invalid={maxTokens !== undefined && (!Number.isSafeInteger(maxTokens) || maxTokens <= 0)}
             onChange={(event) => { setOutput(event.currentTarget.value) }} /></label>
         </div>

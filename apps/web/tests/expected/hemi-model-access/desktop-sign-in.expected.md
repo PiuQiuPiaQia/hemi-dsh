@@ -1,0 +1,13 @@
+- dialog "接入 New API":
+  - region "New API 浏览器登录导入":
+    - heading "接入 New API" [level=2]
+    - list "接入 New API":
+      - listitem: 登录站点
+      - listitem: 选择模型
+      - listitem: 创建并导入
+    - paragraph: https://newapi.example.test
+    - paragraph: 在下方登录站点
+    - button "聚焦站点登录页"
+    - button "登录完成，继续"
+    - button "关闭"
+    - button "取消"

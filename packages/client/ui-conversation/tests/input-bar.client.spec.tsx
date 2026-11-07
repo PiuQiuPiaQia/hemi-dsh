@@ -1995,6 +1995,16 @@ describe('insertText (scoped event body)', () => {
 })
 
 describe('strips and variants', () => {
+  it.each([zh, en])('keeps the draft and shows localized model setup guidance', (dictionary) => {
+    const send = bench({
+      draft: 'Keep this draft',
+      promptError: { op: 'send', error: new RemoteError('session/model-not-selected', 'internal model diagnostic', {}) },
+      t: makeTranslate(dictionary, commonZh),
+    })
+    expect(send.view.getByRole('alert').textContent).toBe(dictionary['error.modelNotSelected'])
+    expect(send.shell.snapshot.draft).toBe('Keep this draft')
+  })
+
   it.each([zh, en])('shows localized guidance when another writer owns the Session', (dictionary) => {
     const send = bench({
       promptError: {

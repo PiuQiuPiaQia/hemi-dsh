@@ -6,6 +6,8 @@
  * @module @deepseek-ai/dsh-client-web
  */
 
+// Hemi fork: carriers type their pre-plugin presentation without importing internals.
+export type { BootPresentation } from './boot-page.ts'
 export { AppWebEntry, type BootSeams } from './boot.ts'
 export { getStaticModules } from './seed.ts'
 export { PLATFORM_MODULES, PRELOADED_CLIENT_EXTERNALS, type PlatformModule } from './platform.ts'

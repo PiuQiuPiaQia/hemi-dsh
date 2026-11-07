@@ -22,7 +22,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-web-app bundle 在 `dsh-client-ui-theme` 之后挂载本插件，因此 `ctx.theme` 可用。每个 `ThemeDefinition` 的 id 都可作为后续选择器的 `setTheme` 参数。
+web-app bundle 在 `dsh-client-ui-theme` 之后挂载本插件，因此 `ctx.theme` 可用。每个 `ThemeDefinition` 的 id 都可作为后续选择器的 `setTheme` 参数。皮肤设置页在标题下等宽展示六个预设，窄面板自动减少列数。当前皮肤以勾选标记，选择即时生效并按浏览器保存。
 
 <a id="understand-the-implementation"></a>
 ## 理解实现
@@ -31,7 +31,7 @@ web-app bundle 在 `dsh-client-ui-theme` 之后挂载本插件，因此 `ctx.the
 
 背景层是挂载在 `#root` 之后的全视口 body 子元素，仅作视觉呈现。其样式表用 `-webkit-app-region: initial !important` 令其退出 app-region 采集：外壳的 darwin 规则 `body > :not(#root)` 会按 DOM 顺序从窗口拖拽面中减除 body 级覆盖层，若不退出，这个全视口 no-drag 盒子会禁用标题栏拖拽及其在 macOS 上的原生双击最大化/还原。
 
-插件以优先级 -10 在已有侧栏名称插槽中展示本地化字典拥有的 `hemi-dsh` 文本，覆盖官方字标。卸载插件后恢复原有占用者。
+插件以 -10 优先级占用侧栏名称与图案、会话首页图案和运行状态图案插槽。侧栏展示 Hemi 和黑底白字的 `dsh` 版本标签，不展示品牌图案；折叠栏保留原生展开图标。会话首页和运行状态继续使用主题中性文字颜色的透明波浪 H 遮罩。运行图案使用透明度动画，减少动态效果偏好会停用动画。皮肤配色和背景独立于黑白品牌图案，移除插件后恢复原有占用者。
 
 <a id="further-exploration"></a>
 ## 进一步探索

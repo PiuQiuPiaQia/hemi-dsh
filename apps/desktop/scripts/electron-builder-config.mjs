@@ -1,4 +1,5 @@
 // Hemi fork: selected product identity also isolates installed names and external protocols.
+import { hemiDesktopArtwork } from '@deepseek-ai/dsh-hemi-customizations/desktop-artwork'
 import { resolveDesktopProduct } from './desktop-product.mjs'
 // Hemi fork: community signing is scoped to GitHub builds; ordinary DSH release checks remain mandatory.
 import { resolveHemiCommunitySigning, signHemiMacApplication, verifyHemiMacApplication, signHemiMacDiskImage } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
@@ -118,7 +119,10 @@ export function createElectronBuilderConfig(
     protocols: [{ name: product.productName, schemes: [product.protocol] }],
     extraMetadata: {
       dshDesktopAppId: appId,
-      ...(product.productName === 'hemi-dsh' ? { name: product.productName, productName: product.productName, hemiDesktopProduct: product.productName } : {}),
+      ...(product.artifactPrefix === 'hemi-dsh' ? {
+        name: product.artifactPrefix, productName: product.productName,
+        author: { name: product.productName }, hemiDesktopProduct: product.artifactPrefix,
+      } : {}),
       ...(community === undefined ? {} : { hemiDesktopSigning: community.kind }),
       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
@@ -168,12 +172,12 @@ export function createElectronBuilderConfig(
     asarUnpack: unpack,
     extraResources: [
       { from: buildPaths.runtime, to: 'runtime' },
-      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
+      { from: (product.artifactPrefix === 'hemi-dsh' ? hemiDesktopArtwork.windows : fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url))), to: 'icon.png' },
       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
-      ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
+      ...(packagesWindows ? [{ from: (product.artifactPrefix === 'hemi-dsh' ? hemiDesktopArtwork.tray : fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url))), to: 'tray.ico' }] : []),
     ],
     mac: {
-      icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
+      icon: (product.artifactPrefix === 'hemi-dsh' ? hemiDesktopArtwork.mac : fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url))),
       category: 'public.app-category.developer-tools',
       // macOS matches the application locale against this bundle, not Electron Framework resources.
       extendInfo: {
@@ -264,7 +268,7 @@ export function createElectronBuilderConfig(
       )
     },
     win: {
-      icon: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
+      icon: (product.artifactPrefix === 'hemi-dsh' ? hemiDesktopArtwork.windows : fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url))),
       forceCodeSigning: !unsigned && community === undefined,
       ...(community?.kind === 'windows-unsigned' ? { verifyUpdateCodeSignature: false } : {}),
       signtoolOptions: {

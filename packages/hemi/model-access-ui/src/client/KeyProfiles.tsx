@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Button, IconSettingsOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconSettingsOutlineRegular, Input, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { KeyDirectory, KeyProfile, KeyProfileInput, ModelOptions } from '@deepseek-ai/dsh-hemi-model-access/types'
 import { ModelPicker } from './ModelPicker.tsx'
-import { ModelConnectionTest } from './ModelConnectionTest.tsx'
+import { ProviderCardContent } from './ProviderCardContent.tsx'
 import { ModelOptionsEditor } from './ModelOptionsEditor.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
 import type { NS } from './copy.ts'
@@ -21,8 +21,16 @@ const PRESETS = [
   ['ollama', 'Ollama', 'http://127.0.0.1:11434/v1'],
 ]
 
-/** Existing connections and an explicit editor; provider presets never inject model IDs. */
-export function KeyProfiles({ actions, test, t }: Props) {
+/**
+ * Existing connections and an explicit editor; provider presets never inject model IDs.
+ * @param props - Connection actions and copy; openNewApi adds the guided entry when supplied.
+ * importRevision refreshes the list after imports; omission keeps mount-only loading.
+ * @returns the API connection list or its editor.
+ */
+export function KeyProfiles({ actions, test, t, openNewApi, importRevision = 0 }: Props & {
+  openNewApi?: () => void
+  importRevision?: number
+}) {
   const [directory, setDirectory] = useState<KeyDirectory | null>(null)
   const [editing, setEditing] = useState<KeyProfile | 'new' | null>(null)
   const [failed, setFailed] = useState(false)
@@ -35,7 +43,7 @@ export function KeyProfiles({ actions, test, t }: Props) {
     let alive = true
     void actions.keyDirectory().then((value) => { if (alive) setDirectory(value) }, () => { if (alive) setFailed(true) })
     return () => { alive = false }
-  }, [actions])
+  }, [actions, importRevision])
   if (editing !== null && directory !== null) return (
     <KeyEditor key={typeof editing === 'string' ? editing : editing.id} actions={actions} test={test} t={t}
       revision={directory.revision} profile={editing === 'new' ? undefined : editing}
@@ -45,41 +53,44 @@ export function KeyProfiles({ actions, test, t }: Props) {
     <section className={css.section} aria-label={t('apiConnections')}>
       <div className={css.row}>
         <h3>{t('apiConnections')}</h3>
-        <Button variant="outline" size="sm" disabled={directory === null} onClick={() => { setEditing('new') }}>{t('addKey')}</Button>
+        <div className={css.actions}>
+          {openNewApi !== undefined && <Button variant="outline" size="sm" onClick={openNewApi}>{t('connectNewApi')}</Button>}
+          <Button variant="outline" size="sm" disabled={directory === null} onClick={() => { setEditing('new') }}>{t('addKey')}</Button>
+        </div>
       </div>
       {directory === null && !failed && <p>{t('loading')}</p>}
       {directory?.profiles.length === 0 && <p>{t('noConnections')}</p>}
       {directory?.profiles.map(profile => (
-        <section className={css.providerGroup} aria-label={profile.name} key={profile.id}>
-          <div className={css.providerRow}>
-            <div><strong>{profile.name}</strong><p>{profile.baseUrl}</p><small>{t('modelCount', { count: profile.models.length })}</small></div>
-            <div className={css.actions}>
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => { setEditing(profile) }}>{t('editConnection')}</Button>
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => {
+        <section className={css.card} aria-label={profile.name} key={profile.id}>
+          <ProviderCardContent provider={profile.id} name={profile.name} description={profile.baseUrl}
+            detail={t('modelCount', { count: profile.models.length })} models={profile.models}
+            actions={actions} test={test} t={t} saved={refresh}
+            remove={async (model) => {
+              await actions.saveKeyProfile({ ...profile, revision: directory.revision, models: profile.models.filter(id => id !== model) })
+              await refresh()
+            }}
+            discovery={{
+              disabled: busy,
+              load: signal => actions.discoverKeyModels({ ...profile, revision: directory.revision }, signal),
+              add: async (models) => {
+                await actions.saveKeyProfile({
+                  ...profile, revision: directory.revision, models: [...new Set([...profile.models, ...models])],
+                })
+                await refresh()
+              },
+            }}
+            buttons={[
+              { id: 'edit', label: t('editConnection'), disabled: busy, run: () => { setEditing(profile) } },
+              { id: 'remove', label: t('removeConnection'), disabled: busy, run: () => {
                 if (!window.confirm(t('confirmRemove'))) return
                 setBusy(true)
                 void actions.removeKeyProfile(profile.id, directory.revision).then(refresh, () => { setFailed(true) })
                   .finally(() => { setBusy(false) })
-              }}>{t('removeConnection')}</Button>
-            </div>
-          </div>
-          {profile.models.map(model => <ModelConnectionTest key={model} provider={profile.id} model={model}
-            test={test} t={t} actions={actions} saved={refresh}
-            remove={async () => {
-              await actions.saveKeyProfile({ ...profile, revision: directory.revision, models: profile.models.filter(id => id !== model) })
-              await refresh()
-            }} />)}
-          <ModelPicker current={profile.models} t={t}
-            load={signal => actions.discoverKeyModels({ ...profile, revision: directory.revision }, signal)}
-            add={async (models) => {
-              await actions.saveKeyProfile({
-                ...profile, revision: directory.revision, models: [...new Set([...profile.models, ...models])],
-              })
-              await refresh()
-            }} />
+              } },
+            ]} />
         </section>
       ))}
-      {failed && <p role="alert">{t('failed')} <button type="button" onClick={() => { void refresh().catch(() => { setFailed(true) }) }}>{t('retryImport')}</button></p>}
+      {failed && <p role="alert">{t('failed')} <Button variant="ghost" size="sm" onClick={() => { void refresh().catch(() => { setFailed(true) }) }}>{t('retryImport')}</Button></p>}
     </section>
   )
 }
@@ -132,16 +143,16 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
             {PRESETS.map(preset => <option value={preset[0]} key={preset[0]}>{preset[1]}</option>)}
           </select>
         </label>}
-        <label>{t('providerName')}<input required maxLength={128} value={name} disabled={busy}
+        <label>{t('providerName')}<Input className={css.input ?? ''} required maxLength={128} value={name} disabled={busy}
           onChange={(event) => { setName(event.currentTarget.value) }} /></label>
-        <label>{t('apiEndpoint')}<input required type="url" value={baseUrl} disabled={busy}
+        <label>{t('apiEndpoint')}<Input className={css.input ?? ''} required type="url" value={baseUrl} disabled={busy}
           onChange={(event) => { setBaseUrl(event.currentTarget.value) }} /></label>
         <label>{t('protocol')}<select aria-label={t('protocol')} value={api} disabled={busy} onChange={(event) => { setApi(event.currentTarget.value) }}>
           <option value="openai-completions">{t('protocolCompletions')}</option>
           <option value="openai-responses">{t('protocolResponses')}</option>
           <option value="anthropic-messages">{t('protocolMessages')}</option>
         </select></label>
-        <label>{t('apiKey')}<input type="password" autoComplete="off" value={key} disabled={busy}
+        <label>{t('apiKey')}<Input className={css.input ?? ''} type="password" autoComplete="off" value={key} disabled={busy}
           placeholder={profile?.hasKey ? t('savedKey') : undefined} onChange={(event) => { setKey(event.currentTarget.value) }} /></label>
         <ModelPicker current={models} buttonText={t('readModels')} disabled={busy || baseUrl === ''} t={t}
           load={signal => actions.discoverKeyModels(input, signal)} add={(found) => {
@@ -162,7 +173,7 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
               }) }} />
           </Tooltip></div>)}
         </div>
-        <label>{t('manualModel')}<input value={manual} disabled={busy} onChange={(event) => { setManual(event.currentTarget.value) }} /></label>
+        <label>{t('manualModel')}<Input className={css.input ?? ''} value={manual} disabled={busy} onChange={(event) => { setManual(event.currentTarget.value) }} /></label>
         <Button variant="outline" size="sm" type="button" disabled={busy || manual.trim() === ''} onClick={() => {
           const id = manual.trim()
           setCandidates([...new Set([...candidates, id])]); setModels([...new Set([...models, id])]); setManual('')

@@ -1,9 +1,6 @@
 /** English dictionary for the feature controls. */
 export const en = {
   nav: 'Memory',
-  description: 'View and edit the Markdown memory Hemi shares across conversations.',
-  automation: 'Saved memory is loaded for each turn. Context compaction saves a handoff. Closing the conversation runtime or quitting the app can summarize important information into the daily log.',
-  usage: 'Automatic summaries use the most recently used model. Their usage is recorded by model. Missing provider usage is shown as unavailable.',
   store: 'Memory type',
   long_term: 'Long-term memory',
   daily: 'Daily log',
@@ -31,9 +28,6 @@ export type MemoryLocaleKey = keyof typeof en
 /** Chinese dictionary for the feature controls. */
 export const zh: Record<MemoryLocaleKey, string> = {
   nav: '记忆',
-  description: '查看和编辑 Hemi 跨会话使用的 Markdown 记忆。',
-  automation: '每轮自动读取已保存的记忆，长对话压缩时保存交接信息。会话运行结束或退出应用时，按需整理重要信息到每日日志。',
-  usage: '自动摘要使用最近使用的模型。摘要用量按模型记录，模型未返回用量时会标记缺失。',
   store: '记忆类型',
   long_term: '长期记忆',
   daily: '每日日志',

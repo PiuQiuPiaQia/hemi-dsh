@@ -4,7 +4,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { HemiBrandName } from './HemiBrandName.tsx'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import { HemiBrandName, HemiSidebarMark } from './HemiBrandName.tsx'
+import { HemiBrandMark, HemiRunningMark } from './HemiBrandMark.tsx'
 import type { SkinSectionInjected } from './SkinSection.tsx'
 import { SkinSection } from './SkinSection.tsx'
 import { installBackdrop } from './backdrop.ts'
@@ -53,6 +56,15 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('sidebar.brand.name', () => ctx.slots.register({
     name: 'sidebar.brand.name', priority: -10, locale: SKINS_NS,
   }, HemiBrandName))
+  ctx.slots.inject('sidebar.brand.mark', () => ctx.slots.register({
+    name: 'sidebar.brand.mark', priority: -10,
+  }, HemiSidebarMark))
+  ctx.slots.inject('conversation.hero.brand.mark', () => ctx.slots.register({
+    name: 'conversation.hero.brand.mark', priority: -10,
+  }, HemiBrandMark))
+  ctx.slots.inject('conversation.chat.running.mark', () => ctx.slots.register({
+    name: 'conversation.chat.running.mark', priority: -10,
+  }, HemiRunningMark))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

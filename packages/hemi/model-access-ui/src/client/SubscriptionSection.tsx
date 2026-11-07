@@ -53,7 +53,7 @@ export function SubscriptionSection({ actions, test, t, renderFactorySlot }: Sub
   return (
     <section className={css.section} aria-label={t('subscriptions')}>
       <h3>{t('subscriptions')}</h3>
-      {renderFactorySlot('account.connection', { title: t('deepseekAccount') }, { slots: { content: DeepSeekSubscription } })}
+      {renderFactorySlot('account.connection', { title: t('deepseekAccount') }, { slots: { content: DeepSeekSubscription }, fallback: null })}
       {subscriptions === null ? (!failed && <p>{t('loading')}</p>) : subscriptions.length === 0 ? <p>{t('empty')}</p> : null}
       {subscriptions?.map(row => (
         <SubscriptionCard key={row.id} row={row} actions={actions} test={test} t={t} pending={pendingId !== undefined}

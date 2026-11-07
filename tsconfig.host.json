@@ -8,6 +8,10 @@
     "rewriteRelativeImportExtensions": false
   },
   "include": [
+    "apps/web/tests/hemi-feedback-visibility.e2e.ts",
+    // Hemi fork: branding e2e boots the Host scaffold rather than the Client program.
+    "apps/web/tests/hemi-branding.e2e.ts",
+    "apps/web/tests/hemi-desktop-startup.e2e.ts",
     "apps/web/tests/sidebar-drawer.e2e.ts",
     "apps/web/tests/creation-recommendations.e2e.ts",
     "apps/web/tests/plugin-recommendations.e2e.ts",

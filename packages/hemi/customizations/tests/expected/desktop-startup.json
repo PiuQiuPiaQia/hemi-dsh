@@ -1,0 +1,74 @@
+[
+  {
+    "id": "en",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Starting Hemi…",
+      "failedLabel": "Hemi could not start",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "zh-CN",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "正在启动 Hemi…",
+      "failedLabel": "Hemi 启动失败",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "ja",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Hemi を起動中…",
+      "failedLabel": "Hemi を起動できませんでした",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "es",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Iniciando Hemi…",
+      "failedLabel": "No se pudo iniciar Hemi",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "fr",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Démarrage de Hemi…",
+      "failedLabel": "Impossible de démarrer Hemi",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "de",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Hemi wird gestartet…",
+      "failedLabel": "Hemi konnte nicht gestartet werden",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "ru",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Запуск Hemi…",
+      "failedLabel": "Не удалось запустить Hemi",
+      "className": "hemi-startup"
+    }
+  },
+  {
+    "id": "pt",
+    "boot": {
+      "wordmark": "Hemi",
+      "loadingLabel": "Iniciando Hemi…",
+      "failedLabel": "Não foi possível iniciar o Hemi",
+      "className": "hemi-startup"
+    }
+  }
+]

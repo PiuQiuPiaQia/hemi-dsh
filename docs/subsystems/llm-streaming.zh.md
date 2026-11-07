@@ -313,6 +313,8 @@ interface LlmImageRequestPricing {
 
 ## `AppIdentity`：应用归属
 
+省略显式身份时，使用部署设置对 `DSH_APP_PRODUCT` 与 `DSH_APP_URL`；两者均未设置则保留 `APP_IDENTITY`。不完整或无效的设置会在请求前报错，版本仍来自包元数据。
+
 每个适配器都会向提供方发送的静态公开应用标识（[`packages/llm/llm/src/attribution.ts`](../../packages/llm/llm/src/attribution.ts)）。`attributionHeaders(identity?)` 只把它映射到标准 `User-Agent` header；该约定有意不支持 OpenRouter 特有的应用归属 header。默认 `APP_IDENTITY` 从包 manifest（元数据清单）获取版本；每个字段都是公开产品事实——不含 secret、路径、会话 id 或逐用户标识，且任何逐请求信息都不得影响这些值。
 
 ```ts type-equiv

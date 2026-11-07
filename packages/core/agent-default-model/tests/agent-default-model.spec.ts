@@ -29,7 +29,7 @@ it('persists complete selections through its owning profile entry', async () => 
   onTestFinished(() => standalone.fiber.dispose())
   await standalone.plugin(DefaultModel, { provider: 'test', model: 'original' })
   await standalone.agentDefaultModel.saveSelection({ provider: 'test', model: 'ignored' })
-  expect(standalone.agentDefaultModel.currentSelection().model).toBe('original')
+  expect(standalone.agentDefaultModel.currentSelection()?.model).toBe('original')
 })
 
 it('serializes overlapping saves and continues after a rejected write', async () => {
@@ -66,4 +66,32 @@ it('serializes overlapping saves and continues after a rejected write', async ()
   await last
   expect(calls).toEqual(['rejected', 'saved'])
   expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'test', model: 'final' })
+})
+
+
+it('represents an explicitly unconfigured deployment without inventing a provider route', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await ctx.plugin(DefaultModel, { provider: null, model: null })
+  expect(ctx.agentDefaultModel.currentSelection()).toBeUndefined()
+})
+
+it.each([{ provider: null, model: 'm' }, { provider: 'p', model: null }])('rejects a partial default route at load: %o', async (config) => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  const fork = ctx.plugin(DefaultModel, config)
+  await expect(fork.await()).rejects.toThrow('both be configured or both be null')
+})
+
+
+it('rejects a partial live route update before changing the current selection', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  const live = await liveConfig(ctx, DefaultModel, { provider: 'p', model: 'm' })
+  await expect(live.update({ provider: null })).rejects.toThrow('both be configured or both be null')
+  expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'p', model: 'm' })
+  await live.replace({ provider: null, model: null })
+  expect(ctx.agentDefaultModel.currentSelection()).toBeUndefined()
+  await live.replace({ provider: 'other', model: 'selected' })
+  expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'other', model: 'selected' })
 })

@@ -183,7 +183,8 @@ describe('legacy config mapping', () => {
     }
     const { service, settings } = await setup(initial)
     expect(service.currentRoles()).toEqual({ explorer: { provider: 'mock', model: 'old-explorer' } })
-    expect(settings.snapshot()).toEqual({ ...initial, defaultReasoningEffort: 'high', sessionEfforts: {} })
+    expect(settings.snapshot()).toEqual({ ...initial, defaultReasoningEffort: 'high', sessionEfforts: {},
+      newSessionMode: 'fixed', newSessionEffort: null })
     expect(settings.attempts.mutate).toBe(0)
   })
 })

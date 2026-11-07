@@ -4,6 +4,12 @@ import z from '@deepseek-ai/schemastery'
 
 /** Questionnaire destination and bonus notice timings shared by Host and Client. */
 export interface ContactConfig {
+  /** Register the account-owned Desktop introduction. */
+  desktopOnboarding: boolean
+  /** Initialize the account provider as a default model after sign-in. */
+  initializeDefaultModel: boolean
+  /** Let the native shell own account authorization browser actions. */
+  nativeSignIn: boolean
   /** Show the built-in account settings navigation entry. */
   showSettingsSection: boolean
   /** Show the sidebar account menu. */
@@ -19,6 +25,10 @@ export interface ContactConfig {
 }
 /** Validate public questionnaire options. */
 export const ContactConfigFields = {
+  // Hemi fork: optional account UIs must not own provider-neutral Desktop startup.
+  desktopOnboarding: z.boolean().default(true),
+  initializeDefaultModel: z.boolean().default(true),
+  nativeSignIn: z.boolean().default(true),
   showSettingsSection: z.boolean().default(true),
   showLauncher: z.boolean().default(true),
   contactFormUrl: z.string().pattern(/^https:\/\/[^/\s]+\//).default('https://trtgsjkv6r.feishu.cn/share/base/form/shrcnlCoGElW7MQznGy9r3YYXcg?hide_uid=1&hide_device_info=1&hide_harness_version=1'),

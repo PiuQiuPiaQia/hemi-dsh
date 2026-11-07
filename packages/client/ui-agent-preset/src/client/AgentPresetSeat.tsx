@@ -103,7 +103,8 @@ export function AgentPresetSeat({
   }, [load])
 
   const options = useMemo(
-    () => state.options.filter(option => developerTools || !requiresCodingTools(option)),
+    // Hemi fork: child-only presets still supply the current session's label.
+    () => state.options.filter(option => !option.subagentOnly && (developerTools || !requiresCodingTools(option))),
     [state.options, developerTools],
   )
 

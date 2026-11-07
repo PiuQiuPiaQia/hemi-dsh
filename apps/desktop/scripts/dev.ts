@@ -77,6 +77,8 @@ async function launchElectron(): Promise<void> {
     DSH_DESKTOP_OPEN_DEVTOOLS: process.env.DSH_DESKTOP_OPEN_DEVTOOLS ?? '0',
     ELECTRON_ENABLE_LOGGING: process.env.ELECTRON_ENABLE_LOGGING ?? '1',
   }
+  // Hemi fork: GUI launches must not inherit the Host's Electron-as-Node mode.
+  delete environment.ELECTRON_RUN_AS_NODE
   console.log(`desktop development: DSH_HOME=${home}`)
   console.log(`desktop development: userData=${userData}`)
   console.log(`desktop development: inspectors main=${String(mainPort)}, renderer=${String(rendererPort)}, host=${String(hostPort)}`)

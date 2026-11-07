@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The [GitHub workflow](../../../../.github/workflows/hemi-desktop-release.yml) defaults to `community`: macOS uses the existing fixed Hemi self-signed certificate, and Windows produces unsigned NSIS installers. The installed application and new artifacts are named `hemi-dsh`; the external protocol is `hemi-dsh://open`. [Identity migration](../../../../docs/upgrade-guide/v0.2.2-alpha.3/hemi-desktop-identity/guide.md) explains the independent default data directories and first renamed installation. Both retain DSH's generic updater, channel selection, task-stop confirmation and native installation. Releases contain versioned files; a dedicated public branch contains platform-specific update feeds. The `official` option retains DSH's Developer ID/notarization and Windows EV requirements.
+The [GitHub workflow](../../../../.github/workflows/hemi-desktop-release.yml) defaults to `community`: macOS uses the existing fixed Hemi self-signed certificate, and Windows produces unsigned NSIS installers. The installed application is named Hemi and new artifacts retain the `hemi-dsh` prefix; the external protocol is `hemi-dsh://open`. [Identity migration](../../../../docs/upgrade-guide/v0.2.2-alpha.3/hemi-desktop-identity/guide.md) explains the independent default data directories and first renamed installation. Both retain DSH's generic updater, channel selection, task-stop confirmation and native installation. Releases contain versioned files; a dedicated public branch contains platform-specific update feeds. The `official` option retains DSH's Developer ID/notarization and Windows EV requirements.
 
 ## Table of Contents
 

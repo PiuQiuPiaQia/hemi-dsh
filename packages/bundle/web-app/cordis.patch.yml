@@ -16,6 +16,8 @@
 
 - id: system-prompt
   config:
+    # Hemi fork: Desktop supplies its own logged product identity.
+    includeHarnessIdentity: !!js "ctx.get('profileContext')?.name !== 'desktop'"
     personaPrefix: >-
       You are a coding agent powered by the {{model}} model.
 
@@ -34,9 +36,10 @@
 # `dsh.client` rows are the browser roster the modules node half scans into
 # window.__DSH_BOOT__; the modules row is simultaneously a host row.
 - insert:
+    # Hemi fork: provider-neutral Desktop leaves account-owned product analytics and its exporter opt-in.
     - id: desktop-product-telemetry
       name: '@deepseek-ai/dsh-host-product-telemetry-otel'
-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+      disabled: true
       config:
         scheduledDelayMillis: 30000
         timeoutMillis: 15000
@@ -46,9 +49,10 @@
         serviceVersion: !!js process.env.DSH_CLIENT_VERSION
         endpoint: !!js process.env.DSH_PRODUCT_ANALYTICS_OTLP_URL
 
+    # Hemi fork: provider-neutral Desktop does not mount account-owned product analytics.
     - id: product-analytics
       name: '@deepseek-ai/dsh-client-product-analytics'
-      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+      disabled: true
       config:
         enabled: true
         appVersion: !!js process.env.DSH_CLIENT_VERSION
@@ -67,6 +71,8 @@
 
     - id: hemi-model-settings
       name: '@deepseek-ai/dsh-hemi-model-settings'
+      config:
+        desktopStartup: !!js "ctx.get('profileContext')?.name === 'desktop'"
       disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     - id: hemi-model-access
@@ -81,6 +87,8 @@
       name: '@deepseek-ai/dsh-hemi-memory/settings'
 
     - id: message-feedback
+      # Hemi fork: unused upstream product integration stays absent in Desktop.
+      disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
       name: '@deepseek-ai/dsh-message-feedback'
       config:
         maxNoteBytes: 8192
@@ -165,6 +173,9 @@
       config:
         showSettingsSection: !!js "ctx.get('profileContext')?.name !== 'desktop'"
         showLauncher: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+        desktopOnboarding: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+        initializeDefaultModel: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+        nativeSignIn: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     - id: account-controller
       name: '@deepseek-ai/dsh-api-account-controller'
@@ -239,6 +250,8 @@
     # the sections, and a persona that suppresses optional runtime context
     # also drops the two value lines.
     - id: harness-dev-context
+      # Hemi fork: unused upstream product integration stays absent in Desktop.
+      disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
       name: '@deepseek-ai/dsh-harness-dev-context'
 
     # The client-plugin reload chain, always mounted: it is idle until a
@@ -370,6 +383,8 @@
 
     # Official occupants for the generic sidebar and conversation brand slots.
     - id: ui-brand-official
+      # Hemi fork: unused upstream product integration stays absent in Desktop.
+      disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
       name: '@deepseek-ai/dsh-client-ui-brand-official'
 
     # Hemi fork addition: character skin themes over the alias-token palette.
@@ -474,6 +489,8 @@
     # strip, the feedback dialog behind Dislike and /feedback with its
     # acknowledgement toast, over the messageFeedback and sessionFeedback Remotes.
     - id: ui-message-feedback
+      # Hemi fork: unused upstream product integration stays absent in Desktop.
+      disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
       name: '@deepseek-ai/dsh-client-ui-message-feedback'
 
     # Model selection: the /model popupSelect + composer seat over session.models.
@@ -497,6 +514,8 @@
       name: '@deepseek-ai/dsh-client-ui-entry-customization'
 
     - id: ui-settings-session-log
+      # Hemi fork: unused upstream product integration stays absent in Desktop.
+      disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
       name: '@deepseek-ai/dsh-client-ui-settings-session-log'
 
     # The Built-in plugins settings section: the navigation entry and the tab
@@ -654,3 +673,19 @@
       name: '@deepseek-ai/dsh-agent-preset-registry'
       config:
         default: standard
+
+# Hemi fork: the Desktop workspace can start without any selected provider; saved user settings still win.
+- id: agent-default-model
+  config:
+    provider: !!js "ctx.get('profileContext')?.name === 'desktop' ? null : 'deepseek-official'"
+    model: !!js "ctx.get('profileContext')?.name === 'desktop' ? null : 'deepseek-flash'"
+
+# Hemi fork: hiding upload controls also removes their Host exporters and slash command.
+- id: session-log-deepseek
+  disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
+
+- id: session-telemetry-otel
+  disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"
+
+- id: command-feedback
+  disabled: !!js "ctx.get('profileContext')?.name === 'desktop'"

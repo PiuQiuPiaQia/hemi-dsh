@@ -10,7 +10,7 @@ import { ScriptedAdapter, textResponse, toolCallResponse } from '../../../packag
 import {
   assertFixtureInventory, compareOrRefreshGolden, launchWebScaffold, seedSession, watchConsole, webSnapshotMode,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage } from './support.ts'
+import { connectFreshWorkspace, newEnglishPage, openSettings } from './support.ts'
 
 function withReportedTotal(chunks: StreamChunk[]): StreamChunk[] {
   return chunks.map(chunk => chunk.type === 'usage' ? { ...chunk, usage: { ...chunk.usage,
@@ -43,6 +43,10 @@ it('runs four native role presets on their configured routes and receives their 
     { op: 'set', path: ['main'], value: { provider: 'hemi-native-test', model: 'main' } },
     { op: 'set', path: ['roles'], value: Object.fromEntries(roles.map(role => [role, { provider: 'hemi-native-test', model: `${role}-model` }])) },
   ])
+  // Simulate a default saved by the previous release.
+  await scaffold.ctx.settings.update('agent-preset-registry', { selectedDefault: 'explorer' })
+  await expect(scaffold.ctx.sessionController.create({ cwd: scaffold.workspaceCwd, agentPreset: 'explorer' }))
+    .rejects.toThrow('reserved for subagents')
   const browser = await chromium.launch()
   onTestFinished(() => browser.close())
   const page = await browser.newPage({ locale: 'en-US' })
@@ -52,10 +56,23 @@ it('runs four native role presets on their configured routes and receives their 
   await connectFreshWorkspace(page, scaffold.workspaceCwd)
   const lead = scaffold.ctx.agents.list().find(agent => agent.session.header.origin !== 'subagent')
   if (lead === undefined) throw new Error('Missing lead agent')
+  expect(lead.session.header.agentPreset).toBe('standard')
+  const trigger = page.getByRole('button', { name: 'Standard mode', exact: true })
+  await trigger.click()
+  const menu = page.getByRole('menu')
+  await menu.getByRole('menuitem', { name: /^Standard mode/ }).waitFor()
+  expect(await menu.getByRole('menuitem', { name: /侦察|分析|执行|设计/ }).count()).toBe(0)
+  await page.keyboard.press('Escape')
+  await openSettings(page, 'en')
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await settings.getByRole('button', { name: 'Agent presets', exact: true }).click()
+  await settings.getByRole('button', { name: 'New task default: Standard mode', exact: true }).waitFor()
+  for (const role of roles) expect(await settings.locator(`[data-agent-preset-id="${role}"]`).count()).toBe(0)
+  await settings.getByRole('button', { name: 'Close', exact: true }).last().click()
   const roster = await scaffold.ctx.agentPresets.list()
   for (const role of roles) {
     const preset = roster.find(entry => entry.id === role)
-    expect(preset).toBeDefined()
+    expect(preset).toMatchObject({ subagentOnly: true })
     expect(preset?.broken).toBeUndefined()
   }
   await scaffold.ctx.hemiRoutingSettings.setEnabled(lead, true)
@@ -129,7 +146,7 @@ it('runs four native role presets on their configured routes and receives their 
 
 const DIR = fileURLToPath(new URL('../../../snapshots/web/hemi-cache-rate', import.meta.url))
 
-it('shows weighted model cache rates when recorded calls omit zero cache counters', async () => {
+it('shows weighted reported cache rates and coverage after an unreported memory timeout', async () => {
   const scaffold = await launchWebScaffold()
   onTestFinished(() => scaffold.close())
   await seedSession(scaffold, await readFile(join(DIR, 'session.v4.jsonl'), 'utf8'), 'hemi-cache-rate')
@@ -143,7 +160,7 @@ it('shows weighted model cache rates when recorded calls omit zero cache counter
   for (const reopened of [false, true]) {
     if (reopened) await page.reload({ waitUntil: 'load' })
     const trigger = page.getByRole('button', { name: 'Conversation usage', exact: true })
-    await expect.poll(() => trigger.textContent()).toBe('Cache hit 32%')
+    await expect.poll(() => trigger.textContent()).toBe('Cache hit 32% (partial)')
     await trigger.click()
     const dialog = page.getByRole('dialog', { name: 'Conversation usage', exact: true })
     await compareOrRefreshGolden(join(DIR, 'usage.expected.md'), await dialog.ariaSnapshot(), webSnapshotMode())

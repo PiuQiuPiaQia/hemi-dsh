@@ -24,10 +24,12 @@ kind: "package-reference"
 
 本包以浏览器 `hemi-backup-ui` 条目接进 web-app bundle；要求宿主侧存在 `dsh-hemi-backup`，自身无需配置。
 
+WebDAV 服务器地址预填为坚果云地址 `https://dav.jianguoyun.com/dav/`。已保存的 WebDAV 目标保留其配置地址；该字段仍可编辑。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
-`src/client/index.ts` 注册 `hemi-backup` locale 命名空间并把 `BackupSection` 注入 `settings.section` 槽位；注入面负责拆开宿主方法外的 Remote 结果封套。`BackupSection.tsx` 持有编辑器状态、单飞忙碌守卫、运行中的进度轮询，并在卸载时取消任何已暂存的恢复。
+`src/client/index.ts` 注册 `hemi-backup` locale 命名空间并把 `BackupSection` 注入 `settings.section` 槽位；注入面负责拆开宿主方法外的 Remote 结果封套。设置页组合 `dsh-client-ui-primitives` 的 `Button`、`Input`、`Switch` 公共控件；备份目标与定时选择保留原生 `select`。`BackupSection.tsx` 持有编辑器状态、单飞忙碌守卫、运行中的进度轮询，并在卸载时取消任何已暂存的恢复。
 
 恢复确认区说明已有会话保持原样，冲突的会话备份另存安全副本。
 

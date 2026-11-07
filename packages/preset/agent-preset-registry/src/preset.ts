@@ -6,6 +6,8 @@ export interface AgentPreset {
   readonly name?: string
   readonly description?: string
   readonly order?: number
+  /** Whether main-session selection excludes this declaration. */
+  readonly subagentOnly?: boolean
   readonly broken?: string
 }
 

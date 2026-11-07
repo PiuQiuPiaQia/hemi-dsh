@@ -39,7 +39,6 @@ export function RoutingEffortSelect({ sessionId, locked, reportFailure, useRouti
   const save = async (next: HemiRoutingEffort): Promise<void> => {
     if (disabled || choosing.current) return
     trigger.current?.focus()
-    if (next === level) { setOpen(false); return }
     choosing.current = true
     setPending(true)
     try {

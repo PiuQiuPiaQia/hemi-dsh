@@ -65,7 +65,13 @@ export interface Config extends PresetSelectionConfig {
   /**
    * Agent options applied to every child; omitted fields use child-loop defaults.
    */
-  agentOptions?: AgentOptions
+  // Hemi fork: persisted defaults omit undefined fields; runtime AgentOptions can expose live undefined accessors.
+  agentOptions?: Omit<AgentOptions, 'provider' | 'model'> & {
+    /** Provider route applied to child agents. */
+    provider?: string
+    /** Provider-owned model id applied to child agents. */
+    model?: string
+  }
   /**
    * Maximum child depth: a non-negative safe integer (`0` forbids delegation),
    * or `'provider-managed'` to send no cap. A numeric cap

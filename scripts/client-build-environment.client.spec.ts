@@ -237,6 +237,17 @@ describe('client build environment', () => {
     expect(repositoryGitDirty(fixtureRoot)).toBe(true)
   })
 
+  it('keeps untracked and staged detection before the first commit', () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'dsh-client-build-unborn-'))
+    roots.push(fixtureRoot)
+    git(fixtureRoot, ['init'])
+    expect(repositoryGitDirty(fixtureRoot)).toBe(false)
+    write(join(fixtureRoot, 'first.txt'), 'first\n')
+    expect(repositoryGitDirty(fixtureRoot)).toBe(true)
+    git(fixtureRoot, ['add', 'first.txt'])
+    expect(repositoryGitDirty(fixtureRoot)).toBe(true)
+  })
+
   it('omits dirty metadata when repository metadata is unavailable', () => {
     const fixtureRoot = mkdtempSync(join(tmpdir(), 'dsh-client-build-no-git-'))
     roots.push(fixtureRoot)

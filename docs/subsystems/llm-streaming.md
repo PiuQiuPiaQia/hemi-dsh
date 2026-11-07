@@ -311,6 +311,8 @@ Retry configuration resolves before route registration into an immutable discrim
 
 ## `AppIdentity` — app attribution
 
+Omitting the explicit identity resolves the deployment pair `DSH_APP_PRODUCT` and `DSH_APP_URL`, or retains `APP_IDENTITY` when both are absent. Invalid or partial settings fail before a request; version still comes from package metadata.
+
 The static public application identity every adapter sends to providers ([`packages/llm/llm/src/attribution.ts`](../../packages/llm/llm/src/attribution.ts)). `attributionHeaders(identity?)` maps it to the standard `User-Agent` header only; OpenRouter-specific app attribution headers are intentionally not supported by this contract. The default `APP_IDENTITY` sources its version from the package manifest; every field is a public product fact - no secrets, paths, session ids, or per-user identifiers, and nothing per-request may influence the values.
 
 ```ts type-equiv

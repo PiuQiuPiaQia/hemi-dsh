@@ -4,6 +4,7 @@ import {
   closeSync,
   existsSync,
   fstatSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -397,10 +398,13 @@ async function acquireInstallLock(commonDirectory) {
       const lockHandle = await accessInstallLock(() => openSync(lockPath, 'wx', 0o600), deadline)
       let ownedStat
       try {
-        ownedStat = fstatSync(lockHandle)
         const publicationBarrier = process.env.DSH_TEST_LEFTHOOK_LOCK_PUBLISH_BARRIER
         if (publicationBarrier !== undefined) await waitForLockTestBarrier(publicationBarrier)
         writeFileSync(lockHandle, ownedRecord)
+        // Hemi fork: FSKit ExFAT assigns the permanent inode when lock data is synced.
+        // See hemi-fork-changes.md#hemi-customization-isolation.
+        fsyncSync(lockHandle)
+        ownedStat = fstatSync(lockHandle)
       } finally {
         closeSync(lockHandle)
       }

@@ -105,7 +105,7 @@ export function withoutWindowsSigningEnvironment(environment: NodeJS.ProcessEnv)
  */
 export function desktopElectronBuilderEnvironment(environment: NodeJS.ProcessEnv, unsigned: boolean): NodeJS.ProcessEnv {
   const selected: NodeJS.ProcessEnv = { ...environment, DSH_DESKTOP_UNSIGNED: unsigned ? '1' : '0',
-    ...(resolveDesktopProduct(environment).productName === 'hemi-dsh' ? { DSH_BUILD_PRODUCT_TITLE: 'hemi-dsh' } : {}) }
+    ...(resolveDesktopProduct(environment).artifactPrefix === 'hemi-dsh' ? { DSH_BUILD_PRODUCT_TITLE: 'Hemi' } : {}) }
   // The bundled NSIS decoder cannot extract 7-Zip's automatic ARM64-filtered entries.
   if (environment.DSH_DESKTOP_TARGET_PLATFORM === 'win32') selected.ELECTRON_BUILDER_7Z_FILTER = 'BCJ'
   if (!unsigned) return selected
@@ -162,7 +162,7 @@ function writeReleaseRecord(
     environment: update.environment,
     channel: update.channel,
     publicUrl: update.publicUrl,
-    ...(resolveDesktopProduct(environment).productName === 'hemi-dsh' ? { hemiDesktopProduct: 'hemi-dsh' } : {}),
+    ...(resolveDesktopProduct(environment).artifactPrefix === 'hemi-dsh' ? { hemiDesktopProduct: 'hemi-dsh' } : {}),
     ...community === undefined ? {} : { hemiSigning: community.kind,
       ...(community.kind === 'mac-self-signed' ? { hemiSigningSha256: community.sha256 } : {}) },
     // Upload reads this to tag the commit a production release was packaged from.

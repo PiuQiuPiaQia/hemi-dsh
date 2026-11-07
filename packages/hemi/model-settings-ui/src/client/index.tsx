@@ -9,6 +9,7 @@ import modelSettingsRemote from '@deepseek-ai/dsh-hemi-model-settings/remote'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 
 import css from './ConnectionTest.module.css'
+import { DesktopWelcome } from './DesktopWelcome.tsx'
 
 /** Locale namespace for the settings page. */
 type ModelTestActions = { test: (provider: string, model: string, signal: AbortSignal) => Promise<boolean> }
@@ -63,7 +64,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   }
 }
 
-function registerPage(ctx: Context): void {
+async function registerPage(ctx: Context): Promise<void> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'hemi-model-settings: dictionaries')
   const t = ctx.locale.bind(NS)
   const actions: ModelTestActions = {
@@ -78,4 +79,19 @@ function registerPage(ctx: Context): void {
     locale: NS,
     inject: () => ({ actions }),
   }, ModelSettingsPage))
+  if (!('dshDesktop' in globalThis)) return
+  let loadFailed = false
+  try {
+    const state = await unwrap(ctx.remote.hemiModelSettings.desktopWelcome())
+    if (!state.enabled || state.completed) return
+  } catch (_error: unknown) {
+    loadFailed = true
+  }
+  ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
+    name: 'settings.onboarding', id: 'hemi-desktop-welcome', order: -200, locale: NS,
+    inject: () => ({ loadFailed, t,
+      reload: () => unwrap(ctx.remote.hemiModelSettings.desktopWelcome()),
+      acknowledge: () => unwrap(ctx.remote.hemiModelSettings.completeDesktopWelcome()),
+    }),
+  }, DesktopWelcome))
 }

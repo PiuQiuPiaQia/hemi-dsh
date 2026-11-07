@@ -1,8 +1,9 @@
 /** Browser entry for the Web client. */
 import '@deepseek-ai/dsh-client-ui-theme/brand-font.css'
-import { AppWebEntry, applyIndexInjections } from '@deepseek-ai/dsh-client-web'
+import { AppWebEntry, applyIndexInjections, type BootPresentation } from '@deepseek-ai/dsh-client-web'
 
 interface DesktopBootGlobal {
+  dshBootPresentation?: BootPresentation
   dshDesktopBoot?: {
     failed(message: string): Promise<void>
     ready(): Promise<{ injections: Parameters<typeof applyIndexInjections>[0]; streamBaseUrl: string }>
@@ -17,7 +18,7 @@ const reportFailure = (reason: unknown): void => {
 try {
   const el = document.getElementById('root')
   if (el === null) throw new Error('web app: missing #root')
-  const entry = new AppWebEntry(el)
+  const entry = new AppWebEntry(el, undefined, (globalThis as DesktopBootGlobal).dshBootPresentation)
   if (desktop !== undefined) {
     const gate = (globalThis as { __DSH_BOOT_READY__?: PromiseWithResolvers<void> }).__DSH_BOOT_READY__
     if (gate === undefined) throw new Error('desktop web: boot readiness is missing')

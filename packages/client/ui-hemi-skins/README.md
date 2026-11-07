@@ -22,7 +22,7 @@ Register the six Hemi desktop-assistant skins (classic plus the five character s
 <a id="use-this-package"></a>
 ## Use this package
 
-The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme` is available. Every `ThemeDefinition` id is a valid `setTheme` argument for downstream pickers.
+The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme` is available. Every `ThemeDefinition` id is a valid `setTheme` argument for downstream pickers. The skin settings section shows six equal-width presets below its heading and uses fewer columns in narrow panels. A check marks the active skin; selection applies immediately and is saved per browser.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
@@ -31,7 +31,7 @@ The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme
 
 The backdrop layer is a full-viewport body child mounted after `#root` and is visual only. Its sheet opts it out of app-region collection with `-webkit-app-region: initial !important`: the shell's darwin `body > :not(#root)` rule subtracts body-level overlays from the window drag surface by DOM order, and a full-viewport no-drag box would otherwise disable titlebar dragging and its native double-click maximize/restore on macOS.
 
-The plugin occupies the existing sidebar name slot at priority -10 with locale-owned `hemi-dsh` text, shadowing the official wordmark. Removing the plugin restores the original occupant.
+The plugin occupies the sidebar name and mark, conversation hero mark and running-status mark slots at priority -10. The sidebar shows Hemi with a black, white-lettered `dsh` edition tag and suppresses its logo; the collapsed rail retains the native expand icon. The hero and running status keep the transparent wave-H mask in the theme’s neutral text color. The running mark pulses unless reduced motion is requested. Skin palettes and backdrops remain independent of the monochrome artwork. Removing the plugin restores the original occupants.
 
 <a id="further-exploration"></a>
 ## Further exploration

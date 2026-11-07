@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 Open **Settings → Memory** to edit long-term memory, a dated log, or the scratchpad. Save commits the text. If the file changed since opening, the editor keeps the draft and asks you to reload. The web-app bundle mounts this Client plugin and the [Host settings service](../memory/README.md).
 
-Automatic behavior belongs to the [Host plugin](../memory/README.md#automatic-memory). The page explains context loading, compaction handoffs, exit summaries, and model-attributed summary usage.
+Choose a memory type and, for a daily log, its date under the Memory heading. The editor keeps save, error, and conflict feedback beside the text. Automatic memory behavior is documented by the [Host plugin](../memory/README.md#automatic-memory).
 
 ## Table of Contents
 

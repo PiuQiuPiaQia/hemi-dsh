@@ -14,6 +14,14 @@ function div(className: string | undefined, text?: string): HTMLDivElement {
   return el
 }
 
+/** Hemi fork: carrier-owned branding must be available before client plugins activate. */
+export interface BootPresentation {
+  readonly wordmark: string
+  readonly loadingLabel: string
+  readonly failedLabel: string
+  readonly className: string
+}
+
 /** Kernel-owned page mounted below the application's root element. */
 export class BootPage {
   private readonly root: HTMLDivElement
@@ -29,15 +37,18 @@ export class BootPage {
   /**
    * Build and attach the boot page.
    * @param container - Application mount point.
+   * @param presentation - Optional carrier-owned branding and localized status labels.
    */
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, private readonly presentation?: BootPresentation) {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
+    if (presentation !== undefined) this.root.classList.add(presentation.className)
     this.card = div(css.card)
-    this.wordmark = div(css.wordmark, 'HARNESS')
+    this.wordmark = div(css.wordmark, presentation?.wordmark ?? 'HARNESS')
+    this.wordmark.dataset.dshBootWordmark = ''
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
-    this.hint = div(css.hint, 'Loading plugins…')
+    this.hint = div(css.hint, presentation?.loadingLabel ?? 'Loading plugins…')
     this.card.append(this.wordmark, this.spinner, this.hint)
     this.root.append(this.card)
     container.append(this.root)
@@ -89,7 +100,7 @@ export class BootPage {
       return
     }
     const report = div(css.failed)
-    report.append(div(css.failedTitle, 'Failed to load plugins'))
+    report.append(div(css.failedTitle, this.presentation?.failedLabel ?? 'Failed to load plugins'))
     for (const id of failed) report.append(div(css.failedItem, id))
     if (this.failure !== undefined) report.append(div(css.failedItem, this.failure))
     this.card.replaceChildren(this.wordmark, report)

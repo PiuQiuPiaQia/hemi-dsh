@@ -1,0 +1,32 @@
+# Desktop-owned product identity over the real Web bundle for keyless replay.
+- id: system-prompt
+  config:
+    includeHarnessIdentity: false
+    personaPrefix: You are a coding agent powered by the {{model}} model.
+- id: hemi-model-settings
+  disabled: false
+  config:
+    desktopStartup: true
+- id: ui-brand-official
+  disabled: true
+- id: message-feedback
+  disabled: true
+- id: ui-message-feedback
+  disabled: true
+- id: command-feedback
+  disabled: true
+- id: session-log-deepseek
+  disabled: true
+- id: ui-settings-session-log
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+- id: harness-dev-context
+  disabled: true
+- id: ui-settings-account
+  config:
+    showLauncher: false
+    showSettingsSection: false
+    desktopOnboarding: false
+    initializeDefaultModel: false
+    nativeSignIn: false

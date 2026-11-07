@@ -72,3 +72,22 @@ it('refreshes the whole-tree cache rate while the popover is closed', async () =
   await act(async () => { await vi.advanceTimersByTimeAsync(8000) })
   expect(screen.getByRole('button', { name: '会话用量' }).textContent).toBe('缓存命中 75%')
 })
+
+it('labels reported cache rates as partial while keeping incomplete totals unavailable', async () => {
+  type Props = Parameters<typeof HemiSessionUsage>[0]
+  const row = { ...root, calls: 3, totalTokens: 220, cacheReadTokens: 80, cacheReadReports: 2 }
+  const own = { models: [row] }
+  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
+    loadUsage: async () => ({ ...own, sessions: 1, unavailableSessions: 0 }),
+  } as Props
+  render(<HemiSessionUsage {...props} />)
+  const trigger = screen.getByRole('button', { name: '会话用量' })
+  expect(trigger.textContent).toBe('缓存命中 40%（部分）')
+  fireEvent.click(trigger)
+  const dialog = within(screen.getByRole('dialog'))
+  expect(dialog.getByText('缓存率仅统计已上报用量的 2/3 次调用')).toBeTruthy()
+  const model = within(dialog.getByRole('row', { name: /main/ }))
+  expect(model.getByText('40%（2/3 次调用）')).toBeTruthy()
+  expect(model.getAllByText('—')).toHaveLength(4)
+  expect(dialog.queryByText('220')).toBeNull()
+})

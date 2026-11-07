@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { ModelConnectionTest } from '../src/client/ModelConnectionTest.tsx'
+import { ModelAccessPage } from '../src/client/ModelAccessPage.tsx'
 import { KeyProfiles } from '../src/client/KeyProfiles.tsx'
 import { ModelOptionsEditor } from '../src/client/ModelOptionsEditor.tsx'
 import { SubscriptionCard } from '../src/client/SubscriptionCard.tsx'
@@ -48,6 +49,29 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+it.each([zh, en])('switches between subscription and API connections by keyboard', async (dictionary) => {
+  const translate = makeTranslate(dictionary)
+  const api = actions()
+  render(<ModelAccessPage actions={api} test={vi.fn()} t={translate} renderFactorySlot={() => null} />)
+  await act(async () => {})
+  const subscriptions = screen.getByRole('tab', { name: translate('subscriptionsMethod') })
+  expect(screen.getAllByRole('tab')).toHaveLength(2)
+  expect(subscriptions.getAttribute('aria-selected')).toBe('true')
+  expect(api.keyDirectory).not.toHaveBeenCalled()
+  subscriptions.focus()
+  fireEvent.keyDown(subscriptions, { key: 'ArrowRight' })
+  await act(async () => {})
+  const keys = screen.getByRole('tab', { name: translate('keyMethod') })
+  expect(document.activeElement).toBe(keys)
+  expect(screen.getByRole('tabpanel', { name: translate('keyMethod') }).id).toBe(keys.getAttribute('aria-controls'))
+  expect(api.keyDirectory).toHaveBeenCalledOnce()
+  expect(screen.getByRole('button', { name: translate('connectNewApi') })).toBeTruthy()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  fireEvent.keyDown(keys, { key: 'Home' })
+  expect(document.activeElement).toBe(subscriptions)
+  expect(api.subscriptions).toHaveBeenCalledOnce()
+})
+
 it.each([
   { dictionary: zh, balance: true }, { dictionary: en, balance: true },
   { dictionary: zh, balance: false }, { dictionary: en, balance: false },
@@ -76,6 +100,70 @@ it.each([
   await act(async () => { pending.resolve(undefined) })
   expect(button.disabled).toBe(false)
   expect(button.getAttribute('aria-busy')).toBe('false')
+})
+
+it.each([zh, en])('offers header model discovery as an icon-only localized action on both cards', async (dictionary) => {
+  const translate = makeTranslate(dictionary)
+  const keyView = render(<KeyProfiles actions={actions()} test={vi.fn()} t={translate} />)
+  let card = await screen.findByRole('region', { name: profile.name })
+  const names = (region: HTMLElement): string[] => within(region).getAllByRole('button')
+    .map(button => button.getAttribute('aria-label') ?? button.textContent ?? '')
+  expect(names(card).slice(0, 3)).toEqual([translate('fetchModels'), translate('editConnection'), translate('removeConnection')])
+  const keyDiscovery = within(card).getByRole('button', { name: translate('fetchModels') })
+  expect(keyDiscovery.textContent).toBe('')
+  expect(keyDiscovery.querySelector('svg')).not.toBeNull()
+  expect(keyDiscovery.getAttribute('title')).toBeNull()
+  fireEvent.keyDown(window, { key: 'Tab' })
+  fireEvent.focus(keyDiscovery)
+  expect(await screen.findByRole('tooltip')).toHaveProperty('textContent', translate('fetchModels'))
+  fireEvent.blur(keyDiscovery)
+  expect(screen.queryByRole('tooltip')).toBeNull()
+  keyView.unmount()
+  render(<SubscriptionCard row={{ id: provider, name: 'Subscription', connected: true, models: [model], quota: false }}
+    actions={actions()} test={vi.fn()} t={translate} pending={false} connect={vi.fn()} disconnect={vi.fn()} modelsChanged={vi.fn()} />)
+  card = screen.getByRole('region', { name: 'Subscription' })
+  expect(names(card).slice(0, 3)).toEqual([translate('fetchModels'), translate('reconnect'), translate('disconnect')])
+  const subscriptionDiscovery = within(card).getByRole('button', { name: translate('fetchModels') })
+  expect(subscriptionDiscovery.textContent).toBe('')
+  expect(subscriptionDiscovery.querySelector('svg')).not.toBeNull()
+  fireEvent.keyDown(window, { key: 'Tab' })
+  fireEvent.focus(subscriptionDiscovery)
+  expect(await screen.findByRole('tooltip')).toHaveProperty('textContent', translate('fetchModels'))
+})
+
+it('adds and removes subscription models through the native subscription actions', async () => {
+  const api = actions()
+  vi.mocked(api.subscriptionCandidates).mockResolvedValue(['model/b'])
+  const modelsChanged = vi.fn(async () => {})
+  render(<SubscriptionCard row={{ id: provider, name: 'Subscription', connected: true, models: [model], quota: false }}
+    actions={api} test={vi.fn()} t={t} pending={false} connect={vi.fn()} disconnect={vi.fn()} modelsChanged={modelsChanged} />)
+  const card = screen.getByRole('region', { name: 'Subscription' })
+  fireEvent.click(within(card).getByRole('button', { name: t('fetchModels') }))
+  const dialog = await screen.findByRole('dialog', { name: t('chooseModels') })
+  fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'model/b' }))
+  expect(api.subscriptionCandidates).toHaveBeenCalledWith(provider, expect.any(AbortSignal))
+  fireEvent.click(within(dialog).getByRole('button', { name: t('addModels') }))
+  await act(async () => {})
+  expect(api.changeSubscriptionModel).toHaveBeenCalledWith(provider, 'model/b', true)
+  expect(modelsChanged).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  fireEvent.click(within(card).getByRole('button', { name: t('deleteModel') }))
+  expect(confirm).toHaveBeenCalledWith(t('confirmDeleteModel', { model }))
+  await act(async () => {})
+  expect(api.changeSubscriptionModel).toHaveBeenCalledWith(provider, model, false)
+})
+
+it('hides discovery and model rows for a signed-out subscription', () => {
+  render(<SubscriptionCard row={{ id: provider, name: 'Subscription', connected: false, models: [model], quota: false }}
+    actions={actions()} test={vi.fn()} t={t} pending={false} connect={vi.fn()} disconnect={vi.fn()} modelsChanged={vi.fn()} />)
+  const card = screen.getByRole('region', { name: 'Subscription' })
+  expect(within(card).queryByRole('button', { name: t('fetchModels') })).toBeNull()
+  expect(within(card).queryByRole('group', { name: model })).toBeNull()
+  expect(within(card).queryByRole('dialog')).toBeNull()
+  expect(within(card).getByRole('button', { name: t('connect') })).toBeTruthy()
+  expect(within(card).queryByRole('button', { name: t('disconnect') })).toBeNull()
+  expect(card.textContent).toContain(t('disconnected'))
 })
 
 it.each([zh, en])('gives three icon-only actions localized accessible names and a focus tooltip', async (dictionary) => {
@@ -187,6 +275,16 @@ it('requires confirmation to remove a model and disables the actions during remo
   expect((button as HTMLButtonElement).disabled).toBe(false)
 })
 
+it('retries a failed connection-list read from its shared action', async () => {
+  const api = actions()
+  vi.mocked(api.keyDirectory).mockRejectedValueOnce(new Error('offline'))
+  render(<KeyProfiles actions={api} test={vi.fn()} t={t} />)
+  fireEvent.click(await screen.findByRole('button', { name: t('retryImport') }))
+  await screen.findByRole('region', { name: profile.name })
+  expect(api.keyDirectory).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 it('uses the same settings icon for draft models and disables it for unselected models', async () => {
   const api = actions()
   render(<KeyProfiles actions={api} test={vi.fn()} t={t} />)
@@ -223,4 +321,52 @@ it('reopens a cleared draft name with its inherited value before the connection 
   expect(api.getModelDefaults).toHaveBeenCalledWith(profile.api, model, provider)
   fireEvent.click(screen.getByRole('button', { name: t('cancel') }))
   expect(api.saveKeyProfile).not.toHaveBeenCalled()
+})
+
+it('discovers models for a model-less key connection from the shared header dialog', async () => {
+  const api = actions()
+  vi.mocked(api.keyDirectory).mockResolvedValue({ revision: 7, profiles: [{ ...profile, models: [] }] })
+  vi.mocked(api.discoverKeyModels).mockResolvedValue(['model/b'])
+  render(<KeyProfiles actions={api} test={vi.fn()} t={t} />)
+  const card = await screen.findByRole('region', { name: profile.name })
+  expect(card.textContent).toContain(t('modelCount', { count: 0 }))
+  const discovery = within(card).getByRole('button', { name: t('fetchModels') }) as HTMLButtonElement
+  expect(discovery.disabled).toBe(false)
+  fireEvent.click(discovery)
+  const dialog = await screen.findByRole('dialog', { name: t('chooseModels') })
+  fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'model/b' }))
+  expect(api.discoverKeyModels).toHaveBeenCalledWith(expect.objectContaining({ id: provider, revision: 7 }), expect.any(AbortSignal))
+  fireEvent.click(within(dialog).getByRole('button', { name: t('addModels') }))
+  await act(async () => {})
+  expect(api.saveKeyProfile).toHaveBeenCalledWith(expect.objectContaining({ id: provider, revision: 7, models: ['model/b'] }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+it('removes a model from a key connection only after confirmation', async () => {
+  const api = actions()
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  render(<KeyProfiles actions={api} test={vi.fn()} t={t} />)
+  const card = await screen.findByRole('region', { name: profile.name })
+  fireEvent.click(within(card).getByRole('button', { name: t('deleteModel') }))
+  expect(confirm).toHaveBeenCalledWith(t('confirmDeleteModel', { model }))
+  expect(api.saveKeyProfile).not.toHaveBeenCalled()
+  confirm.mockReturnValue(true)
+  fireEvent.click(within(card).getByRole('button', { name: t('deleteModel') }))
+  await act(async () => {})
+  expect(api.saveKeyProfile).toHaveBeenCalledWith(expect.objectContaining({ id: provider, revision: 1, models: [] }))
+})
+
+it('edits and removes a key connection from the header actions', async () => {
+  const api = actions()
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  render(<KeyProfiles actions={api} test={vi.fn()} t={t} />)
+  const card = await screen.findByRole('region', { name: profile.name })
+  fireEvent.click(within(card).getByRole('button', { name: t('editConnection') }))
+  expect(await screen.findByRole('region', { name: t('keyEditor') })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: t('back') }))
+  expect(screen.queryByRole('region', { name: t('keyEditor') })).toBeNull()
+  fireEvent.click(within(screen.getByRole('region', { name: profile.name })).getByRole('button', { name: t('removeConnection') }))
+  expect(confirm).toHaveBeenCalledWith(t('confirmRemove'))
+  await act(async () => {})
+  expect(api.removeKeyProfile).toHaveBeenCalledWith(provider, 1)
 })

@@ -284,9 +284,27 @@ Source: [`packages/hemi/model-access/src/index.ts`](../../packages/hemi/model-ac
 
 ### `ctx.hemiModelSettings` — `HemiModelSettings`
 
-Probe a configured route with its actual adapter and saved credential.
+Own explicit model connection probes and local Desktop introduction preferences.
 
 ```ts cordis-catalog
+/**
+ * Resolve native startup without consulting any provider or credential.
+ * @returns workspace startup preferences, or undefined for native DSH startup.
+ */
+desktopStartup(): { mode: 'workspace'; localePreference: string | null } | undefined
+
+/**
+ * Read local introduction state while preserving completed legacy setup.
+ * @returns completion from the local marker, saved model, or completed legacy introduction.
+ */
+@Remote desktopWelcome(): { readonly enabled: boolean; readonly completed: boolean }
+
+/**
+ * Acknowledge the local introduction without changing model connections or account state.
+ * @returns after the completion marker is durably saved; failures retain the introduction.
+ */
+@Remote async completeDesktopWelcome(): Promise<void>
+
 /**
  * Send a bounded request and check whether the model returns a test tool call.
  * @param provider - configured provider ID.
@@ -386,7 +404,7 @@ blockedReason(agent: Agent): string | null
 prepareTurn(root: Agent): void
 
 /**
- * Save the root conversation's automatic routing effort for later turns.
+ * Save the root conversation's automatic routing effort and the default for new conversations.
  * @param agent - live root conversation whose routes use the choice.
  * @param effort - one of the four model-independent routing levels.
  * @param signal - cancellation checked before saving.
@@ -395,7 +413,7 @@ prepareTurn(root: Agent): void
 @Remote async setReasoningEffort(agent: Agent, effort: HemiRoutingEffort, signal?: AbortSignal): Promise<void>
 
 /**
- * Save one root Session's routing mode preference. Only the root agent may
+ * Save one root Session's routing mode and the default for new conversations. Only the root agent may
  * switch; enabling validates the main route and every configured role route
  * against the live LLM registry. The call resolves only after the settings
  * pipeline has persisted the preference — no optimistic success — and the
@@ -403,7 +421,8 @@ prepareTurn(root: Agent): void
  * Session, so concurrent switches land in call order. The mode flips in
  * memory at registration: an enable in flight routes nothing until it
  * settles, and in-flight requests plus accepted delegations keep their
- * routes either way.
+ * routes either way. Re-selecting the saved mode refreshes new-conversation
+ * defaults without suspending the current routing mode.
  * @param agent - exact live root whose tree receives the selection.
  * @param enabled - `true` selects auto routing, `false` returns to fixed.
  * @param signal - cancellation checked before the preference is written.

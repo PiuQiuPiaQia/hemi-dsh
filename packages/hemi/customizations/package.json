@@ -43,6 +43,14 @@
     "./desktop-branding": {
       "types": "./release/identity.d.mts",
       "default": "./release/identity.mjs"
+    },
+    "./desktop-artwork": {
+      "types": "./release/artwork.d.mts",
+      "default": "./release/artwork.mjs"
+    },
+    "./web-branding": {
+      "types": "./release/web.d.mts",
+      "default": "./release/web.mjs"
     }
   },
   "files": [
@@ -51,6 +59,8 @@
     "release/*.mjs",
     "release/*.d.mts",
     "release/*.cer",
+    "src/desktop-startup.css",
+    "artwork",
     "lib/types/**/*.d.ts"
   ],
   "dsh": null,
@@ -68,7 +78,9 @@
   "devDependencies": {
     "electron": "^44.7.0",
     "@deepseek-ai/cordis": "workspace:~",
-    "@deepseek-ai/dsh-hemi-model-access": "workspace:*"
+    "@deepseek-ai/dsh-hemi-model-access": "workspace:*",
+    "@deepseek-ai/dsh-hemi-model-settings": "workspace:*",
+    "vite": "^6.4.3"
   },
   "scripts": {
     "bundle": "tsdown",

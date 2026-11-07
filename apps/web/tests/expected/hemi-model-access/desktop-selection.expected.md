@@ -1,0 +1,24 @@
+- dialog "接入 New API":
+  - heading "接入 New API" [level=2]
+  - button "关闭"
+  - region "New API 浏览器登录导入":
+    - list "接入 New API":
+      - listitem: 登录站点
+      - listitem: 选择模型
+      - listitem: 创建并导入
+    - paragraph: https://newapi.example.test · Fixture user
+    - text: 令牌分组
+    - combobox "令牌分组":
+      - option "选择分组"
+      - option "team · Team" [selected]
+    - group "选择模型":
+      - checkbox "fixture-model" [checked]
+      - text: fixture-model
+    - status: 已选 1 个
+    - text: 额度（美元，留空则不限）
+    - spinbutton "额度（美元，留空则不限）": "8"
+    - text: 有效期（天，留空则长期有效）
+    - spinbutton "有效期（天，留空则长期有效）": "7"
+    - button "导入模型"
+    - button "取消"
+  - button "关闭"

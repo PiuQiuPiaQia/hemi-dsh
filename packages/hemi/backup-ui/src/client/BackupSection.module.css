@@ -1,13 +1,13 @@
-/* Backup page content within the shared settings panel. */
+/* Backup page content within the shared settings panel; controls come from
+ * ui-primitives (Button, Input, Switch), so this sheet owns layout only. */
 
 .section {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 16px;
-  padding: 8px 0;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
   font-size: 13px;
   line-height: 22px;
-  color: var(--dsw-alias-label-primary);
 }
 
 .header {
@@ -17,9 +17,10 @@
 }
 
 .title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 22px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
 }
 
 .description {
@@ -31,7 +32,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  min-width: 0;
+  padding: 12px 14px;
   border: 0.5px solid var(--dsw-alias-settings-card-stroke);
   border-radius: var(--dsw-radius-xl);
   background: var(--dsw-alias-settings-card-fill);
@@ -40,85 +42,76 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
 .key {
-  flex: 0 0 160px;
+  flex: 0 1 160px;
+  min-width: 0;
   color: var(--dsw-alias-label-secondary);
 }
 
 .value {
-  flex: 1;
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The Input primitive renders one wrapper element; the page sizes it inside
+ * the row and lets it take its own line when the label column no longer fits. */
+.input {
+  flex: 1 1 200px;
   min-width: 0;
 }
 
-.input {
-  flex: 1;
-  min-width: 0;
-  padding: 4px 10px;
-  border: 0.5px solid var(--dsw-alias-field-stroke, var(--dsw-alias-settings-card-stroke));
-  border-radius: var(--dsw-radius-md, 8px);
-  background: var(--dsw-alias-field-fill, transparent);
-  color: inherit;
-  font: inherit;
+.input input::placeholder {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 1;
+}
+
+.help,
+.noticeOk,
+.noticeBad {
+  overflow-wrap: anywhere;
 }
 
 .select {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
+  min-height: 32px;
   padding: 4px 10px;
-  border: 0.5px solid var(--dsw-alias-field-stroke, var(--dsw-alias-settings-card-stroke));
-  border-radius: var(--dsw-radius-md, 8px);
-  background: var(--dsw-alias-field-fill, transparent);
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
   color: inherit;
   font: inherit;
+}
+
+.select:disabled,
+.input:has(input:disabled) {
+  opacity: 0.5;
 }
 
 .help {
   margin: 0;
-  color: var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+  color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
 }
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-}
-
-.button {
-  padding: 4px 14px;
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  border-radius: var(--dsw-radius-md, 8px);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.buttonPrimary {
-  padding: 4px 14px;
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  border-radius: var(--dsw-radius-md, 8px);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  border-color: var(--dsw-alias-accent, #4c6ef5);
-  background: var(--dsw-alias-accent, #4c6ef5);
-  color: var(--dsw-alias-accent-contrast, #fff);
 }
 
 .listHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
 .list {
@@ -134,11 +127,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 
 .listMain {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -158,5 +152,13 @@
 
 .noticeBad {
   margin: 0;
-  color: var(--dsw-alias-danger, #d5496a);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* Coarse pointers get the 16px field floor to avoid iOS Safari focus zoom. */
+@media (pointer: coarse) {
+  .select,
+  .input input {
+    font-size: 16px;
+  }
 }

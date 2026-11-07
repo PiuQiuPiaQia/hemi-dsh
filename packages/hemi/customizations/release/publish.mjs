@@ -232,7 +232,7 @@ export async function publishHemiGitHubRelease(plan, client) {
   let release = await request('GET', `${base}/releases/tags/${plan.tag}`, undefined, true)
   if (release === undefined) {
     release = await request('POST', `${base}/releases`, { tag_name: plan.tag, target_commitish: plan.commit,
-      name: `hemi-dsh ${plan.version} (${plan.channel})`, body: marker, generate_release_notes: true,
+      name: `Hemi ${plan.version} (${plan.channel})`, body: marker, generate_release_notes: true,
       draft: true, prerelease: plan.channel === 'nightly' })
   }
   requireValue(release.tag_name === plan.tag && hasPackageMarker(release, marker) && release.prerelease === (plan.channel === 'nightly'),

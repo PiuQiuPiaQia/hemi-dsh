@@ -30,11 +30,15 @@ export function configureHemiDesktopIdentity(
   if (identity === undefined) return undefined
   application.setName(identity.productName)
   if (!application.commandLine.getSwitchValue('user-data-dir')) {
-    const preferences = join(application.getPath('appData'), identity.productName)
+    const preferences = join(application.getPath('appData'), identity.distributionId)
     mkdirSync(preferences, { recursive: true, mode: 0o700 })
     application.setPath('userData', preferences)
     application.setPath('sessionData', preferences)
   }
   if (!environment.DSH_HOME?.trim()) environment.DSH_HOME = join(userHome, identity.homeDirectory)
+  if (environment.DSH_APP_PRODUCT === undefined && environment.DSH_APP_URL === undefined) {
+    environment.DSH_APP_PRODUCT = 'hemi'
+    environment.DSH_APP_URL = 'https://github.com/PiuQiuPiaQia/hemi-dsh'
+  }
   return identity
 }

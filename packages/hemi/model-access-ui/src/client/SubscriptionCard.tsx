@@ -1,22 +1,16 @@
 /** Shared subscription card for account actions, usage and model management. */
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, IconRefreshOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { LoginState, QuotaWindow, Subscription } from '@deepseek-ai/dsh-hemi-model-access/types'
+import { useState } from 'react'
+import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { LoginState, Subscription } from '@deepseek-ai/dsh-hemi-model-access/types'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './copy.ts'
-import { ModelPicker } from './ModelPicker.tsx'
-import { ModelConnectionTest } from './ModelConnectionTest.tsx'
+import { ProviderCardContent } from './ProviderCardContent.tsx'
+import type { SubscriptionBalance } from './ProviderUsage.tsx'
+export type { SubscriptionBalance } from './ProviderUsage.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
 import css from './page.module.css'
 
 type Props = PropsLocale<typeof NS> & { actions: ModelAccessActions }
-
-/** Account-owned balance rows, already formatted by the account provider. */
-export interface SubscriptionBalance {
-  rows: { id: string; label: string; value: string }[]
-  unavailable: boolean
-  usageUrl?: string
-}
 
 /** Data and operations shared by every subscription card. */
 export type SubscriptionCardProps = Props & {
@@ -45,42 +39,35 @@ export function SubscriptionCard({ row, actions, test, t, pending, attempt, conn
     try { await run() } catch { setFailed(true) } finally { setBusy(false) }
   }
   return <section className={css.card} aria-label={row.name}>
-    <div className={css.subscriptionHeader}>
-      <div className={css.subscriptionIdentity}>
-        <div><strong>{row.name}</strong><p>{t(row.connected ? 'connected' : 'disconnected')}</p></div>
-        {row.connected && row.quota && <Quota key={attempt?.id ?? row.id} provider={row.id} actions={actions} t={t} />}
-        {row.connected && balance !== undefined && <div className={css.quotaInline}>
-          <div className={css.quotaBars}>
-            {balance.rows.map(value => <div className={css.balanceLine} key={value.id}>
-              <span>{value.label}</span><span>{value.value}</span>
-            </div>)}
-            {balance.unavailable && <a href={balance.usageUrl} target="_blank" rel="noreferrer">{t('balanceUnavailable')}</a>}
-          </div>
-          {refreshBalance !== undefined && <UsageRefreshButton label={t('refreshBalance')} loading={busy}
-            refresh={() => { void change(refreshBalance) }} />}
-        </div>}
-      </div>
-      <div className={css.actions}>
-        {row.connected && <ModelPicker current={row.models} t={t} iconOnly disabled={busy || pending || modelLoading === true}
-          load={signal => actions.subscriptionCandidates(row.id, signal)}
-          add={async (models) => {
-            try { for (const model of models) await actions.changeSubscriptionModel(row.id, model, true) }
-            finally { await modelsChanged() }
-          }} />}
-        <Button variant="outline" size="sm" disabled={busy || pending} onClick={() => { void change(connect) }}>
-          {t(row.connected ? 'reconnect' : 'connect')}
-        </Button>
-        {row.connected && <Button variant="outline" size="sm" disabled={busy || pending}
-          onClick={() => { void change(disconnect) }}>{t('disconnect')}</Button>}
-      </div>
-    </div>
-    {row.connected && row.models.map(model => <ModelConnectionTest key={model} provider={row.id} model={model}
-      test={test} t={t} actions={actions} saved={modelsChanged}
-      remove={async () => {
+    <ProviderCardContent provider={row.id} name={row.name} description={t(row.connected ? 'connected' : 'disconnected')}
+      models={row.connected ? row.models : []} actions={actions} test={test} t={t} saved={modelsChanged}
+      modelLoading={row.connected && modelLoading === true}
+      remove={async (model) => {
         await actions.changeSubscriptionModel(row.id, model, false)
         await modelsChanged()
-      }} />)}
-    {row.connected && modelLoading && <p role="status">{t('loading')}</p>}
+      }}
+      {...row.connected ? {
+        discovery: {
+          disabled: busy || pending || modelLoading === true,
+          load: (signal: AbortSignal) => actions.subscriptionCandidates(row.id, signal),
+          add: async (models: string[]) => {
+            try { for (const model of models) await actions.changeSubscriptionModel(row.id, model, true) }
+            finally { await modelsChanged() }
+          },
+        },
+        usage: {
+          actions, t, busy,
+          ...row.quota ? { quota: { provider: row.id, identity: attempt?.id ?? row.id } } : {},
+          ...balance === undefined ? {} : { balance },
+          ...refreshBalance === undefined ? {} : { refreshBalance: () => { void change(refreshBalance) } },
+        },
+      } : {}}
+      buttons={[
+        { id: 'connect', label: t(row.connected ? 'reconnect' : 'connect'), disabled: busy || pending,
+          run: () => { void change(connect) } },
+        ...row.connected ? [{ id: 'disconnect', label: t('disconnect'), disabled: busy || pending,
+          run: () => { void change(disconnect) } }] : [],
+      ]} />
     {attempt !== undefined && (attempt.phase === 'pending'
       ? <LoginAttempt attempt={attempt} actions={actions} change={change} busy={busy} t={t} />
       : attempt.phase !== 'connected' && <p role="status">{t(attempt.phase === 'route-failed' ? 'routeFailed' : attempt.phase)}</p>)}
@@ -111,7 +98,7 @@ function LoginAttempt({ attempt, actions, change, busy, t }: Props & {
           <label>
             {attempt.prompt.message}
             {attempt.prompt.options === undefined
-              ? <input name="answer" type={attempt.prompt.kind === 'secret' ? 'password' : 'text'} autoComplete="off" />
+              ? <Input className={css.input ?? ''} name="answer" type={attempt.prompt.kind === 'secret' ? 'password' : 'text'} autoComplete="off" />
               : <select name="answer">{attempt.prompt.options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select>}
           </label>
           <Button type="submit" variant="outline" size="sm" disabled={busy}>{t('answer')}</Button>
@@ -120,61 +107,6 @@ function LoginAttempt({ attempt, actions, change, busy, t }: Props & {
       <Button variant="outline" size="sm" disabled={busy} onClick={() => { void change(() => actions.cancel(attempt.id)) }}>
         {t('cancel')}
       </Button>
-    </div>
-  )
-}
-
-function UsageRefreshButton({ label, loading, refresh }: { label: string; loading: boolean; refresh: () => void }) {
-  return <Tooltip label={label}>
-    <Button variant="ghost" size="sm" aria-label={label} aria-busy={loading}
-      icon={<IconRefreshOutlineRegular size={14} />} disabled={loading} onClick={refresh} />
-  </Tooltip>
-}
-
-function Quota({ actions, provider, t }: Props & { provider: string }) {
-  const active = useRef<AbortController | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [windows, setWindows] = useState<QuotaWindow[]>([])
-  const [failed, setFailed] = useState(false)
-  const read = useCallback(async (): Promise<void> => {
-    active.current?.abort()
-    const request = new AbortController()
-    active.current = request
-    setLoading(true)
-    setFailed(false)
-    try {
-      const value = await actions.quota(provider, request.signal)
-      if (!request.signal.aborted) setWindows(value)
-    } catch {
-      if (!request.signal.aborted) setFailed(true)
-    } finally {
-      if (!request.signal.aborted) setLoading(false)
-    }
-  }, [actions, provider])
-  useEffect(() => {
-    void read()
-    return () => { active.current?.abort() }
-  }, [read])
-  const seconds = provider === 'bigmodel' ? [604800, 18000] : windows.map(window => window.seconds).sort((a, b) => b - a)
-  return (
-    <div className={css.quotaInline}>
-      <div className={css.quotaBars}>
-        {seconds.map((duration) => {
-          const window = windows.find(item => item.seconds === duration)
-          const label = duration === 604800 ? t('weeklyQuota') : duration === 18000 ? t('shortQuota') : t('quotaWindow', { hours: duration / 3600 })
-          return (
-            <div className={css.quotaLine} key={duration}
-              title={window?.resetAt === undefined ? undefined : t('reset', { at: new Date(window.resetAt).toLocaleString() })}>
-              <span>{label}</span>
-              {window === undefined ? <span className={css.quotaTrack} aria-hidden="true" />
-                : <progress max={100} value={window.remainingPercent} aria-label={label} />}
-              <span>{window === undefined ? '—' : t('quotaPercent', { percent: Math.round(window.remainingPercent) })}</span>
-            </div>
-          )
-        })}
-      </div>
-      <UsageRefreshButton label={t('quota')} loading={loading} refresh={() => { void read() }} />
-      {failed && <small role="status">{t('quotaUnavailable')}</small>}
     </div>
   )
 }

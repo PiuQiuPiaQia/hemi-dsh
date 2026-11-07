@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.3/hemi-child-agent-presets/guide.md
+/:
+  en: 28169968456f464a
+  zh: a68847bde3ac9828
+/hemi-routing-roles-in-main-sessions:
+  en: bc47907ba3b0526a
+  zh: 6a4d7b93ad876791
+/hemi-routing-roles-in-main-sessions/change:
+  en: 3247fb3268f63aaa
+  zh: c2d0d9f1503c82e4
+/hemi-routing-roles-in-main-sessions/migration:
+  en: dc870f3b3e9849fc
+  zh: c7213faf8b948026

@@ -1,3 +1,8 @@
+# Hemi fork: keep dependency copies and their cache in the ordinary SSD workspace.
+# See hemi-fork-changes.md#hemi-customization-isolation.
+storeDir: .pnpm-store
+packageImportMethod: copy
+
 packages:
   - vendor/*
   - packages/*/*

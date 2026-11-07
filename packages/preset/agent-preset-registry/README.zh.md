@@ -47,6 +47,8 @@ Web 内置定义来自 `dsh-web-app` bundle。定义使用普通插件行；注�
 
 注册表不写入任何声明。`read` Remote 把一条声明的子插件列表按 entry-list YAML 方言（含 `!!js` 条件）渲染回来，供客户端展示 preset 的组成；没有任何接口接受 YAML 写回。新建 preset 或覆盖内置 preset 都是 bundle 补丁：插入一行 `@deepseek-ai/dsh-agent-preset`，或按该行 id 写覆盖补丁，再用 `plugin_manager` 安装到 profile；创造模式在对话中编写这类 bundle。
 
+列表包含标有 `subagentOnly: true` 的声明，客户端可以据此显示已记录的会话预设名称。已保存的默认值指向仅供子智能体使用的预设时，改用部署默认值。创建主会话或为空白主会话选择预设时会拒绝此类预设。委派和历史会话恢复仍可按 ID 加载它们。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

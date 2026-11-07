@@ -31,7 +31,7 @@ import {
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
 import { DesktopProjectManager } from './project-manager.ts'
-import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from './host-process.ts'
+import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError, type DesktopStartupOptions } from './host-process.ts'
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
@@ -301,6 +301,8 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     } : {}),
     webPreferences: {
       preload,
+      // Hemi fork: identify branded startup surfaces without changing unbranded DSH.
+      additionalArguments: hemiIdentity === undefined ? [] : [`--dsh-desktop-product=${hemiIdentity.distributionId}`, `--dsh-desktop-locale=${app.getLocale()}`],
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -498,6 +500,7 @@ async function main(): Promise<void> {
   let hostCookie: string | undefined
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
   let welcomeBackend: DesktopWelcomeBackend | undefined
+  let startupOptions: DesktopStartupOptions | undefined
   let reportedLaunch = false
   let analyticsEnabled = false
   const track = async <K extends keyof ProductEventMap>(eventName: K, attributes: ProductEventMap[K]): Promise<void> => {
@@ -557,6 +560,15 @@ async function main(): Promise<void> {
         void removeLegacyHostCookies(session.defaultSession.cookies, ready.url)
           .catch((error: unknown) => { console.error('desktop: legacy Host cookie cleanup failed', error) })
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')
+        // Hemi fork: the Host composition selects generic startup before any native account RPC.
+        startupOptions = ready.startup
+        if (startupOptions !== undefined) {
+          stopAccount?.()
+          stopAccount = undefined
+          welcomeBackend = undefined
+          analyticsEnabled = false
+          return
+        }
         welcomeBackend = connectDesktopWelcome(ready.url, cookie)
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
@@ -905,6 +917,7 @@ async function main(): Promise<void> {
       || new URL(event.senderFrame.url).origin !== new URL(applicationUrl).origin) {
       throw new Error('desktop welcome: rejected locale request from an unowned frame')
     }
+    if (startupOptions !== undefined) return { languages: systemLanguages, preference: startupOptions.localePreference }
     if (welcomeBackend === undefined) throw new Error('desktop welcome: backend unavailable')
     return { languages: systemLanguages, preference: await welcomeBackend.readLocalePreference() }
   })
@@ -912,6 +925,7 @@ async function main(): Promise<void> {
     const window = mainWindow
     if (window === undefined || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame
       || typeof next !== 'string') return
+    if (startupOptions !== undefined) startupOptions = { ...startupOptions, localePreference: next }
     const current = resolveDesktopStartupLocale(next, systemLanguages)
     writeDesktopLocaleCache(app.getPath('userData'), current.id)
     if (current.id === locale.id) return
@@ -954,13 +968,24 @@ async function main(): Promise<void> {
     assertProductSender(event)
     return updatePresentation(updates.state)
   })
+  // Hemi fork: optional provider UIs open their own authorization links; the shell owns validation.
+  ipcMain.handle(DESKTOP_IPC.openExternal, async (event, value: unknown) => {
+    assertProductSender(event)
+    if (typeof value !== 'string') throw new Error('Desktop external URL must be a string')
+    const url = new URL(value)
+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    if (url.username || url.password || !(url.protocol === 'https:' || (loopback && url.protocol === 'http:'))) {
+      throw new Error('Desktop external URL must use HTTPS or loopback HTTP')
+    }
+    await shell.openExternal(url.href)
+  })
   ipcMain.handle(DESKTOP_IPC.deviceInfo, (event) => {
     assertProductSender(event)
     return readDeviceInfo()
   })
   ipcMain.handle(DESKTOP_IPC.onboardingApiKey, async (event) => {
     assertProductSender(event)
-    return (await readWelcomeState()).hasApiKey
+    return startupOptions === undefined ? (await readWelcomeState()).hasApiKey : false
   })
   ipcMain.on(DESKTOP_IPC.onboardingActive, (event, active: unknown) => {
     const window = mainWindow
@@ -1430,13 +1455,13 @@ async function main(): Promise<void> {
   }
   const openInitialWindow = async (): Promise<void> => {
     if (quitting || recovery.active) return
-    const state = await readWelcomeState()
+    const state = startupOptions ?? await readWelcomeState()
     if (isQuitting() || backend.state.phase !== 'ready') return
     locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
     writeDesktopLocaleCache(app.getPath('userData'), locale.id)
     windowsLanguage = locale.id
     refreshApplicationMenu()
-    if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
+    if (!('mode' in state) && !enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
       // A later login must retain its own activation policy instead of replaying startup focus.
       raiseAfterUpdate = false
       await showWelcome()
@@ -1521,7 +1546,7 @@ async function main(): Promise<void> {
       if (quitting || shellInstallerOwnsQuit) return
       if (approved) { finishQuit(); return }
       // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
-      if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      if (!enteredWorkspace && !recovery.active && startupOptions === undefined && welcomeBackend !== undefined) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
     }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 

@@ -315,8 +315,7 @@ export function HemiModelSelect(
 
   const choose = (selection: ModelSelection): void => {
     if (state.current?.provider === selection.provider && state.current.model === selection.model) {
-      if (alternativeSelected) submit(state.current)
-      else closeAfterSelection()
+      submit(state.current)
       return
     }
     submit(selection)
@@ -324,10 +323,6 @@ export function HemiModelSelect(
 
   const chooseEffort = (effort: string | undefined): void => {
     if (state.current === null) return
-    if (effectiveEffort === effort) {
-      closeAfterSelection(effortToggleRef.current)
-      return
-    }
     const selection: ModelSelection = {
       provider: state.current.provider,
       model: state.current.model,

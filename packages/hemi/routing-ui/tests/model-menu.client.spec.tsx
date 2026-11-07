@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
+import '../src/client/model-picker/slots.ts'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { RoutingModeToggle, type RoutingModeProps } from '../src/client/RoutingModeToggle.tsx'
+import { RoutingModeChoice, RoutingModeToggle, type RoutingModeChoiceProps, type RoutingModeProps } from '../src/client/RoutingModeToggle.tsx'
 import { RoutingModelLabel, type RoutingLabelProps } from '../src/client/RoutingModelLabel.tsx'
 import { en, zh } from '../src/client/locales.ts'
 
@@ -25,6 +26,22 @@ function modeProps(enabled: boolean | null = false, child?: 'addressed' | 'liste
     openConfiguration: vi.fn(), t: makeTranslate(zh),
   } as RoutingModeProps
 }
+
+it('resubmits the selected automatic mode through the model-menu owner', async () => {
+  const props: RoutingModeChoiceProps = {
+    ...modeProps(true), selectAlternative: vi.fn((activate: () => Promise<string | null>) => { void activate() }),
+  }
+  const view = render(<RoutingModeChoice {...props} />)
+  await act(async () => { fireEvent.click(screen.getByRole('menuitemradio', { name: '自动路由' })) })
+  expect(props.selectAlternative).toHaveBeenCalledOnce()
+  expect(props.setEnabled).toHaveBeenCalledWith(true)
+  expect(props.dismiss).not.toHaveBeenCalled()
+  view.rerender(<RoutingModeChoice {...props} useRoutingSettings={select => select({
+    status: 'ready', writable: false, revision: 1, base: {}, user: {},
+    value: { main: { provider: 'p', model: 'm' }, roles: {}, sessionModes: { root: true } },
+  })} />)
+  expect(screen.getByRole('menuitemradio', { name: '自动路由' }).hasAttribute('disabled')).toBe(true)
+})
 
 it('reads saved preferences rather than optimistic mode and disables while pending', async () => {
   const operation = Promise.withResolvers<string | null>()

@@ -57,6 +57,22 @@ it('shows effort beside the model and saves it through the same selection servic
   expect(document.activeElement).toBe(effort)
 })
 
+it.each(['model', 'effort'] as const)('resubmits the saved %s so an explicit choice refreshes new-conversation defaults', async (kind) => {
+  const state = directory()
+  state.current = { provider: 'provider', model: 'model', reasoningEffort: 'low' }
+  const bindings = props(state)
+  render(<HemiModelSelect {...bindings} />)
+  const trigger = screen.getByRole('button', { name: kind === 'model' ? /选择模型/ : '推理等级' })
+  fireEvent.click(trigger)
+  await act(async () => {
+    fireEvent.click(screen.getByRole(kind === 'model' ? 'menuitemradio' : 'menuitem', {
+      name: kind === 'model' ? 'Reasoning model' : 'Low',
+    }))
+  })
+  expect(bindings.select).toHaveBeenCalledWith({ provider: 'provider', model: 'model', reasoningEffort: 'low' })
+  expect(document.activeElement).toBe(trigger)
+})
+
 it('dismisses independently with Escape, outside click, and the model trigger', async () => {
   render(<HemiModelSelect {...props()} />)
   const effort = screen.getByRole('button', { name: '推理等级' })

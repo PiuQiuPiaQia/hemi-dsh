@@ -9,13 +9,22 @@ kind: "package-reference"
 
 ## 概述
 
-Profile 所有者可使用已保存的供应商配置和凭据测试型号。服务发送一次简短请求并报告是否收到预期的工具调用。测试不会执行工具，也不会写入会话历史。
+Profile 所有者可使用已保存的供应商配置和凭据测试型号。服务发送一次简短请求并报告是否收到预期的工具调用。测试不会执行工具，也不会写入会话历史。 本服务也拥有提供方中立的 Desktop 引导偏好。
 
 ## 目录
 
+- [桌面设置](#desktop-setup)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
+
+<a id="desktop-setup"></a>
+
+## 桌面设置
+
+当 `desktopStartup: true` 时，本插件还注册会被记录的系统提示身份 `You are an AI agent powered by Hemi.`，所属组合停用原生 harness 身份。卸载插件会移除其提示段。
+
+`desktopStartup` 默认为 `false`，Hemi Desktop 组合将其设为 `true`。此时 `desktopStartup()` 返回工作区启动方式与保存的语言，不请求账号或凭据。`desktopWelcome()` 提供本地引导进度；已有的引导完成记录或保存的型号选择也视为已完成。`completeDesktopWelcome()` 通过所有者设置服务保存初始为 `false` 的 `welcomeCompleted`。共享访问方不能完成设置。这些操作不请求模型。
 
 ## 模型体验
 

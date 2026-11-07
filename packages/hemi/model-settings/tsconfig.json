@@ -16,6 +16,15 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../settings/settings"
+    },
+    {
+      "path": "../../core/agent-default-model"
+    },
+    {
+      "path": "../../core/system-prompt"
     }
   ]
 }

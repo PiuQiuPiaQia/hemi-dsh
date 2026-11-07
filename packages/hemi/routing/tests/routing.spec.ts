@@ -65,7 +65,7 @@ async function setupHost(
   script: readonly ScriptEntry[],
   options: {
     initial?: { main?: Route | null; roles?: Record<string, Route>; sessionModes?: Record<string, boolean> }
-    agentOptions?: { provider: string; model: string }
+    agentOptions?: { provider?: string; model?: string }
     maxDepth?: number
   } = {},
 ): Promise<Host> {
@@ -112,6 +112,26 @@ function delegateCall(id: string, role: string): StreamChunk[] {
 
 const MAIN: Route = { provider: 'mock', model: 'main-model' }
 const ORACLE: Route = { provider: 'mock', model: 'oracle-model' }
+
+it('selects the configured auto route before admitting a prompt to an unconfigured root', async () => {
+  const host = await setupHost([textResponse('ready')], {
+    initial: { main: MAIN, sessionModes: { lead: true } }, agentOptions: {},
+  })
+  expect(host.lead.model.current()).toBeUndefined()
+  await host.lead.ctx.serial('agent/before-user-prompt', host.lead)
+  expect(host.lead.model.current()).toMatchObject(MAIN)
+  expect(host.adapter.requests).toEqual([])
+  await runTurn(host.lead)
+  expect(host.adapter.requests).toHaveLength(1)
+  expect(host.adapter.requests[0]?.model).toBe(MAIN.model)
+})
+
+it('leaves an unconfigured fixed-mode root for explicit model selection', async () => {
+  const host = await setupHost([], { initial: { main: MAIN }, agentOptions: {} })
+  await host.lead.ctx.serial('agent/before-user-prompt', host.lead)
+  expect(host.lead.model.current()).toBeUndefined()
+  expect(host.adapter.requests).toEqual([])
+})
 
 describe('native delegation delivery', () => {
   it('returns the activation receipt before the routed child finishes and delivers its answer through the inbox', async () => {

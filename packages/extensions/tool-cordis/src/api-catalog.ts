@@ -119,10 +119,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Owns the default model selection independently of any Host or transport. Each operation reads the owning Config references.',
     methods: [
       {
-        signature: 'currentSelection(): ModelSelection',
+        signature: 'currentSelection(): ModelSelection | undefined',
         description: 'Read the current default model selection.',
         parameters: [],
-        returns: 'a detached provider, model, and optional reasoning selection.',
+        returns: 'a detached selection, or undefined when both route fields are explicitly null.',
       },
       {
         signature: 'async saveSelection(next: ModelSelection): Promise<void>',
@@ -198,9 +198,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'Current presets, each marked when it is the default.',
       },
       {
-        signature: 'async resolve(id?: string): Promise<AgentPreset>',
+        signature: 'async resolve(id?: string, usage?: \'main-session\'): Promise<AgentPreset>',
         description: 'Resolve an identity without starting an Agent.',
-        parameters: [{ name: 'id', description: 'Explicit preset or the current default.' }],
+        parameters: [{ name: 'id', description: 'Explicit preset or the current default.' }, { name: 'usage', description: 'Restrict selection when starting a new main session; historical IDs remain resolvable.' }],
         returns: 'Current metadata, including failure when activation failed.',
       },
       {
@@ -210,9 +210,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'The declared composition beside its published metadata.',
       },
       {
-        signature: 'async mount(ctx: Context, id?: string): Promise<AgentPreset>',
+        signature: 'async mount(ctx: Context, id?: string, usage?: \'main-session\'): Promise<AgentPreset>',
         description: 'Bind an unpublished Agent to the current preset revision.',
-        parameters: [{ name: 'ctx', description: 'Agent context from its setup callback.' }, { name: 'id', description: 'Requested preset, or the default.' }],
+        parameters: [{ name: 'ctx', description: 'Agent context from its setup callback.' }, { name: 'id', description: 'Requested preset, or the default.' }, { name: 'usage', description: 'Apply main-session restrictions to the retained revision.' }],
         returns: 'Bound preset identity.',
       },
       {
@@ -234,9 +234,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'The service, or undefined.',
       },
       {
-        signature: 'async recompose(ctx: Context, id: string): Promise<AgentPreset>',
+        signature: 'async recompose(ctx: Context, id: string, usage?: \'main-session\'): Promise<AgentPreset>',
         description: 'Rebind a blank Agent; the caller owns the blank-session check.',
-        parameters: [{ name: 'ctx', description: 'Agent context.' }, { name: 'id', description: 'Requested preset.' }],
+        parameters: [{ name: 'ctx', description: 'Agent context.' }, { name: 'id', description: 'Requested preset.' }, { name: 'usage', description: 'Apply main-session restrictions to the retained revision.' }],
         returns: 'The bound identity.',
       },
       {
@@ -1893,9 +1893,27 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'hemiModelSettings',
-    summary: 'Probe a configured route with its actual adapter and saved credential.',
-    description: 'Probe a configured route with its actual adapter and saved credential.',
+    summary: 'Own explicit model connection probes and local Desktop introduction preferences.',
+    description: 'Own explicit model connection probes and local Desktop introduction preferences.',
     methods: [
+      {
+        signature: 'desktopStartup(): { mode: \'workspace\'; localePreference: string | null } | undefined',
+        description: 'Resolve native startup without consulting any provider or credential.',
+        parameters: [],
+        returns: 'workspace startup preferences, or undefined for native DSH startup.',
+      },
+      {
+        signature: '@Remote desktopWelcome(): { readonly enabled: boolean; readonly completed: boolean }',
+        description: 'Read local introduction state while preserving completed legacy setup.',
+        parameters: [],
+        returns: 'completion from the local marker, saved model, or completed legacy introduction.',
+      },
+      {
+        signature: '@Remote async completeDesktopWelcome(): Promise<void>',
+        description: 'Acknowledge the local introduction without changing model connections or account state.',
+        parameters: [],
+        returns: 'after the completion marker is durably saved; failures retain the introduction.',
+      },
       {
         signature: '@Remote async testModel(provider: string, model: string, signal: AbortSignal): Promise<boolean>',
         description: 'Send a bounded request and check whether the model returns a test tool call.',
@@ -1960,13 +1978,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote async setReasoningEffort(agent: Agent, effort: HemiRoutingEffort, signal?: AbortSignal): Promise<void>',
-        description: 'Save the root conversation\'s automatic routing effort for later turns.',
+        description: 'Save the root conversation\'s automatic routing effort and the default for new conversations.',
         parameters: [{ name: 'agent', description: 'live root conversation whose routes use the choice.' }, { name: 'effort', description: 'one of the four model-independent routing levels.' }, { name: 'signal', description: 'cancellation checked before saving.' }],
         returns: 'after the settings pipeline confirms persistence.',
       },
       {
         signature: '@Remote async setEnabled(agent: Agent, enabled: boolean, signal?: AbortSignal): Promise<void>',
-        description: 'Save one root Session\'s routing mode preference. Only the root agent may switch; enabling validates the main route and every configured role route against the live LLM registry. The call resolves only after the settings pipeline has persisted the preference — no optimistic success — and the write is serialized after every earlier in-flight write of the same Session, so concurrent switches land in call order. The mode flips in memory at registration: an enable in flight routes nothing until it settles, and in-flight requests plus accepted delegations keep their routes either way.',
+        description: 'Save one root Session\'s routing mode and the default for new conversations. Only the root agent may switch; enabling validates the main route and every configured role route against the live LLM registry. The call resolves only after the settings pipeline has persisted the preference — no optimistic success — and the write is serialized after every earlier in-flight write of the same Session, so concurrent switches land in call order. The mode flips in memory at registration: an enable in flight routes nothing until it settles, and in-flight requests plus accepted delegations keep their routes either way. Re-selecting the saved mode refreshes new-conversation defaults without suspending the current routing mode.',
         parameters: [{ name: 'agent', description: 'exact live root whose tree receives the selection.' }, { name: 'enabled', description: '`true` selects auto routing, `false` returns to fixed.' }, { name: 'signal', description: 'cancellation checked before the preference is written.' }],
         throws: ['when called by a descendant, validation fails, or the save fails.'],
       },
@@ -2997,9 +3015,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the normalized selection installed for the Session, without waiting for default persistence.',
       },
       {
-        signature: '@Remote async initializeDefaultModel(): Promise<void>',
-        description: 'Select the first available account model after login when no provider API key is configured.',
-        parameters: [],
+        signature: '@Remote async initializeDefaultModel(provider: string): Promise<void>',
+        description: 'Select the first available model from the requested provider when no provider API key is configured.',
+        parameters: [{ name: 'provider', description: 'explicitly requested provider route; no provider is implied.' }],
         returns: 'after saving the first available model or retaining the existing default.',
       },
       {
@@ -5015,6 +5033,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'agent', description: 'live Agent receiving the user\'s choice.' }],
   },
   {
+    name: 'agent/before-user-prompt',
+    mode: 'serial',
+    signature: '\'agent/before-user-prompt\'(agent: Agent): undefined | Promise<undefined>',
+    summary: 'Resolve an unconfigured Agent\'s model before admitting a user prompt.',
+    description: 'Resolve an unconfigured Agent\'s model before admitting a user prompt.',
+    parameters: [{ name: 'agent', description: 'prompt recipient before user content is admitted.' }],
+  },
+  {
     name: 'agent/created',
     mode: 'serial',
     signature: '\'agent/created\'(this: Scoped<Agent>, payload: { agent: Agent; source: SessionStartSource; signal?: AbortSignal }): undefined | Promise<undefined>',
@@ -5832,7 +5858,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AgentOptions',
-    declaration: 'export interface AgentOptions {\n    provider?: string;\n    model?: string;\n    reasoningEffort?: ReasoningEffortId | undefined;\n    maxTokens?: number;\n}',
+    declaration: 'export interface AgentOptions {\n    provider?: string | undefined;\n    model?: string | undefined;\n    reasoningEffort?: ReasoningEffortId | undefined;\n    maxTokens?: number;\n}',
   },
   {
     name: 'AgentPresetComposition',
@@ -5856,7 +5882,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AgentPresetRow',
-    declaration: 'export interface AgentPresetRow {\n    readonly id: string;\n    readonly isDefault: boolean;\n    readonly name?: string;\n    readonly description?: string;\n    readonly broken?: string;\n}',
+    declaration: 'export interface AgentPresetRow {\n    readonly id: string;\n    readonly isDefault: boolean;\n    readonly name?: string;\n    readonly description?: string;\n    readonly subagentOnly?: boolean;\n    readonly broken?: string;\n}',
   },
   {
     name: 'AgentResolver',
@@ -6248,7 +6274,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CompactionAgentContext',
-    declaration: 'export interface CompactionAgentContext {\n    session: Session;\n    options: {\n        provider?: string;\n        model?: string;\n    };\n}',
+    declaration: 'export interface CompactionAgentContext {\n    session: Session;\n    options: {\n        provider?: string | undefined;\n        model?: string | undefined;\n    };\n}',
   },
   {
     name: 'CompactionId',
@@ -7688,7 +7714,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ModelCatalog',
-    declaration: 'export interface ModelCatalog {\n    readonly default: ModelSelection;\n    readonly routableProviders: readonly string[];\n    readonly groups: readonly ModelProviderGroup[];\n    readonly failures: readonly ModelCatalogFailure[];\n}',
+    declaration: 'export interface ModelCatalog {\n    readonly default: ModelSelection | null;\n    readonly routableProviders: readonly string[];\n    readonly groups: readonly ModelProviderGroup[];\n    readonly failures: readonly ModelCatalogFailure[];\n}',
   },
   {
     name: 'ModelCatalogFailure',
@@ -8052,7 +8078,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PresetDefinition',
-    declaration: 'export interface PresetDefinition {\n    readonly id: string;\n    readonly name?: string;\n    readonly description?: string;\n    readonly order?: number;\n    readonly plugins: readonly (Omit<EntryOptions, \'id\' | \'disabled\'> & {\n        id?: string;\n        disabled?: EntryOptions[\'disabled\'] | JsExpr;\n    })[];\n}',
+    declaration: 'export interface PresetDefinition {\n    readonly id: string;\n    readonly name?: string;\n    readonly description?: string;\n    readonly order?: number;\n    readonly subagentOnly?: boolean;\n    readonly plugins: readonly (Omit<EntryOptions, \'id\' | \'disabled\'> & {\n        id?: string;\n        disabled?: EntryOptions[\'disabled\'] | JsExpr;\n    })[];\n}',
   },
   {
     name: 'PresetOption',

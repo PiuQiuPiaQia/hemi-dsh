@@ -9,7 +9,7 @@
 }
 
 .page {
-  gap: 20px;
+  gap: 16px;
   color: var(--dsw-alias-label-primary);
   font-size: 13px;
   line-height: 20px;
@@ -23,7 +23,7 @@
 
 .page h2 {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 24px;
 }
 
@@ -64,8 +64,8 @@
   overflow-wrap: anywhere;
 }
 
-.card input,
-.card select {
+.card select,
+.importBody select {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -78,7 +78,9 @@
 }
 
 .card button,
-.card a {
+.card a,
+.importBody button,
+.importBody a {
   justify-self: start;
 }
 
@@ -90,27 +92,17 @@
 }
 
 .methods {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  border-bottom: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  padding-bottom: 12px;
+  justify-self: start;
+  max-width: 100%;
 }
 
-.providerRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-block: 12px;
-  border-bottom: 0.5px solid var(--dsw-alias-settings-card-stroke);
-}
-
-.providerRow p,
-.providerRow small {
-  color: var(--dsw-alias-label-secondary);
+.providerDescription {
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.providerDescription small {
+  color: var(--dsw-alias-label-secondary);
 }
 
 .card .modelChoice {
@@ -122,15 +114,6 @@
 .modelChoice input {
   width: auto;
   accent-color: var(--dsw-alias-label-primary);
-}
-
-.page :focus-visible {
-  outline: 2px solid var(--dsw-alias-label-primary);
-  outline-offset: 3px;
-}
-
-.providerGroup {
-  min-width: 0;
 }
 
 .modelTestRow {
@@ -161,8 +144,8 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.subscriptionHeader,
-.subscriptionIdentity,
+.providerHeader,
+.providerIdentity,
 .quotaInline {
   display: flex;
   align-items: center;
@@ -170,11 +153,12 @@
   gap: 12px;
 }
 
-.subscriptionHeader {
+.providerHeader {
   justify-content: space-between;
 }
 
-.subscriptionIdentity {
+.providerIdentity {
+  min-width: 0;
   gap: 12px;
 }
 
@@ -244,12 +228,132 @@
   gap: 8px;
 }
 
-.modelDialog {
+.modelDialog,
+.importDialog {
   width: min(600px, calc(100vw - 32px));
   max-width: 100%;
   color: var(--dsw-alias-label-primary);
   font-size: 13px;
   line-height: 20px;
+}
+
+.importDialog {
+  max-height: 100%;
+}
+
+.importContent {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.loginDialog {
+  width: min(960px, 100%);
+  height: min(760px, 100%);
+  padding: 0;
+}
+
+.loginBody {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 16px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.loginHeader,
+.loginFooter {
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.loginHeader h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.loginHeader p,
+.loginFooter p {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.loginViewport {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  background: var(--dsw-alias-settings-card-fill);
+}
+
+.siteFields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.importBody {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.importBody p,
+.importBody h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.importBody p,
+.importSummary {
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.importBody h3 {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.importBody label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.importSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.importSteps li {
+  padding-block: 0 8px;
+  border-bottom: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.importSteps li[aria-current='step'] {
+  border-color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+.importSummary {
+  margin-block: 12px 0;
 }
 
 .dialogContent {
@@ -263,23 +367,19 @@
   min-width: 0;
 }
 
-.dialogForm label,
-.searchField {
+.dialogForm label {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
-.dialogForm input:not([type='checkbox']) {
-  box-sizing: border-box;
-  width: 100%;
+.input {
   min-width: 0;
-  padding: 6px 8px;
-  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
-  border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-settings-card-fill);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
+}
+
+.input input::placeholder {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 1;
 }
 
 .dialogForm .modelChoice {
@@ -287,10 +387,6 @@
   align-items: center;
   gap: 8px;
   overflow-wrap: anywhere;
-}
-
-.searchField {
-  flex: 1;
 }
 
 .capacityFields {
@@ -315,7 +411,9 @@
 }
 
 @media (pointer: coarse) {
-  .dialogForm input:not([type='checkbox']) {
+  .input input,
+  .card select,
+  .importBody select {
     font-size: 16px;
   }
 }

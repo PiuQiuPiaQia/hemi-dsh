@@ -2,7 +2,7 @@
 /** macOS development bundle that loads the current workspace through Electron. */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 /** Workspace and runtime settings captured for Launch Services cold starts. */
@@ -20,6 +20,17 @@ export interface DevelopmentAppOptions {
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'` }
+
+function removeBundleSidecars(directory: string): void {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) removeBundleSidecars(path)
+    else if (entry.isFile() && entry.name.startsWith('._')) {
+      const bytes = readFileSync(path)
+      if (bytes.length >= 4 && bytes.readUInt32BE(0) === 0x00051607) rmSync(path)
+    }
+  }
+}
 
 /**
  * Prepare and register a disposable .app without changing the installed Electron package.
@@ -39,6 +50,8 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
     mkdirSync(options.directory, { recursive: true })
     rmSync(bundle, { recursive: true, force: true })
     execFileSync('/usr/bin/ditto', ['--norsrc', '--noextattr', source, bundle])
+    // Hemi fork: ditto's attribute flags do not exclude physical AppleDouble files copied from external volumes.
+    removeBundleSidecars(bundle)
     const plist = join(bundle, 'Contents', 'Info.plist')
     const values = {
       CFBundleIdentifier: `com.deepseek.harness.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
@@ -87,6 +100,7 @@ export function developmentLauncher(options: DevelopmentAppOptions, bundle: stri
   ]
   return [
     '#!/bin/sh',
+    'unset ELECTRON_RUN_AS_NODE',
     ...Object.entries(environment).map(([key, value]) => `export ${key}=${quote(value)}`),
     `cd ${quote(options.appRoot)}`,
     `exec ${args.map(quote).join(' ')} "$@"`,

@@ -35,6 +35,15 @@ it('shows exactly four localized levels and saves without selecting a concrete m
   expect(document.activeElement).toBe(trigger)
 })
 
+it('resubmits the current level as an explicit preference for new conversations', async () => {
+  const props = bindings()
+  render(<RoutingEffortSelect {...props} />)
+  fireEvent.click(screen.getByRole('button', { name: '推理强度' }))
+  await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: '中' })) })
+  expect(props.setEffort).toHaveBeenCalledWith('medium')
+  expect(screen.queryByRole('menu')).toBeNull()
+})
+
 it('retains the accepted level and reports a rejected save', async () => {
   const props = bindings()
   props.setEffort = vi.fn(async () => 'offline')

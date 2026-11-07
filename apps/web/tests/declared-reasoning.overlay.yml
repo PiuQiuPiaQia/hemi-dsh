@@ -6,3 +6,10 @@
   config:
     provider: acme-gateway
     model: acme-think
+
+# This scenario exercises the native selector's nested reasoning menu.
+- id: hemi-routing-ui
+  disabled: true
+- id: ui-model-selection
+  config:
+    showComposer: true

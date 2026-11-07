@@ -35,7 +35,7 @@ describe('web e2e: blank Session reuse under the requested preset', () => {
     const handle = await scaffold.ctx.agents.create({
       sessionId,
       meta: { cwd: path, agentPreset },
-      agentOptions: scaffold.ctx.agentDefaultModel.currentSelection(),
+      agentOptions: scaffold.ctx.agentDefaultModel.currentSelection() ?? {},
     })
     try {
       handle.agent.session.append('plan/mode', { active: true })

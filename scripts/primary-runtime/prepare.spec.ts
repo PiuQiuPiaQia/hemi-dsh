@@ -1,12 +1,17 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { zipSync } from 'fflate'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { downloadPrimaryRuntimeAsset, prepareOfficeSkillAssets, primaryRuntimePayloadDigest, prunePnpmForeignNativePackages, smokePrimaryRuntime, unpackPrimaryRuntimeWheel } from './prepare.ts'
 import lock from './lock.json' with { type: 'json' }
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return { ...actual, rmSync: vi.fn(actual.rmSync) }
+})
 
 it('covers every SDK wheel target with the shared interpreter lock', () => {
   const platforms = JSON.parse(readFileSync(new URL('../../python/sdk-runtime/platforms.json', import.meta.url), 'utf8')) as Record<string, unknown>
@@ -149,6 +154,45 @@ it('copies complete Office resources outside the application archive and removes
       expect(await readFile(join(destination, name, 'SKILL.md'), 'utf8')).toBe(`# ${name}\n`)
     }
     await expect(readFile(join(destination, 'obsolete.py'))).rejects.toMatchObject({ code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+it('allows bounded filesystem retries while replacing generated resources', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'desktop-resource-cleanup-'))
+  const source = join(root, 'source'), destination = join(root, 'destination')
+  try {
+    await mkdir(source)
+    await mkdir(destination)
+    await writeFile(join(source, 'SKILL.md'), '# Office\n')
+    await writeFile(join(destination, 'obsolete'), 'previous generation')
+    const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+    vi.mocked(rmSync).mockImplementationOnce((path, options) => {
+      // Model a host requiring Node's finite retry budget for a transient ENOTEMPTY.
+      const attempts = options?.maxRetries ?? 0, delay = options?.retryDelay ?? 0
+      if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 10 || delay < 1 || delay > 1000) {
+        throw Object.assign(new Error('directory not empty'), { code: 'ENOTEMPTY' })
+      }
+      actual.rmSync(path, options)
+    })
+    await prepareOfficeSkillAssets(source, destination)
+    expect(await readFile(join(destination, 'SKILL.md'), 'utf8')).toBe('# Office\n')
+    await expect(readFile(join(destination, 'obsolete'))).rejects.toMatchObject({ code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+it('stops resource preparation when cleanup exhausts its retry budget', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'desktop-resource-cleanup-failure-'))
+  const source = join(root, 'source'), destination = join(root, 'destination')
+  try {
+    await mkdir(source)
+    await mkdir(destination)
+    await writeFile(join(source, 'SKILL.md'), '# Office\n')
+    await writeFile(join(destination, 'obsolete'), 'previous generation')
+    const failure = Object.assign(new Error('directory remains nonempty'), { code: 'ENOTEMPTY' })
+    vi.mocked(rmSync).mockImplementationOnce(() => { throw failure })
+    await expect(prepareOfficeSkillAssets(source, destination)).rejects.toBe(failure)
+    expect(await readFile(join(destination, 'obsolete'), 'utf8')).toBe('previous generation')
+    await expect(readFile(join(destination, 'SKILL.md'))).rejects.toMatchObject({ code: 'ENOENT' })
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 

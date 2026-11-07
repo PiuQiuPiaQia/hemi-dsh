@@ -42,3 +42,17 @@ it('weights cache hits by full input tokens and withholds rates when the source 
   expect(formatCacheHit(conversationCacheHit([{ ...small, totalReports: 0 }]))).toBe('—')
   expect(formatCacheHit(conversationCacheHit([small], 1))).toBe('—')
 })
+
+it('keeps unreported calls in coverage without treating their consumption as zero', () => {
+  const reported = { ...usageRow(), calls: 3, reportedCalls: 2, totalReports: 2,
+    totalTokens: 220, outputTokens: 20, cacheReadTokens: 80, cacheReadReports: 2 }
+  const unreported = { ...usageRow('memory'), calls: 1, reportedCalls: 0, totalReports: 0,
+    totalTokens: 0, outputTokens: 0, uncachedInputTokens: 0 }
+  const cache = conversationCacheHit([reported, unreported])
+  expect(cache).toEqual({ ratio: 0.4, reportedCalls: 2, calls: 4 })
+  expect(formatCacheHit(cache)).toBe('40%')
+  expect(conversationCacheHit([unreported])).toBeUndefined()
+  expect(conversationCacheHit([{ ...reported, totalReports: 1 }])).toBeUndefined()
+  expect(conversationCacheHit([{ ...reported, cacheReadReports: 1 }])).toBeUndefined()
+  expect(conversationCacheHit([reported], 1)).toBeUndefined()
+})

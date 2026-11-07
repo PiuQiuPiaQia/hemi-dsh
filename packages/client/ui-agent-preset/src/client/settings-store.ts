@@ -36,7 +36,7 @@ export async function writeDefaultPreset(
   return response.ok ? undefined : response.error.message
 }
 
-/** One selectable preset. */
+/** Display metadata for a preset that can compose a session. */
 export interface AgentPresetOption {
   /** Preset id, written to Settings and the label's fallback. */
   id: string
@@ -44,6 +44,8 @@ export interface AgentPresetOption {
   name?: string
   /** One sentence on what the preset is for. */
   description?: string
+  /** Whether this label belongs to a preset excluded from main-session choices. */
+  subagentOnly?: boolean
 }
 
 /** Whether a shipped preset requires the Coding Tools preference.
@@ -102,27 +104,21 @@ export async function beginRosterRead<S extends { status: string; error: string 
 }
 
 /**
- * The roster entries as the pickers render them: healthy presets only.
- *
- * The chip exists to choose the NEXT session's composition, and a broken
- * preset cannot compose one — offering it would defer the discovery of that
- * fact to a failed session start. The management section renders the full
- * roster (broken rows included) from its own store instead.
- *
- * The chip, the header label, and the management section all show the same
- * facts, and `exactOptionalPropertyTypes` makes "absent" and "present as
- * undefined" different shapes — so the spread dance belongs in one place rather than
- * once per store.
+ * Display metadata for healthy presets. The mode menu filters child-only
+ * presets, while session labels can still use their names. The settings
+ * section reads the roster separately so it can show activation failures.
  * @param presets - the roster the host answered with.
- * @returns one option per selectable preset, in roster order.
+ * @returns one entry per healthy preset, in roster order.
  */
 export function presetOptions(
-  presets: readonly { id: string; name?: string; description?: string; broken?: string }[],
+  presets: AgentPresetRoster['presets'],
 ): AgentPresetOption[] {
   return presets.filter(preset => preset.broken === undefined).map(preset => ({
     id: preset.id,
     ...preset.name === undefined ? {} : { name: preset.name },
     ...preset.description === undefined ? {} : { description: preset.description },
+    // Hemi fork: keep labels available for existing sessions while carrying picker visibility.
+    ...preset.subagentOnly === undefined ? {} : { subagentOnly: preset.subagentOnly },
   }))
 }
 

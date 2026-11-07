@@ -1,17 +1,19 @@
-// Isolated native login window. It has no preload and cannot call Hemi IPC.
+// The embedded sign-in view has no preload and cannot call Hemi IPC.
 import { loginSiteKey } from './login-store.mjs';
 import { createLoginMemory } from './login-memory.mjs';
 
-export function createImportBrowser({ createWindow, sessionFromPartition, mainWindow, siteOrigin, loginStore, onLoginMemoryError, onContentReady }) {
+export function createImportBrowser({
+  createView, sessionFromPartition, mainWindow, siteOrigin, loginStore, onLoginMemoryError, onContentReady,
+  onNavigationBlocked, onRenderProcessGone,
+}) {
   const session = sessionFromPartition(`persist:hemi-newapi-${loginSiteKey(siteOrigin)}`);
   session.setPermissionCheckHandler?.(() => false);
   session.setPermissionRequestHandler?.((_contents, _permission, reply) => reply(false));
-  session.on?.('will-download', denyDownload);
-  const window = createWindow({
-    parent: mainWindow, width: 960, height: 720, show: false, title: `New API · ${new URL(siteOrigin).host}`,
+  const view = createView(mainWindow, {
     webPreferences: { session, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true },
   });
-  const contents = window.webContents;
+  session.on?.('will-download', denyDownload);
+  const contents = view.contents;
   const loginMemory = createLoginMemory({ session, siteOrigin, store: loginStore, onError: onLoginMemoryError });
   let disposed = false;
   let restored;
@@ -19,13 +21,17 @@ export function createImportBrowser({ createWindow, sessionFromPartition, mainWi
     try { const url = new URL(target); return url.origin === siteOrigin && !url.username && !url.password; }
     catch { return false; }
   };
-  contents.on('will-navigate', (event, url) => { if (!allow(url)) event.preventDefault(); });
-  contents.on('will-redirect', (event, url) => { if (!allow(url)) event.preventDefault(); });
-  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.on('close', (event) => {
-    if (disposed) return;
+  const guardNavigation = (event) => {
+    if (allow(event.url)) return;
     event.preventDefault();
-    window.hide();
+    onNavigationBlocked();
+  };
+  contents.on('will-navigate', guardNavigation);
+  contents.on('will-redirect', guardNavigation);
+  contents.on('render-process-gone', onRenderProcessGone);
+  contents.setWindowOpenHandler(() => {
+    onNavigationBlocked();
+    return { action: 'deny' };
   });
   return {
     contents, session,
@@ -34,19 +40,23 @@ export function createImportBrowser({ createWindow, sessionFromPartition, mainWi
       restored ??= loginMemory.restore();
       await restored;
       if (disposed) throw new Error('导入浏览器已关闭');
-      window.show();
       try { await contents.loadURL(url); }
+      catch (error) {
+        // A site may redirect by replacing its initial document before it finishes.
+        if (error?.code !== 'ERR_ABORTED' || !allow(contents.getURL())) throw error;
+      }
       finally { onContentReady?.(); }
     },
-    show() { if (!window.isDestroyed()) window.show(); },
-    hide() { if (!window.isDestroyed()) window.hide(); },
+    setBounds(bounds) { view.setBounds(bounds); },
+    focus() { view.focus(); },
+    hide() { view.setBounds(null); },
     confirmLogin: identity => loginMemory.confirmLogin(identity),
     flushLoginMemory: () => loginMemory.flush(),
     async dispose() {
       if (disposed) return;
       disposed = true;
       session.removeListener?.('will-download', denyDownload);
-      if (!window.isDestroyed()) window.destroy();
+      view.dispose();
       await loginMemory.dispose();
       await session.closeAllConnections?.();
     },

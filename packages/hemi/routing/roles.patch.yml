@@ -4,6 +4,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: explorer
+        subagentOnly: true
         name: 侦察
         description: "Role: explorer. Gather read-only context from code, documentation and references. Report facts, options and risks. Make no changes."
         order: 20
@@ -62,6 +63,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: oracle
+        subagentOnly: true
         name: 分析
         description: "Role: oracle. Analyze independently, challenge assumptions and report conclusions, trade-offs and failure modes."
         order: 21
@@ -75,6 +77,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: fixer
+        subagentOnly: true
         name: 执行
         description: "Role: fixer. Carry out the scoped implementation, run checks and report verified results and remaining gaps."
         order: 22
@@ -88,6 +91,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: designer
+        subagentOnly: true
         name: 设计
         description: "Role: designer. Design and implement the interface with deliberate layout, hierarchy, typography and responsive behavior."
         order: 23

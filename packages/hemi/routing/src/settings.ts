@@ -10,6 +10,7 @@
  * recorded; plain Session logs stay readable by every harness build.
  */
 
+import { addAbortListener } from 'node:events'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Volatile } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -50,10 +51,14 @@ const ROLE_KEY_SCHEMA = z.union([
   z.const('research'), z.const('review'), z.const('execution'), z.const('design'),
 ])
 
-/** Plugin config: the main route, the role table, and the per-Session modes. */
+/** Plugin config: routes, per-Session preferences, and defaults for new conversations. */
 export interface Config {
   /** Initial automatic routing effort before a conversation saves its own choice. */
   defaultReasoningEffort: Volatile<HemiRoutingEffort>
+  /** Last explicitly selected mode, captured only when a new conversation is created. */
+  newSessionMode: Volatile<HemiRoutingMode>
+  /** Last routing effort for new conversations; null uses defaultReasoningEffort. */
+  newSessionEffort: Volatile<HemiRoutingEffort | null>
   /** Automatic routing effort saved independently for each root conversation. */
   sessionEfforts: Volatile<Record<string, HemiRoutingEffort>>
   /** Auto routing's main route; `null` or absent until configured. */
@@ -67,6 +72,8 @@ export interface Config {
 /** Runtime schema; volatile so the settings card writes it live. */
 export const Config = z.object({
   defaultReasoningEffort: z.union(['low', 'medium', 'high', 'max']).default('high').volatile(),
+  newSessionMode: z.union(['fixed', 'auto']).default('fixed').volatile(),
+  newSessionEffort: z.union([z.const(null), 'low', 'medium', 'high', 'max']).default(null).volatile(),
   sessionEfforts: z.dict(z.union(['low', 'medium', 'high', 'max'])).default({}).volatile(),
   main: z.union([z.const(null), RouteSchema]).volatile(),
   roles: z.dict(RouteSchema, ROLE_KEY_SCHEMA).default({}).volatile(),
@@ -101,6 +108,8 @@ interface PendingWrite {
   readonly token: number
   /** Stored value the newest registered write targets. */
   readonly desired: boolean
+  /** Actual mode changes and their retries gate routing; default-only refreshes do not. */
+  readonly blocksRouting: boolean
   /** Whether the newest write still runs or has failed. */
   status: 'writing' | 'failed'
   /** Failure detail when `status` is `'failed'`. */
@@ -211,6 +220,8 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
   private readonly writeTokens = new Map<SessionId, number>()
   /** Serialized write chain per root session; links always settle fulfilled. */
   private readonly writeQueues = new Map<SessionId, Promise<void>>()
+  /** Preference commits and new-conversation snapshots share one submission order. */
+  private preferenceWrites = Promise.resolve()
   /** Set during unload; new routing-mode writes are refused afterwards. */
   private stopped = false
   /** Session id currently selecting through this service; see {@linkcode prepareTurn}. */
@@ -247,6 +258,12 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
         reasoningEffort: route.route.reasoningEffort === undefined ? undefined : ReasoningEffortId(route.route.reasoningEffort),
       }
     }), 'hemi-routing: native role model binding')
+    ctx.effect(() => ctx.on('agent/created', async ({ agent, source, signal }) => {
+      if (source !== 'startup' || agent.session.header.origin === 'subagent' || agent.session.header.isSeeded
+        || ctx.subagents.rootOf(agent) !== agent) return undefined
+      await this.initializeSession(agent, signal)
+      return undefined
+    }), 'hemi-routing: new conversation preferences')
     ctx.effect(() => ctx.on('agent/before-user-model-selection', async (agent) => {
       if (agent.session.header.origin !== 'subagent' && ctx.subagents.rootOf(agent) === agent) {
         await this.setEnabled(agent, false)
@@ -256,6 +273,41 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
     ctx.effect(() => ctx.on('session/event', (session, event) => {
       this.observeSelection(session.id, session.header.origin, event)
     }), 'hemi-routing: selection observer')
+  }
+
+  /** Keep new-conversation reads behind preference commits, including their rollback. */
+  private serializePreferences(operation: () => Promise<void>): Promise<void> {
+    const saving = this.preferenceWrites.then(operation)
+    this.preferenceWrites = saving.then(() => undefined, () => undefined)
+    return saving
+  }
+
+  /** Capture recent preferences once, without changing legacy or already configured Sessions. */
+  private async initializeSession(agent: Agent, signal: AbortSignal | undefined): Promise<void> {
+    const saving = this.serializePreferences(async () => {
+      signal?.throwIfAborted()
+      if (this.readSessionModes()[agent.id] !== undefined || this.config.sessionEfforts.get()[agent.id] !== undefined) return
+      const mode = this.config.newSessionMode.get()
+      const recentEffort = this.config.newSessionEffort.get()
+      if (mode === 'fixed' && recentEffort === null) return
+      const effort = recentEffort ?? this.config.defaultReasoningEffort.get()
+      if (mode === 'auto') await this.assertAutoReady(signal)
+      signal?.throwIfAborted()
+      if (this.stopped) throw new HemiRoutingError('routing settings are shutting down', 'HEMI_ROUTING_SAVE_FAILED')
+      await this.ctx.settings.mutate(SETTINGS_NAMESPACE, [
+        { op: 'set', path: ['sessionModes', agent.id], value: mode === 'auto' },
+        { op: 'set', path: ['sessionEfforts', agent.id], value: effort },
+      ]).catch((error: unknown) => {
+        this.ctx.logger.error(`hemi-routing: saving initial preferences for session ${agent.id} failed: ${String(error)}`)
+        throw new HemiRoutingError('saving initial routing preferences failed', 'HEMI_ROUTING_SAVE_FAILED', { cause: error })
+      })
+    })
+    if (signal === undefined) return saving
+    // ConfigEditor reconciliation can await AgentLoop teardown, which awaits this listener.
+    // Release publication on lifecycle cancellation; the accepted save retains its own outcome.
+    const cancelled = Promise.withResolvers<never>()
+    using _abortListener = addAbortListener(signal, () => { cancelled.reject(signal.reason) })
+    await Promise.race([saving, cancelled.promise])
   }
 
   /**
@@ -314,7 +366,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
    * @returns the effective mode.
    */
   modeOfSession(sessionId: SessionId): HemiRoutingMode {
-    if (this.pendingWrites.has(sessionId)) return 'fixed'
+    if (this.pendingWrites.get(sessionId)?.blocksRouting === true) return 'fixed'
     return this.readSessionModes()[sessionId] === true ? 'auto' : 'fixed'
   }
 
@@ -448,7 +500,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
   }
 
   /**
-   * Save the root conversation's automatic routing effort for later turns.
+   * Save the root conversation's automatic routing effort and the default for new conversations.
    * @param agent - live root conversation whose routes use the choice.
    * @param effort - one of the four model-independent routing levels.
    * @param signal - cancellation checked before saving.
@@ -462,7 +514,13 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
     signal?.throwIfAborted()
     if (this.stopped) throw new HemiRoutingError('routing settings are shutting down', 'HEMI_ROUTING_SAVE_FAILED')
     try {
-      await this.ctx.settings.mutate(SETTINGS_NAMESPACE, [{ op: 'set', path: ['sessionEfforts', agent.id], value: effort }])
+      await this.serializePreferences(async () => {
+        if (this.stopped) throw new HemiRoutingError('routing settings are shutting down', 'HEMI_ROUTING_SAVE_FAILED')
+        await this.ctx.settings.mutate(SETTINGS_NAMESPACE, [
+          { op: 'set', path: ['sessionEfforts', agent.id], value: effort },
+          { op: 'set', path: ['newSessionEffort'], value: effort },
+        ])
+      })
     } catch (error) {
       throw new HemiRoutingError('saving the routing effort failed', 'HEMI_ROUTING_SAVE_FAILED', { cause: error })
     }
@@ -491,7 +549,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
     // user's selection supersedes it before the preference lands.
     if (pending !== undefined && (pending.status === 'failed' || !pending.desired)) return
     if (pending === undefined && this.readSessionModes()[sessionId] !== true) return
-    const write = this.queueModeWrite(sessionId, false)
+    const write = this.queueModeWrite(sessionId, false, false)
     if (write === undefined) {
       this.ctx.logger.warn(`hemi-routing: session ${sessionId} left auto mode, but the settings service is shutting down; the preference was not saved`)
       return
@@ -511,13 +569,16 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
    * and rejects when persistence fails.
    * @param sessionId - root Session whose preference is written.
    * @param enabled - stored preference value.
+   * @param remember - explicit choices also save the mode for new conversations; observed selections do not.
    * @returns the dispatched write, or `undefined` during unload.
    */
-  private queueModeWrite(sessionId: SessionId, enabled: boolean): Promise<void> | undefined {
+  private queueModeWrite(sessionId: SessionId, enabled: boolean, remember: boolean): Promise<void> | undefined {
     if (this.stopped) return undefined
     const token = (this.writeTokens.get(sessionId) ?? 0) + 1
     this.writeTokens.set(sessionId, token)
-    this.pendingWrites.set(sessionId, { token, desired: enabled, status: 'writing' })
+    const blocksRouting = this.pendingWrites.get(sessionId)?.blocksRouting === true
+      || (this.readSessionModes()[sessionId] === true) !== enabled
+    this.pendingWrites.set(sessionId, { token, desired: enabled, blocksRouting, status: 'writing' })
     const previous = this.writeQueues.get(sessionId) ?? Promise.resolve()
     const settled = Promise.withResolvers<void>()
     const settings = this.ctx.settings
@@ -525,8 +586,17 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
     const run = async (): Promise<void> => {
       let failure: unknown
       try {
-        if (this.stopped) throw new HemiRoutingError('routing settings unloaded before the change was submitted', 'HEMI_ROUTING_SAVE_FAILED')
-        await settings.mutate(SETTINGS_NAMESPACE, [{ op: 'set', path: ['sessionModes', sessionId], value: enabled }])
+        const persist = async (): Promise<void> => {
+          if (this.stopped) throw new HemiRoutingError('routing settings unloaded before the change was submitted', 'HEMI_ROUTING_SAVE_FAILED')
+          if (remember && (this.readSessionModes()[sessionId] === true) === enabled
+            && this.config.newSessionMode.get() === (enabled ? 'auto' : 'fixed')) return
+          await settings.mutate(SETTINGS_NAMESPACE, [
+            { op: 'set', path: ['sessionModes', sessionId], value: enabled },
+            ...remember ? [{ op: 'set' as const, path: ['newSessionMode'], value: enabled ? 'auto' : 'fixed' }] : [],
+          ])
+        }
+        if (remember) await this.serializePreferences(persist)
+        else await persist()
       } catch (error: unknown) {
         failure = error
       }
@@ -537,7 +607,8 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
           const message = failure instanceof Error ? failure.message
             : typeof failure === 'string' ? failure : 'the settings write was rejected'
           logger.error(`hemi-routing: saving the routing mode change for session ${sessionId} failed: ${message}`)
-          this.pendingWrites.set(sessionId, { token, desired: enabled, status: 'failed', message })
+          if (blocksRouting) this.pendingWrites.set(sessionId, { token, desired: enabled, blocksRouting, status: 'failed', message })
+          else this.pendingWrites.delete(sessionId)
         }
       }
       if (failure === undefined) settled.resolve()
@@ -551,7 +622,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
   }
 
   /**
-   * Save one root Session's routing mode preference. Only the root agent may
+   * Save one root Session's routing mode and the default for new conversations. Only the root agent may
    * switch; enabling validates the main route and every configured role route
    * against the live LLM registry. The call resolves only after the settings
    * pipeline has persisted the preference — no optimistic success — and the
@@ -559,7 +630,8 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
    * Session, so concurrent switches land in call order. The mode flips in
    * memory at registration: an enable in flight routes nothing until it
    * settles, and in-flight requests plus accepted delegations keep their
-   * routes either way.
+   * routes either way. Re-selecting the saved mode refreshes new-conversation
+   * defaults without suspending the current routing mode.
    * @param agent - exact live root whose tree receives the selection.
    * @param enabled - `true` selects auto routing, `false` returns to fixed.
    * @param signal - cancellation checked before the preference is written.
@@ -572,9 +644,7 @@ export class HemiRoutingSettingsService extends TypertRemoteService {
     signal?.throwIfAborted()
     if (enabled) await this.assertAutoReady(signal)
     signal?.throwIfAborted()
-    const needsWrite = this.pendingWrites.has(root.id) || this.modeOfSession(root.id) !== (enabled ? 'auto' : 'fixed')
-    if (!needsWrite) return
-    const write = this.queueModeWrite(root.id, enabled)
+    const write = this.queueModeWrite(root.id, enabled, true)
     if (write === undefined) {
       throw new HemiRoutingError('saving the routing mode failed: the settings service is shutting down', 'HEMI_ROUTING_SAVE_FAILED')
     }

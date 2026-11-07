@@ -7,8 +7,15 @@ import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
 import { parsePluginOperationRecord, type PluginOperationRecord, type PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 
+/** Optional provider-neutral startup policy supplied by the owning Host composition. */
+export interface DesktopStartupOptions {
+  readonly mode: 'workspace'
+  readonly localePreference: string | null
+}
+
 interface ReadyEvent {
   readonly type: 'ready'
+  readonly startup?: DesktopStartupOptions
   readonly url: string
   readonly injections?: readonly unknown[] | undefined
 }
@@ -75,7 +82,9 @@ function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
     case 'shutdown-complete':
       return true
     case 'ready':
-      return typeof candidate.url === 'string'
+      // Hemi fork: startup policy crosses private process IPC and must be validated.
+      return typeof candidate.url === 'string' && (candidate.startup === undefined
+        || z.object({ mode: z.literal('workspace'), localePreference: z.string().nullable() }).safeParse(candidate.startup).success)
     case 'boot-injections':
       return Number.isSafeInteger(candidate.requestId) && Array.isArray(candidate.injections)
         && (candidate.error === undefined || typeof candidate.error === 'string')
@@ -133,6 +142,7 @@ async function exitsWithin(exit: Promise<void>, milliseconds: number): Promise<b
 
 /** Browser authentication URL reported by the running Web application. */
 export interface DesktopHostReady {
+  readonly startup?: DesktopStartupOptions
   readonly url: string
   readonly injections?: readonly unknown[] | undefined
 }
@@ -252,7 +262,7 @@ export class DesktopHostProcess {
         return
       }
       if (message.type === 'starting') this.runId = message.runId
-      else if (message.type === 'ready') this.readyResolve({ url: message.url, injections: message.injections })
+      else if (message.type === 'ready') this.readyResolve({ url: message.url, injections: message.injections, ...message.startup === undefined ? {} : { startup: message.startup } })
       else if (message.type === 'platform-session') this.onPlatformSession?.(message.session)
       else if (message.type === 'shutdown-complete') {
         if (this.stopping) this.shutdownCompleted = true

@@ -111,7 +111,9 @@ export class AgentPresetSeatController {
       return
     }
     const { presets } = roster.value
-    this.fallback = presets.find(preset => preset.isDefault)?.id ?? presets[0]?.id ?? ''
+    // Hemi fork: the fallback must be a main-session choice as well.
+    this.fallback = presets.find(preset => preset.isDefault && !preset.subagentOnly)?.id
+      ?? presets.find(preset => !preset.subagentOnly)?.id ?? ''
     const session = this.currentSession()
     this.set({
       options: presetOptions(presets),

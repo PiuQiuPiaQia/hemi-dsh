@@ -125,8 +125,9 @@ export function primaryRuntimePayloadDigest(
   const { pythonVersion, pythonRelease, nodeVersion, wheels, pythonPackages } = runtimeLock
   // Identity preserves key order within the selected target, wheel records and distribution map, plus wheel-entry order.
   // Bump format when extraction or assembly changes payload bytes without changing locked inputs.
+  // Hemi fork: invalidate installed payloads copied before AppleDouble filtering and destination cleanup.
   return createHash('sha256').update(JSON.stringify({
-    format: 8, target, pythonVersion, pythonRelease, nodeVersion: pnpmVersion === undefined ? undefined : nodeVersion,
+    format: 9, target, pythonVersion, pythonRelease, nodeVersion: pnpmVersion === undefined ? undefined : nodeVersion,
     artifact: runtimeLock.targets[target], wheels, pythonPackages, pnpm: pnpmVersion,
   })).digest('hex')
 }
@@ -172,6 +173,11 @@ export function prunePnpmForeignNativePackages(pnpm: string, platform: NodeJS.Pl
   }
 }
 
+function removePreparedTree(directory: string): void {
+  // Hemi fork: bound retries for external-volume ENOTEMPTY; persistent cleanup failures still abort preparation.
+  rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+}
+
 /**
  * Copy the skill package's complete asset tree to ordinary filesystem resources.
  * @param source - The package's assets directory.
@@ -179,7 +185,7 @@ export function prunePnpmForeignNativePackages(pnpm: string, platform: NodeJS.Pl
  * @returns Resolves after replacing the external assets with the complete package tree.
  */
 export async function prepareOfficeSkillAssets(source: string, destination: string): Promise<void> {
-  rmSync(destination, { recursive: true, force: true })
+  removePreparedTree(destination)
   await cp(source, destination, { recursive: true, dereference: true })
 }
 
@@ -254,7 +260,7 @@ export async function preparePrimaryRuntime(options: PreparePrimaryRuntimeOption
     prunePrimaryRuntimePythonTests(entries.pythonPackages)
     writeFileSync(join(output, 'runtime.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
     const destination = join(paths.runtime, 'primary-runtime')
-    rmSync(destination, { recursive: true, force: true })
+    removePreparedTree(destination)
     await copyPrimaryRuntime(output, destination, manifest)
   } finally {
     rmSync(staging, { recursive: true, force: true })

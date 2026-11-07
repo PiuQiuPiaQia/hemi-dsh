@@ -1,9 +1,10 @@
 /** Searchable model discovery dialog shared by subscriptions and API connections. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, IconDownloadOutlineRegular, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconDownloadOutlineRegular, Input, Modal, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './copy.ts'
 import css from './page.module.css'
+import picker from './ModelPicker.module.css'
 
 /**
  * Fetch candidates only on demand and apply selections only after confirmation.
@@ -61,29 +62,30 @@ export function ModelPicker({ current, load, add, t, buttonText, disabled = fals
     <div className={css.modelPicker}>
       {iconOnly ? <Tooltip label={label}>{trigger}</Tooltip> : trigger}
       <Modal open={open} title={t('chooseModels')} closeLabel={t('close')} onClose={close}
-        description={t('liveModelCatalog')}
-        className={css.modelDialog ?? ''} contentClassName={`${css.dialogContent} scrollable`}
-        footer={<div className={css.actions}>
+        className={`${css.modelDialog} ${picker.dialog}`} contentClassName={`${picker.content} scrollable`}
+        footer={<div className={picker.footer}>
+          <span className={picker.selection} role="status">{t('selectedModels', { count: selected.length })}</span>
           <Button variant="outline" disabled={saving} onClick={close}>{t('cancel')}</Button>
-          <Button variant="primary" disabled={loading || saving || selected.length === 0} onClick={() => {
+          <Button className={picker.confirm} variant="primary" disabled={loading || saving || selected.length === 0} onClick={() => {
             setSaving(true); setFailed(false)
             void add(selected).then(() => { if (mounted.current) setOpen(false) }, () => { if (mounted.current) setFailed(true) })
               .finally(() => { if (mounted.current) setSaving(false) })
           }}>{t(saving ? 'loading' : 'addModels')}</Button>
         </div>}>
-        <div className={css.dialogForm}>
-          <div className={css.row}>
-            <label className={css.searchField}>{t('searchModels')}<input type="search" value={query} disabled={loading || saving}
-              onChange={(event) => { setQuery(event.currentTarget.value) }} /></label>
+        <div className={picker.body}>
+          <Input className={css.input ?? ''} type="search" aria-label={t('searchModels')} placeholder={t('searchModels')}
+            value={query} disabled={loading || saving} onChange={(event) => { setQuery(event.currentTarget.value) }} />
+          <div className={picker.toolbar}>
             <Button variant="ghost" size="sm" disabled={loading || saving || visible.length === 0} onClick={() => {
               setSelected(allVisible ? selected.filter(model => !visible.includes(model)) : [...new Set([...selected, ...visible])])
             }}>{t(allVisible ? 'deselectAll' : 'selectAll')}</Button>
             <Button variant="ghost" size="sm" disabled={loading || saving} onClick={() => { void discover() }}>{t('refreshModels')}</Button>
           </div>
-          {loading ? <p role="status">{t('loading')}</p> : !failed && available.length === 0 ? <p>{t('noNewModels')}</p>
-            : visible.length === 0 && !failed ? <p>{t('noMatches')}</p> : null}
-          <div className={`${css.candidates} scrollable`}>
-            {visible.map(model => <label className={css.modelChoice} key={model}>
+          <div className={`${picker.candidates} scrollable`} aria-busy={loading}>
+            {loading ? <p className={picker.empty} role="status">{t('loading')}</p>
+              : !failed && available.length === 0 ? <p className={picker.empty}>{t('noNewModels')}</p>
+                : visible.length === 0 && !failed ? <p className={picker.empty}>{t('noMatches')}</p> : null}
+            {visible.map(model => <label className={picker.choice} key={model}>
               <input type="checkbox" checked={selected.includes(model)} disabled={saving}
                 onChange={(event) => {
                   setSelected(event.currentTarget.checked ? [...selected, model] : selected.filter(id => id !== model))
@@ -91,7 +93,7 @@ export function ModelPicker({ current, load, add, t, buttonText, disabled = fals
               <span className={css.modelName}>{model}</span>
             </label>)}
           </div>
-          {failed && <p role="alert">{t('fetchModelsFailed')} <Button variant="ghost" size="sm" disabled={saving}
+          {failed && <p className={picker.failure} role="alert">{t('fetchModelsFailed')} <Button variant="ghost" size="sm" disabled={saving}
             onClick={() => { void discover() }}>{t('retryImport')}</Button></p>}
         </div>
       </Modal>

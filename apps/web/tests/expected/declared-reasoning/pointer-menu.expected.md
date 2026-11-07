@@ -1,8 +1,6 @@
-- menu "模型与推理等级":
-  - menuitemradio "自动路由" [disabled]: 自动路由 请先配置主模型
-  - menuitem "配置模型路由"
+- group "模型与推理等级":
   - searchbox "搜索模型…"
-  - group "模型":
+  - menu "模型":
     - group "DeepSeek":
       - text: DeepSeek
       - menuitemradio "DeepSeek-V4-Flash"
@@ -12,7 +10,3 @@
       - menuitemradio "Acme Think"
       - menuitemradio "Acme Swift" [checked]
       - menuitemradio "Acme Lite"
-  - menuitem "推理等级 Max"
-  - text: 启用智能体团队协作
-  - button "关于智能体团队协作"
-  - switch "启用智能体团队协作"

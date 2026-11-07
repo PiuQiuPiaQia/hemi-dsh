@@ -24,10 +24,12 @@ English | [中文](README.zh.md)
 
 The package is wired into the web-app bundle as the browser `hemi-backup-ui` entry; it requires `dsh-hemi-backup` on the host side and no configuration of its own.
 
+The WebDAV server address is prefilled with `https://dav.jianguoyun.com/dav/` (Nutstore). A saved WebDAV target keeps its configured address; the field remains editable.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-`src/client/index.ts` registers the `hemi-backup` locale namespace and injects `BackupSection` into the `settings.section` slot; the injected face unwraps Remote result envelopes around the host methods. The restore dialog explains that existing sessions stay unchanged and conflicting session backups are saved separately. `BackupSection.tsx` owns the editor state, a single-flight busy guard, progress polling while a run executes, and cancels any staged restore when the section unmounts.
+`src/client/index.ts` registers the `hemi-backup` locale namespace and injects `BackupSection` into the `settings.section` slot; the injected face unwraps Remote result envelopes around the host methods. The section composes the shared `Button`, `Input`, and `Switch` controls from `dsh-client-ui-primitives`; the native `select` stays for the target-kind and schedule choices. The restore dialog explains that existing sessions stay unchanged and conflicting session backups are saved separately. `BackupSection.tsx` owns the editor state, a single-flight busy guard, progress polling while a run executes, and cancels any staged restore when the section unmounts.
 
 ## Model Experience
 

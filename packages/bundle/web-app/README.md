@@ -7,9 +7,9 @@ kind: "package-bundle"
 
 English | [中文](README.zh.md)
 
-Desktop analytics follows the [product collection policy](../../client/product-analytics/README.md), including its live application setting. Web usage is excluded.
+Hemi Desktop leaves account-bound product analytics and its exporter disabled. The optional service follows the [product collection policy](../../client/product-analytics/README.md) when explicitly mounted; Web usage is excluded.
 
-Desktop analytics schedules partial batches every 30 seconds, with a 15-second exporter timeout and a 20-second processor timeout. Shutdown allows 2 seconds to drain, then cancels pending requests and retry waits so telemetry does not keep the Host alive. Pending events may be lost on exit.
+When enabled, Desktop analytics schedules partial batches every 30 seconds, with a 15-second exporter timeout and a 20-second processor timeout. Shutdown allows 2 seconds to drain, then cancels pending requests and retry waits so telemetry does not keep the Host alive. Pending events may be lost on exit.
 
 ## Summary
 
@@ -47,6 +47,8 @@ After startup you see a `dsh web:` line whose root URL carries a fresh process t
 Saved model selections override the composition default. The settings card accepts a Messages-compatible API address and a credential reference.
 
 ### Configuration
+
+The Hemi Desktop profile hides upstream account navigation, onboarding, official artwork, feedback controls and log-upload settings. It disables the feedback command and both Session-log exporters; DeepSeek model connections and local log export remain available.
 
 The `minimal` agent preset uses a persistent shell, the `read_image` tool, and a fixed persona, with automatic history compaction and the idle-session `/compact` command. It shares the Host token meter and owns an isolated compaction backend. [Compaction configuration and retention](../../compaction/compaction-basic/README.md#use-this-package) follow the existing backend. Image reads reuse the Host filesystem and attachment store and require an image-capable model; text read, write, and edit tools remain excluded.
 

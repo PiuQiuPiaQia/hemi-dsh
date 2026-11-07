@@ -6,6 +6,6 @@ import { HemiBrandName } from '../src/client/HemiBrandName.tsx'
 import { en, zh } from '../src/client/locales.ts'
 
 it.each([['en', en], ['zh', zh]] as const)('renders the %s Hemi product label', async (language, dictionary) => {
-  const t = (key: string) => key === 'brand.name' ? dictionary['brand.name'] : key
-  await expect(renderToStaticMarkup(<HemiBrandName t={t} />)).toMatchFileSnapshot(`./expected/brand-name-${language}.html`)
+  const t = (key: string) => key === 'brand.name' || key === 'brand.edition' ? dictionary[key] : key
+  await expect(renderToStaticMarkup(<HemiBrandName t={t} />) + '\n').toMatchFileSnapshot(`./expected/brand-name-${language}.html`)
 })

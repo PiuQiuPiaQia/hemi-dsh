@@ -20,6 +20,7 @@ const OVERLAY = fileURLToPath(new URL('./declared-reasoning.overlay.yml', import
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/declared-reasoning', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('./expected/declared-reasoning/ui.expected.md', import.meta.url))
 const POINTER_EXPECTED = fileURLToPath(new URL('./expected/declared-reasoning/pointer-menu.expected.md', import.meta.url))
+const MENU_SURFACE = '[aria-label="模型与推理等级"]'
 const MODE = webSnapshotMode()
 
 describe.skipIf(MODE === 'record').each([
@@ -80,7 +81,7 @@ describe.skipIf(MODE === 'record').each([
     // Declared levels, nothing else: the provider-default entry (the route
     // configures no `reasoning`), then Off/High/Max — minimal, low, medium,
     // and xhigh were not declared and must not be offered.
-    const levels = page.getByRole('group', { name: '推理等级', exact: true }).getByRole('menuitemradio')
+    const levels = page.getByRole('menu').getByRole('menuitemradio')
     await expect.poll(async () => levels.allTextContents(), { timeout: 10_000 })
       .toEqual(['Default', 'Off', 'High', 'Max'])
     const snapshot = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
@@ -138,21 +139,22 @@ describe.skipIf(MODE === 'record').each([
   it('opens from the pointer with keyboard focus and closes from the trigger', async () => {
     onTestFailed(() => saveFailureShot(page, `web-e2e-model-trigger-${engine.name()}`))
     const trigger = page.getByRole('button', { name: /^选择模型/ })
-    const menu = page.getByRole('menu')
+    const menu = page.locator(MENU_SURFACE)
     for (const pane of ['root', 'model', 'effort']) {
       await page.locator('[data-composer-input][contenteditable="true"]').focus()
       await trigger.click()
       await expect.poll(() => trigger.evaluate(element => element === document.activeElement)).toBe(true)
       if (pane === 'root') {
         await page.keyboard.press('ArrowDown')
-        await expect.poll(() => page.getByRole('menuitem', { name: '配置模型路由', exact: true })
+        await expect.poll(() => page.getByRole('menuitem', { name: /^模型\s/ })
           .evaluate(element => element === document.activeElement)).toBe(true)
       } else if (pane === 'model') {
         await trigger.press('Tab')
+        await page.keyboard.press('Enter')
         await expect.poll(() => page.getByRole('searchbox').evaluate(element => element === document.activeElement)).toBe(true)
       } else {
         await page.getByRole('menuitem', { name: /推理等级/ }).click()
-        const focused = page.getByRole('group', { name: '推理等级', exact: true }).getByRole('menuitemradio', { checked: true })
+        const focused = menu.getByRole('menuitemradio', { checked: true })
         await expect.poll(() => focused.evaluate(element => element === document.activeElement)).toBe(true)
       }
       await trigger.click()
@@ -171,12 +173,13 @@ describe.skipIf(MODE === 'record').each([
     page.on('request', countSelection)
     onTestFinished(() => { page.off('request', countSelection) })
     const trigger = page.getByRole('button', { name: /^选择模型/ })
-    const menu = page.getByRole('menu')
+    const menu = page.locator(MENU_SURFACE)
     await trigger.click()
     const current = page.getByRole('menuitemradio', { name: 'Acme Think', exact: true })
     const target = page.getByRole('menuitemradio', { name: 'Acme Swift', exact: true })
     const search = page.getByRole('searchbox', { name: '搜索模型…' })
     await trigger.press('Tab')
+    await page.keyboard.press('Enter')
     await expect.poll(() => search.evaluate(element => element === element.ownerDocument.activeElement)).toBe(true)
     expect(await search.getAttribute('aria-activedescendant')).toBe(await current.getAttribute('id'))
 
@@ -202,10 +205,11 @@ describe.skipIf(MODE === 'record').each([
     await menu.waitFor({ state: 'detached' })
 
     await trigger.click()
+    await menu.getByRole('menuitem', { name: /^模型\s/ }).click()
     await target.getByText('Acme Swift', { exact: true }).click()
     await menu.waitFor({ state: 'detached' })
     expect(selections).toBe(1)
-    await expect.poll(() => scaffold.ctx.agentDefaultModel.currentSelection().model, { timeout: 10_000 })
+    await expect.poll(() => scaffold.ctx.agentDefaultModel.currentSelection()?.model, { timeout: 10_000 })
       .toBe('acme-swift')
 
     await trigger.click()
@@ -213,7 +217,7 @@ describe.skipIf(MODE === 'record').each([
     await page.getByRole('menuitemradio', { name: 'Max', exact: true }).click()
     await menu.waitFor({ state: 'detached' })
     expect(selections).toBe(2)
-    await expect.poll(() => scaffold.ctx.agentDefaultModel.currentSelection().reasoningEffort, { timeout: 10_000 })
+    await expect.poll(() => scaffold.ctx.agentDefaultModel.currentSelection()?.reasoningEffort, { timeout: 10_000 })
       .toBe('max')
 
     await page.route('**/api/session/selectModel', async (route) => {
@@ -230,13 +234,14 @@ describe.skipIf(MODE === 'record').each([
     }, { times: 1 })
     await trigger.click()
     await trigger.press('Tab')
+    await page.keyboard.press('Enter')
     await expect.poll(() => search.evaluate(element => element === element.ownerDocument.activeElement)).toBe(true)
     expect(await search.getAttribute('aria-activedescendant')).toBe(await target.getAttribute('id'))
     await current.click()
     await page.getByRole('alert').waitFor()
     expect(selections).toBe(3)
     await compareOrRefreshGolden(POINTER_EXPECTED,
-      await captureStableAria(page, '[role="menu"][aria-label="模型与推理等级"]', scaffold.workspaceCwd), MODE)
+      await captureStableAria(page, MENU_SURFACE, scaffold.workspaceCwd), MODE)
     await expect.poll(() => trigger.evaluate(element => element === document.activeElement)).toBe(true)
     await page.keyboard.press('Tab')
     await expect.poll(() => search.evaluate(element => element === element.ownerDocument.activeElement)).toBe(true)

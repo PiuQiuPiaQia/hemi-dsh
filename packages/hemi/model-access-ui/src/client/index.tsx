@@ -1,24 +1,17 @@
 /** Register the Hemi Model Connections page as its own settings section. */
-import { useState } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-account/client'
-import type { InjectFace, PropsLocale, PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import accessRemote from '@deepseek-ai/dsh-hemi-model-access/remote'
 import type {} from '@deepseek-ai/dsh-hemi-model-settings/remote'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { en, NS, zh } from './copy.ts'
-import type { NewApiDesktopBridge } from '@deepseek-ai/dsh-hemi-model-access/desktop-import'
-import { KeyProfiles } from './KeyProfiles.tsx'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
-import { BrowserImportSection } from './BrowserImportSection.tsx'
-import { NewApiSection } from './NewApiSection.tsx'
-import { SubscriptionSection } from './SubscriptionSection.tsx'
+import { ModelAccessPage } from './ModelAccessPage.tsx'
 import { AccountSubscriptionCard, type AccountSubscriptionInput } from './AccountSubscriptionCard.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
-import css from './page.module.css'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotFactoryMap {
@@ -29,30 +22,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       inject: { actions: ModelAccessActions; test: ModelTest } & PropsLocale<typeof NS>
     }
   }
-}
-
-function ModelAccessPage({ actions, test, t, renderFactorySlot }: InjectFace<{ actions: ModelAccessActions }> & PropsLocale<typeof NS>
-  & PropsRenderFactories & { test: ModelTest }) {
-  const [method, setMethod] = useState<'subscriptionsMethod' | 'newApiMethod' | 'keyMethod'>('subscriptionsMethod')
-  const desktop = (globalThis as { dshDesktop?: { newApiImport?: NewApiDesktopBridge } }).dshDesktop?.newApiImport
-  return (
-    <section className={css.page}>
-      <h2>{t('title')}</h2>
-      <nav className={css.methods} aria-label={t('nav')}>
-        {(['subscriptionsMethod', 'newApiMethod', 'keyMethod'] as const).map(id => (
-          <Button key={id} variant={method === id ? 'outline' : 'ghost'} size="sm" aria-pressed={method === id}
-            onClick={() => { setMethod(id) }}>{t(id)}</Button>
-        ))}
-      </nav>
-      <div hidden={method !== 'subscriptionsMethod'}>
-        <SubscriptionSection actions={actions} test={test} t={t} renderFactorySlot={renderFactorySlot} />
-      </div>
-      <div hidden={method !== 'newApiMethod'}>
-        {desktop === undefined ? <NewApiSection actions={actions} t={t} /> : <BrowserImportSection bridge={desktop} t={t} />}
-      </div>
-      {method === 'keyMethod' && <KeyProfiles actions={actions} test={test} t={t} />}
-    </section>
-  )
 }
 
 /** Services needed to register the section and its Remote contribution. */

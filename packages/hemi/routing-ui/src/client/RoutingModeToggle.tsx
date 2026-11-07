@@ -58,12 +58,8 @@ export function RoutingModeChoice(props: RoutingModeChoiceProps) {
     <div className={css.choiceRow} data-routing-mode={enabled ? 'auto' : 'fixed'}>
       <button type="button" role="menuitemradio" className={css.choice} aria-checked={enabled}
         aria-label={t('auto')} aria-describedby={!hasMain && !enabled ? hintId : undefined}
-        title={t('autoDescription')} disabled={locked || (!enabled && (!settings.writable || !hasMain))}
+        title={t('autoDescription')} disabled={locked || !settings.writable || (!enabled && !hasMain)}
         onClick={() => {
-          if (enabled) {
-            dismiss()
-            return
-          }
           selectAlternative(async () => {
             const failure = await setEnabled(true)
             return failure === null ? null : t('modeFailed', { message: failure })

@@ -1,12 +1,84 @@
-/** Native New API import IPC. Site credentials stay in an isolated window and Host RPC. */
+/** Native New API import IPC. The embedded site cannot invoke product IPC. */
 import { randomUUID } from 'node:crypto'
-import { BrowserWindow, ipcMain, safeStorage, session, type IpcMainInvokeEvent } from 'electron'
+import { WebContentsView, ipcMain, safeStorage, session, type BrowserWindow, type IpcMainInvokeEvent, type WebContentsViewConstructorOptions } from 'electron'
 import { createImportCoordinator, type BrowserImportAction, type BrowserImportInput, type BrowserImportResponse } from '@deepseek-ai/dsh-hemi-model-access/desktop-import'
 
 const ACTIONS = new Set<BrowserImportAction>([
-  'start', 'getState', 'showBrowser', 'listPending', 'checkLogin', 'setSelection',
+  'start', 'getState', 'setBrowserBounds', 'focusBrowser', 'listPending', 'checkLogin', 'setSelection',
   'submit', 'retry', 'pause', 'resume', 'cancel', 'resumePending',
 ])
+
+type BrowserBounds = NonNullable<BrowserImportInput['bounds']>
+
+function readBrowserBounds(value: unknown): BrowserBounds | null {
+  if (value === null) return null
+  if (typeof value === 'object' && 'x' in value && 'y' in value && 'width' in value && 'height' in value) {
+    const { x, y, width, height } = value
+    if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number'
+      && [x, y, width, height].every(Number.isFinite) && x >= 0 && y >= 0 && width > 0 && height > 0) {
+      return { x, y, width, height }
+    }
+  }
+  throw new Error('Invalid New API sign-in viewport.')
+}
+
+function createSignInView(parent: BrowserWindow, options: WebContentsViewConstructorOptions) {
+  const view = new WebContentsView(options)
+  const contents = view.webContents
+  let visible = false
+  let ready = false
+  let bounds: BrowserBounds | null = null
+  function setVisible(next: boolean): void {
+    if (contents.isDestroyed()) return
+    if (!next && visible && contents.isFocused() && !parent.isDestroyed()) parent.webContents.focus()
+    view.setVisible(next)
+    visible = next
+  }
+  function dispose(): void {
+    if (!parent.isDestroyed()) {
+      parent.webContents.off('did-start-navigation', hideOnNavigation)
+      parent.off('closed', dispose)
+      parent.contentView.removeChildView(view)
+    }
+    if (!contents.isDestroyed()) contents.close()
+  }
+  function hideOnNavigation(event: { isMainFrame: boolean; isSameDocument: boolean }): void {
+    if (event.isMainFrame && !event.isSameDocument) {
+      bounds = null
+      setVisible(false)
+    }
+  }
+  function updatePlacement(): void {
+    if (contents.isDestroyed() || parent.isDestroyed()) return
+    if (bounds === null || !ready) { setVisible(false); return }
+    const { width, height } = parent.getContentBounds()
+    const zoom = parent.webContents.getZoomFactor()
+    const x = Math.ceil(bounds.x * zoom)
+    const y = Math.ceil(bounds.y * zoom)
+    const right = Math.min(width, Math.floor((bounds.x + bounds.width) * zoom))
+    const bottom = Math.min(height, Math.floor((bounds.y + bounds.height) * zoom))
+    if (right <= x || bottom <= y) { setVisible(false); return }
+    view.setBounds({ x, y, width: right - x, height: bottom - y })
+    setVisible(true)
+  }
+  view.setVisible(false)
+  parent.contentView.addChildView(view)
+  parent.once('closed', dispose)
+  parent.webContents.on('did-start-navigation', hideOnNavigation)
+  contents.on('did-finish-load', () => { ready = true; updatePlacement() })
+  contents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'Escape' && !input.isComposing && !parent.isDestroyed()) {
+      event.preventDefault()
+      parent.webContents.focus()
+    }
+  })
+  return {
+    contents,
+    setBounds(next: BrowserBounds | null): void { bounds = next; updatePlacement() },
+    focus(): void { if (visible && !contents.isDestroyed()) contents.focus() },
+    dispose,
+  }
+}
 
 interface HostConnection {
   url: string
@@ -65,7 +137,7 @@ export function desktopNewApiImport(
   const call = hostImportCall(connection)
   const coordinator = createImportCoordinator({
     getMainWindow,
-    createWindow: options => new BrowserWindow(options),
+    createView: createSignInView,
     sessionFromPartition: partition => session.fromPartition(partition),
     safeStorage: {
       isEncryptionAvailable: () => safeStorage.isEncryptionAvailable()
@@ -90,6 +162,10 @@ export function desktopNewApiImport(
       if (action === 'start') {
         if (typeof payload.siteUrl !== 'string' || payload.siteUrl.length > 2048) throw new Error('Invalid New API site address.')
         return coordinator.start(event, { siteUrl: payload.siteUrl })
+      }
+      if (action === 'setBrowserBounds') {
+        if (typeof payload.operationId !== 'string') throw new Error('Invalid New API import operation.')
+        return coordinator.setBrowserBounds(event, { operationId: payload.operationId, bounds: readBrowserBounds(payload.bounds) })
       }
       return coordinator[action as Exclude<BrowserImportAction, 'start'>](event, payload)
     },
