@@ -1,5 +1,6 @@
 /** Shipped preset + browser integration; all inference is a local scripted adapter. */
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
@@ -157,13 +158,31 @@ it('shows weighted reported cache rates and coverage after an unreported memory 
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
   await page.locator('[role="treeitem"]').first().click()
   await page.locator('[role="treeitem"]').nth(1).click()
+  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
   for (const reopened of [false, true]) {
+    await page.setViewportSize({ width: 1280, height: 844 })
     if (reopened) await page.reload({ waitUntil: 'load' })
     const trigger = page.getByRole('button', { name: 'Conversation usage', exact: true })
-    await expect.poll(() => trigger.textContent()).toBe('Cache hit 32% (partial)')
+    await expect.poll(() => trigger.textContent()).toBe('Cache hit 32%')
     await trigger.click()
     const dialog = page.getByRole('dialog', { name: 'Conversation usage', exact: true })
+    expect(await trigger.textContent()).toBe('Cache hit 32%')
+    expect(await dialog.getByRole('status').count()).toBe(0)
     await compareOrRefreshGolden(join(DIR, 'usage.expected.md'), await dialog.ariaSnapshot(), webSnapshotMode())
+    if (!reopened) {
+      const shots = await mkdtemp(join(tmpdir(), 'hemi-cache-usage-'))
+      for (const width of [1280, 390]) for (const theme of ['light', 'dark']) {
+        await page.setViewportSize({ width, height: 844 })
+        await page.locator('body').evaluate((body, dark) => {
+          body.toggleAttribute('data-ds-dark-theme', dark)
+        }, theme === 'dark')
+        await expect.poll(() => dialog.evaluate(element => ({ fits: element.scrollWidth <= element.clientWidth,
+          onScreen: element.getBoundingClientRect().left >= 0
+            && element.getBoundingClientRect().right <= window.innerWidth }))).toEqual({ fits: true, onScreen: true })
+        await page.screenshot({ path: join(shots, `${width}-${theme}.png`) })
+      }
+      console.log(`Cache usage screenshots: ${shots}`)
+    }
     await trigger.click()
   }
   expect(tripwire.pageErrors).toEqual([])

@@ -354,6 +354,44 @@ describe('web e2e: macOS window drag coverage', () => {
     } finally { if (host !== scaffold) await host.close() }
   })
 
+  it('lets the passive preset label and its neighboring whitespace drag the window', async () => {
+    const { page } = await desktopPage()
+    try {
+      await connectFreshWorkspace(page, scaffold.workspaceCwd)
+      const agent = scaffold.ctx.agents.list()[0]
+      if (agent === undefined) throw new Error('connected workspace did not create an Agent')
+      agent.session.append('turn/start', { turn: 1 })
+
+      const header = page.locator('[data-slot="conversation.header"] > header')
+      const preset = header.getByText('Standard mode', { exact: true })
+      await preset.waitFor()
+      await settled(page)
+      const bounds = await preset.boundingBox()
+      if (bounds === null) throw new Error('Missing preset label bounds')
+      const regions = await collectedRegions(page, INTERACTIVE_SELECTOR)
+      const y = bounds.y + bounds.height / 2
+      expect(isDraggableAt(regions, bounds.x + bounds.width / 2, y), 'preset label').toBe(true)
+      expect(isDraggableAt(regions, bounds.x + bounds.width + 4, y), 'space after preset label').toBe(true)
+
+      const rootRegionDuringRecall = await page.locator('#root').evaluate((root, mark) => {
+        const wasRecalling = document.body.hasAttribute(mark)
+        document.body.setAttribute(mark, '')
+        try {
+          return getComputedStyle(root).getPropertyValue('-webkit-app-region')
+        } finally {
+          document.body.toggleAttribute(mark, wasRecalling)
+        }
+      }, RECALL_MARK)
+      expect(rootRegionDuringRecall, 'app-region on #root during recall').toBe('none')
+
+      await preset.dblclick()
+      expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('')
+      expect(swallowedBoxes(regions)).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
   it('leaves no interactive box inside the drag surface, and keeps the panel strip row draggable', async () => {
     const { page, tripwire } = await desktopPage()
     try {

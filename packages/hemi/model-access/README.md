@@ -31,6 +31,8 @@ Desktop New API import resolves each model’s request protocol from the site’
 
 Remote request and response fields are defined in [`src/types.ts`](src/types.ts).
 
+To investigate a Codex WebSocket interruption, search by session ID in `$DSH_HOME/logs/codex-websocket.jsonl` (`~/.hemi-dsh/logs/codex-websocket.jsonl` on default Hemi desktop installs). The file is created when the SDK first reports a WebSocket failure. Each line records the route, time, whether streaming started, the close code if available, and the SDK outcome including any SSE fallback. The local log contains no prompts, tokens, or raw close reasons. If writing fails, the Host logger receives the redacted diagnostic. Delete the file to clear old records.
+
 ## Model Experience
 
 ### Import validation

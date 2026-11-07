@@ -27,6 +27,8 @@ AppleDouble 防污染由[共享运行时复制](packages/skill/tool-workspace-de
 
 推理能力缺失时，由 `hemi/model-access/src/protocol-reasoning.ts` 提供协议默认档位；`llm/llm-pi-ai` 提供通用的临时配置瀑布和型号默认档位解析，目录、设置校验和请求共用同一结果，无 Hemi 插件时保持上游行为。自动路由的四档、会话保存与型号映射归 `hemi/routing`，界面归 `hemi/routing-ui`；现有同步选型钩子无法等待型号能力，因此映射放在已有等待式 pre-step，保留原生子任务绑定和生命周期。合并上游须核对未知能力、显式禁用、默认值与实际字段发送，以及四档选择不退出自动路由。
 
+Codex WebSocket 故障记录归 [Hemi 模型接入插件](packages/hemi/model-access/README.zh.md)。原有 LLM 分片不保留 SDK 传输诊断，成功降级后也不会出现错误分片；因此 `llm/llm-pi-ai/src/{adapter,stream,transport-diagnostics,types,index}.ts` 在终止事件转换前提取允许记录的元数据，发出进程内事件，由 Hemi 插件追加到本地日志。没有更改会话持久化、错误码、重试或降级。484 项定向测试通过，覆盖流开始后收到 `1012`、开始前断开后成功改用 SSE，以及原始关闭原因、提示词和令牌不写入日志。合并上游时核对 SDK 终止事件仍携带关闭码、阶段及降级信息；上游提供等价事件后移除本地接入。
+
 新会话偏好继承归 `hemi/routing`，通过已有串行 `agent/created` 钩子，仅为真正新建的普通会话保存模式与自动路由强度快照。`newSessionMode`、`newSessionEffort` 与显式选择同事务保存，初始默认和旧会话回退保持原样；新会话采样等待偏好事务完成及回滚，取消创建不阻塞 Loader 卸载。恢复、分叉、子会话及复用草稿不重新初始化。固定型号与强度仍使用原生默认服务，Hemi 菜单重新选择当前值时也提交显式选择。未增加上游运行时代码修改；接口说明由生成器维护。合并时核对原生创建来源、初始化取消信号、设置事务与菜单选型回调，保持原生子任务生命周期。验证包括 171 项 Host/界面回归，以及 Chromium、WebKit 两项真实组合场景和新会话显示预期，覆盖自动与固定模式继承、强度保存及旧会话隔离；没有请求真实模型或更新用户安装的应用。限定代码的 lint、两个 Hemi 包类型检查、中英文配对与最新产物构建 8 项均通过，Client 聚合检查通过。Host 聚合检查受并行改动中默认模型可空类型的未更新消费者阻塞，接口目录再生成受同批桌面引导 Remote 的 JSDoc 缺失阻塞；未改动或绕过这些检查。
 
 模型导入的完整 ID 匹配与默认能力展示归 `hemi/model-access/src/model-catalog.ts` 和 `hemi/model-access-ui`。现有 profile 瀑布无法独立表达“继承输出容量但不设置请求上限”，因此 `llm-pi-ai/src/catalog.ts`、`config.ts` 保留通用 `catalogProvider` 引用及校验，只继承名称、输入类型和容量；`index.ts` 导出目录读取及默认值，确保 Hemi 使用已发布入口而非源码路径。合并上游须核对引用失效报错、显式覆盖优先、原连接传输保持独立及未修改默认值的保存行为。实际验证包括 117 项定向测试、型号设置浏览器回放、构建包入口导入冒烟、`build:artifacts`、`build:check`、`doc-sync` 与定向 lint。
@@ -64,6 +66,8 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 | `scripts/check-workspace-constraints` | Hemi 包使用 fork 源码地址；Electron 适配保持私有，单独声明构建入口的发布文件 | 不改变其他 DSH 包的仓库和发布规则 |
 | bundle、preset、依赖清单、tsconfig | 装配插件、角色和构建依赖；客户端源码别名确保真实组合测试不依赖已构建包 | 插件行可解析，独立安装层与内置组合不重复注册 |
 | `client/ui-primitives`（Toast.module.css）、`client/ui-attachment`（DropOverlay.module.css） | 两个纯视觉覆盖层（顶部公告条、全屏拖入遮罩）门户到 body 后被壳的 darwin `body > :not(#root)` no-drag 规则收集，在展示期间抹掉标题栏拖拽与原生双击最大化；各加 `-webkit-app-region: initial !important` 退出收集（同 ui-hemi-skins Backdrop 先例），pointer-events 与按钮可点性不变 | 壳规则或覆盖层退出先例改变时同步三处声明与对应 CSS 断言测试；确认 toast 动作按钮与拖入事件仍可达 |
+| `client/ui-conversation`（ConversationRoot.module.css） | 会话操作区容器的 macOS `no-drag` 同时排除了「标准模式」等静态标签和空白。布局容器归会话顶栏，现有插槽只能更换区内内容，因此在原样式中移除容器的排除规则，复用壳的控件排除规则，并禁用会话顶栏的文字选中 | 检查操作区空白及静态标签的原生双击，保留按钮点击。`window-drag-coverage.e2e.ts` 的 14 项浏览器回归通过，包含双击不选中文字、拖拽范围及控件命中 |
+| `client/web`（base.css） | macOS Electron 刷新拖拽区域时，body 的 `no-drag` 会继承到应用布局。外壳拥有刷新标记和 `#root`，因此在外壳样式中清除该继承值 | 检查刷新标记存在时 `#root` 的计算值为 `none`、标记行保留拖拽、浮层仍接收点击。最终产物的 3 项定向浏览器回归及外壳样式测试通过，隔离的 Electron 开发窗口使用同一条样式验证了原生双击 |
 
 `core/session/src/known-event-types.ts`、持久化与配置目录、客户端插槽目录由生成器维护；出现 Hemi 名称是源声明的生成结果，不手写删改。相关测试与预期输出跟随所属行为维护。未涉及本次收拢的其他工作区改动保持原状。
 

@@ -15,6 +15,11 @@ type Translate = PropsLocale<typeof NS>['t']
 export interface SessionUsageInjected {
   loadUsage(this: void, signal: AbortSignal): Promise<ConversationUsage>
 }
+type UsageRead = {
+  reader: SessionUsageInjected['loadUsage']
+  data: ConversationUsage | undefined
+  failed: boolean
+}
 const exact = new Intl.NumberFormat()
 
 function metric(value: number, reports: number, calls: number): string {
@@ -34,27 +39,33 @@ export function HemiSessionUsage(props: Props) {
   const catalog = props.useProjection('subagentCatalog')
   const hasChildren = (catalog?.length ?? 0) > 0
   const dialog = useStatDialog()
-  const [loaded, setLoaded] = useState<ConversationUsage>()
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [read, setRead] = useState<UsageRead>()
+  // Retained figures belong to the injected Session reader, never another conversation.
+  const loaded = read?.reader === loadUsage ? read : undefined
+  const failed = hasChildren && loaded?.failed === true
   const open = dialog.open
   useEffect(() => {
     // A solo session already has a live projection. A tree also refreshes while
     // collapsed, since a background child can finish after its parent is idle.
-    if (!hasChildren && !open) return
+    if (!hasChildren) return
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
-    setLoaded(undefined)
+    const failRead = (): void => {
+      setRead(current => ({
+        reader: loadUsage, data: current?.reader === loadUsage ? current.data : undefined, failed: true,
+      }))
+    }
     const refresh = async (): Promise<void> => {
-      setLoading(true)
       try {
         const next = await loadUsage(controller.signal)
-        if (!controller.signal.aborted) { setLoaded(next); setFailed(false) }
+        if (controller.signal.aborted) return
+        // The tree reader reports root RPC failures as a tree with no readable sessions.
+        if (next.sessions === 0 && next.unavailableSessions > 0) failRead()
+        else setRead({ reader: loadUsage, data: next, failed: false })
       } catch (_error) {
-        if (!controller.signal.aborted) setFailed(true)
+        if (!controller.signal.aborted) failRead()
       } finally {
         if (!controller.signal.aborted) {
-          setLoading(false)
           timer = setTimeout(() => { void refresh() }, open ? 3000 : 8000)
         }
       }
@@ -63,7 +74,7 @@ export function HemiSessionUsage(props: Props) {
     return () => { controller.abort(); clearTimeout(timer) }
   }, [open, hasChildren, rootUsage, catalog, loadUsage])
 
-  const data: ConversationUsage | undefined = hasChildren ? loaded
+  const data: ConversationUsage | undefined = hasChildren ? loaded?.data
     : rootUsage === undefined ? undefined : { models: rootUsage.models, sessions: 1, unavailableSessions: 0 }
   const rows = data?.models ?? []
   if ((rootUsage?.models.length ?? 0) === 0 && !hasChildren) return null
@@ -74,7 +85,7 @@ export function HemiSessionUsage(props: Props) {
   const cache = data === undefined ? undefined : conversationCacheHit(rows, data.unavailableSessions)
   const cacheRate = formatCacheHit(cache)
   const partial = cache !== undefined && cache.reportedCalls < cache.calls
-  const trigger = t(!failed && partial ? 'usage.cacheSummaryPartial' : 'usage.cacheSummary', { rate: failed ? '—' : cacheRate })
+  const trigger = t('usage.cacheSummary', { rate: cacheRate })
   return <UsagePopover dialog={dialog} title={title} trigger={trigger} wide keepLabel>
     <div className={css.summary}>
       <span>{t('usage.total')} <strong>{totalKnown ? exact.format(total) : '—'}</strong> {t('usage.unit')}</span>
@@ -83,8 +94,11 @@ export function HemiSessionUsage(props: Props) {
     {partial && <p className={css.scope}>{t('usage.reportedCoverage', {
       reported: exact.format(cache.reportedCalls), calls: exact.format(cache.calls),
     })}</p>}
-    {(failed || (loading && data === undefined)) && <div role="status" className={css.status}>
-      {failed ? t('usage.readFailed') : t('usage.loading')}
+    {data !== undefined && data.unavailableSessions > 0 && <p className={css.scope}>
+      {t('usage.missingSessions', { count: exact.format(data.unavailableSessions) })}
+    </p>}
+    {(failed || (hasChildren && data === undefined)) && <div role="status" className={css.status}>
+      {failed ? t(data === undefined ? 'usage.readFailed' : 'usage.refreshFailed') : t('usage.loading')}
     </div>}
     {rows.length > 0 && <table className={css.models}>
       <caption className={css.srOnly}>{t('usage.byModel')}</caption>

@@ -67,6 +67,7 @@
     "lib/typert.remote-client.d.ts"
   ],
   "dependencies": {
+    "@deepseek-ai/dsh-home-paths": "workspace:*",
     "@earendil-works/pi-ai": "^1.3.0",
     "@deepseek-ai/schemastery": "workspace:~"
   },
@@ -77,6 +78,8 @@
     }
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "workspace:~"
+    "@deepseek-ai/cordis": "workspace:~",
+    "@types/ws": "^8.18.1",
+    "ws": "^8.21.3"
   }
 }

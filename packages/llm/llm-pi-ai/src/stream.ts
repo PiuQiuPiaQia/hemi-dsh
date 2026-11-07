@@ -136,6 +136,7 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
  * @param callerSignal - caller cancellation state; an aborted caller makes any
  *   in-band terminal error an aborted finish.
  * @param requestedModel - request model identity recorded for durable replay.
+ * @param onTerminal - optional observer of the SDK terminal event; must not throw.
  * @returns the harness chunks, ending with `usage` then `finish`; throws
  *   `LlmError` (`STREAM_CLOSED`) if the source ends without a terminal event, or
  *   `MALFORMED_RESPONSE` when completed tool arguments are invalid. Length-limited
@@ -146,6 +147,8 @@ export async function* toStreamChunks(
   contextWindow?: number,
   callerSignal?: AbortSignal,
   requestedModel?: string,
+  // Hemi fork: the terminal event is the last place to observe SDK diagnostics before conversion.
+  onTerminal?: (event: Extract<AssistantMessageEvent, { type: 'done' | 'error' }>) => void,
 ): AsyncGenerator<StreamChunk> {
   // pi-ai contentIndex ↔ our block index map 1:1 (both count blocks from 0
   // in stream order), but we track ids per index for tool calls.
@@ -213,6 +216,7 @@ export async function* toStreamChunks(
         }
         break
       case 'done':
+        onTerminal?.(event)
         yield { type: 'usage', usage: mapUsage(event.message.usage) }
         if (argumentsError !== undefined && event.message.stopReason !== 'length') {
           throw new LlmError(argumentsError, 'MALFORMED_RESPONSE')
@@ -224,6 +228,7 @@ export async function* toStreamChunks(
         }
         return
       case 'error':
+        onTerminal?.(event)
         // In-stream error delivery (pi-ai's style) → error finish chunk
         // (the harness's other sanctioned error path besides throwing).
         yield { type: 'usage', usage: mapUsage(event.error.usage) }

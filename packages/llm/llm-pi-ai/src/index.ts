@@ -73,11 +73,11 @@ import { discoverModels } from './discovery.ts'
 import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
 import { providerDefaultsOf } from './provider-data.ts'
-import type { PiAiProviderProfiles, PiAiRequestHeaderContext } from './types.ts'
+import type { PiAiProviderProfiles, PiAiRequestHeaderContext, PiAiTransportDiagnostic } from './types.ts'
 
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
-export type { PiAiProviderProfiles, PiAiRequestHeaderContext } from './types.ts'
+export type { PiAiProviderProfiles, PiAiRequestHeaderContext, PiAiTransportDiagnostic } from './types.ts'
 export { Config, resolveProfiles } from './config.ts'
 // Hemi fork: model editors consume adapter defaults through shipped exports rather than source-only paths.
 export { DEFAULT_CONTEXT_WINDOW, DEFAULT_INPUT, DEFAULT_MAX_TOKENS } from './config.ts'
@@ -128,6 +128,14 @@ declare module '@deepseek-ai/cordis' {
      * @returns headers passed to pi-ai after Harness attribution is applied.
      */
     'llm-pi-ai/request-headers'(request: PiAiRequestHeaderContext, headers: Headers, next: () => Headers): Headers
+    /**
+     * Observe a redacted SDK transport failure after the attempt settles.
+     * Delivery does not delay the model stream or participate in recovery.
+     * @mode parallel
+     * @param detail - request identity, failure phase and SDK disposition.
+     */
+    // Hemi fork: let the deployment own log retention without giving it raw SDK errors.
+    'llm-pi-ai/transport-diagnostic'(detail: PiAiTransportDiagnostic): void | Promise<void>
   }
 }
 
@@ -259,6 +267,11 @@ export function apply(ctx: Context, config: Config): void {
     resolveApiKey,
     auth,
     prepareHeaders: (request, headers) => ctx.waterfall('llm-pi-ai/request-headers', request, headers, () => headers),
+    onTransportDiagnostic: (detail) => {
+      void ctx.parallel('llm-pi-ai/transport-diagnostic', detail).catch(() => {
+        ctx.logger.warn('llm-pi-ai: transport diagnostic listener failed', detail)
+      })
+    },
     resolveAttachments: () => ctx.get('attachments'),
     resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(
       attachments,

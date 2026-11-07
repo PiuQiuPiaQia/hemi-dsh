@@ -1693,7 +1693,7 @@ export interface MemoryLifecycleConfig {
 
 - `inject`: `authorization` · `credentials` · `settings` · `llm`
 - `refs`: `ModelThinkingLevel` (`@earendil-works/pi-ai`) · [`PiAiReasoningEfforts`](../packages/llm/llm-pi-ai/src/index.ts) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/hemi/model-access/src/index.ts:35`](../packages/hemi/model-access/src/index.ts)
+- `source`: [`packages/hemi/model-access/src/index.ts:36`](../packages/hemi/model-access/src/index.ts)
 
 ```ts config-catalog
 interface ModelAccessConfig {

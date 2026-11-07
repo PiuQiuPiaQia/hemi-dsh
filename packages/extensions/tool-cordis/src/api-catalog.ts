@@ -5402,6 +5402,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'request', description: 'immutable routing metadata from the exact prepared call.' }, { name: 'headers', description: 'fresh profile headers, shared only within this dispatch.' }, { name: 'next', description: 'continue header preparation through the remaining listeners.' }],
   },
   {
+    name: 'llm-pi-ai/transport-diagnostic',
+    mode: 'parallel',
+    signature: '\'llm-pi-ai/transport-diagnostic\'(detail: PiAiTransportDiagnostic): void | Promise<void>',
+    summary: 'Observe a redacted SDK transport failure after the attempt settles.',
+    description: 'Observe a redacted SDK transport failure after the attempt settles. Delivery does not delay the model stream or participate in recovery.',
+    parameters: [{ name: 'detail', description: 'request identity, failure phase and SDK disposition.' }],
+  },
+  {
     name: 'llm/adapters-updated',
     mode: 'emit',
     signature: '\'llm/adapters-updated\'(): void',
@@ -7940,6 +7948,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PiAiRequestHeaderContext',
     declaration: 'export interface PiAiRequestHeaderContext extends Readonly<Pick<GenerateOptions<string>, \'provider\' | \'model\' | \'sessionId\' | \'purpose\'>> {\n    readonly baseURL: string;\n}',
+  },
+  {
+    name: 'PiAiTransportDiagnostic',
+    declaration: 'export interface PiAiTransportDiagnostic extends Readonly<Pick<GenerateOptions<string>, \'provider\' | \'model\' | \'sessionId\' | \'purpose\'>> {\n    readonly transport: \'websocket\';\n    readonly configuredTransport: \'auto\' | \'websocket\' | \'websocket-cached\';\n    readonly timestamp: number;\n    readonly elapsedMs: number;\n    readonly phase: \'before_message_stream_start\' | \'after_message_stream_start\';\n    readonly closeCode?: number;\n    readonly fallbackTransport?: \'sse\';\n    readonly fullRequestBytes?: number;\n    readonly outcome: \'completed\' | \'failed\' | \'aborted\';\n}',
   },
   {
     name: 'PlatformSession',

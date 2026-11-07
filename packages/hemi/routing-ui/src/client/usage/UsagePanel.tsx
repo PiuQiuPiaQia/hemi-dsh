@@ -163,6 +163,7 @@ export function UsagePopover({ dialog, title, trigger, children, wide = false, k
   return (
     <span ref={rootRef} className={`${css.root}${keepLabel ? ` ${css.keepLabel}` : ''}`}>
       <button type="button" className={css.trigger} aria-label={title} aria-haspopup="dialog"
+        aria-description={trigger === title ? undefined : trigger}
         aria-expanded={open} onClick={() => { setOpen(!open) }}>
         <IconDatabaseOutlineRegular /><span className={css.label}>{trigger}</span>
       </button>

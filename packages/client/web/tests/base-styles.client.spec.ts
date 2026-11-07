@@ -59,7 +59,7 @@ describe('web shell base.css', () => {
     )
   })
 
-  it('keeps the one-frame recall mark out of the drag surface while it is set', () => {
+  it('subtracts the body box during recall without inheriting no-drag into the app', () => {
     // The shell's drag watcher sets the recall mark while a marked row's box is
     // moving (electron#32341 recollects the window's drag rects only on a
     // computed-value change). The box it subtracts is the body's own, and the row
@@ -67,6 +67,9 @@ describe('web shell base.css', () => {
     // Electron collects without changing the composed surface.
     expect(normalizedCss).toContain(
       "html[data-platform='darwin'] [data-window-drag-recall] { -webkit-app-region: no-drag; }",
+    )
+    expect(normalizedCss).toContain(
+      "html[data-platform='darwin'] body[data-window-drag-recall] > #root { -webkit-app-region: initial; }",
     )
   })
 

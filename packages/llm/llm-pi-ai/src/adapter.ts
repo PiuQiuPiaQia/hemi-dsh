@@ -28,6 +28,7 @@
 
 import type {
   Api,
+  AssistantMessageEvent,
   AuthContext,
   CredentialStore,
   Model,
@@ -62,7 +63,8 @@ import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { requestImageTarget, toPiContext } from './context.ts'
 import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
 import { toStreamChunks } from './stream.ts'
-import type { PiAiRequestHeaderContext } from './types.ts'
+import { reportCodexTransport } from './transport-diagnostics.ts'
+import type { PiAiRequestHeaderContext, PiAiTransportDiagnostic } from './types.ts'
 
 /**
  * Initially active declaration added to an Anthropic request whose projected
@@ -126,6 +128,8 @@ export interface PiAiAdapterOptions {
    * conversion because its stored replay state is unusable by this build.
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
+  /** Observe redacted Codex WebSocket diagnostics. Must not throw or control recovery. */
+  onTransportDiagnostic?: (detail: PiAiTransportDiagnostic) => void
 }
 
 /** The two auth injectables a pi-ai collection is built with. */
@@ -458,6 +462,9 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade, updates.systemPromptUpdate === 'in-history')
+      // Hemi fork: only the adapter sees SDK terminal diagnostics, even after SSE fallback succeeds.
+      const report = this.config.onTransportDiagnostic
+      const startedAt = report !== undefined && model.api === 'openai-codex-responses' ? Date.now() : undefined
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
@@ -466,7 +473,12 @@ export class PiAiAdapter extends LlmAdapter {
         signal: watchdog.signal,
         headers: requestHeaders(profile.headers, options, model.baseUrl, this.config.prepareHeaders),
       })
-      const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
+      const onTerminal = startedAt !== undefined && report !== undefined
+        ? (event: Extract<AssistantMessageEvent, { type: 'done' | 'error' }>) => {
+          reportCodexTransport(event, options, startedAt, report)
+        }
+        : undefined
+      const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id, onTerminal)[Symbol.asyncIterator]()
       let exhausted = false
       try {
         while (true) {

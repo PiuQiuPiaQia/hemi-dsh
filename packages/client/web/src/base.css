@@ -60,12 +60,16 @@ html[data-platform='darwin'] [data-window-drag] {
    rects (electron#32341): a change to a computed app-region value is what dirties
    them. The shell's window drag watcher (window-drag/recall.ts) sets this
    attribute on the body for each frame in which a marked row's box moved, and
-   clears it on the frame that finds the geometry settled. The box it subtracts
-   is the body's own: the row marks inside still declare drag and win over it in
-   document order, so the pulse changes nothing about the composed surface — it
-   only makes Electron collect it again. */
+   clears it on the frame that finds the geometry settled. The marked rows
+   still declare drag and win over the body box in document order. */
 html[data-platform='darwin'] [data-window-drag-recall] {
   -webkit-app-region: no-drag;
+}
+
+/* Hemi fork: Electron can inherit the body's recall value into the app layout,
+   whose later boxes would erase parts of the native drag surface. */
+html[data-platform='darwin'] body[data-window-drag-recall] > #root {
+  -webkit-app-region: initial;
 }
 
 html[data-platform='darwin'] body > :not(#root) {

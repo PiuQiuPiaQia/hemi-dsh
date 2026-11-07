@@ -1,9 +1,8 @@
 /**
  * The window drag-region contract for the macOS desktop shell: Electron hands
  * the page's `-webkit-app-region` boxes to the native window, which hit-tests
- * them by geometry in DOM order, ignoring stacking. The property does not inherit:
- * Blink collects one box per element whose own computed value is not `none`,
- * skipping subtrees that are not visible, and the window applies them in that
+ * them by geometry in DOM order, ignoring stacking. Blink collects visible boxes
+ * with a computed value of `drag` or `no-drag`, and the window applies them in that
  * order: `drag` adds geometry, `no-drag` removes it. The composition is therefore
  * equivalent to "the last matching box decides" — a point is draggable when the
  * last collected box containing it is `drag`.
@@ -42,8 +41,8 @@ export const DRAG_MARK = 'data-window-drag'
 /**
  * The attribute the shell sets for one frame to make Electron recollect the
  * window's drag rects (electron#32341). While it is set, ui-web `base.css`
- * subtracts the marked box; the row marks inside it still declare drag and win in
- * document order, so the mark's only effect is that app-region values changed.
+ * subtracts the body box. The app root resets the inherited value, and its
+ * marked rows still declare drag and win in document order.
  */
 export const RECALL_MARK = 'data-window-drag-recall'
 

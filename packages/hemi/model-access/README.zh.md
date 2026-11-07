@@ -29,6 +29,8 @@ DeepSeek 账号目录查询委托给已注册的 `deepseek-account` 适配器，
 
 远程请求与响应字段由 [`src/types.ts`](src/types.ts) 定义。
 
+排查 Codex WebSocket 中断时，可在 `$DSH_HOME/logs/codex-websocket.jsonl`（Hemi 桌面默认是 `~/.hemi-dsh/logs/codex-websocket.jsonl`）中按会话 ID 搜索。SDK 首次报告 WebSocket 故障时创建该文件。每行记录路由、时间、是否已开始流式输出、可用的关闭码和 SDK 最终结果，包括是否改用 SSE。本地日志不包含提示词、令牌或原始关闭原因。文件写入失败时，宿主日志会接收脱敏后的诊断。删除文件即可清除旧记录。
+
 配置型号既没有内置目录记录、也未声明推理档位时，`reasoningFallbacks` 按协议补齐候选项：OpenAI Chat Completions 和 Responses 默认 `medium`，Anthropic Messages 默认 `high`。显式档位、显式禁用和内置目录记录优先。默认值同时用于选择器和实际请求，不改写已保存的连接。Anthropic 的补齐型号默认使用自适应思考，显式配置仍优先。
 
 ## 模型体验

@@ -2,7 +2,7 @@
   - text: Conversation usage Total
   - strong: —
   - text: token Cache hit 32%
-  - paragraph: Cache rate covers 3/4 calls with reported usage
+  - paragraph: 3 of 4 calls returned usage. The cache rate only covers those calls.
   - table "Recorded usage by model":
     - caption: Recorded usage by model
     - rowgroup:

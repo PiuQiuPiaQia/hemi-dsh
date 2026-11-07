@@ -22,6 +22,7 @@ import { readKeyModelDefaults, readModelOptions, writeModelOptions } from './mod
 import type { ModelOptions, ModelOptionsView } from './types.ts'
 import { mountProtocolReasoning, PROTOCOL_REASONING_DEFAULTS } from './protocol-reasoning.ts'
 import type { ProtocolReasoningDefault } from './protocol-reasoning.ts'
+import { mountTransportLog } from './transport-log.ts'
 
 import type { LoginState, NewApiBrowserCommit, NewApiBrowserCommitResult, NewApiImportReceipt, NewApiLogin, NewApiToken, QuotaWindow, Subscription } from './types.ts'
 
@@ -99,6 +100,7 @@ export default class HemiModelAccess extends TypertRemoteService {
   constructor(ctx: Context, private readonly config: ModelAccessConfig) {
     super(ctx, 'hemiModelAccess', { namespace: 'hemiModelAccess' })
     mountProtocolReasoning(ctx, config.reasoningFallbacks)
+    mountTransportLog(ctx)
     this.refreshBigModel = mountBigModel(ctx, () => this.config.subscriptionModels.get().bigmodel,
       () => this.config.subscriptionModelOptions.get().bigmodel)
     ctx.effect(() => () => this.active?.controller.abort(), 'cancel model authorization on unload')

@@ -441,6 +441,8 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   DeepSeekLlmApiExtensionRequest: 'llm-streaming.md',
   LlmCallConfig: 'llm-streaming.md',
   PiAiRequestHeaderContext: 'llm-streaming.md',
+  // Hemi fork: link the redacted transport diagnostic event to its field semantics.
+  PiAiTransportDiagnostic: 'llm-streaming.md',
   // Hemi fork: the generic provider-defaults event is documented with the pi-ai transport seam.
   PiAiProviderProfiles: 'llm-streaming.md',
   ConfigureCall: 'llm-streaming.md',
