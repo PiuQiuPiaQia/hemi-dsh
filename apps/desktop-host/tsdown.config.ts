@@ -10,4 +10,6 @@ export default defineConfig(['index', 'cli'].map(name => ({
   fixedExtension: false,
   dts: false,
   clean: false,
+  // Hemi fork: the startup adapter is build-only because the shipped Host closure excludes private workspace packages.
+  deps: { alwaysBundle: ['@deepseek-ai/dsh-hemi-customizations/desktop-branding'] },
 })))

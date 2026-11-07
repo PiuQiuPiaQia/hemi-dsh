@@ -866,9 +866,6 @@ importers:
       '@deepseek-ai/dsh-deepseek-account':
         specifier: workspace:*
         version: link:../../packages/credentials/deepseek-account
-      '@deepseek-ai/dsh-hemi-customizations':
-        specifier: workspace:*
-        version: link:../../packages/hemi/customizations
       '@deepseek-ai/dsh-home-paths':
         specifier: workspace:*
         version: link:../../packages/util/home-paths
@@ -915,6 +912,9 @@ importers:
       '@deepseek-ai/dsh-fs-local':
         specifier: workspace:*
         version: link:../../packages/fs/fs-local
+      '@deepseek-ai/dsh-hemi-customizations':
+        specifier: workspace:*
+        version: link:../../packages/hemi/customizations
       '@deepseek-ai/dsh-sandbox-policy':
         specifier: workspace:*
         version: link:../../packages/sandbox/sandbox-policy

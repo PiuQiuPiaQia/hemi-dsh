@@ -27,7 +27,7 @@ kind: "package-library"
 
 `/desktop-branding` 适配使用 Hemi 应用名称，保留 `hemi-dsh` 分发标记、外部协议、安装包前缀和偏好目录。`/desktop-artwork` 拥有黑白分发资源，`/web-branding` 将其应用到显式命名的 Hemi Web 构建。在仓库根目录运行 `node packages/hemi/customizations/release/render-artwork.mjs` 可重新生成资源。
 
-`/desktop-branding` 适配提供本地化加载展示，并读取 Hemi Host 插件的提供方中立启动选项。加载页保留原生布局和浅深色配色，仅使用 Hemi 品牌与状态文案。它不替换原生账号欢迎页：Hemi Desktop 跳过该窗口，将引导放在 Hemi 设置插件中。
+`/desktop-branding` 适配提供本地化加载展示，并读取 Hemi Host 插件的提供方中立启动选项。Desktop Host 在构建时将此入口打包进启动模块。加载页保留原生布局和浅深色配色，仅使用 Hemi 品牌与状态文案。它不替换原生账号欢迎页：Hemi Desktop 跳过该窗口，将引导放在 Hemi 设置插件中。
 
 <a id="github-releases"></a>
 

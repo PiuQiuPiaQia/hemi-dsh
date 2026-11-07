@@ -253,7 +253,7 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 - 原生 `ui-settings-account` 增加默认开启的 `desktopOnboarding`、`initializeDefaultModel`、`nativeSignIn` 配置。Hemi Desktop 在组合层关闭三项；DeepSeek 仍使用原有订阅卡片与账号服务，登录由通用系统浏览器能力完成，登录和退出不改变全局启动页或默认型号。账号插件缺席时，Hemi 的订阅 factory 使用空 fallback。Hemi 组合默认停用账号关联的产品分析与遥测导出插件。
 - `agent-default-model` 支持 provider/model 同时为 null，并在加载和设置更新时拒绝半配置。Session 目录以 null 表示无默认型号，空会话通过 live accessor 继承之后保存的选择。`session-controller` 在入队和附件接纳前拒绝无型号提示，并提供通用 `agent/before-user-prompt` 扩展点，让 Hemi 自动路由插件选出首个型号；没有更改原生循环调度。输入框本地化提示并保留草稿。原生账号初始化显式传入 provider，headless/webhook 在依赖默认型号时明确报错。`AgentOptions`、压缩上下文和 subagent 配置类型同步更新。
 - 上游保留文件为启动宿主、原生账号 UI、默认型号／Session API 与其直接消费者；品牌、首次引导、自动路由和产品组合决策留在 Hemi 自有目录。`ui-primitives/Input` 移除重复的 className 字段，继承原生 HTML 属性类型；Web 测试在 client/host 编译面分别排除和登记。新增升级指南说明可空默认值及显式 provider 参数，目录从源声明生成。
-- 合并上游时核对：可空默认型号的全部消费者、首个提示准入与自动路由、原生账号配置默认值、ready IPC 的可选性、无账号插件的订阅 factory、沙箱 preload 和冷启动品牌参数。上游提供等价扩展点后移除对应适配；不迁移或重写用户账号、凭据和 Session 历史。
+- 合并上游时核对：可空默认型号的全部消费者、首个提示准入与自动路由、原生账号配置默认值、ready IPC 的可选性、Desktop Host 启动适配的构建内联及打包依赖闭包、无账号插件的订阅 factory、沙箱 preload 和冷启动品牌参数。上游提供等价扩展点后移除对应适配；不迁移或重写用户账号、凭据和 Session 历史。
 - 验证：最新 `build:artifacts` 的 8 项与随后 `build:check` 的 Host／Client 两项通过，`doc-sync` 的 43 项、客户端文案检查和定向 lint 通过。默认型号、账号 UI、自动路由、无型号提示、桌面启动及进程通信的定向回归通过；headless／webhook 的 93 项回归和 4 项已构建沙箱 preload 检查通过。无 DeepSeek 账号插件的真实 Loader／浏览器首启与快照重放通过，覆盖引导、模型设置、发送前拒绝、保存默认值、空会话继承和刷新；浅深色截图已检查。未执行真实模型推理，未替换已安装应用；主进程改动需完整退出并重启开发版。
 
 ## 2026-11-07 · Desktop 启动依赖读取

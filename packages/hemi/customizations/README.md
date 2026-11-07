@@ -27,7 +27,7 @@ The main adapter embeds the isolated New API sign-in view in the product window 
 
 The `/desktop-branding` adapter names the application Hemi while retaining the `hemi-dsh` distribution marker, external protocol, artifact prefix and preference directory. `/desktop-artwork` owns monochrome distribution resources; `/web-branding` applies them to explicitly named Hemi Web builds. Regenerate the resources with `node packages/hemi/customizations/release/render-artwork.mjs` from the repository root.
 
-The `/desktop-branding` adapter supplies localized boot presentation and reads the Hemi Host plugin’s provider-neutral startup contribution. Loading retains the native layout and light/dark palette, with Hemi branding and status copy. It does not replace the native account Welcome: Hemi Desktop bypasses that window and hosts its introduction in the Hemi settings plugin.
+The `/desktop-branding` adapter supplies localized boot presentation and reads the Hemi Host plugin’s provider-neutral startup contribution. The Desktop Host bundles this entry into its executable module at build time. Loading retains the native layout and light/dark palette, with Hemi branding and status copy. It does not replace the native account Welcome: Hemi Desktop bypasses that window and hosts its introduction in the Hemi settings plugin.
 
 <a id="github-releases"></a>
 
