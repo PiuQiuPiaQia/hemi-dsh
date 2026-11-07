@@ -31,6 +31,12 @@ describe('Toast', () => {
     expect(action).toMatch(/pointer-events:\s*auto/)
   })
 
+  it('wraps unbroken identifiers within the viewport-limited banner', () => {
+    // Hemi fork: model-test failures name provider-defined IDs without inserting display-only breaks.
+    const text = /\.text\s*\{[^}]*\}/.exec(toastCss)?.[0]
+    expect(text).toMatch(/overflow-wrap:\s*anywhere/)
+  })
+
   it('announces its text and reports done after the hold-and-fade lifetime', () => {
     vi.useFakeTimers()
     try {

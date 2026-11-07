@@ -20,7 +20,6 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'hemi/desktop-setup-forbidden': {}
     'hemi/desktop-setup-unavailable': {}
     'hemi/model-test-forbidden': {}
-    'hemi/model-test-busy': {}
     'hemi/model-test-failed': {}
     'hemi/model-test-timeout': {}
   }
@@ -38,7 +37,6 @@ export interface Config {
 export default class HemiModelSettings extends TypertRemoteService {
   static inject = ['llm']
   static Config = z.object({ desktopStartup: z.boolean().default(false), welcomeCompleted: z.boolean().default(false).volatile() })
-  private testing = false
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'hemiModelSettings', { namespace: 'hemiModelSettings' })
@@ -94,18 +92,19 @@ export default class HemiModelSettings extends TypertRemoteService {
 
   /**
    * Send a bounded request and check whether the model returns a test tool call.
+   *
+   * Concurrent probes have independent streams, deadlines and cancellation.
    * @param provider - configured provider ID.
    * @param model - model ID.
-   * @param signal - cancellation propagated from the client.
+   * @param signal - cancellation propagated from the client; it aborts only this probe, which also carries its own 25-second deadline.
    * @returns whether the model returned the test tool call.
+   * @throws if the caller is not the profile owner, or this probe fails or times out; no tools execute or history is written.
    */
   @Remote
   async testModel(provider: string, model: string, signal: AbortSignal): Promise<boolean> {
     if (principalOf(this.ctx.invocation) !== undefined) {
       throw new RemoteError('hemi/model-test-forbidden', 'Only the profile owner can test models.', {})
     }
-    if (this.testing) throw new RemoteError('hemi/model-test-busy', 'A model test is already running.', {})
-    this.testing = true
     const deadline = AbortSignal.timeout(25_000)
     const requestSignal = AbortSignal.any([signal, deadline])
     try {
@@ -124,8 +123,6 @@ export default class HemiModelSettings extends TypertRemoteService {
       if (deadline.aborted) throw new RemoteError('hemi/model-test-timeout', 'The model test timed out.', {})
       if (error instanceof RemoteError) throw error
       throw new RemoteError('hemi/model-test-failed', 'The model request did not complete. Check the provider configuration.', {})
-    } finally {
-      this.testing = false
     }
   }
 }

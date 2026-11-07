@@ -28,6 +28,8 @@ Key presets supply connection addresses without injecting model IDs. Discover or
 
 Model settings edit the display name, context window, maximum output tokens and text/image input types. The editor displays resolved values immediately, including inherited image support, with text/image choices always visible. Saving unchanged values preserves inheritance; clearing optional text or token fields removes their overrides. New connection drafts are written only when the connection is saved; settings for an existing model have their own confirmation. Cancelling either dialog leaves its settings unchanged.
 
+While a model test runs, its play icon becomes a spinner and that row’s actions are disabled. Other model rows remain available. Successful test results stay beside the model; test and removal failures appear in app-wide toasts that remain visible after closing settings. Concurrent failures are shown in order.
+
 ## Model Experience
 
 ### Connection editing

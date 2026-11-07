@@ -1,9 +1,15 @@
 import type { KeyDirectory, KeyProfileInput, LoginState, ModelOptions, ModelOptionsView, NewApiLogin, NewApiToken, QuotaWindow, Subscription } from '@deepseek-ai/dsh-hemi-model-access/types'
 
-/**
- * Client operations supplied by the model-access Remote namespace.
- */
+/** A failed model-row operation announced outside the connection page. */
+export interface ModelActionFailure {
+  operation: 'test' | 'remove'
+  model: string
+}
+
+/** Remote connection operations and app-wide model-row feedback. */
 export interface ModelAccessActions {
+  /** Announce a settled failure without replacing the model row. */
+  reportModelFailure: (failure: ModelActionFailure) => void
   keyDirectory: () => Promise<KeyDirectory>
   getModelOptions: (provider: string, model: string) => Promise<ModelOptionsView>
   getModelDefaults: (api: string, model: string, provider?: string) => Promise<ModelOptions>
@@ -26,6 +32,6 @@ export interface ModelAccessActions {
 }
 
 /**
- * Explicit model connection test, with caller cancellation.
+ * Independent model connection test, with caller-owned cancellation.
  */
 export type ModelTest = (provider: string, model: string, signal: AbortSignal) => Promise<boolean>

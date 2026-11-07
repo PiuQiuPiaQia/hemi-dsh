@@ -1,4 +1,4 @@
-/** Theme-inheriting monochrome Hemi artwork for the hero and running status. */
+/** Monochrome hero artwork and a blank running-artwork slot for Hemi. */
 import css from './HemiBrandMark.module.css'
 
 /** Presentation supplied by a brand-mark host. */
@@ -18,9 +18,9 @@ export function HemiBrandMark({ size, className }: MarkProps) {
 }
 
 /**
- * Render the running mark with reduced-motion-aware opacity animation.
- * @returns a decorative status mark without changing the status text or clock.
+ * Suppress the native running artwork while preserving the status text and clock.
+ * @returns no artwork or layout placeholder.
  */
 export function HemiRunningMark() {
-  return <span className={css.running}><HemiBrandMark size={18} /></span>
+  return null
 }

@@ -6,16 +6,3 @@
   mask: url('./assets/hemi-mark.svg') center / 180% no-repeat;
   vertical-align: middle;
 }
-
-.running {
-  display: inline-flex;
-  animation: hemi-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes hemi-pulse {
-  50% { opacity: 0.4; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .running { animation: none; }
-}

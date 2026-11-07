@@ -4137,6 +4137,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-workspace RowActionToast id \'workspace.row-toast\'',
       'experimental-client-ui-forge ActionToast id \'forge-panel.toast\'',
       'cua PermissionToast id \'cua-permission-outcome\'',
+      'hemi-model-access-ui ModelActionToast id \'hemi.model-action-toast\'',
       'hemi-routing-ui RoutingDialog id \'hemi-routing\'',
       'session-log-export SessionMarkdownCopyToast id \'session-log-download.copy-toast\'',
     ],

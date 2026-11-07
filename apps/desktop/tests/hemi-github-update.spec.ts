@@ -91,17 +91,20 @@ it('the source CLI prepares tag-triggered builds and rejects a version from anot
     'apps/desktop/scripts/hemi-github-release.ts', 'prepare'], { cwd: root, encoding: 'utf8', env: {
     ...process.env, GITHUB_OUTPUT: output, GITHUB_REF_TYPE: 'tag', GITHUB_REF_NAME: `hemi-desktop-v${version}`,
     GITHUB_SHA: 'a'.repeat(40), GITHUB_REPOSITORY: 'example/hemi-dsh', HEMI_RELEASE_CHANNEL: '',
-    HEMI_RELEASE_TARGETS: 'mac-all', HEMI_DESKTOP_MAC_CONFIG_DIR: '/signing/hemi', HEMI_RELEASE_VERSION: '',
+    HEMI_RELEASE_TARGETS: undefined, HEMI_RELEASE_SIGNING_MODE: 'community', HEMI_RELEASE_VERSION: '',
   }, timeout: 15_000 })
   const valid = run(product.version)
+  expect(valid.error).toBeUndefined()
+  expect(valid.signal).toBeNull()
   expect(valid.stderr).toBe('')
   expect(valid.status).toBe(0)
-  expect(await readFile(output, 'utf8')).toContain('targets=mac-arm64,mac-x64\n')
+  expect(await readFile(output, 'utf8')).toContain('targets=mac-arm64,mac-x64,win-x64\n')
   expect(run('99.0.0').status).not.toBe(0)
 })
 
 interface Workflow {
-  on: Record<string, unknown>
+  on: { push: unknown; workflow_dispatch: { inputs: Record<string, { default?: string; options?: string[] }> } }
+  env: Record<string, string>
   permissions: Record<string, string>
   concurrency: { 'cancel-in-progress': boolean }
   jobs: Record<string, {
@@ -111,6 +114,14 @@ interface Workflow {
     steps: { run?: string; uses?: string; env?: Record<string, string>; with?: Record<string, unknown> }[]
   }>
 }
+
+it('defaults manual and tag-triggered releases to all three desktop targets', () => {
+  const workflow = load(readFileSync(resolve(root, '.github/workflows/hemi-desktop-release.yml'), 'utf8')) as Workflow
+  expect(workflow.on.workflow_dispatch.inputs.targets).toMatchObject({
+    default: 'all', options: ['mac-arm64', 'mac-all', 'win-x64', 'all'],
+  })
+  expect(workflow.env.HEMI_RELEASE_TARGETS).toBe("${{ inputs.targets || vars.HEMI_DESKTOP_RELEASE_TARGETS || 'all' }}")
+})
 
 it('keeps a single GitHub publisher after all signed packages and previews without a token', () => {
   const workflow = load(readFileSync(resolve(root, '.github/workflows/hemi-desktop-release.yml'), 'utf8')) as Workflow

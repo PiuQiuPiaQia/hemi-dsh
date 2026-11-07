@@ -15,6 +15,7 @@ const importedProfile = { id: 'connection/imported', name: 'Imported API', baseU
 
 function actions(): ModelAccessActions {
   return {
+    reportModelFailure: vi.fn(),
     keyDirectory: vi.fn(async () => ({ revision: 1, profiles: [] })),
     getModelOptions: vi.fn(async () => ({ revision: 1, options: {}, effective: { name: 'deepseek-chat', input: ['text'] as const } })),
     getModelDefaults: vi.fn(async (_api: string, id: string) => ({ name: id, input: ['text'] as const })),

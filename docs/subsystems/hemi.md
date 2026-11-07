@@ -307,10 +307,13 @@ desktopStartup(): { mode: 'workspace'; localePreference: string | null } | undef
 
 /**
  * Send a bounded request and check whether the model returns a test tool call.
+ *
+ * Concurrent probes have independent streams, deadlines and cancellation.
  * @param provider - configured provider ID.
  * @param model - model ID.
- * @param signal - cancellation propagated from the client.
+ * @param signal - cancellation propagated from the client; it aborts only this probe, which also carries its own 25-second deadline.
  * @returns whether the model returned the test tool call.
+ * @throws if the caller is not the profile owner, or this probe fails or times out; no tools execute or history is written.
  */
 @Remote async testModel(provider: string, model: string, signal: AbortSignal): Promise<boolean>
 ```

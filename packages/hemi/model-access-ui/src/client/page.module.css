@@ -144,6 +144,18 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
+.modelTestSpinner {
+  animation: model-test-spin 1s linear infinite;
+}
+
+@keyframes model-test-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modelTestSpinner { animation: none; }
+}
+
 .providerHeader,
 .providerIdentity,
 .quotaInline {

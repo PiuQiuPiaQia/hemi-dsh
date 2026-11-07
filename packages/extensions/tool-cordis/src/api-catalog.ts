@@ -1916,9 +1916,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote async testModel(provider: string, model: string, signal: AbortSignal): Promise<boolean>',
-        description: 'Send a bounded request and check whether the model returns a test tool call.',
-        parameters: [{ name: 'provider', description: 'configured provider ID.' }, { name: 'model', description: 'model ID.' }, { name: 'signal', description: 'cancellation propagated from the client.' }],
+        description: 'Send a bounded request and check whether the model returns a test tool call.\n\nConcurrent probes have independent streams, deadlines and cancellation.',
+        parameters: [{ name: 'provider', description: 'configured provider ID.' }, { name: 'model', description: 'model ID.' }, { name: 'signal', description: 'cancellation propagated from the client; it aborts only this probe, which also carries its own 25-second deadline.' }],
         returns: 'whether the model returned the test tool call.',
+        throws: ['if the caller is not the profile owner, or this probe fails or times out; no tools execute or history is written.'],
       },
     ],
   },

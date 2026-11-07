@@ -28,7 +28,8 @@ export const en = {
   weeklyQuota: 'Weekly', shortQuota: '5h', quotaPercent: '{percent}% left',
 
   testModel: 'Test', testingModel: 'Testing…', modelToolOk: 'Connected · tool calling supported',
-  modelResponseOk: 'Connected · no tool call returned', modelTestFailed: 'Test failed. Check the connection and retry.',
+  modelResponseOk: 'Connected · no tool call returned', modelTestFailed: 'Test failed for {model}. Check the connection and retry.',
+  modelRemoveFailed: 'Could not confirm removal of {model}. Refresh the connection list to check.',
 
   title: 'Model connections', subscriptionsMethod: 'Subscription', keyMethod: 'API',
   connectNewApi: 'Connect New API', newApiSetup: 'Connect New API', done: 'Done',
@@ -133,7 +134,8 @@ export const zh: typeof en = {
   weeklyQuota: '周限', shortQuota: '5h', quotaPercent: '剩余 {percent}%',
 
   testModel: '测试', testingModel: '测试中…', modelToolOk: '连接成功 · 支持工具调用',
-  modelResponseOk: '连接成功 · 本次未返回工具调用', modelTestFailed: '测试失败，请检查接入配置后重试。',
+  modelResponseOk: '连接成功 · 本次未返回工具调用', modelTestFailed: '{model} 测试失败，请检查接入配置后重试',
+  modelRemoveFailed: '未能确认 {model} 的删除结果，请刷新接入列表后检查',
 
   title: '模型接入', subscriptionsMethod: '订阅', keyMethod: 'API',
   connectNewApi: '接入 New API', newApiSetup: '接入 New API', done: '完成',

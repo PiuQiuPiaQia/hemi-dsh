@@ -26,7 +26,7 @@ on:
         description: '本次发布的目标；其他平台和渠道的更新清单保持原值'
         type: choice
         options: [mac-arm64, mac-all, win-x64, all]
-        default: mac-arm64
+        default: all
         required: true
 
 permissions:
@@ -41,7 +41,7 @@ env:
   HEMI_RELEASE_SIGNING_MODE: ${{ inputs.signing_mode || vars.HEMI_DESKTOP_SIGNING_MODE || 'community' }}
   HEMI_RELEASE_VERSION: ${{ inputs.version }}
   HEMI_RELEASE_CHANNEL: ${{ inputs.channel }}
-  HEMI_RELEASE_TARGETS: ${{ inputs.targets || vars.HEMI_DESKTOP_RELEASE_TARGETS || 'mac-arm64' }}
+  HEMI_RELEASE_TARGETS: ${{ inputs.targets || vars.HEMI_DESKTOP_RELEASE_TARGETS || 'all' }}
   HEMI_DESKTOP_FEED_BRANCH: ${{ vars.HEMI_DESKTOP_FEED_BRANCH || 'desktop-update-feeds' }}
 
 jobs:

@@ -32,7 +32,7 @@ description: "通过 GitHub 发布 Hemi Desktop，macOS 使用固定自签名证
 
 源码只包含 Hemi 公钥证书。缺少 secrets、私钥不可用或证书不匹配时停止 Mac 打包；工作流不生成替代身份，也不退回 ad-hoc 签名。私有输入只写入托管 runner 自有的临时目录，打包结束后删除。临时钥匙串在子操作结束后删除，并恢复原用户搜索列表。工具不修改证书信任设置。Windows 不需要这两个 secret。
 
-社区构建使用 GitHub 托管的 `macos-15` 运行 arm64、`macos-15-intel` 运行 x64、`windows-latest` 运行 Windows。不需要自托管 runner 配置或 Apple 公证凭据。可选仓库变量为 `HEMI_DESKTOP_APP_ID`（默认 `ai.hemi.dsh.desktop`）、`HEMI_DESKTOP_FEED_BRANCH`（默认 `desktop-update-feeds`）和 `HEMI_DESKTOP_RELEASE_TARGETS`（`mac-arm64`、`mac-all`、`win-x64` 或 `all`，默认 `mac-arm64`）。为已有 DSH fork 安装准备升级时保留其应用 ID。
+社区构建使用 GitHub 托管的 `macos-15` 运行 arm64、`macos-15-intel` 运行 x64、`windows-latest` 运行 Windows。不需要自托管 runner 配置或 Apple 公证凭据。可选仓库变量为 `HEMI_DESKTOP_APP_ID`（默认 `ai.hemi.dsh.desktop`）、`HEMI_DESKTOP_FEED_BRANCH`（默认 `desktop-update-feeds`）和 `HEMI_DESKTOP_RELEASE_TARGETS`（`mac-arm64`、`mac-all`、`win-x64` 或 `all`，默认 `all`）。为已有 DSH fork 安装准备升级时保留其应用 ID。
 
 为发布操作者配置 `hemi-desktop-production` GitHub Environment。它的保护设置控制发布 job。仅该 job 获得 contents 写权限。分支和 tag 规则须允许其独立清单分支及发布 tag；工具不会修改仓库权限。
 
@@ -58,7 +58,9 @@ Windows 社区包没有 Authenticode 发布者签名。其更新器显式省略�
 
 手动运行 **Release Hemi Desktop · GitHub**，选择完整构建版本、渠道、目标组和签名模式。也可推送 `hemi-desktop-v<version>`；普通版本号选择 `stable`，预发布版本号选择 `nightly`。版本遵循[现有构建版本规则](../../../../apps/desktop/packaging/README.zh.md#release-versions)。Stable 要求产品本身为正式版本。流程不使用依赖 COS 的自动版本发现。
 
-所有选中目标使用相同的固定源码提交和版本。打包阶段不发布。单一发布器校验完成记录、干净源码身份、签名模式、固定 Mac 证书、更新 URL、大小和 SHA-512。它创建 `hemi-desktop-<channel>-v<version>`，生成发布说明，恢复匹配草稿，并校验 GitHub 返回的附件 SHA-256／大小。先公开 Release，再以一次非强制 Git 提交推进所有选中清单。编辑说明时保留 `Hemi Desktop package:` 标记行，以便重试识别安装包。
+工作流与发布 CLI 默认选择三个目标：Apple Silicon 使用 `mac-arm64`，Intel Mac 使用 `mac-x64`，Windows 使用 `win-x64`。手动运行采用所选目标输入；tag 触发时采用已设置的 `HEMI_DESKTOP_RELEASE_TARGETS`。已有仓库若覆写为 `mac-arm64`，须改为 `all` 或删除该变量，才能包含三个目标。仍可显式选择目标组进行部分发布。
+
+所有选中目标使用相同的固定源码提交和版本。每个选中目标须完成打包后才能发布；缺少目标时停止发布，不自动缩减目标集合。打包阶段不发布。单一发布器校验完成记录、干净源码身份、签名模式、固定 Mac 证书、更新 URL、大小和 SHA-512。它创建 `hemi-desktop-<channel>-v<version>`，生成发布说明，恢复匹配草稿，并校验 GitHub 返回的附件 SHA-256／大小。先公开 Release，再以一次非强制 Git 提交推进所有选中清单。编辑说明时保留 `Hemi Desktop package:` 标记行，以便重试识别安装包。
 
 下载的产物可通过 `pnpm --dir apps/desktop run github:release preview --signing-mode community --artifacts <directory> --version <version> --channel <channel> --targets <targets> --repository <owner/repo> --commit <source-sha>` 写入本地 `release-plan.json`，不访问网络。目录中每个目标各有一个子目录。`publish` 接受相同选择并要求 `GH_TOKEN`；Actions 仅在发布时提供受限令牌。常规 DSH 签名记录使用 `--signing-mode official`。发布器拒绝混合模式和变更的 Mac 证书指纹。
 

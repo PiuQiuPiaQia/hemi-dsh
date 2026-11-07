@@ -1,0 +1,17 @@
+- region "Hemi Test Provider edited":
+  - strong: Hemi Test Provider edited
+  - paragraph: {{provider-endpoint}}
+  - text: 2 个模型
+  - button "拉取添加型号"
+  - button "编辑"
+  - button "移除"
+  - group "hemi-test-model":
+    - text: hemi-test-model
+    - button "模型设置" [disabled]
+    - button "测试中…" [disabled]
+    - button "删除型号" [disabled]
+  - group "manual-model-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef":
+    - text: manual-model-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    - button "模型设置" [disabled]
+    - button "测试中…" [disabled]
+    - button "删除型号" [disabled]

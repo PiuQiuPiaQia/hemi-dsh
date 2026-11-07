@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,10 +6,11 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { expect, it, onTestFinished } from 'vitest'
 import { captureStableAria, compareOrRefreshGolden, launchWebScaffold, webSnapshotMode } from './scaffold.ts'
-import { ZH_BROWSER_LOCALE } from './support.ts'
+import { REPO_ROOT, ZH_BROWSER_LOCALE } from './support.ts'
 
 it('offers a separate Hemi connection entry while hiding the intact stock Models entry', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'hemi-model-settings-test-'))
+  const manualModel = `manual-model-${'0123456789abcdef'.repeat(6)}`
   onTestFinished(() => rm(scratch, { recursive: true, force: true }))
   const patch = join(scratch, 'hemi.patch.yml')
   await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
@@ -36,7 +37,13 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
   await page.getByRole('dialog', { name: '模型路由', exact: true }).waitFor()
   await page.getByRole('button', { name: '关闭模型路由配置' }).click()
 
-  let received: { model?: string; tools?: { function: { name: string } }[] } | undefined
+  const received: { model: string; tools: { function: { name: string } }[] }[] = []
+  // Hemi fork: hold responses per model to observe concurrent Remote tests without timers.
+  const pendingProbes = new Map<string, (failed?: boolean) => void>()
+  let holdProbes = false
+  await mkdir(join(REPO_ROOT, '.artifacts'), { recursive: true })
+  const screenshots = await mkdtemp(join(REPO_ROOT, '.artifacts/hemi-model-tests-'))
+  console.log(`Model test screenshots: ${screenshots}`)
   const provider = createServer((request, response) => {
     expect(request.headers.authorization).toBe('Bearer test-provider-key')
     if (request.url === '/v1/models') {
@@ -48,22 +55,37 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
     let body = ''
     request.on('data', (chunk: string) => { body += chunk })
     request.on('end', () => {
-      received = JSON.parse(body) as typeof received
-      const base = { id: 'test-completion', object: 'chat.completion.chunk', created: 1, model: 'hemi-test-model' }
-      const reply = { role: 'assistant', tool_calls: [{ index: 0, id: 'test-call', type: 'function',
-        function: { name: 'model_connection_test', arguments: '{}' } }] }
-      response.writeHead(200, { 'content-type': 'text/event-stream' })
-      response.end([
-        { ...base, choices: [{ index: 0, delta: reply, finish_reason: null }] },
-        { ...base, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
-      ].map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n')
+      const probe = JSON.parse(body) as (typeof received)[number]
+      received.push(probe)
+      const respond = (failed = false): void => {
+        pendingProbes.delete(probe.model)
+        if (failed) {
+          response.writeHead(401, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ error: { message: 'Fixture rejected the model test', type: 'authentication_error' } }))
+          return
+        }
+        const base = { id: 'test-completion', object: 'chat.completion.chunk', created: 1, model: probe.model }
+        const reply = { role: 'assistant', tool_calls: [{ index: 0, id: 'test-call', type: 'function',
+          function: { name: 'model_connection_test', arguments: '{}' } }] }
+        response.writeHead(200, { 'content-type': 'text/event-stream' })
+        response.end([
+          { ...base, choices: [{ index: 0, delta: reply, finish_reason: null }] },
+          { ...base, choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+        ].map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n')
+      }
+      if (holdProbes) pendingProbes.set(probe.model, respond)
+      else respond()
     })
   })
   await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve))
-  onTestFinished(() => new Promise<void>((resolve, reject) => provider.close((error) => {
-    if (error) reject(error)
-    else resolve()
-  })))
+  onTestFinished(() => new Promise<void>((resolve, reject) => {
+    provider.close((error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+    provider.closeAllConnections()
+    pendingProbes.clear()
+  }))
   const address = provider.address()
   if (address === null || typeof address === 'string') throw new Error('Test provider could not bind a port')
 
@@ -95,9 +117,9 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
     await captureStableAria(page, '[role="dialog"][aria-label="选择模型"]', scaffold.workspaceCwd), webSnapshotMode())
   await picker.getByRole('button', { name: '添加选中型号', exact: true }).click()
   await picker.waitFor({ state: 'detached' })
-  await custom.getByLabel('模型 ID', { exact: true }).fill('manual-model')
+  await custom.getByLabel('模型 ID', { exact: true }).fill(manualModel)
   await custom.getByRole('button', { name: '添加模型', exact: true }).click()
-  await custom.getByRole('group', { name: 'manual-model', exact: true }).getByRole('button', { name: '模型设置', exact: true }).click()
+  await custom.getByRole('group', { name: manualModel, exact: true }).getByRole('button', { name: '模型设置', exact: true }).click()
   const draftOptions = page.getByRole('dialog', { name: '模型设置', exact: true })
   await draftOptions.getByLabel('上下文长度（token）').fill('32000')
   await draftOptions.getByRole('button', { name: '保存模型设置', exact: true }).click()
@@ -141,11 +163,11 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
   page.once('dialog', (dialog) => { void dialog.accept() })
   await models.getByRole('group', { name: 'o4-mini', exact: true }).getByRole('button', { name: '删除型号' }).click()
   await models.getByRole('group', { name: 'o4-mini', exact: true }).waitFor({ state: 'detached' })
-  expect(await scaffold.ctx.llm.resolveModelInfo(added.id, 'manual-model')).toMatchObject({ context: { contextWindow: 32000 } })
+  expect(await scaffold.ctx.llm.resolveModelInfo(added.id, manualModel)).toMatchObject({ context: { contextWindow: 32000 } })
   await expect(scaffold.ctx.llm.resolveModelInfo(added.id, 'hemi-test-model')).resolves.toBeDefined()
   expect(await models.getByRole('region', { name: '连接测试', exact: true }).count()).toBe(0)
   const testedModel = models.getByRole('group', { name: 'hemi-test-model', exact: true })
-  const otherModel = models.getByRole('group', { name: 'manual-model', exact: true })
+  const otherModel = models.getByRole('group', { name: manualModel, exact: true })
   await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
   const options = page.getByRole('dialog', { name: '模型设置', exact: true })
   await options.getByLabel('显示名称').fill('Should not be saved')
@@ -179,7 +201,7 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
   expect(await scaffold.ctx.llm.resolveModelInfo(added.id, 'hemi-test-model')).toMatchObject({
     name: 'Hemi Vision', context: { contextWindow: 64000 }, defaultMaxTokens: 4096, inputModalities: ['text', 'image'],
   })
-  expect((await scaffold.ctx.llm.listModels(added.id)).map(model => model.id)).toEqual(['hemi-test-model', 'manual-model'])
+  expect((await scaffold.ctx.llm.listModels(added.id)).map(model => model.id)).toEqual(['hemi-test-model', manualModel])
   await testedModel.getByRole('button', { name: '模型设置', exact: true }).click()
   expect(await options.getByLabel('上下文长度（token）').inputValue()).toBe('64000')
   await options.getByRole('checkbox', { name: '图片', exact: true }).uncheck()
@@ -199,14 +221,72 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
   expect(await options.getByRole('checkbox', { name: '文本', exact: true }).isChecked()).toBe(true)
   expect(await options.getByRole('checkbox', { name: '图片', exact: true }).isChecked()).toBe(false)
   await options.getByRole('button', { name: '取消', exact: true }).click()
+  holdProbes = true
   await testedModel.getByRole('button', { name: '测试', exact: true }).click()
+  await otherModel.getByRole('button', { name: '测试', exact: true }).click()
+  await expect.poll(() => [...pendingProbes.keys()].sort()).toEqual(['hemi-test-model', manualModel])
+  for (const row of [testedModel, otherModel]) {
+    const button = row.getByRole('button', { name: '测试中…', exact: true })
+    expect(await button.isDisabled()).toBe(true)
+    expect(await button.getAttribute('aria-busy')).toBe('true')
+    expect(await button.locator('[data-icon="dsw-icon-loading-outline-regular"]').count()).toBe(1)
+    expect(await row.getByRole('status').count()).toBe(0)
+  }
+  const spinner = testedModel.locator('[data-icon="dsw-icon-loading-outline-regular"]')
+  expect(await spinner.evaluate(element => getComputedStyle(element).animationName)).not.toBe('none')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await spinner.evaluate(element => getComputedStyle(element).animationName)).toBe('none')
+  await page.emulateMedia({ reducedMotion: 'no-preference', colorScheme: 'light' })
+  await page.mouse.move(0, 0)
+  await page.screenshot({ path: join(screenshots, 'loading-desktop-light.png') })
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const theme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: theme })
+    expect(await testedModel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect(await otherModel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await page.screenshot({ path: join(screenshots, `loading-mobile-${theme}.png`) })
+  }
+  const testedCard = 'section[aria-label="Hemi Test Provider edited"]'
+  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/hemi-model-settings/testing.expected.md', import.meta.url)),
+    await captureStableAria(page, testedCard, scaffold.workspaceCwd,
+      { replacements: [[`http://127.0.0.1:${address.port}/v1`, '{{provider-endpoint}}']] }), webSnapshotMode())
+  pendingProbes.get(manualModel)!()
+  await otherModel.getByRole('status').getByText('连接成功 · 支持工具调用', { exact: true }).waitFor()
+  expect(await testedModel.getByRole('button', { name: '测试中…', exact: true }).isDisabled()).toBe(true)
+  pendingProbes.get('hemi-test-model')!()
   await testedModel.getByRole('status').getByText('连接成功 · 支持工具调用', { exact: true }).waitFor()
+  for (const model of ['hemi-test-model', manualModel]) {
+    expect(received.find(probe => probe.model === model)).toMatchObject({
+      model, tools: [{ function: { name: 'model_connection_test' } }],
+    })
+  }
+
+  await otherModel.getByRole('button', { name: '测试', exact: true }).click()
+  await expect.poll(() => pendingProbes.has(manualModel)).toBe(true)
+  pendingProbes.get(manualModel)!(true)
+  const failure = page.getByRole('alert').filter({ hasText: manualModel })
+  await failure.waitFor()
+  await expect.poll(() => failure.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { opacity: style.opacity, visibility: style.visibility }
+  })).toEqual({ opacity: '1', visibility: 'visible' })
   expect(await otherModel.getByRole('status').count()).toBe(0)
-  expect(received).toMatchObject({
-    model: 'hemi-test-model',
-    tools: [{ function: { name: 'model_connection_test' } }],
-  })
-  for (const model of ['hemi-test-model', 'manual-model']) {
+  expect(await otherModel.getByRole('button', { name: '测试', exact: true }).isEnabled()).toBe(true)
+  expect(await failure.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  const failureBounds = await failure.boundingBox()
+  expect(failureBounds!.x).toBeGreaterThanOrEqual(0)
+  expect(failureBounds!.x + failureBounds!.width).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: join(screenshots, 'failure-mobile-dark.png') })
+  await page.keyboard.press('Escape')
+  await settings.waitFor({ state: 'hidden' })
+  expect(await failure.isVisible()).toBe(true)
+  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/hemi-model-settings/failure.expected.md', import.meta.url)),
+    await captureStableAria(page, '[role="alert"]', scaffold.workspaceCwd), webSnapshotMode())
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  await nav.click()
+  await models.getByRole('tab', { name: 'API', exact: true }).click()
+  for (const model of ['hemi-test-model', manualModel]) {
     page.once('dialog', (dialog) => { void dialog.accept() })
     await models.getByRole('group', { name: model, exact: true }).getByRole('button', { name: '删除型号' }).click()
     await models.getByRole('group', { name: model, exact: true }).waitFor({ state: 'detached' })

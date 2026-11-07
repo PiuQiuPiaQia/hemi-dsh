@@ -54,6 +54,8 @@
 
 .text {
   min-width: 0;
+  /* Hemi fork: keep long identifiers in failure notices inside the viewport. */
+  overflow-wrap: anywhere;
 }
 
 .action {

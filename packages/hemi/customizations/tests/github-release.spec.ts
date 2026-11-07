@@ -161,7 +161,7 @@ describe('completed GitHub package validation', () => {
     await expect(prepareHemiGitHubRelease({ ...options, signingMode: 'community' })).rejects.toThrow('fixed Hemi certificate')
   })
 
-  it('selects hosted community runners without a formal signing-machine configuration', async () => {
+  it('defaults to all three hosted community runners without signing-machine configuration', async () => {
     const root = await mkdtemp(join(tmpdir(), 'hemi-community-selection-'))
     roots.push(root)
     const output = join(root, 'selection')
@@ -169,7 +169,7 @@ describe('completed GitHub package validation', () => {
     await runHemiGitHubReleaseCommand({ productVersion: '1.2.3', desktopVersion: '1.2.3',
       validateBuildVersion: value => value, loadEnvironment: () => DISTRIBUTION, artifactsDirectory: () => root }, ['prepare'], {
       HEMI_RELEASE_SIGNING_MODE: 'community', HEMI_RELEASE_VERSION: '1.2.3', HEMI_RELEASE_CHANNEL: 'stable',
-      HEMI_RELEASE_TARGETS: 'all', GITHUB_REPOSITORY: 'example/hemi-dsh', GITHUB_SHA: COMMIT, GITHUB_OUTPUT: output,
+      GITHUB_REPOSITORY: 'example/hemi-dsh', GITHUB_SHA: COMMIT, GITHUB_OUTPUT: output,
     })
     const text = await readFile(output, 'utf8')
     await expect(text).toMatchFileSnapshot('./expected/community-runners.txt')
@@ -179,8 +179,24 @@ describe('completed GitHub package validation', () => {
     expect(text).not.toContain('self-hosted')
   })
 
-  it('stages completed packages and previews the executable CLI without credentials or network', async () => {
-    const options = await fixture()
+  it.each([
+    { selection: 'mac-arm64', expected: 'mac-arm64' },
+    { selection: 'mac-all', expected: 'mac-arm64,mac-x64' },
+    { selection: 'win-x64', expected: 'win-x64' },
+  ])('retains an explicit $selection target group', async ({ selection, expected }) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const services = { productVersion: '1.2.3', desktopVersion: '1.2.3', validateBuildVersion: (value: string) => value,
+      loadEnvironment: () => DISTRIBUTION, artifactsDirectory: () => tmpdir() }
+    const environment = { HEMI_RELEASE_SIGNING_MODE: 'community', HEMI_RELEASE_VERSION: '1.2.3',
+      HEMI_RELEASE_CHANNEL: 'stable', GITHUB_REPOSITORY: 'example/hemi-dsh', GITHUB_SHA: COMMIT }
+    await runHemiGitHubReleaseCommand(services, ['prepare'], { ...environment, HEMI_RELEASE_TARGETS: selection })
+    expect(JSON.parse(String(log.mock.calls[0]![0]))).toMatchObject({ targets: expected })
+    await runHemiGitHubReleaseCommand(services, ['prepare', '--targets', selection], { ...environment, HEMI_RELEASE_TARGETS: 'all' })
+    expect(JSON.parse(String(log.mock.calls[1]![0]))).toMatchObject({ targets: expected })
+  })
+
+  it('stages all three targets and previews the CLI without credentials or network', async () => {
+    const options = await fixture(['mac-arm64', 'mac-x64', 'win-x64'])
     const staged = await mkdtemp(join(tmpdir(), 'hemi-github-staged-'))
     roots.push(staged)
     const environment = { ...DISTRIBUTION, GITHUB_REPOSITORY: options.repository, GITHUB_SHA: COMMIT,
@@ -193,10 +209,22 @@ describe('completed GitHub package validation', () => {
     vi.stubGlobal('fetch', fetch)
     vi.spyOn(console, 'log').mockImplementation(() => {})
     await runHemiGitHubReleaseCommand(services, ['stage', '--target', 'mac-arm64'], environment)
+    await expect(runHemiGitHubReleaseCommand(services, ['preview'], environment)).rejects.toThrow('ENOENT')
+    await expect(readFile(join(staged, 'release-plan.json'))).rejects.toMatchObject({ code: 'ENOENT' })
+    for (const target of ['mac-x64', 'win-x64']) {
+      await runHemiGitHubReleaseCommand(services, ['stage', '--target', target], environment)
+    }
     await runHemiGitHubReleaseCommand(services, ['preview'], environment)
-    const plan = JSON.parse(await readFile(join(staged, 'release-plan.json'), 'utf8')) as { version: string; assets: object[] }
+    const plan = JSON.parse(await readFile(join(staged, 'release-plan.json'), 'utf8')) as {
+      version: string
+      assets: object[]
+      feeds: { path: string }[]
+    }
     expect(plan.version).toBe(options.version)
-    expect(plan.assets).toHaveLength(3)
+    expect(plan.assets).toHaveLength(8)
+    expect(plan.feeds.map(feed => feed.path)).toEqual([
+      'feeds/mac-arm64/stable-mac.yml', 'feeds/mac-x64/stable-mac.yml', 'feeds/win-x64/stable.yml',
+    ])
     expect(fetch).not.toHaveBeenCalled()
     await expect(runHemiGitHubReleaseCommand({ ...services, loadEnvironment: () => ({ ...DISTRIBUTION,
       HEMI_DESKTOP_GITHUB_REPOSITORY: 'wrong/repo' }) }, ['check', '--target', 'mac-arm64'], environment))
@@ -274,8 +302,8 @@ describe('single-publisher recovery and feed advancement', () => {
     expect(github.uploads).toBe(0)
   })
 
-  it('publishes verified assets before creating the feed branch, then reruns without writes', async () => {
-    const plan = await prepareHemiGitHubRelease(await fixture())
+  it('publishes all three targets before advancing their feeds, then reruns without writes', async () => {
+    const plan = await prepareHemiGitHubRelease(await fixture(['mac-arm64', 'mac-x64', 'win-x64'], 'stable', true))
     const github = new GitHub()
     await publishHemiGitHubRelease(plan, github)
     const publish = github.calls.findIndex(call => call.method === 'PATCH' && call.path.includes('/releases/'))
@@ -283,8 +311,18 @@ describe('single-publisher recovery and feed advancement', () => {
       && call.body !== undefined && 'ref' in call.body && call.body.ref === `refs/heads/${plan.branch}`)
     expect(publish).toBeGreaterThan(-1)
     expect(advance).toBeGreaterThan(publish)
+    const trees = github.calls.filter(call => call.method === 'POST' && call.path.endsWith('/git/trees'))
+    const commits = github.calls.filter(call => call.method === 'POST' && call.path.endsWith('/git/commits'))
+    const refs = github.calls.filter(call => call.body !== undefined
+      && 'ref' in call.body && call.body.ref === `refs/heads/${plan.branch}`)
+    expect(trees).toHaveLength(1)
+    expect(commits).toHaveLength(1)
+    expect(refs).toHaveLength(1)
+    expect(trees[0]!.body).toEqual({ tree: plan.feeds.map(feed => ({
+      path: feed.path, mode: '100644', type: 'blob', content: feed.contents,
+    })) })
     expect(github.tagCommit).toBe(COMMIT)
-    expect(github.files.get(plan.feeds[0]!.path)).toBe(plan.feeds[0]!.contents)
+    for (const feed of plan.feeds) expect(github.files.get(feed.path)).toBe(feed.contents)
     expect(github.calls.find(call => call.method === 'POST' && call.path.endsWith('/releases'))!.body)
       .toMatchObject({ generate_release_notes: true })
     github.release!.body += '\n\nGenerated release notes\n'
@@ -304,6 +342,8 @@ describe('single-publisher recovery and feed advancement', () => {
     await publishHemiGitHubRelease(plan, github)
     expect(github.files.get('feeds/mac-x64/stable-mac.yml')).toBe('older intel feed')
     expect(github.files.get('feeds/mac-arm64/nightly-mac.yml')).toBe('independent nightly feed')
+    expect(github.calls.find(call => call.path.endsWith('/git/trees') && call.method === 'POST')!.body)
+      .toMatchObject({ base_tree: 'previous-tree' })
     expect(github.calls.find(call => call.path.endsWith('/git/commits') && call.method === 'POST')!.body)
       .toMatchObject({ parents: ['old-commit'] })
     expect(github.calls.find(call => call.method === 'PATCH' && call.path.includes('/git/refs/'))!.body)

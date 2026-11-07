@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The profile owner can test a configured model using its saved provider settings and credential. The service sends a short request and reports whether it returned the expected tool call. It executes no tools and writes no conversation history. It also owns the provider-neutral Desktop introduction preferences.
+The profile owner can test a configured model using its saved provider settings and credential. The service sends a short request and reports whether it returned the expected tool call. It executes no tools and writes no conversation history. Tests run independently: concurrent probes stream in parallel, and cancelling or failing one test never disturbs another; each carries its own 25-second deadline. It also owns the provider-neutral Desktop introduction preferences.
 
 ## Table of Contents
 

@@ -45,7 +45,7 @@ function selectedOptions(values, services, environment) {
   if (!/^[a-f0-9]{40}$/u.test(commit)) throw new Error('Hemi Desktop: commit must be a complete Git SHA')
   const signingMode = values['signing-mode'] ?? (environment.HEMI_RELEASE_SIGNING_MODE || 'official')
   if (!['community', 'official'].includes(signingMode)) throw new Error('Hemi Desktop: signing mode must be community or official')
-  const selected = targets(values.targets ?? environment.HEMI_RELEASE_TARGETS ?? 'mac-arm64')
+  const selected = targets(values.targets ?? environment.HEMI_RELEASE_TARGETS ?? 'all')
   if (new Set(selected).size !== selected.length) throw new Error('Hemi Desktop: duplicate release target')
   return { repository, branch, version, channel, commit, targets: selected, signingMode,
     artifactsRoot: resolve(values.artifacts ?? environment.HEMI_RELEASE_ARTIFACTS ?? '.artifacts/hemi-desktop-release') }
@@ -53,6 +53,7 @@ function selectedOptions(values, services, environment) {
 
 /**
  * Run build preparation, package staging, preview or publication with shell-owned packaging operations.
+ * Without a target group in arguments or environment, selects all three supported Desktop targets.
  * @param {import('./command.mjs').HemiGitHubCommandServices} services Existing Desktop version, configuration and artifact operations.
  * @param {string[]} argv Command arguments; omitted reads the current process arguments.
  * @param {NodeJS.ProcessEnv} environment Workflow inputs; omitted reads the current process environment.

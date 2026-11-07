@@ -1,6 +1,7 @@
 /** Register the Hemi Model Connections page as its own settings section. */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-account/client'
@@ -12,6 +13,7 @@ import { en, NS, zh } from './copy.ts'
 import { ModelAccessPage } from './ModelAccessPage.tsx'
 import { AccountSubscriptionCard, type AccountSubscriptionInput } from './AccountSubscriptionCard.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
+import { createModelActionFeedback, ModelActionToast } from './ModelActionToast.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotFactoryMap {
@@ -54,7 +56,13 @@ function register(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'hemi-model-access: dictionaries')
   const t = ctx.locale.bind(NS)
   const remote = ctx.remote.hemiModelAccess
+  const feedback = createModelActionFeedback()
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay', id: 'hemi.model-action-toast', locale: NS,
+    inject: () => ({ hooks: feedback.hooks, dismiss: feedback.dismiss }),
+  }, ModelActionToast))
   const actions: ModelAccessActions = {
+    reportModelFailure: feedback.reportModelFailure,
     keyDirectory: () => unwrap(remote.keyDirectory()),
     getModelOptions: (provider, model) => unwrap(remote.getModelOptions(provider, model)),
     getModelDefaults: (api, model, provider) => unwrap(remote.getModelDefaults(api, model, provider)),

@@ -25,7 +25,7 @@ const FADE_MS = 1000
  * both the unmount timer and the stylesheet's fade delay — the stylesheet
  * reads it as a custom property — so the two can no longer disagree and leave
  * the banner unmounting mid-fade.
- * @param props.text - resolved banner copy; the owner passes localized text.
+ * @param props.text - resolved localized copy; unbroken identifiers wrap within the viewport-limited banner.
  * @param props.icon - optional leading glyph (e.g. a warning icon); ignored
  * under `tone="success"`, which brings its own glyph.
  * @param props.tone - 'success' renders the design's circled green check as

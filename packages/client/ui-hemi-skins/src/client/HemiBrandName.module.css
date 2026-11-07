@@ -11,6 +11,9 @@
   color: #fff;
   border: 0.5px solid #fff4;
   letter-spacing: 0;
+  align-self: flex-end;
+  transform: scale(0.5);
+  transform-origin: left bottom;
 }
 
 .noMark {

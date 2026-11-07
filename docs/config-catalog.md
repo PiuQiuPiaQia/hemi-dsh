@@ -1748,7 +1748,7 @@ export interface SubscriptionDiscoveryConfig {
 
 - `inject`: `llm`
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/hemi/model-settings/src/index.ts:30`](../packages/hemi/model-settings/src/index.ts)
+- `source`: [`packages/hemi/model-settings/src/index.ts:29`](../packages/hemi/model-settings/src/index.ts)
 
 ```ts config-catalog
 /** Hemi-owned desktop introduction preferences. */

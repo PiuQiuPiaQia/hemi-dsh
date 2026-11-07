@@ -17,6 +17,7 @@ const profile = { id: provider, name: 'Connection A', baseUrl: 'https://example.
 
 function actions(): ModelAccessActions {
   return {
+    reportModelFailure: vi.fn(),
     keyDirectory: vi.fn(async () => ({ revision: 1, profiles: [profile] })),
     getModelOptions: vi.fn(async () => ({ revision: 1, options: {}, effective: { name: model, input: ['text'] as const } })),
     getModelDefaults: vi.fn(async (_api: string, id: string) => ({ name: id, input: ['text'] as const })),
@@ -228,39 +229,88 @@ it('preserves explicit input overrides and saves only edited effective fields', 
   expect(save).toHaveBeenCalledWith({ name: 'Renamed', input: ['text'] })
 })
 
-it.each([true, false])('keeps testing status visible and disables all row actions until the test settles (%s)', async (toolCall) => {
-  let resolve!: (value: boolean) => void
-  const test: ModelTest = vi.fn(() => new Promise<boolean>((done) => { resolve = done }))
+it.each([true, false])('spins the test icon without adding status text until the test settles (%s)', async (toolCall) => {
+  const pending = Promise.withResolvers<boolean>()
+  const test = vi.fn<ModelTest>(() => pending.promise)
   render(<ModelConnectionTest provider={provider} model={model} actions={actions()} test={test} remove={vi.fn()} t={t} />)
   fireEvent.click(screen.getByRole('button', { name: t('testModel') }))
-  expect(screen.getByRole('status').textContent).toBe(t('testingModel'))
-  expect(screen.getByRole('button', { name: t('testingModel') }).getAttribute('aria-busy')).toBe('true')
-  for (const button of screen.getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(true)
-  expect(test).toHaveBeenCalledWith(provider, model, expect.any(AbortSignal))
-  await act(async () => { resolve(toolCall) })
+  const button = screen.getByRole('button', { name: t('testingModel') })
+  expect(button.getAttribute('aria-busy')).toBe('true')
+  expect(button.querySelector('[data-icon="dsw-icon-loading-outline-regular"]')).not.toBeNull()
+  expect(screen.queryByRole('status')).toBeNull()
+  for (const action of screen.getAllByRole('button')) expect((action as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(button)
+  expect(test).toHaveBeenCalledExactlyOnceWith(provider, model, expect.any(AbortSignal))
+  await act(async () => { pending.resolve(toolCall) })
   expect(screen.getByRole('status').textContent).toBe(t(toolCall ? 'modelToolOk' : 'modelResponseOk'))
-  for (const button of screen.getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(false)
+  expect(button.querySelector('[data-icon="dsw-icon-play-outline-regular"]')).not.toBeNull()
+  for (const action of screen.getAllByRole('button')) expect((action as HTMLButtonElement).disabled).toBe(false)
 })
 
-it('reports test failure in the row and aborts an active test on unmount', async () => {
+it('ignores a second test activation before the loading state is committed', async () => {
+  const pending = Promise.withResolvers<boolean>()
+  const test = vi.fn<ModelTest>(() => pending.promise)
+  render(<ModelConnectionTest provider={provider} model={model} actions={actions()} test={test} t={t} />)
+  const button = screen.getByRole('button', { name: t('testModel') })
+  act(() => {
+    fireEvent.click(button)
+    fireEvent.click(button)
+  })
+  expect(test).toHaveBeenCalledOnce()
+  await act(async () => { pending.resolve(true) })
+  expect(screen.getByRole('status').textContent).toBe(t('modelToolOk'))
+})
+
+it('reports test failure outside the row and aborts an active test on unmount', async () => {
+  const api = actions()
   const test = vi.fn<ModelTest>().mockRejectedValueOnce(new Error('offline'))
-  const view = render(<ModelConnectionTest provider={provider} model={model} actions={actions()} test={test} t={t} />)
+  const view = render(<ModelConnectionTest provider={provider} model={model} actions={api} test={test} t={t} />)
   fireEvent.click(screen.getByRole('button', { name: t('testModel') }))
-  expect(await screen.findByRole('status')).toBeTruthy()
   await act(async () => {})
-  expect(screen.getByRole('status').textContent).toBe(t('modelTestFailed'))
-  test.mockImplementation(() => new Promise(() => {}))
+  expect(api.reportModelFailure).toHaveBeenCalledExactlyOnceWith({ operation: 'test', model })
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.getByRole('group', { name: model }).textContent).toBe(model)
+  const pending = Promise.withResolvers<boolean>()
+  test.mockImplementation(() => pending.promise)
   fireEvent.click(screen.getByRole('button', { name: t('testModel') }))
   const signal = test.mock.calls[1]![2]
   view.unmount()
   expect(signal.aborted).toBe(true)
+  await act(async () => { pending.reject(new Error('cancelled')) })
+  expect(api.reportModelFailure).toHaveBeenCalledOnce()
+})
+
+it('tests different model rows independently and keeps out-of-order results on their own rows', async () => {
+  const first = Promise.withResolvers<boolean>()
+  const second = Promise.withResolvers<boolean>()
+  const test = vi.fn<ModelTest>((_provider, id) => id === model ? first.promise : second.promise)
+  const api = actions()
+  render(<>
+    <ModelConnectionTest provider={provider} model={model} actions={api} test={test} t={t} />
+    <ModelConnectionTest provider={provider} model="model/b" actions={api} test={test} t={t} />
+  </>)
+  const firstRow = within(screen.getByRole('group', { name: model }))
+  const secondRow = within(screen.getByRole('group', { name: 'model/b' }))
+  fireEvent.click(firstRow.getByRole('button', { name: t('testModel') }))
+  fireEvent.click(secondRow.getByRole('button', { name: t('testModel') }))
+  expect(test).toHaveBeenCalledTimes(2)
+  expect(screen.getAllByRole('button', { name: t('testingModel') })).toHaveLength(2)
+  await act(async () => { second.resolve(false) })
+  expect(secondRow.getByRole('status').textContent).toBe(t('modelResponseOk'))
+  expect(firstRow.getByRole('button', { name: t('testingModel') }).getAttribute('aria-busy')).toBe('true')
+  expect(firstRow.queryByRole('status')).toBeNull()
+  await act(async () => { first.resolve(true) })
+  expect(firstRow.getByRole('status').textContent).toBe(t('modelToolOk'))
+  expect(secondRow.getByRole('status').textContent).toBe(t('modelResponseOk'))
+  expect(api.reportModelFailure).not.toHaveBeenCalled()
 })
 
 it('requires confirmation to remove a model and disables the actions during removal', async () => {
   let reject!: (error: Error) => void
   const remove = vi.fn(() => new Promise<void>((_resolve, fail) => { reject = fail }))
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-  render(<ModelConnectionTest provider={provider} model={model} actions={actions()} test={vi.fn()} remove={remove} t={t} />)
+  const api = actions()
+  render(<ModelConnectionTest provider={provider} model={model} actions={api} test={vi.fn()} remove={remove} t={t} />)
   const button = screen.getByRole('button', { name: t('deleteModel') })
   fireEvent.click(button)
   expect(confirm).toHaveBeenCalledWith(t('confirmDeleteModel', { model }))
@@ -271,7 +321,8 @@ it('requires confirmation to remove a model and disables the actions during remo
   for (const action of screen.getAllByRole('button')) expect((action as HTMLButtonElement).disabled).toBe(true)
   await act(async () => { reject(new Error('failed')) })
   expect(screen.getByRole('group', { name: model })).toBeTruthy()
-  expect(screen.getByRole('status').textContent).toBe(t('modelTestFailed'))
+  expect(api.reportModelFailure).toHaveBeenCalledExactlyOnceWith({ operation: 'remove', model })
+  expect(screen.queryByRole('status')).toBeNull()
   expect((button as HTMLButtonElement).disabled).toBe(false)
 })
 
