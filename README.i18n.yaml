@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
 /hemi-dsh:
-  en: 5057bde8ba7e436b
-  zh: ec969f6071aaee43
+  en: b13deb118705d447
+  zh: 3a71843de0e00570
+/hemi-dsh/why-hemi-dsh:
+  en: 4ade75ed6fb1403e
+  zh: 731f4edd524e0ce4
 /hemi-dsh/download:
   en: 924a667ba054c585
-  zh: 992107126dd3085f
-/hemi-dsh/features:
-  en: 5bacab2aab768f71
-  zh: 9e97bd8e1cdeef1b
+  zh: 133fabb79fcd7c32
 /hemi-dsh/run:
   en: 82bb3c30efdaf6a0
   zh: 682cc4379a4b3229
