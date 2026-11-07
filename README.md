@@ -1,77 +1,38 @@
-# DeepSeek Harness
+# Hemi-DSH
 
 English | [中文](README.zh.md)
 
-DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
+<img src="packages/hemi/customizations/artwork/icon-macos.png" alt="Hemi app icon" width="88">
 
-It is built on an **everything-is-a-plugin** architecture and powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://arxiv.org/abs/2608.25512).
+Hemi-DSH is an open-source desktop AI agent built on [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness). Connect your models, assign them to task roles, and keep memory across sessions.
 
-Documentation: [https://deepseek-harness.github.io/deepseek-harness/](https://deepseek-harness.github.io/deepseek-harness/)
+[Download Hemi Desktop](https://github.com/PiuQiuPiaQia/hemi-dsh/releases)
 
-## Developer preview
+## Download
 
-DeepSeek Harness is in _developer preview_ and iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**
+Open [GitHub Releases](https://github.com/PiuQiuPiaQia/hemi-dsh/releases) and choose the newest nightly. The published desktop builds are for macOS on Apple Silicon. Download the installer ending in `-mac-arm64.dmg` from the release assets.
 
-Review the [safety notice](SAFETY.md) before running the project.
+Hemi-DSH is in developer preview. Read the [safety notice](SAFETY.md) before use.
+
+## Features
+
+- **Model connections** support subscription accounts, API keys, and New API sites. Sign in to a New API site inside the desktop app, select models from the list, and import them in one step. [Model connections guide](packages/hemi/model-access-ui/README.md)
+- **Model routing** lets you choose a main model and assign models to research, review, execution, and design roles. [Model routing guide](packages/hemi/routing-ui/README.md)
+- **Memory** carries context across sessions. Edit long-term memory, daily logs, and notes in Settings. [Memory guide](packages/hemi/memory-ui/README.md)
+- **Backup and restore** supports local folders and WebDAV. Preview how a backup will merge with local data before restoring it. [Backup guide](packages/hemi/backup-ui/README.md)
 
 ## Run
 
-### Run from `npm`
-
-Install `Node.js`, then run:
-
-```sh
-npx @deepseek-ai/dsh web
-```
-
-The command starts the Web UI at `http://127.0.0.1:3080` by default and opens it in the default browser for a local launch. An SSH launch only prints the host URL because the SSH client or editor owns the local forwarded address. Pass `--no-open` to run the server without opening a browser. See [Web UI guide](docs/user/guide/index.md).
+For the Web UI, follow [Run from source](#run-from-source), then open the URL printed by the launcher. [Web UI guide](docs/user/guide/index.md)
 
 ### Run from source
 
-To run from a repository checkout:
-
-```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install
-pnpm run build
-pnpm dsh web
-```
-
-`pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
-
-## Community and support
-
-- Submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).
-- Add the [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic to your plugin repository for discoverability.
-- Join <a href="https://discord.gg/4MrtZUhpxg">DeepSeek Harness Discord community</a>.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Clone [this repository](https://github.com/PiuQiuPiaQia/hemi-dsh) and follow the [development guide](docs/development.md) to install dependencies, build, and launch Web or Desktop from your checkout.
 
 ## Development
 
-Start with the [development guide](docs/development.md) and [architecture documentation](docs/architecture.md).
-
-`pnpm run dev:web` builds, serves, and rebuilds client bundles on source edits in one terminal, and `make help` lists the matching Make targets for Web and Desktop; the guide's application commands section owns the full table.
-
-For agents, follow [AGENTS.md](AGENTS.md).
-
-## Citation
-
-```bibtex
-@misc{deepseek-harness2026,
-  title={DeepSeek Harness: Everything is a Plugin},
-  author={DeepSeek-AI},
-  year={2026},
-  publisher={GitHub},
-  howpublished={\url{https://github.com/deepseek-ai/deepseek-harness}},
-}
-```
+Hemi features live in [Hemi plugins and desktop adapters](packages/hemi/README.md). See the [DSH architecture](docs/architecture.md) for the runtime, and [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for repository conventions.
 
 ## License
 
-[MIT](LICENSE)
-
-Third-party dependencies and their licenses are disclosed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for dependency licenses.
