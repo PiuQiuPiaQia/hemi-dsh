@@ -50,7 +50,7 @@ Mac 打包使用固定证书签名，并校验嵌套代码、全部架构和精�
 
 固定 designated requirement 让 Squirrel.Mac 能校验同一身份签出的后续构建。流程继续使用原生更新器，不安装应用换包脚本或系统信任例外。这些包没有 Apple 公证票据；首次安装／打开仍受 macOS 安全批准约束。已有 ad-hoc 或其他签名的安装，须先经过独立验收的手动安装，才能依赖该身份的更新。
 
-Windows 社区包没有 Authenticode 发布者签名。其更新器显式省略发布者签名校验，保留 SHA-512 文件校验和 DSH 独立的安装授权。Release／清单写权限控制该分发。Windows 可能显示未知发布者提示。正式 Windows 校验保持不变。
+Windows 社区包没有 Authenticode 发布者签名。打包保留发布产物目录和完整运行时自检，仅省略 Authenticode 校验。其更新器显式省略发布者签名校验，保留 SHA-512 文件校验和 DSH 独立的安装授权。Release／清单写权限控制该分发。Windows 可能显示未知发布者提示。正式 Windows 校验保持不变。
 
 <a id="select-and-publish-a-version"></a>
 

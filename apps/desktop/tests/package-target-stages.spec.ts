@@ -207,6 +207,24 @@ it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free and creates no
   expect(stages.includes('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')).toBe(mode === '--unsigned')
 })
 
+it('keeps community Windows releases on release artifacts with the signed smoke mode and a release record', async () => {
+  const { run, stages } = supervisor()
+  const community = { ...environment, DSH_DESKTOP_APP_ID: 'ai.hemi.dsh.desktop', DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+    HEMI_DESKTOP_GITHUB_REPOSITORY: 'example/hemi-dsh', HEMI_DESKTOP_SIGNING_MODE: 'community' }
+  await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), community, run)
+  expect(stages).not.toContain('preflight:windows-signing')
+  expect(stages.filter(stage => stage.startsWith('run sign:primary-runtime'))).toHaveLength(0)
+  expect(withWindowsSigningStage).not.toHaveBeenCalled()
+  const builder = run.run.mock.calls.find(([stage]) => stage.startsWith('exec electron-builder'))!
+  expect(builder[3].env).toMatchObject({ DSH_DESKTOP_UNSIGNED: '0' })
+  expect(builder[3].env).not.toHaveProperty('DSH_DESKTOP_WINDOWS_TOKEN_PIN')
+  expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts')
+  expect(stages).not.toContain('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+  expect(writeFileSync).toHaveBeenCalledOnce()
+  const record = JSON.parse(vi.mocked(writeFileSync).mock.calls[0]![1] as string) as { hemiSigning: string }
+  expect(record.hemiSigning).toBe('windows-unsigned')
+})
+
 it.each(['mac-arm64', 'mac-x64', 'win-x64'] as const)('selects branding from the signing mode for %s', async (target) => {
   const modes = [[], ['--unsigned'], ['--dir'], ['--unsigned', '--dir'], ['--prepare-only'],
     ...(target === 'win-x64' ? [] : [['--skip-notarization'], ['--skip-notarization', '--dir']])]

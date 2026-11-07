@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { X509Certificate } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
 import { createHemiMacRuntimeSigner, resolveHemiCommunitySigning, hemiMacRequirement, verifyHemiMacApplication } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
@@ -72,6 +72,8 @@ it('builds update-enabled Windows packages without EV hardware only in explicit 
   expect(config.win.signtoolOptions.sign).toBeUndefined()
   expect(config.publish?.[0]?.url).toContain('raw.githubusercontent.com/example/hemi-dsh/')
   expect(config.extraMetadata.hemiDesktopSigning).toBe('windows-unsigned')
+  expect(config.directories.output.split(sep).join('/')).toMatch(/win-x64\/artifacts$/)
+  expect(config.artifactName).toBe('hemi-dsh-${version}-${os}-${arch}.${ext}')
   expect(() => createElectronBuilderConfig({ ...COMMUNITY, HEMI_DESKTOP_SIGNING_MODE: undefined }, 'win32', 'x64')).toThrow()
 })
 

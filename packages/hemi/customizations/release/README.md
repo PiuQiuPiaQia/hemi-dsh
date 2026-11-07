@@ -50,7 +50,7 @@ Mac packaging signs with the pinned certificate and verifies nested code, all ar
 
 The fixed designated requirement permits Squirrel.Mac to validate subsequent builds signed by the same identity. The native updater remains in use. No application swap script or system trust-store exception is installed. These builds have no Apple notarization ticket; first installation/opening remains subject to macOS security approval. Moving an existing ad-hoc or differently signed installation to this identity requires a separately qualified manual installation before relying on updates.
 
-Windows community packages have no Authenticode publisher signature. Their updater explicitly omits publisher-signature verification and retains SHA-512 payload verification and DSH's separate installation authorization. Release/feed write access controls this distribution. Windows may show an unknown-publisher warning. Official Windows verification is unchanged.
+Windows community packages have no Authenticode publisher signature. Packaging retains the release artifact layout and complete runtime checks; only Authenticode checks are omitted. Their updater explicitly omits publisher-signature verification and retains SHA-512 payload verification and DSH's separate installation authorization. Release/feed write access controls this distribution. Windows may show an unknown-publisher warning. Official Windows verification is unchanged.
 
 <a id="select-and-publish-a-version"></a>
 
