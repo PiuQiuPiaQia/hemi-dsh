@@ -54,18 +54,30 @@ it('keeps Hemi branding with skins and hides upstream controls', async () => {
   for (const dark of [false, true]) {
     await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
     await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(dark)
-    expect(await edition.evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgb(0, 0, 0)')
-    expect(await edition.evaluate(node => getComputedStyle(node).color)).toBe('rgb(255, 255, 255)')
-    const tagSize = await edition.evaluate(node => ({
-      transform: getComputedStyle(node).transform,
-      width: node.getBoundingClientRect().width,
-      height: node.getBoundingClientRect().height,
-      bottomGap: node.parentElement!.getBoundingClientRect().bottom - node.getBoundingClientRect().bottom,
-    }))
-    expect(tagSize.transform).toBe('matrix(0.5, 0, 0, 0.5, 0, 0)')
-    expect(tagSize.width).toBeLessThan(20)
-    expect(tagSize.height).toBeLessThanOrEqual(11)
-    expect(tagSize.bottomGap).toBeCloseTo(0, 2)
+    const presentation = await edition.evaluate((node) => {
+      const suffix = getComputedStyle(node)
+      const name = getComputedStyle(node.parentElement!)
+      return {
+        transform: suffix.transform,
+        background: suffix.backgroundColor,
+        borderWidth: suffix.borderWidth,
+        padding: suffix.padding,
+        fontSize: suffix.fontSize,
+        lineHeight: suffix.lineHeight,
+        fontWeight: suffix.fontWeight,
+        nameSize: name.fontSize,
+        nameWeight: name.fontWeight,
+        alignment: name.alignItems,
+        gap: name.columnGap,
+        secondaryColor: suffix.color !== name.color,
+        height: node.getBoundingClientRect().height,
+      }
+    })
+    expect(presentation).toEqual({
+      transform: 'none', background: 'rgba(0, 0, 0, 0)', borderWidth: '0px', padding: '0px',
+      fontSize: '11px', lineHeight: '14px', fontWeight: '400', nameSize: '18px', nameWeight: '500',
+      alignment: 'baseline', gap: '6px', secondaryColor: true, height: 14,
+    })
     await page.screenshot({ path: `${screenshots}/workspace-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
   }
   await page.getByRole('button', { name: '收起侧边栏', exact: true }).click()
@@ -74,6 +86,20 @@ it('keeps Hemi branding with skins and hides upstream controls', async () => {
   await expect.poll(() => expand.locator('svg').evaluate(node => getComputedStyle(node).display)).not.toBe('none')
   await expand.click()
   await sidebarName.waitFor()
+  await page.setViewportSize({ width: 390, height: 820 })
+  await page.locator('[data-sidebar-opener]').click()
+  await sidebarName.waitFor({ state: 'visible' })
+  for (const dark of [false, true]) {
+    await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
+    await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(dark)
+    expect(await sidebarName.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      return rect.left >= 0 && rect.right <= innerWidth
+    })).toBe(true)
+    expect(await edition.evaluate(node => getComputedStyle(node).fontSize)).toBe('11px')
+    await page.screenshot({ path: `${screenshots}/workspace-390-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
+  }
+  await page.setViewportSize({ width: 1280, height: 820 })
   await page.getByRole('button', { name: '设置', exact: true }).click()
   const settings = page.getByRole('dialog', { name: '设置', exact: true })
   await settings.waitFor()

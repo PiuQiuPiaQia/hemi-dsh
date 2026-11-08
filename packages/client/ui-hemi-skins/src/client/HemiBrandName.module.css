@@ -1,19 +1,19 @@
 .name {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
-/* The edition uses the requested fixed monochrome palette in both themes. */
-.edition[data-tone='solid'] {
-  background: #000;
-  color: #fff;
-  border: 0.5px solid #fff4;
-  letter-spacing: 0;
-  align-self: flex-end;
-  transform: scale(0.5);
-  transform-origin: left bottom;
+.edition {
+  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsw-font-xxxs-11-font-size);
+  font-weight: var(--dsw-font-xxxs-11-font-weight);
+  line-height: var(--dsw-font-xxxs-11-line-height);
 }
 
 .noMark {

@@ -7,7 +7,6 @@ import { NS } from '../locales.ts'
 import { UsagePopover } from './UsagePanel.tsx'
 import { useStatDialog } from './stat-dialog.ts'
 import { conversationCacheHit, formatCacheHit } from './conversation-usage.ts'
-import type { CacheHitRate } from './conversation-usage.ts'
 import css from './Usage.module.css'
 
 type Props = PropsRuntime<'conversation.composer.dock'> & PropsLocale<typeof NS> & SessionUsageInjected
@@ -21,17 +20,6 @@ type UsageRead = {
   failed: boolean
 }
 const exact = new Intl.NumberFormat()
-
-function metric(value: number, reports: number, calls: number): string {
-  return reports === 0 || reports < calls ? '—' : exact.format(value)
-}
-
-function cacheRateText(cache: CacheHitRate | undefined, t: Translate): string {
-  const rate = formatCacheHit(cache)
-  return cache !== undefined && cache.reportedCalls < cache.calls
-    ? t('usage.cachePartialRate', { rate, reported: exact.format(cache.reportedCalls), calls: exact.format(cache.calls) })
-    : rate
-}
 
 export function HemiSessionUsage(props: Props) {
   const { t, loadUsage } = props
@@ -79,21 +67,14 @@ export function HemiSessionUsage(props: Props) {
   const rows = data?.models ?? []
   if ((rootUsage?.models.length ?? 0) === 0 && !hasChildren) return null
   const title = t('usage.session')
-  const totalKnown = data !== undefined && data.unavailableSessions === 0 && rows.length > 0
-    && rows.every(row => row.totalReports === row.calls)
   const total = rows.reduce((sum, row) => sum + row.totalTokens, 0)
-  const cache = data === undefined ? undefined : conversationCacheHit(rows, data.unavailableSessions)
-  const cacheRate = formatCacheHit(cache)
-  const partial = cache !== undefined && cache.reportedCalls < cache.calls
+  const cacheRate = formatCacheHit(data === undefined ? undefined : conversationCacheHit(rows))
   const trigger = t('usage.cacheSummary', { rate: cacheRate })
   return <UsagePopover dialog={dialog} title={title} trigger={trigger} wide keepLabel>
     <div className={css.summary}>
-      <span>{t('usage.total')} <strong>{totalKnown ? exact.format(total) : '—'}</strong> {t('usage.unit')}</span>
+      <span>{t('usage.total')} <strong>{data === undefined ? '—' : exact.format(total)}</strong> {t('usage.unit')}</span>
       <span>{t('usage.cacheSummary', { rate: cacheRate })}</span>
     </div>
-    {partial && <p className={css.scope}>{t('usage.reportedCoverage', {
-      reported: exact.format(cache.reportedCalls), calls: exact.format(cache.calls),
-    })}</p>}
     {data !== undefined && data.unavailableSessions > 0 && <p className={css.scope}>
       {t('usage.missingSessions', { count: exact.format(data.unavailableSessions) })}
     </p>}
@@ -121,10 +102,10 @@ function ModelRow({ row, t }: { row: ModelUsageRow; t: Translate }) {
   return <tr>
     <th scope="row">{row.model} ({row.provider})</th>
     <td data-label={t('usage.calls')}>{exact.format(row.calls)}</td>
-    <td data-label={t('usage.fullInput')}>{metric(row.totalTokens - row.outputTokens, row.totalReports, row.calls)}</td>
-    <td data-label={t('usage.output')}>{metric(row.outputTokens, row.reportedCalls, row.calls)}</td>
-    <td data-label={t('usage.cacheRate')}>{cacheRateText(conversationCacheHit([row]), t)}</td>
-    <td data-label={t('usage.cacheRead')}>{metric(row.cacheReadTokens, row.cacheReadReports, row.calls)}</td>
-    <td data-label={t('usage.cacheWrite')}>{metric(row.cacheWriteTokens, row.cacheWriteReports, row.calls)}</td>
+    <td data-label={t('usage.fullInput')}>{exact.format(row.totalTokens - row.outputTokens)}</td>
+    <td data-label={t('usage.output')}>{exact.format(row.outputTokens)}</td>
+    <td data-label={t('usage.cacheRate')}>{formatCacheHit(conversationCacheHit([row]))}</td>
+    <td data-label={t('usage.cacheRead')}>{exact.format(row.cacheReadTokens)}</td>
+    <td data-label={t('usage.cacheWrite')}>{exact.format(row.cacheWriteTokens)}</td>
   </tr>
 }

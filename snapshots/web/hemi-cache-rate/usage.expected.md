@@ -1,8 +1,7 @@
 - dialog "Conversation usage":
   - text: Conversation usage Total
-  - strong: —
+  - strong: "275"
   - text: token Cache hit 32%
-  - paragraph: 3 of 4 calls returned usage. The cache rate only covers those calls.
   - table "Recorded usage by model":
     - caption: Recorded usage by model
     - rowgroup:
@@ -15,14 +14,14 @@
         - columnheader "Cache read"
         - columnheader "Cache write"
     - rowgroup:
-      - row "deepseek-v4-flash (deepseek-official) 3 — — 40% (2/3 calls) — —":
+      - row "deepseek-v4-flash (deepseek-official) 3 200 20 40% 80 0":
         - rowheader "deepseek-v4-flash (deepseek-official)"
         - cell "3"
-        - cell "—"
-        - cell "—"
-        - cell "40% (2/3 calls)"
-        - cell "—"
-        - cell "—"
+        - cell "200"
+        - cell "20"
+        - cell "40%"
+        - cell "80"
+        - cell "0"
       - row "deepseek-v4-pro (deepseek-official) 1 50 5 0% 0 0":
         - rowheader "deepseek-v4-pro (deepseek-official)"
         - cell "1"

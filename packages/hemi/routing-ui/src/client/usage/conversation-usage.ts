@@ -62,39 +62,24 @@ export async function loadConversationUsage(root: SessionId, read: ReadUsageSess
 }
 
 /**
- * Cache-read token share of reported input, with call coverage.
+ * Cache hits are weighted by recorded input tokens across all models, never averaged percentages.
+ * Missing usage and counters contribute zero to this display without changing recorded reports.
+ * @param models - Available usage rows, including rows with incomplete reports.
+ * @returns the recorded cache-read share, zero without input, or undefined when cache reads exceed input.
  */
-export interface CacheHitRate {
-  ratio: number
-  reportedCalls: number
-  calls: number
-}
-
-/**
- * Cache hits are weighted by input tokens across all models, never averaged percentages.
- * Calls without usage remain in the coverage count, never as assumed zero consumption.
- * @param models - Usage rows whose received reports include full totals and cache reads.
- * @param unavailableSessions - Number of unreadable or external branches; a nonzero count hides the rate.
- * @returns the weighted reported cache-hit rate and coverage, or undefined when received reports lack complete input counts.
- */
-export function conversationCacheHit(models: readonly ModelUsageRow[], unavailableSessions = 0): CacheHitRate | undefined {
-  if (unavailableSessions > 0 || models.length === 0
-    || models.some(row => row.totalReports !== row.reportedCalls || row.cacheReadReports !== row.reportedCalls)) return undefined
+export function conversationCacheHit(models: readonly ModelUsageRow[]): number | undefined {
   const input = models.reduce((sum, row) => sum + row.totalTokens - row.outputTokens, 0)
   const read = models.reduce((sum, row) => sum + row.cacheReadTokens, 0)
-  if (input <= 0 || read > input) return undefined
-  return { ratio: read / input,
-    reportedCalls: models.reduce((sum, row) => sum + row.reportedCalls, 0),
-    calls: models.reduce((sum, row) => sum + row.calls, 0),
-  }
+  if (read > input) return undefined
+  return input > 0 ? read / input : 0
 }
 
 /**
  * Display the recorded ratio with ordinary percentage rounding.
- * @param value - Caller-supplied value to inspect or submit.
+ * @param value - Recorded cache-read share, or undefined while unavailable.
  * @returns the localized percentage, or an em dash when the rate is unavailable.
  */
-export function formatCacheHit(value: CacheHitRate | undefined): string {
+export function formatCacheHit(value: number | undefined): string {
   if (value === undefined) return '—'
-  return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 }).format(value.ratio)
+  return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 }).format(value)
 }

@@ -147,7 +147,7 @@ it('runs four native role presets on their configured routes and receives their 
 
 const DIR = fileURLToPath(new URL('../../../snapshots/web/hemi-cache-rate', import.meta.url))
 
-it('shows weighted reported cache rates and coverage after an unreported memory timeout', async () => {
+it('shows recorded usage totals and weighted cache rates after an unreported memory timeout', async () => {
   const scaffold = await launchWebScaffold()
   onTestFinished(() => scaffold.close())
   await seedSession(scaffold, await readFile(join(DIR, 'session.v4.jsonl'), 'utf8'), 'hemi-cache-rate')

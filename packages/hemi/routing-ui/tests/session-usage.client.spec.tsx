@@ -32,7 +32,9 @@ it('shows all model rows, exact aggregate inputs and separately reported cache c
   expect(await dialog.findByText('315')).toBeTruthy()
   const main = within(dialog.getByRole('row', { name: /main/ }))
   expect(main.getByText('110')).toBeTruthy()
-  expect(main.getAllByText('—')).toHaveLength(3)
+  expect(main.getByText('0%')).toBeTruthy()
+  expect(main.getAllByText('0')).toHaveLength(2)
+  expect(main.queryByText('—')).toBeNull()
   const oracle = within(dialog.getByRole('row', { name: /oracle/ }))
   expect(oracle.getByText('175')).toBeTruthy()
   expect(oracle.getByText('50')).toBeTruthy()
@@ -42,7 +44,7 @@ it('shows all model rows, exact aggregate inputs and separately reported cache c
   expect(dialog.queryByText('未缓存输入')).toBeNull()
 })
 
-it('leaves incomplete values blank without showing estimates, symbols or explanatory clutter', async () => {
+it('shows recorded values and zero cache counters without requiring complete reports', () => {
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const row = { ...root, calls: 1, reportedCalls: 1, totalReports: 0, totalTokens: 12, outputTokens: 2 }
   const own = { models: [row] }
@@ -52,8 +54,10 @@ it('leaves incomplete values blank without showing estimates, symbols or explana
   render(<HemiSessionUsage {...props} />)
   fireEvent.click(screen.getByRole('button', { name: '会话用量' }))
   const dialog = within(screen.getByRole('dialog'))
-  expect(dialog.queryByText('12')).toBeNull()
-  expect(within(dialog.getByRole('row', { name: /main/ })).getAllByText('—')).toHaveLength(4)
+  expect(dialog.getByText('12')).toBeTruthy()
+  expect(within(dialog.getByRole('row', { name: /main/ })).getAllByRole('cell').map(cell => cell.textContent))
+    .toEqual(['1', '10', '2', '0%', '0', '0'])
+  expect(dialog.queryByText('—')).toBeNull()
 })
 
 it('refreshes the whole-tree cache rate while the popover is closed', async () => {
@@ -75,7 +79,7 @@ it('refreshes the whole-tree cache rate while the popover is closed', async () =
   expect(screen.getByRole('button', { name: '会话用量' }).textContent).toBe('缓存命中 75%')
 })
 
-it('explains missing usage only in the details while keeping incomplete totals unavailable', async () => {
+it('sums reported usage without missing-call counts or unavailable totals', () => {
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const row = { ...root, calls: 3, totalTokens: 220, cacheReadTokens: 80, cacheReadReports: 2 }
   const own = { models: [row] }
@@ -88,11 +92,31 @@ it('explains missing usage only in the details while keeping incomplete totals u
   expect(trigger.getAttribute('aria-description')).toBe(trigger.textContent)
   fireEvent.click(trigger)
   const dialog = within(screen.getByRole('dialog'))
-  expect(dialog.getByText('3 次调用仅 2 次有用量，命中率按这 2 次计算')).toBeTruthy()
+  expect(dialog.queryByText(/次调用|仅.*有用量/)).toBeNull()
   const model = within(dialog.getByRole('row', { name: /main/ }))
-  expect(model.getByText('40%（2/3 次调用）')).toBeTruthy()
-  expect(model.getAllByText('—')).toHaveLength(4)
-  expect(dialog.queryByText('220')).toBeNull()
+  expect(model.getAllByRole('cell').map(cell => cell.textContent)).toEqual(['3', '200', '20', '40%', '80', '0'])
+  expect(dialog.queryByText('—')).toBeNull()
+  expect(dialog.getByText('220')).toBeTruthy()
+})
+
+it.each([
+  { dictionary: zh, title: '会话用量', label: '缓存命中 0%' },
+  { dictionary: en, title: 'Conversation usage', label: 'Cache hit 0%' },
+])('shows zero values when no calls returned usage ($title)', ({ dictionary, title, label }) => {
+  type Props = Parameters<typeof HemiSessionUsage>[0]
+  const row = { ...root, reportedCalls: 0, totalReports: 0, uncachedInputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  const own = { models: [row] }
+  const props = { t: makeTranslate(dictionary), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
+    loadUsage: async () => ({ ...own, sessions: 1, unavailableSessions: 0 }),
+  } as Props
+  render(<HemiSessionUsage {...props} />)
+  const trigger = screen.getByRole('button', { name: title })
+  expect(trigger.textContent).toBe(label)
+  fireEvent.click(trigger)
+  const dialog = within(screen.getByRole('dialog'))
+  const model = within(dialog.getByRole('row', { name: /main/ }))
+  expect(model.getAllByRole('cell').map(cell => cell.textContent)).toEqual(['2', '0', '0', '0%', '0', '0'])
+  expect(dialog.queryByText(/次调用|calls returned usage|—/)).toBeNull()
 })
 
 it.each([
@@ -240,7 +264,7 @@ it('distinguishes a first read failure from a refresh failure', async () => {
   expect(screen.queryByRole('table')).toBeNull()
 })
 
-it('explains unavailable branches without presenting a partial rate as complete', async () => {
+it('keeps available branch totals and cache rates visible beside the read failure notice', async () => {
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const own = { models: [root] }
   const catalog = [{ id: 'child' }]
@@ -251,9 +275,10 @@ it('explains unavailable branches without presenting a partial rate as complete'
   fireEvent.click(screen.getByRole('button', { name: '会话用量' }))
   await act(async () => {})
   const dialog = within(screen.getByRole('dialog'))
-  expect(dialog.getByText('1 个会话的用量暂不可用，无法计算缓存命中率；将自动重试')).toBeTruthy()
+  expect(dialog.getByText('1 个会话的用量暂不可用，显示已读取数据；将自动重试')).toBeTruthy()
   expect(dialog.getByText('oracle (test)')).toBeTruthy()
-  expect(screen.getByRole('button', { name: '会话用量' }).textContent).toBe('缓存命中 —')
+  expect(dialog.getByText('185')).toBeTruthy()
+  expect(screen.getByRole('button', { name: '会话用量' }).textContent).toBe('缓存命中 28.6%')
 })
 
 it('does not reuse another conversation reader’s retained figures', async () => {

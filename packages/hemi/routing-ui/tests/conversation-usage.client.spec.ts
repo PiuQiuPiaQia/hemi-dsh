@@ -33,26 +33,28 @@ it('propagates cancellation instead of reporting an incomplete successful result
   await expect(loadConversationUsage(SessionId('root'), read, abort.signal)).rejects.toThrow()
 })
 
-it('weights cache hits by full input tokens and withholds rates when the source counters are incomplete', () => {
+it('weights cache hits by recorded input tokens and uses zero for missing cache counters', () => {
   const small = { ...usageRow(), totalTokens: 30, outputTokens: 20, cacheReadTokens: 9, cacheReadReports: 1 }
   const large = { ...usageRow(), totalTokens: 110, outputTokens: 20, cacheReadTokens: 1, cacheReadReports: 1 }
   expect(formatCacheHit(conversationCacheHit([small, large]))).toBe('10%')
   const missing = { ...large, cacheReadReports: 0, cacheReadTokens: 0 }
-  expect(formatCacheHit(conversationCacheHit([small, missing]))).toBe('—')
-  expect(formatCacheHit(conversationCacheHit([{ ...small, totalReports: 0 }]))).toBe('—')
-  expect(formatCacheHit(conversationCacheHit([small], 1))).toBe('—')
+  expect(formatCacheHit(conversationCacheHit([small, missing]))).toBe('9%')
+  expect(formatCacheHit(conversationCacheHit([{ ...small, totalReports: 0 }]))).toBe('90%')
 })
 
-it('keeps unreported calls in coverage without treating their consumption as zero', () => {
+it('sums available usage without report-coverage requirements', () => {
   const reported = { ...usageRow(), calls: 3, reportedCalls: 2, totalReports: 2,
     totalTokens: 220, outputTokens: 20, cacheReadTokens: 80, cacheReadReports: 2 }
   const unreported = { ...usageRow('memory'), calls: 1, reportedCalls: 0, totalReports: 0,
     totalTokens: 0, outputTokens: 0, uncachedInputTokens: 0 }
-  const cache = conversationCacheHit([reported, unreported])
-  expect(cache).toEqual({ ratio: 0.4, reportedCalls: 2, calls: 4 })
-  expect(formatCacheHit(cache)).toBe('40%')
-  expect(conversationCacheHit([unreported])).toBeUndefined()
-  expect(conversationCacheHit([{ ...reported, totalReports: 1 }])).toBeUndefined()
-  expect(conversationCacheHit([{ ...reported, cacheReadReports: 1 }])).toBeUndefined()
-  expect(conversationCacheHit([reported], 1)).toBeUndefined()
+  expect(conversationCacheHit([reported, unreported])).toBe(0.4)
+  expect(formatCacheHit(conversationCacheHit([unreported]))).toBe('0%')
+  expect(formatCacheHit(conversationCacheHit([]))).toBe('0%')
+  expect(formatCacheHit(conversationCacheHit([{ ...reported, totalReports: 1 }]))).toBe('40%')
+  expect(formatCacheHit(conversationCacheHit([{ ...reported, cacheReadReports: 1 }]))).toBe('40%')
+})
+
+it('withholds a cache ratio when recorded cache reads exceed input', () => {
+  const row = { ...usageRow(), totalTokens: 30, outputTokens: 20, cacheReadTokens: 11 }
+  expect(formatCacheHit(conversationCacheHit([row]))).toBe('—')
 })
