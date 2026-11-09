@@ -601,9 +601,17 @@ it('keeps native model commands and directories when another plugin owns the com
       b.mint('plugin-picker')
       const directory = b.ctx.modelDirectories.directoryFor(sid('plugin-picker'))
       await expect(directory.load()).resolves.toMatchObject({ status: 'ready' })
-      await expect(directory.select({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })).resolves.toMatchObject({ ok: true })
+      expect(b.popup().searchLabels?.().placeholder).toBe(zh['search.placeholder'])
+      const input = projection('plugin-picker')
+      const options = await b.popup().options(input, new AbortController().signal)
+      await b.popup().onSelect(options[1]!, input)
+      expect(directory.store.getSnapshot().current).toMatchObject({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
     } finally { await b.ctx.fiber.dispose() }
   } finally { vi.unstubAllGlobals() }
+})
+
+it('shows the native composer by default', () => {
+  expect(Config({})).toEqual({ showComposer: true })
 })
 
 it('rejects a malformed composer composition option', () => {

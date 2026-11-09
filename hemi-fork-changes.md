@@ -23,7 +23,7 @@ GitHub 社区签名由自有 `release/signing.mjs`、`setup.mjs`、`cua.mjs` 管
 
 AppleDouble 防污染由[共享运行时复制](packages/skill/tool-workspace-dependencies/src/index.ts)负责：复制前按文件名前缀与二进制魔数过滤源副文件，复制结束后清理目的端新生成的副文件，保留同前缀合法内容和 Python 相对别名，不跟随目的目录链接，不吞读取失败。[构建身份](scripts/primary-runtime/prepare.ts)递增组装代数，使旧污染缓存重新安装。这一流程发生在插件启动前，没有可用的插件扩展入口；Python 标准库、包版本完整性检查及运行时自检保持不变。构建器清理旧运行时与 Office 资源目录时使用 Node 原生有界重试处理瞬态 ENOTEMPTY，持续失败仍中止准备，不混用旧产物和新产物。开发版应用的[生成包装](apps/desktop/scripts/development-app.ts)在复制 Electron 后、签名前移除真实 AppleDouble 文件；ditto 的属性选项不能过滤已存在的普通副文件，原 Electron 包和签名身份保持不变。[开发启动](apps/desktop/scripts/dev.ts)及冷启动包装清除 GUI 继承的 ELECTRON_RUN_AS_NODE，Host 子进程仍由自己的启动器设置 Node 模式。验证包括 117 项定向回归及外置盘目标的 Python、Office 文档读写、pip check 和 pnpm 版本检查。合并上游时核对复制双端清理、合法文件保留、错误传播和缓存失效；上游提供等价实现后移除本补丁。
 
-模型菜单的组件、样式、替代选型状态和注册现由 `routing-ui/src/client/model-picker/` 拥有。原生 `ui-model-selection` 恢复自己的组件和目录服务，保留 `/model`；通用 `showComposer` 配置默认开启，Hemi 组合显式关闭并由路由 UI 插件注册菜单。菜单共用原生目录，不复制目录控制器。定制菜单样式和排序随所属组件维护。推理强度在模型按钮右侧独立展示，沿用原生能力判断和选型保存，自动路由在同一位置展示按会话保存的四档选择器；此布局只修改 Hemi 自有组件。
+模型菜单的组件、样式、替代选型状态和注册现由 `routing-ui/src/client/model-picker/` 拥有。原生 `ui-model-selection` 恢复自己的组件和目录服务，保留 `/model`；通用 `showComposer` 配置默认开启，Hemi 组合显式关闭并由路由 UI 插件注册菜单。菜单共用原生目录，不复制目录控制器。定制菜单样式和排序随所属组件维护。推理强度在模型按钮右侧独立展示，沿用原生能力判断和选型保存，自动路由在同一位置展示按会话保存的四档选择器；此布局只修改 Hemi 自有组件。模型菜单和回合用量弹窗使用原生 CSS anchor 定位，保留 body portal、独立推理按钮与原有关闭行为，不依赖已移除的 JavaScript 定位 hook；合并时核对缩放、滚动、窄屏边距与多弹窗的锚点隔离。
 
 推理能力缺失时，由 `hemi/model-access/src/protocol-reasoning.ts` 提供协议默认档位；`llm/llm-pi-ai` 提供通用的临时配置瀑布和型号默认档位解析，目录、设置校验和请求共用同一结果，无 Hemi 插件时保持上游行为。自动路由的四档、会话保存与型号映射归 `hemi/routing`，界面归 `hemi/routing-ui`；现有同步选型钩子无法等待型号能力，因此映射放在已有等待式 pre-step，保留原生子任务绑定和生命周期。合并上游须核对未知能力、显式禁用、默认值与实际字段发送，以及四档选择不退出自动路由。
 
@@ -53,7 +53,7 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 | `client/ui-model-selection` | 通用 `showComposer` 开关、模型标签与工具选项类型；无需导入 Hemi 组件或保存 Hemi 模式 | 默认原生菜单、关闭后 `/model` 与目录仍可用、Hemi 菜单接管与卸载 |
 | `client/ui-chat` | 回合用量增加可替换插槽；原生面板保留为 fallback | 插槽声明与渲染一致，无插件时使用原生面板 |
 | `client/ui-settings-models`、`ui-settings-general` | 复用原生供应商编辑器并替换导航，避免重复入口 | 编辑器工厂、默认入口开关、导航与页面选择相同优先级 |
-| `core/agent`、`api/session-controller` | 用户手动选型前等待路由插件保存固定模式 | 同型号选择也发出事件；保存失败不得先切换模型 |
+| `core/agent`、`api/session-controller` | 用户手动选型前等待路由插件保存固定模式；未选型号的空白会话先让路由补选，仍为空则拒绝提交 | 同型号选择也发出事件；保存失败不得先切换模型；保留上游持久请求去重与空内容继续入口，缺少型号时不存附件、不入队 |
 | `subagent/subagent` | 原生角色绑定模型和推理强度的通用钩子 | 绑定后能力校验；原生工具、独立生命周期和完成通知保持上游行为 |
 | `scripts/gen-cordis-catalog`、`gen-doc-graphs`、`doc-standard.spec` | 登记 Hemi 服务、DTO 文档归属和 Electron 适配库分类，接口目录由生成器维护 | 新增或移除插件时更新归属映射，运行目录生成和文档检查 |
 | `scripts/session-snapshot-corpus.corpus` | 发现快照测试时跳过桌面开发应用产物，避免扫描其依赖副本 | 仅跳过 `.desktop-build` 产物，不排除源测试 |

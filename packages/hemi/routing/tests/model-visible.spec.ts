@@ -79,7 +79,7 @@ describe('model-visible snapshot', () => {
     } } })
 
     expect(delegate).not.toHaveProperty('parameters.properties.background')
-    expect(delegate).toHaveProperty('description', expect.stringContaining('immediately returns its id'))
+    expect(delegate).toHaveProperty('description', expect.stringContaining('immediately returns its name'))
 
     const system = handle.agent.session.snapshotEvents().find(event => event.type === 'system/message')
     expect(system).toBeDefined()

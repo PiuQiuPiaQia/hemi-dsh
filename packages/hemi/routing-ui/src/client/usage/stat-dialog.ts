@@ -1,48 +1,30 @@
 /** Trigger-anchored usage details. */
 
-import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject } from 'react'
-import { useAnchoredPosition, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useEffect, useId, useRef, useState, type CSSProperties, type MutableRefObject } from 'react'
+import { useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
 
-/** Viewport margin the placement clamp keeps (the Menu portal margin). */
-const PANEL_MARGIN = 12
-
-/** Distance between the trigger's top edge and the panel's bottom. */
-const PANEL_GAP = 8
-
-/**
- * Unplaced portal panel: hidden but laid out so the clamp measures real
- * dimensions (the `useAnchoredPosition` measure pass).
- */
-export const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
-
-/** Open state, refs, and clamped placement for one stat dialog. */
+/** Open state, refs, and the unique CSS anchor for one stat dialog. */
 export interface StatDialogSeat {
   open: boolean
   setOpen: (open: boolean) => void
   rootRef: MutableRefObject<HTMLSpanElement | null>
   panelRef: MutableRefObject<HTMLDivElement | null>
-  pos: CSSProperties | null
+  anchorStyle: CSSProperties & Record<'--dsh-usage-anchor', string>
 }
 
 /**
- * One trigger-anchored dialog seat: open state, viewport-clamped placement, outside-close.
- * @returns the seat; spread `pos ?? MEASURE_STYLE` onto the portaled panel.
+ * Own a trigger-anchored dialog's open state and outside dismissal.
+ * @returns refs and a shared anchor style for the trigger wrapper and portaled panel.
  */
 export function useStatDialog(): StatDialogSeat {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
 
-  // Portal placement: the dialog is fixed above the trigger and clamped inside
-  // the viewport, so a trigger near the window edge cannot push it off-screen.
-  const pos = useAnchoredPosition({
-    open,
-    anchorRef: rootRef,
-    panelRef,
-    side: 'top',
-    gap: PANEL_GAP,
-    margin: PANEL_MARGIN,
-  })
+  const id = useId()
+  const anchorStyle: StatDialogSeat['anchorStyle'] = {
+    '--dsh-usage-anchor': `--dsh-usage-${id.replaceAll(':', '')}`,
+  }
 
   // Outside pointerdown closes through the shared primitive; the portaled
   // panel counts as inside. An outside click also closes, because keyboard
@@ -70,5 +52,5 @@ export function useStatDialog(): StatDialogSeat {
     }
   }, [open, setOpen])
 
-  return { open, setOpen, rootRef, panelRef, pos }
+  return { open, setOpen, rootRef, panelRef, anchorStyle }
 }

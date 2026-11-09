@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-hemi-skins",
   "description": "Hemi character skin themes as alias-token palettes for the Web client",
-  "version": "0.2.2-alpha.3",
+  "version": "0.2.2-rc.1",
   "publishConfig": {
     "access": "public"
   },

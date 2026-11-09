@@ -84,6 +84,12 @@ it('loads updates on every turn and waits for exactly one close summary', async 
   expect(results).toHaveLength(1)
   expect(results[0]?.data).toMatchObject({ outcome: 'saved', usage: { inputTokens: 10 } })
   expect(results[0]?.ignorable).toBe(true)
+  const summaryRequest = handle.agent.session.snapshotEvents().find(event => event.type === 'hemi-memory/summary-request')
+  expect(summaryRequest?.ignorable).toBe(true)
+  expect(summaryRequest?.data.messages).toEqual(adapter.requests[2]?.messages)
+  expect(summaryRequest?.data.messages).toMatchObject([{ role: 'user' }])
+  expect(summaryRequest?.data.messages[0]).not.toHaveProperty('source')
+  expect(summaryRequest?.data.messages[0]).not.toHaveProperty('id')
   const artifact = JSON.parse(JSON.stringify({
     header: { delegationDepth: 0, ...handle.agent.session.header },
     inheritedEventCount: handle.agent.session.inheritedEventCount,

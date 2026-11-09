@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-hemi-memory",
   "description": "Hemi cross-session memory: persistent markdown stores (long-term, daily log, scratchpad) with model-facing read, write, search, and forget tools",
-  "version": "0.2.2-alpha.3",
+  "version": "0.2.2-rc.1",
   "publishConfig": {
     "access": "public"
   },

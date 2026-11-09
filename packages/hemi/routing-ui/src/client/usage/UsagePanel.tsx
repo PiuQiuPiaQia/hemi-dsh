@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { NS } from '../locales.ts'
-import { MEASURE_STYLE, useStatDialog } from './stat-dialog.ts'
+import { useStatDialog } from './stat-dialog.ts'
 import css from './Usage.module.css'
 
 type Translate = PropsLocale<typeof NS>['t']
@@ -159,16 +159,16 @@ export function UsagePopover({ dialog, title, trigger, children, wide = false, k
   wide?: boolean
   keepLabel?: boolean
 }) {
-  const { open, setOpen, rootRef, panelRef, pos } = dialog
+  const { open, setOpen, rootRef, panelRef, anchorStyle } = dialog
   return (
-    <span ref={rootRef} className={`${css.root}${keepLabel ? ` ${css.keepLabel}` : ''}`}>
+    <span ref={rootRef} className={`${css.root}${keepLabel ? ` ${css.keepLabel}` : ''}`} style={anchorStyle}>
       <button type="button" className={css.trigger} aria-label={title} aria-haspopup="dialog"
         aria-description={trigger === title ? undefined : trigger}
         aria-expanded={open} onClick={() => { setOpen(!open) }}>
         <IconDatabaseOutlineRegular /><span className={css.label}>{trigger}</span>
       </button>
       {open && createPortal(
-        <MenuSurface ref={panelRef} role="dialog" aria-label={title} className={`${css.panel}${wide ? ` ${css.wide}` : ''}`} style={pos ?? MEASURE_STYLE}>
+        <MenuSurface ref={panelRef} role="dialog" aria-label={title} className={`${css.panel}${wide ? ` ${css.wide}` : ''}`} style={anchorStyle}>
           <div className={css.title}>{title}</div>
           {children}
         </MenuSurface>,

@@ -16,7 +16,8 @@ it.each([{ name: 'Chromium', engine: chromium }, { name: 'WebKit', engine: webki
     const scratch = await mkdtemp(join(tmpdir(), 'hemi-reasoning-'))
     onTestFinished(() => rm(scratch, { recursive: true, force: true }))
     const patch = join(scratch, 'reasoning.patch.yml')
-    await writeFile(patch, `${await readFile(OVERLAY, 'utf8')}\n- id: hemi-model-access\n  disabled: false\n`)
+    // The shared reasoning fixture selects the native composer; this scenario owns the Hemi controls.
+    await writeFile(patch, `${await readFile(OVERLAY, 'utf8')}\n- id: hemi-model-access\n  disabled: false\n- id: hemi-routing-ui\n  disabled: false\n- id: ui-model-selection\n  config:\n    showComposer: false\n`)
     const scaffold = await launchWebScaffold({ extraOverlayPath: patch })
     onTestFinished(() => scaffold.close())
     await scaffold.ctx.settings.update('llm-pi-ai', { providers: {

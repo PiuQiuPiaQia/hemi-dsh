@@ -7,7 +7,7 @@ kind: "package-reference"
 
 English | [中文](README.zh.md)
 
-The Hemi composer picker, its styles and alternative-selection state belong to `src/client/model-picker/`. Configure the native model-selection plugin with `showComposer: false`; this plugin owns the composer and child slots while reusing native model directories and the `model` dictionary. Do not mount two composer owners in the same composition.
+The Hemi composer picker, its styles and alternative-selection state belong to `src/client/model-picker/`. Configure the native model-selection plugin with `showComposer: false`; this plugin owns the composer and child slots while reusing native model directories and the `model` dictionary. Do not mount two composer owners in the same composition. The picker and usage popovers share the [native picker's CSS Anchor Positioning requirements and layout-viewport zoom behavior](../../client/ui-model-selection/README.md#understand-the-implementation).
 
 ## Summary
 

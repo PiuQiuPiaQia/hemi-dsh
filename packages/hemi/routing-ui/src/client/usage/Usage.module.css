@@ -2,6 +2,7 @@
    wears the shared stat-dialog.module.css skin. */
 
 .root {
+  anchor-name: var(--dsh-usage-anchor);
   display: inline-flex;
   min-width: 0;
 }
@@ -81,16 +82,32 @@
 .panel {
   box-sizing: border-box;
   position: fixed;
+  position-anchor: var(--dsh-usage-anchor);
+  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  bottom: calc(anchor(top) + 8px);
+  left: max(12px, anchor(left));
+  right: 12px;
+  align-self: safe end;
+  justify-self: start;
+  position-try-fallbacks: --dsh-hemi-usage-wide;
+  margin: 0;
   z-index: 1100;
   width: max-content;
-  min-width: min(290px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
-  max-width: min(440px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
-  max-height: var(--dsh-anchored-max-height, none);
+  height: fit-content;
+  min-width: min(290px, calc(100vw - 24px));
+  max-width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)));
   padding: 16px;
   overflow: auto;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 18px;
+}
+
+@position-try --dsh-hemi-usage-wide {
+  left: 12px;
+  right: 12px;
+  justify-self: end;
 }
 
 .title {
@@ -132,8 +149,8 @@
 }
 
 .wide {
-  width: min(760px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
-  max-width: min(760px, var(--dsh-anchored-max-width, calc(100vw - 24px)));
+  width: min(760px, calc(100vw - 24px));
+  max-width: min(760px, calc(100vw - 24px));
 }
 
 .scope, .status {

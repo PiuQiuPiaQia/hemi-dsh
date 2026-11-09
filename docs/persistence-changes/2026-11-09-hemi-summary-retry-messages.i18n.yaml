@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-11-09-hemi-summary-retry-messages.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-11-09-hemi-summary-retry-messages.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-11-09-hemi-summary-retry-messages:
+  en: 25c46a110c09d4ca
+  zh: 72ea69a3ca6437c2
+/2026-11-09-hemi-summary-retry-messages/summary:
+  en: 56ac6ab3073bb7dc
+  zh: dd5d054b934e06fd
+/2026-11-09-hemi-summary-retry-messages/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-11-09-hemi-summary-retry-messages/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-11-09-hemi-summary-retry-messages/compatibility:
+  en: 077f27b8b37b3375
+  zh: 745439337e63d04e
+/2026-11-09-hemi-summary-retry-messages/verification:
+  en: 058af791a98c4bbb
+  zh: cbb401195e289fd2
+/2026-11-09-hemi-summary-retry-messages/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

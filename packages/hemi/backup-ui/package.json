@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-hemi-backup-ui",
   "description": "Hemi data backup settings section: target configuration, scheduled runs, and staged restore",
-  "version": "0.2.2-alpha.3",
+  "version": "0.2.2-rc.1",
   "publishConfig": {
     "access": "public"
   },

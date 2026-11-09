@@ -7,7 +7,7 @@ kind: "package-reference"
 
 [English](README.md) | 中文
 
-Hemi 模型菜单、样式和替代选型状态归 `src/client/model-picker/` 所有。原生模型选择插件须配置 `showComposer: false`；本插件拥有输入框菜单及子插槽，复用原生模型目录与 `model` 字典。同一组合不能同时挂载两个菜单所有者。
+Hemi 模型菜单、样式和替代选型状态归 `src/client/model-picker/` 所有。原生模型选择插件须配置 `showComposer: false`；本插件拥有输入框菜单及子插槽，复用原生模型目录与 `model` 字典。同一组合不能同时挂载两个菜单所有者。模型菜单与用量浮层沿用[原生选择器的 CSS Anchor Positioning 要求和布局视口缩放行为](../../client/ui-model-selection/README.zh.md#understand-the-implementation)。
 
 ## 概述
 

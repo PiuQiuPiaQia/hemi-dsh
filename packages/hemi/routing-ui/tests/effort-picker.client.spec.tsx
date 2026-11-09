@@ -35,7 +35,30 @@ function props(state = directory()): Props {
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+it('anchors each flat model menu to its own trigger without rectangle reads', () => {
+  const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+  const { container } = render(<><HemiModelSelect {...props()} /><HemiModelSelect {...props()} /></>)
+  const [first, second] = screen.getAllByRole('button', { name: /选择模型/ })
+  fireEvent.click(first!)
+  const menu = screen.getByRole('menu')
+  const anchor = first!.style.getPropertyValue('--dsh-model-anchor')
+  expect(anchor).toMatch(/^--dsh-model-/)
+  expect(menu.style.getPropertyValue('--dsh-model-anchor')).toBe(anchor)
+  expect(menu.parentElement).toBe(document.body)
+  expect(container.contains(menu)).toBe(false)
+  expect(menu.style.left).toBe('')
+  expect(menu.style.top).toBe('')
+  fireEvent.mouseDown(second!)
+  fireEvent.click(second!)
+  const nextAnchor = second!.style.getPropertyValue('--dsh-model-anchor')
+  expect(nextAnchor).not.toBe(anchor)
+  expect(screen.getByRole('menu').style.getPropertyValue('--dsh-model-anchor')).toBe(nextAnchor)
+  expect(measure).not.toHaveBeenCalled()
+  fireEvent.mouseDown(document.body)
+  expect(screen.queryByRole('menu')).toBeNull()
+})
 
 it('shows effort beside the model and saves it through the same selection service', async () => {
   const bindings = props()

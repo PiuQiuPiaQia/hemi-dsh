@@ -1,6 +1,6 @@
 .menu[role='menu'] {
-  min-width: min(272px, calc(100vw - 32px), var(--dsh-anchored-max-width, 100vw));
-  max-height: min(480px, calc(100vh - 48px), var(--dsh-anchored-max-height, 100vh));
+  min-width: min(272px, calc(100vw - 32px));
+  max-height: min(480px, calc(100dvh - 48px));
 }
 
 .alternative {
@@ -21,7 +21,7 @@
 
 .utilities:not(:empty) {
   min-height: 0;
-  max-height: min(176px, calc(var(--dsh-anchored-max-height, 100vh) * 0.6));
+  max-height: min(176px, calc((100dvh - 24px) * 0.6));
   overflow-y: auto;
   margin-block-start: 4px;
   padding-block-start: 4px;
