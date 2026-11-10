@@ -1,8 +1,8 @@
-version: 0.2.2-alpha.3.20261108.1
+version: 0.2.2-rc.1.20261111.1
 files:
-  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261108.1/hemi-dsh-0.2.2-alpha.3.20261108.1-win-x64.exe
-    sha512: sso+TPitu9vSUrIwmlwvmqobROtL9w2bSiREJBKUKTEPVqWQv8DFq1JoZ8Qm1Y6dgXEzrGUF3xbIxCg050FD0A==
-    size: 320081333
-path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261108.1/hemi-dsh-0.2.2-alpha.3.20261108.1-win-x64.exe
-sha512: sso+TPitu9vSUrIwmlwvmqobROtL9w2bSiREJBKUKTEPVqWQv8DFq1JoZ8Qm1Y6dgXEzrGUF3xbIxCg050FD0A==
-releaseDate: '2026-11-08T06:16:17.227Z'
+  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.1.20261111.1/hemi-dsh-0.2.2-rc.1.20261111.1-win-x64.exe
+    sha512: h/EWauQg9VkOwesDCuXRvYHTVcFGaTO1IUXk530EfHbvCiBXNZPu5x8KGRvveLpWMfLfmDbIGaLSqlTIkPrtsQ==
+    size: 321458151
+path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.1.20261111.1/hemi-dsh-0.2.2-rc.1.20261111.1-win-x64.exe
+sha512: h/EWauQg9VkOwesDCuXRvYHTVcFGaTO1IUXk530EfHbvCiBXNZPu5x8KGRvveLpWMfLfmDbIGaLSqlTIkPrtsQ==
+releaseDate: '2026-11-10T16:54:08.738Z'

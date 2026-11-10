@@ -1,8 +1,8 @@
-version: 0.2.2-alpha.3.20261108.1
+version: 0.2.2-rc.1.20261111.1
 files:
-  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261108.1/hemi-dsh-0.2.2-alpha.3.20261108.1-mac-arm64.zip
-    sha512: 1q4XUbP+eZlgJVREqGm3xzQfeyAe2SrFMkQrO12CIXdUCVRUF+JKK5bxRiz52Ce18cxF2CKOUqdWBmU3j4lssA==
-    size: 362825376
-path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-alpha.3.20261108.1/hemi-dsh-0.2.2-alpha.3.20261108.1-mac-arm64.zip
-sha512: 1q4XUbP+eZlgJVREqGm3xzQfeyAe2SrFMkQrO12CIXdUCVRUF+JKK5bxRiz52Ce18cxF2CKOUqdWBmU3j4lssA==
-releaseDate: '2026-11-08T06:25:47.477Z'
+  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.1.20261111.1/hemi-dsh-0.2.2-rc.1.20261111.1-mac-arm64.zip
+    sha512: IUrOljgqk668saMM7qx+m29Dwwg2hRJkXDEm127ecKvEeLyU/S6VuIuzLXhF9trDnoBmBIw8XXCQ9zf8F41wPg==
+    size: 364480771
+path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.1.20261111.1/hemi-dsh-0.2.2-rc.1.20261111.1-mac-arm64.zip
+sha512: IUrOljgqk668saMM7qx+m29Dwwg2hRJkXDEm127ecKvEeLyU/S6VuIuzLXhF9trDnoBmBIw8XXCQ9zf8F41wPg==
+releaseDate: '2026-11-10T17:16:57.618Z'
