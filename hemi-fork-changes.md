@@ -11,7 +11,7 @@
 
 当前归属与合并核对以本节为准；下方日期条目保留实施记录。
 
-发布校验保留上游 `V17` 日志锚点及 Web `cordis` 预设 ID 的语义，[rescope 校验](scripts/rescope-vendor.ts)不将产品数据当作包名，也不放宽模块导入重置。SSH provider 随默认 Desktop 工作区使用，不再登记为非默认可选包；遥测 exporter 仍按默认禁用行登记为可选，不改变隐私行为。[发布文件约束](scripts/check-workspace-constraints.ts)闭合 SSH 密码共享块与八语言元数据，Hemi 定制包仅发布实际运行的 release adapter，不携带需要仓库源码的图形生成器。合并上游时核对日志锚点、预设 ID、默认组合可达性及发布闭包，不能通过启用遥测或跳过检查来消除校验错误。
+发布校验保留上游 `V17` 日志锚点及 Web `cordis` 预设 ID 的语义，[rescope 校验](scripts/rescope-vendor.ts)不将产品数据当作包名，也不放宽模块导入重置。SSH provider 随默认 Desktop 工作区使用，不再登记为非默认可选包；遥测 exporter 仍按默认禁用行登记为可选，不改变隐私行为。[发布文件约束](scripts/check-workspace-constraints.ts)闭合 SSH 密码共享块与八语言元数据，Hemi 定制包仅发布实际运行的 release adapter，不携带需要仓库源码的图形生成器。合并上游时核对日志锚点、预设 ID、默认组合可达性及发布闭包，不能通过启用遥测或跳过检查来消除校验错误。SSH 密码夹具仅使用 `ssh2` 的纯 JavaScript 实现，其可选原生加速与 CPU 探测构建在 pnpm 中明确禁用，严格依赖构建策略保持开启。
 
 SSH 工作区显示身份归 [Hemi 命名器](packages/hemi/ssh-servers/src/workspace-title.ts)，不写回持久标题。侧栏、选择器及已选按钮依据通用执行引用使用共享地球图标，本机目录保留文件夹图标，不通过名称或路径猜测环境，也不新增图形资源。[Workspace BFF](packages/api/workspace-controller/src/feed.ts) 仅增加通用只读 `displayTitle` 提供者，供侧栏、下拉、搜索和已选入口一致消费；[会话摘要](packages/api/session-controller/src/list.ts) 保留真实 header 的 `executionTarget`，[本地应用入口](packages/client/ui-open-in-app/src/client/native-paths.ts) 据此决定是否展示原生操作，不按路径猜环境。上游目前无对应显示投影扩展，因此保留该窄扩展，SSH 命名规则仍只在 Hemi 插件内。验证覆盖既有工作区、自定义标题、连接改名／删除、同名同路径服务器、同名本地目录、菜单元数据及注册撤回；合并上游时核对显示字段与原始重命名字段分离、流和 unary 投影一致，以及本地工作区的原有行为。
 
