@@ -7,6 +7,7 @@ import { WorkspaceFiles } from '@deepseek-ai/dsh-api-workspace-files'
 import { Context } from '@deepseek-ai/cordis'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { SessionQueryError } from '@deepseek-ai/dsh-session-query'
@@ -195,7 +196,7 @@ it('reports the serving desktop and reveals only an authorized declared source',
   const info = await handler.fetch(new Request('http://localhost/api/present.host'), browserPeer)
   expect(await info.json()).toEqual({ name: 'desktop', available: true, fileManager: 'finder' })
   expect((await open('?sessionId=owner&seq=7&index=0&action=reveal')).status).toBe(204)
-  expect(opener).toHaveBeenCalledWith({ path: await realpath(join(cwd, file.path)), action: 'reveal' }, expect.any(AbortSignal))
+  expect(opener).toHaveBeenCalledWith({ sessionId: 'owner', path: await realpath(join(cwd, file.path)), action: 'reveal' }, expect.any(AbortSignal))
   expect((await open('?sessionId=owner&seq=7&index=0&action=delete')).status).toBe(400)
   file.path = '..'
   expect((await open('?sessionId=owner&seq=7&index=0&action=reveal')).status).toBe(404)
@@ -213,13 +214,11 @@ it('refuses native actions when the configured Host desktop is unavailable', asy
 })
 
 
-it('refuses native opening without a matching Host mapping even when a same-name Host file exists', async () => {
-  const { ctx, open, opener } = await fixture()
-  const mapping = vi.spyOn(ctx.fs, 'processPathFromHostPath').mockReturnValue(undefined)
+it('preserves the native verifier refusal and the viewed Session identity', async () => {
+  const { open, opener } = await fixture()
+  opener.mockRejectedValueOnce(new RemoteError('session/path-unavailable', 'not mapped', { sessionId: SessionId('owner') }))
   expect((await open()).status).toBe(422)
-  mapping.mockReturnValue('/another-filesystem/file')
-  expect((await open()).status).toBe(422)
-  expect(opener).not.toHaveBeenCalled()
+  expect(opener.mock.lastCall?.[0]).toMatchObject({ sessionId: 'owner' })
 })
 
 it('opens a viewed child Session without activating an Agent', async () => {
@@ -239,7 +238,7 @@ it('uses the deployment workspace root when the viewed Session has no cwd', asyn
 
 
 it('queries handlers only after file authorization and forwards explicit application choices', async () => {
-  const { browserPeer, handler, applications, opener, open, ctx } = await fixture()
+  const { browserPeer, handler, applications, opener, open } = await fixture()
   const url = 'http://localhost/api/present.open?sessionId=owner&seq=7&index=0'
   const response = await handler.fetch(new Request(url), browserPeer)
   expect(response.status).toBe(200)
@@ -248,7 +247,7 @@ it('queries handlers only after file authorization and forwards explicit applica
   expect((await open('?sessionId=owner&seq=7&index=0&application=player')).status).toBe(204)
   expect(opener.mock.lastCall?.[0]).toMatchObject({ application: 'player' })
   expect((await handler.fetch(new Request(url.replace('index=0', 'index=999')), browserPeer)).status).toBe(404)
-  vi.spyOn(ctx.fs, 'processPathFromHostPath').mockReturnValue(undefined)
+  applications.mockRejectedValueOnce(new RemoteError('session/path-unavailable', 'not mapped', { sessionId: SessionId('owner') }))
   expect((await handler.fetch(new Request(url), browserPeer)).status).toBe(422)
-  expect(applications).toHaveBeenCalledOnce()
+  expect(applications).toHaveBeenLastCalledWith(expect.objectContaining({ sessionId: 'owner' }), expect.any(AbortSignal))
 })

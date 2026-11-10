@@ -89,7 +89,12 @@ export function apply(ctx: ClientContext): void {
             throw state.openError ?? new Error(`session "${session.sessionId}" is not open`)
           }
           const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal)
-            .then(result => result.ok ? result.value : [])
+            .then((result) => {
+              if (result.ok) return result.value
+              // Hemi fork: a permanently unsupported filesystem must not look like an empty directory.
+              if (result.error.code === 'file-reference/unsupported-environment') throw result.error
+              return []
+            })
           const sessionLookup = quoted === true
             ? Promise.resolve([] as SessionReferenceMentionCandidate[])
             : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal)

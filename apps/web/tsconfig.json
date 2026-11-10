@@ -26,6 +26,7 @@
     "tests/hemi-feedback-visibility.e2e.ts",
     // Hemi fork: the branding e2e consumes Host declarations through its scaffold.
     "tests/hemi-branding.e2e.ts",
+    "tests/hemi-ssh-servers.e2e.ts",
     "tests/hemi-desktop-startup.e2e.ts",
     "tests/home-whale.e2e.ts",
     "tests/sidebar-drawer.e2e.ts",

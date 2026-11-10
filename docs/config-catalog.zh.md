@@ -113,7 +113,7 @@ export interface Config {
 
 - `inject`: `agents` · `sessions` · `llm` · `tools` · `systemPrompt` · `sessionProjections`
 - `refs`: [`AgentOptions`](subsystems/core.zh.md) · [`SessionId`](subsystems/core.zh.md) · `Volatile` (`@deepseek-ai/cosmokit`)
-- `source`: [`packages/core/agent-loop/src/index.ts:252`](../packages/core/agent-loop/src/index.ts)
+- `source`: [`packages/core/agent-loop/src/index.ts:262`](../packages/core/agent-loop/src/index.ts)
 
 ```ts config-catalog
 /** Agent-loop plugin configuration. */
@@ -264,7 +264,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-session-controller`
 
 - `inject`: `agentDefaultModel` · `agents` · `attachments` · `fileUploads` · `fs` · `llm` · `remoteAccess` · `sessions` · `sessionProjections` · `sessionQuery` · `typert` · `typertGateway` · `workspaceRegistry`
-- `source`: [`packages/api/session-controller/src/index.ts:110`](../packages/api/session-controller/src/index.ts)
+- `source`: [`packages/api/session-controller/src/index.ts:111`](../packages/api/session-controller/src/index.ts)
 
 ```ts config-catalog
 /** Session Controller deployment policy. */
@@ -345,7 +345,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-workspace-controller`
 
 - `inject`: `remoteAccess` · `typert` · `workspaceRegistry`
-- `source`: [`packages/api/workspace-controller/src/index.ts:37`](../packages/api/workspace-controller/src/index.ts)
+- `source`: [`packages/api/workspace-controller/src/index.ts:38`](../packages/api/workspace-controller/src/index.ts)
 
 ```ts config-catalog
 /** First-use directory policy for the Host account. */
@@ -364,7 +364,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-workspace-files`
 
 - `inject`: `fs` · `sandboxPolicy` · `sessions` · `typert`
-- `source`: [`packages/api/workspace-files/src/index.ts:70`](../packages/api/workspace-files/src/index.ts)
+- `source`: [`packages/api/workspace-files/src/index.ts:73`](../packages/api/workspace-files/src/index.ts)
 
 ```ts config-catalog
 /** Deployment caps on one page or one listing. */
@@ -1566,7 +1566,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-file-reference-local`
 
 - `inject`: `agents` · `workingDirectory`
-- `source`: [`packages/context/file-reference-local/src/index.ts:35`](../packages/context/file-reference-local/src/index.ts)
+- `source`: [`packages/context/file-reference-local/src/index.ts:36`](../packages/context/file-reference-local/src/index.ts)
 
 ```ts config-catalog
 /** Local file-reference discovery configuration. */
@@ -1911,7 +1911,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-host-open-in-app`
 
 - `inject`: `webServer` · `connection` · `subprocess`
-- `source`: [`packages/host/open-in-app/src/index.ts:50`](../packages/host/open-in-app/src/index.ts)
+- `source`: [`packages/host/open-in-app/src/index.ts:54`](../packages/host/open-in-app/src/index.ts)
 
 ```ts config-catalog
 /** Open-in-app host configuration. */
@@ -2693,7 +2693,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-office-to-pdf`
 
-- `source`: [`packages/document/office-to-pdf/src/index.ts:31`](../packages/document/office-to-pdf/src/index.ts)
+- `source`: [`packages/document/office-to-pdf/src/index.ts:32`](../packages/document/office-to-pdf/src/index.ts)
 
 ```ts config-catalog
 /** Provider concurrency and kit rendering/font configuration. */
@@ -3120,7 +3120,7 @@ export interface Config {
 
 - `inject`: `sessionProjections`
 - `refs`: [`SandboxMode`](subsystems/sandbox.zh.md)
-- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:94`](../packages/sandbox/sandbox-policy/src/index.ts)
+- `source`: [`packages/sandbox/sandbox-policy/src/index.ts:95`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -3134,14 +3134,15 @@ export interface Config {
   /** File-sandbox mode a session starts from (default: `read-only`). */
   mode?: SandboxMode
   /**
-   * Absolute fallback root for agentless calls and sessions without a cwd (default:
-   * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * Absolute deployment-default fallback for agentless calls and sessions without a cwd
+   * (default: `process.cwd()`). Explicit targets must supply an execution-world root.
    */
   workspaceRoot?: string
   /**
    * Extra physical absolute directories that `workspace-write` may also write under
    * (default: none). The supervisor names them explicitly; there is no
-   * automatic repository or gitfile discovery. Entries are execution-world
+   * automatic repository or gitfile discovery. Explicit execution targets do not inherit
+   * these deployment grants. Entries are execution-world
    * paths: this service validates absoluteness and detaches the list, while
    * the enforcing host rejects missing, non-directory, or symlinked paths. They grant nothing under
    * `read-only`.
@@ -3513,7 +3514,7 @@ export interface Config extends SessionTitleLlmConfig {
 ```ts config-catalog
 /** Plugin config (all optional — the built-in facts resolve without defaults). */
 export interface Config {
-  /** DeepSeek Harness home directory exposed as `DSH_HOME`; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** Harness home exposed as `DSH_HOME` only in deployment-default execution; defaults to `$DSH_HOME` or `~/.dsh`. */
   dshHome?: string
 }
 ```
@@ -3648,19 +3649,30 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-ssh`
 
-- `source`: [`packages/ssh/ssh/src/index.ts:33`](../packages/ssh/ssh/src/index.ts)
+- `refs`: [`SessionExecutionTarget`](subsystems/persistence.zh.md)
+- `source`: [`packages/ssh/ssh/src/index.ts:35`](../packages/ssh/ssh/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned SSH identity and installed helper; no model argument selects these values. */
 export interface Config {
-  /** OpenSSH host alias, including its existing user, key and known-host configuration. */
+  /** OpenSSH alias, DNS name or IP address; legacy user@host remains supported. */
   host: string
+  /** Explicit login; omission retains the alias or legacy host's user selection. */
+  username?: string
+  /** Explicit TCP port; omission retains OpenSSH configuration. */
+  port?: number
+  /** Local identity-file path; omission retains OpenSSH credential selection. No key contents are read by this service. */
+  identityFile?: string
+  /** Hemi fork: borrowed OpenSSH control socket already authenticated to this exact endpoint; its owner retains and closes the master. */
+  authenticatedControlPath?: string
   /** Explicit script or self-contained executable invocation. */
   launch: HelperLaunch
   /** Absolute path to the installed, bundled helper entry. */
   helper: string
   /** SHA-256 of that bundled helper; mismatches refuse the connection. */
   helperHash: string
+  /** Explicit non-default environment; absent when SSH is the deployment-default provider. */
+  executionTarget?: SessionExecutionTarget
   /** Absolute remote default workspace. */
   workspace: string
   /** Connection and administrative-request deadline, at most 2,147,483,647 milliseconds. */
@@ -5150,6 +5162,8 @@ export interface Config {
 | `@deepseek-ai/dsh-hemi-model-access-ui` | — | [`packages/hemi/model-access-ui/src/index.ts`](../packages/hemi/model-access-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-settings-ui` | — | [`packages/hemi/model-settings-ui/src/index.ts`](../packages/hemi/model-settings-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-routing-ui` | — | [`packages/hemi/routing-ui/src/index.ts`](../packages/hemi/routing-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-ssh-servers` | `storageDomain` | [`packages/hemi/ssh-servers/src/index.ts`](../packages/hemi/ssh-servers/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-ssh-servers-ui` | — | [`packages/hemi/ssh-servers-ui/src/index.ts`](../packages/hemi/ssh-servers-ui/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-auto` | `webServer` · `connection` · `loader` | [`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-native` | — | [`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts) |
 | `@deepseek-ai/dsh-host-plugin-inventory` | `loader` | [`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts) |

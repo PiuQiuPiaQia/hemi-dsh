@@ -25,7 +25,9 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-将本提供方与 [`dsh-ssh`](../ssh/README.zh.md) 及其文件系统提供方一同挂载。本提供方没有独立部署配置。`resolveExecutable()` 检查远端可执行文件命名空间；完整的 spawn 请求提供远端 cwd、环境、流处置方式及清理宽限期。
+将本提供方与 [`dsh-ssh`](../ssh/README.zh.md) 及其文件系统提供方一同挂载。本提供方没有独立部署配置。`resolveExecutable()` 检查远端可执行文件命名空间。随包资源只提供逻辑命令；本地定位函数既不调用，也不通过 RPC 发送，查找失败不会使用 Host 二进制。完整 spawn 请求提供远端 cwd、环境、流处置方式及清理宽限期。
+
+可执行文件与进程路径属于 helper 的执行环境。
 
 普通 spawn 在远端分配过程中返回句柄。管道 stdin 和可选双工控制端点在分配过程中接受写入。终端分配、写入、前台检查、信号及终止均保留异步接口。
 

@@ -10,7 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId, type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { SessionFollowFrame } from '@deepseek-ai/dsh-api-session-controller/types'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import {
@@ -143,6 +144,30 @@ describe('session.list summary payload', () => {
       expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('sessionStats')
       expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('todos')
       expect(row?.projections?.values, `attempt ${String(attempt)}`).not.toHaveProperty('imageLimits')
+    }
+  })
+
+  it('carries the header execution target on attached rows, distinguishing same-path environments', async () => {
+    const { ctx } = await harness()
+    const executionTarget = (host: string): SessionExecutionTarget => ({
+      provider: brandString<SessionExecutionTarget['provider']>('ssh'),
+      id: brandString<SessionExecutionTarget['id']>(host),
+    })
+    const local = ctx.sessions.create(SessionId('target-local'), { meta: { cwd: '/shared' } })
+    const first = ctx.sessions.create(SessionId('target-first'), {
+      meta: { cwd: '/shared', executionTarget: executionTarget('host-a') },
+    })
+    const second = ctx.sessions.create(SessionId('target-second'), {
+      meta: { cwd: '/shared', executionTarget: executionTarget('host-b') },
+    })
+    // Two consecutive pulls: a refresh serves the recorded target every time.
+    for (const attempt of [0, 1]) {
+      const response = await (await remote(ctx)).list({})
+      if (!response.ok) throw new Error('unreachable')
+      const byId = new Map(response.value.items.map(item => [item.sessionId, item]))
+      expect(byId.get(local.id), `attempt ${String(attempt)}`).not.toHaveProperty('executionTarget')
+      expect(byId.get(first.id)?.executionTarget, `attempt ${String(attempt)}`).toEqual(executionTarget('host-a'))
+      expect(byId.get(second.id)?.executionTarget, `attempt ${String(attempt)}`).toEqual(executionTarget('host-b'))
     }
   })
 })

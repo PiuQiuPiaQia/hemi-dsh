@@ -1,7 +1,7 @@
 /** Host catalog, durable projection caches, and explicitly retained Client instances. */
 
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
-import { SessionSeq, type SessionId, type SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
+import { SessionSeq, type SessionExecutionTarget, type SessionId, type SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
 import type { SessionProjectionMap, SessionProjectionViewValues } from '@deepseek-ai/dsh-session-projection/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type {
@@ -29,6 +29,21 @@ import type { SessionTarget } from '../contract/sessions.ts'
 
 function sessionSeqCursor(value: number): SessionSeqCursor {
   return value === -1 ? -1 : SessionSeq(value)
+}
+
+/**
+ * Compare two header execution identities by their persisted fields. Each
+ * wire refresh mints fresh summary objects, so reference equality would mint a
+ * new list entry for every refresh of an unchanged row.
+ * @param left - one row's execution target, when recorded.
+ * @param right - the other row's execution target, when recorded.
+ * @returns whether both name the same provider-owned environment, including both absent.
+ */
+function sameExecutionTarget(
+  left: SessionExecutionTarget | undefined,
+  right: SessionExecutionTarget | undefined,
+): boolean {
+  return left?.provider === right?.provider && left?.id === right?.id
 }
 
 /**
@@ -550,7 +565,9 @@ export class SessionManager {
     if (childId !== undefined) {
       this.recordMutation({ kind: 'placeholder', summary: { agentAvailable: true,
         sessionId: childId, updatedAt: Date.now(), running: false, blank: true,
+        // The Host forks the source's recorded environment into the child header.
         ...(source?.cwd !== undefined ? { cwd: source.cwd } : {}),
+        ...(source?.executionTarget !== undefined ? { executionTarget: source.executionTarget } : {}),
       } })
     }
     return result
@@ -774,6 +791,7 @@ export class SessionManager {
         prev !== undefined && prev.updatedAt === entry.updatedAt && prev.running === entry.running
         && prev.blank === entry.blank
         && prev.parentSessionId === entry.parentSessionId && prev.cwd === entry.cwd
+        && sameExecutionTarget(prev.executionTarget, entry.executionTarget)
         && prev.origin === entry.origin && prev.title === entry.title && prev.depth === entry.depth
         && prev.formatStatus === entry.formatStatus
         && prev.projectionValues === entry.projectionValues
@@ -818,12 +836,18 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
           ...(mutation.summary.formatStatus === undefined ? {} : { formatStatus: mutation.summary.formatStatus }),
         } : {}),
         ...(existing.cwd === undefined && mutation.summary.cwd !== undefined ? { cwd: mutation.summary.cwd } : {}),
+        // Fill-only like cwd: a placeholder row learns its recorded environment
+        // from the first Host summary and never loses it afterwards.
+        ...(existing.executionTarget === undefined && mutation.summary.executionTarget !== undefined
+          ? { executionTarget: mutation.summary.executionTarget }
+          : {}),
         ...(existing.parentSessionId === undefined && mutation.summary.parentSessionId !== undefined
           ? { parentSessionId: mutation.summary.parentSessionId } : {}),
         ...(existing.origin === undefined && mutation.summary.origin !== undefined
           ? { origin: mutation.summary.origin } : {}),
       }
       if (filled.cwd === existing.cwd && filled.parentSessionId === existing.parentSessionId
+        && filled.executionTarget === existing.executionTarget
         && filled.origin === existing.origin && filled.blank === existing.blank
         && filled.agentAvailable === existing.agentAvailable && filled.running === existing.running
         && filled.formatStatus === existing.formatStatus

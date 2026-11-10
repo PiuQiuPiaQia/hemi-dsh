@@ -25,7 +25,9 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this provider with [`dsh-ssh`](../ssh/README.md) and its filesystem provider. It has no deployment configuration of its own. `resolveExecutable()` checks the remote executable namespace; fully specified spawn requests supply the remote cwd, environment, stream dispositions and cleanup grace.
+Mount this provider with [`dsh-ssh`](../ssh/README.md) and its filesystem provider. It has no deployment configuration of its own. `resolveExecutable()` checks the remote executable namespace. A packaged resource contributes only its logical command; its local locator is neither called nor sent over RPC, and a lookup miss never uses the Host binary. Fully specified spawn requests supply the remote cwd, environment, stream dispositions and cleanup grace.
+
+The executable and process paths belong to the helper's execution environment.
 
 Ordinary spawn returns a handle while remote allocation proceeds. Piped stdin and the optional duplex control endpoint accept writes during allocation. Terminal allocation, writes, foreground inspection, signals and termination retain their asynchronous interfaces.
 

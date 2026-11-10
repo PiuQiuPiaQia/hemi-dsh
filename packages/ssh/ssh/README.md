@@ -31,15 +31,20 @@ The helper validates additional writable roots on the wire; its enforcing provid
 
 ### Deployment prerequisites
 
-Both endpoints require Linux or macOS. The local `ssh` command must support connection multiplexing and Unix-socket forwarding; the server must permit that forwarding. Configure the alias, credentials and known-host entry before startup: the service enables `BatchMode`, requires strict host-key checking, disables agent forwarding and adds no interactive authentication flow.
+Both endpoints require Linux or macOS. The local `ssh` command must support connection multiplexing and Unix-socket forwarding; the server must permit that forwarding. Configure the alias, credentials and known-host entry before startup, or supply an endpoint-bound authenticated master through `authenticatedControlPath`: the service enables `BatchMode`, requires strict host-key checking, disables agent forwarding and adds no interactive authentication flow.
 
 Install an [SSH helper executable archive](../ssh-helper-runtime/README.md), or the built helper script with its matching Node dependencies. Keep the runtime outside the workspace and writable temporary roots. They must also remain outside a backend’s replaced temporary tree, such as bwrap’s private `/tmp`; the workspace may still be under `/tmp`. Digest verification detects an unexpected installed artifact after helper startup; it does not make writable deployment files safe to execute or authenticate a malicious SSH host.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `host` | required | Existing OpenSSH host alias |
+| `host` | required | OpenSSH alias, DNS name, IPv4 or IPv6 address; legacy `user@host` is accepted |
+| `username` | omitted | Explicit login; cannot be combined with a user embedded in `host` |
+| `port` | omitted | Explicit TCP port, from 1 through 65535 |
+| `identityFile` | omitted | Local private-key file path; this service never reads key contents |
+| `authenticatedControlPath` | omitted | Absolute borrowed authenticated OpenSSH socket path, bound by its owner to this endpoint; this consumer never persists or terminates the master, and an unavailable socket fails without fresh transport |
 | `launch` | required | `{ kind: "executable" }`, or `{ kind: "node-script", node: "/absolute/node" }` |
 | `helper`, `workspace` | required | Absolute remote helper entry and default workspace |
+| `executionTarget` | omitted | Immutable reference marking a non-default environment; Hemi supplies it for target-bound provider groups |
 | `helperHash` | required | Lowercase SHA-256 of the installed helper entry |
 | `launch.bootstrapPath`, `launch.bootstrapHash` | omitted | Paired remote PTC script and digest; only for `node-script` |
 | `requestTimeoutMs` | `30000` | Connection and administrative-request deadline, from 1 through 2,147,483,647 ms |
@@ -59,11 +64,11 @@ The helper dispatches `fs.patch`, `fs.delete`, and `fs.move` through its sandbox
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The OpenSSH master carries private administrative RPC. Each program stream uses a separate forwarded Unix socket and an independent SSH channel. Program stdout cannot forge administrative replies or occupy the control stream’s channel window. SSH transport congestion still affects the shared connection.
+The OpenSSH master carries private administrative RPC. With `authenticatedControlPath`, the external owner retains the master; this service releases its helper session and forwarding resources without closing that master. Each program stream uses a separate forwarded Unix socket and an independent SSH channel. Program stdout cannot forge administrative replies or occupy the control stream’s channel window. SSH transport congestion still affects the shared connection.
 
 Each stream reservation has a random 256-bit TLS pre-shared key carried only by administrative RPC. TLS authenticates both endpoints and protects every stream byte; the key is never sent as a stream preface. Socket directories are private (`0700`) and sockets use `0600`. Replacing a writable socket path cannot impersonate an endpoint or reveal the stream key; an attacker can still interrupt service or relay opaque TLS records.
 
-Connection disposal joins forwarding and cancellation subprocesses and partially established streams before removing local resources. Transport loss rejects pending operations and invalidates the connection. The helper starts managed cleanup on SSH EOF, termination signals or heartbeat expiry. A disconnected client cannot confirm the remote outcome; operations are never reconnected or replayed automatically.
+Connection disposal joins forwarding and cancellation subprocesses and partially established streams before removing local resources. Transport loss rejects pending operations, aborts `ctx.ssh.signal` and invalidates the connection. The helper starts managed cleanup on SSH EOF, termination signals or heartbeat expiry. A disconnected client cannot confirm the remote outcome; operations are never reconnected or replayed automatically.
 
 Failed startup and process results release their reservations after native quiescence; the bounded completion cache preserves the original rejection for later result reads. Helper shutdown also joins endpoint and directory cleanup already in progress.
 
@@ -97,7 +102,7 @@ This provider contributes no request-prefix content. Its consumers own model-vis
 <a id="known-limitations-and-deferred-work"></a>
 
 - No Windows endpoint, automatic provisioning, reconnect or replay is supplied.
-- Web workspace UI paths still assume host filesystem access; use headless or a custom composition whose consumers honor provider paths.
+- Remote preview reads require Session-scoped [workspaceFiles](../../api/workspace-files/README.md). Local-only [file suggestions](../../context/file-reference-local/README.md) and native Host application handoffs do not enumerate or open remote paths.
 - TLS stream keys do not protect against remote OS process-memory inspection or debugging. File-effect policy retains the selected sandbox backend’s limits.
 
 <a id="dev-note"></a>

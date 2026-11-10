@@ -119,6 +119,19 @@
   height: 20px;
 }
 
+/* Hemi fork: expanding a non-default execution Workspace exposes its full name on hoverless screens. */
+@media (hover: none) {
+  .projectRow[data-execution-target][aria-expanded='true'] {
+    height: auto;
+    min-height: 32px;
+  }
+
+  .projectRow[data-execution-target][aria-expanded='true'] .title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* Session titles share the workspace icon slot and compact label gap. */
 .sessionRow {
   height: 32px;

@@ -54,6 +54,49 @@ interface AgentHandle {
 
 `Agent` is the surface every plugin (UI, hooks, orchestrators) programs against; `ctx.agents.get(id)` returns it, and the [initiator scope](#initiating-agent) carries it. The concrete implementation is package-internal to dsh-agent-loop; nothing outside the loop depends on it. The unified `send` method exposes target and wakeup routing directly; `followup`, `steer`, and `inject` are fixed-preset aliases.
 
+Execution environments use the following provider leases; the [Agent package](../../packages/core/agent/README.md) owns registration and lifetime behavior.
+
+```ts type-equiv
+/** A live execution instance; equal target ids do not imply equal realm instances. */
+interface AgentExecutionContext {
+  /** Core-derived base without an Agent subject, suitable for activating shared preset consumers. */
+  readonly base: Context
+  /** Identity of the actual provider instance, not the persisted target id. */
+  readonly realm: symbol
+}
+```
+
+```ts type-equiv
+/** Retains one environment until its consumers stop and dispose their scopes. */
+interface AgentExecutionLease {
+  /** Actual shared provider instance used to distinguish composition generations. */
+  readonly realm: symbol
+  /** Aborts on acquisition cancellation, provider withdrawal or connection loss. */
+  readonly signal: AbortSignal
+  /**
+   * Bind execution services to a Core-derived base without replacing its other dependency origins.
+   * @param base - the loop or directory consumer's dependency context.
+   * @returns a derived context selecting this environment's registered execution services.
+   */
+  bind(base: Context): Context
+  /** Release only after tools, processes and preset consumers have settled. */
+  close(): Promise<void>
+}
+```
+
+```ts type-equiv
+/** Resolves immutable targets without changing the deployment's default providers. */
+interface AgentExecutionProvider {
+  /**
+   * Retain one target's live execution instance.
+   * @param target - immutable provider-owned target id.
+   * @param signal - cancellation and registration withdrawal; the operation must settle on abort.
+   * @returns an owned lease; callers close late results even after cancellation.
+   */
+  acquire(target: ExecutionTargetId, signal: AbortSignal): Promise<AgentExecutionLease>
+}
+```
+
 Source: [`packages/core/agent/src/types.ts`](../../packages/core/agent/src/types.ts)
 
 ```ts type-equiv
@@ -73,6 +116,8 @@ interface Agent {
   readonly status: AgentStatus
   /** Agent-scoped context; its contributions are agent-local, unwind on disposal, and reject registration afterward. */
   readonly ctx: Context
+  /** Bound base and live realm for explicit execution targets; absent for deployment-default execution. */
+  readonly execution?: AgentExecutionContext | undefined
 
   /**
    * Clear queued and steering work — unless `keepInbox` — and abort the active
@@ -624,16 +669,18 @@ async resolve(id?: string, usage?: 'main-session'): Promise<AgentPreset>
  * @param ctx Agent context from its setup callback.
  * @param id Requested preset, or the default.
  * @param usage Apply main-session restrictions to the retained revision.
+ * @param execution Core-bound execution context; omission uses the deployment-default generation.
  * @returns Bound preset identity.
  */
-async mount(ctx: Context, id?: string, usage?: 'main-session'): Promise<AgentPreset>
+async mount(ctx: Context, id?: string, usage?: 'main-session', execution?: AgentExecutionContext): Promise<AgentPreset>
 
 /** Join a child to the exact revision retained by its parent.
  * @param ctx Child Agent context.
  * @param parent Parent Agent context.
+ * @param execution Child execution instance; omission requires a deployment-default parent.
  * @returns Inherited preset id, or undefined in a preset-free composition.
  */
-composeFrom(ctx: Context, parent: Context): string | undefined
+composeFrom(ctx: Context, parent: Context, execution?: AgentExecutionContext): string | undefined
 
 /** Read the preset a live Agent uses.
  * @param ctx Agent context.
@@ -652,9 +699,10 @@ serviceFor<K extends string & keyof Context>(agent: { ctx: Context }, name: K): 
  * @param ctx Agent context.
  * @param id Requested preset.
  * @param usage Apply main-session restrictions to the retained revision.
+ * @param execution Core-bound execution context; omission uses the deployment-default generation.
  * @returns The bound identity.
  */
-async recompose(ctx: Context, id: string, usage?: 'main-session'): Promise<AgentPreset>
+async recompose(ctx: Context, id: string, usage?: 'main-session', execution?: AgentExecutionContext): Promise<AgentPreset>
 
 /** Select a preset before a session starts its first turn. A Session whose
  * log records the preset and whose Agent runs its current revision keeps its
@@ -762,6 +810,22 @@ withoutInitiator<T>(operation: () => T): T
 setFactory(factory: AgentFactory): () => void
 
 /**
+ * Register an execution provider in the caller's fiber.
+ * @param id - immutable provider identity stored in Session and Workspace metadata.
+ * @param provider - target acquisition implementation.
+ * @returns the exact effect disposer; aborts consumers and awaits lease release before withdrawal completes.
+ */
+registerExecutionProvider(id: ExecutionProviderId, provider: AgentExecutionProvider): () => Promise<void>
+
+/**
+ * Retain the exact execution environment named by durable metadata.
+ * @param target - validated provider and immutable target identity.
+ * @param signal - operation cancellation; remains part of the returned lease's lifetime.
+ * @returns a lease whose execution services can bind a Core-derived context; never falls back to defaults.
+ */
+acquireExecution(target: SessionExecutionTarget, signal: AbortSignal): Promise<AgentExecutionLease>
+
+/**
  * Create and publish a new agent through the registered factory.
  * Distinct from {@link register} (which records an already-constructed
  * agent): this constructs the agent and its session. Rejects if no factory is
@@ -841,7 +905,7 @@ get(id: SessionId): Agent | undefined
 list(): Agent[]
 ```
 
-Types: [Session](session.md)
+Types: [ExecutionProviderId](persistence.md) · [Session](session.md) · [SessionExecutionTarget](persistence.md)
 
 Source: [`packages/core/agent/src/index.ts`](../../packages/core/agent/src/index.ts)
 

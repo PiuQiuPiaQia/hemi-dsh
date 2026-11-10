@@ -103,15 +103,16 @@ export function ConversationContent(props: ConversationContentProps) {
         ?? (workspaces.phase === 'ready' || cwd === undefined || cwd === ''
           ? undefined
           : workspaceLabel(cwd)))
-  const chipTitle = storedChipTitle === undefined
-    ? undefined
-    : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName'))
+  // Hemi fork: the selected chip uses the same display-only provider label as its menu and sidebar row.
+  const chipTitle = (pendingWorkspace ?? sessionWorkspace)?.displayTitle
+    ?? (storedChipTitle === undefined ? undefined : workspaceDisplayTitle(storedChipTitle, t('workspace.defaultName')))
 
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
         buttonRef={pickerAnchor}
         label={chipTitle}
+        remote={(pendingWorkspace ?? sessionWorkspace)?.executionTarget !== undefined}
         menuOpen={pickerOpen}
         onClick={() => { setPickerOpen(open => !open) }}
         t={t}
@@ -129,7 +130,7 @@ export function ConversationContent(props: ConversationContentProps) {
         },
         onClose: () => { setPickerOpen(false) },
       })}
-      {renderSlot('conversation.hero.agentPreset', {})}
+      <div className={css.heroAgentPreset}>{renderSlot('conversation.hero.agentPreset', {})}</div>
       {sessionId === undefined ? null : <div className={css.heroOptions}>{renderSlot('conversation.hero.options', {})}</div>}
     </div>
   )

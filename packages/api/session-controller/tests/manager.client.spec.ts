@@ -7,7 +7,8 @@ import { describe, expect, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
-import { SessionSeq } from '@deepseek-ai/dsh-session/types'
+import { SessionSeq, type SessionExecutionTarget } from '@deepseek-ai/dsh-session/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { ok, type RemoteMock } from '@deepseek-ai/dsh-remote-mock'
 import {
@@ -35,6 +36,7 @@ type SummaryOver = Partial<{
   cwd: string
   parentSessionId: SessionId
   origin: 'subagent'
+  executionTarget: SessionExecutionTarget
 }>
 
 function summary(sessionId: SessionId, over: SummaryOver = {}) {
@@ -480,6 +482,47 @@ describe('list lifecycle', () => {
         expect.objectContaining({ sessionId: S1, cwd: '/filled', parentSessionId: S2, origin: 'subagent', blank: false }),
         expect.objectContaining({ sessionId: S2, cwd: '/existing', updatedAt: 200, blank: false }),
       ]))
+    } finally {
+      await manager.dispose()
+    }
+  })
+
+  it('fills a recorded execution target once and never drops it across merges and refreshes', async ({ mock, remote }) => {
+    const executionTarget = (host: string): SessionExecutionTarget => ({
+      provider: brandString<SessionExecutionTarget['provider']>('ssh'),
+      id: brandString<SessionExecutionTarget['id']>(host),
+    })
+    // Same recorded path, two distinct environments: cwd must not stand in for the target.
+    remote.session.list.mockResolvedValue(ok({ items: [
+      summary(S1, { cwd: '/shared' }),
+      summary(S2, { cwd: '/shared', executionTarget: executionTarget('host-a') }),
+    ] }))
+    const manager = makeManager(mock, remote)
+    try {
+      await manager.refreshList()
+      const firstPull = manager.getListSnapshot()
+      const rowOf = (id: SessionId) => firstPull.items.find(entry => entry.sessionId === id)
+      expect(rowOf(S1)).not.toHaveProperty('executionTarget')
+      expect(rowOf(S2)?.executionTarget).toEqual(executionTarget('host-a'))
+
+      // A Host summary fills the local-default row; an upsert without the key never clears one.
+      manager.handleSessionAdded(summary(S1, { cwd: '/shared', executionTarget: executionTarget('host-b') }))
+      manager.handleSessionAdded(summary(S2, { cwd: '/shared' }))
+      const filled = manager.getListSnapshot()
+      expect(filled.items.find(entry => entry.sessionId === S1)?.executionTarget).toEqual(executionTarget('host-b'))
+      expect(filled.items.find(entry => entry.sessionId === S2)?.executionTarget).toEqual(executionTarget('host-a'))
+
+      // A refresh mints fresh wire objects; equal targets must keep both value and entry identity.
+      remote.session.list.mockResolvedValue(ok({ items: [
+        summary(S1, { cwd: '/shared', executionTarget: executionTarget('host-b') }),
+        summary(S2, { cwd: '/shared', executionTarget: executionTarget('host-a') }),
+      ] }))
+      manager.handleConnected()
+      await manager.refreshList()
+      const reconnected = manager.getListSnapshot()
+      expect(reconnected.items.find(entry => entry.sessionId === S1)?.executionTarget).toEqual(executionTarget('host-b'))
+      expect(reconnected.items.find(entry => entry.sessionId === S2)?.executionTarget).toEqual(executionTarget('host-a'))
+      expect(reconnected.items.find(entry => entry.sessionId === S2)).toBe(filled.items.find(entry => entry.sessionId === S2))
     } finally {
       await manager.dispose()
     }

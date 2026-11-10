@@ -1,0 +1,4 @@
+- menu:
+  - menuitem "重命名"
+  - separator
+  - menuitem "删除工作区"

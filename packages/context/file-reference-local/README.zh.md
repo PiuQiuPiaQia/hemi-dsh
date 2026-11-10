@@ -27,7 +27,7 @@ agent（智能体）及宿主 UI 可以用各 agent 本地工作区中经过排�
 
 切换 Session 工作目录后，旧目录的搜索索引会被丢弃；下一次补全会搜索新目录。
 
-当 `@file` 补全应发现 Harness 宿主自身的文件系统——即随附 `read` 工具所操作的命名空间——时，挂载此提供方。每个 agent 的工作区从其 Session 当前工作目录开始建立索引。
+当 `@file` 补全应发现 Harness 宿主自身的文件系统，而非 Session 显式执行目标时，挂载此提供方。默认环境中，每个 Agent 的工作区从其 Session 当前工作目录开始建立索引。
 
 ### 启用提供方
 
@@ -124,7 +124,7 @@ Tokens prefixed with @ are paths the user explicitly referenced. Relative paths 
 
 这些限制说明该提供方何时不合适。它们是当前包约束。
 
-- **宿主本地命名空间**：提供方扫描 Harness 宿主的文件系统，因此远程或虚拟 `read` 实现需要使用命名空间与该工具一致的提供方。
+- **宿主本地命名空间**：带显式目标的 Session 在解析 cwd 或列举 Host 文件前收到 `FileReferenceEnvironmentUnsupportedError`。请直接输入路径，无需选取建议；远端或虚拟补全需要匹配的提供方。
 - **有界的提示性索引**：超大型工作区可能省略 `maxEntries` 之后的路径；被排除或无法读取的目录不会出现。默认排除项只列没有任何生态用作源码目录的构建产物；`lib` 被刻意排除在外，因此构建进 `lib` 的工作区需通过 `excludedDirectories` 自行加上。
 - **一次失效的陈旧窗口**：紧接工具结果之后的裸查询反映的是上一次遍历时的目录树；下一次查询才看到重建结果。
 - **没有忽略文件语义**：`.gitignore` 和其他项目忽略文件不会影响发现；系统只排除已配置的目录基名。

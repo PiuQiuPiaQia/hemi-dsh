@@ -189,11 +189,28 @@ export function readWorkspaceManifests(repositoryRoot: string): WorkspaceManifes
 
 const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // Hemi fork: separately bundled settings, usage, native import and preload entries.
-  '@deepseek-ai/dsh-hemi-routing': ['lib/settings.js', 'lib/usage.js'],
+  '@deepseek-ai/dsh-hemi-routing': ['lib/settings.js', 'lib/usage.js', 'lib/overflow-compaction.js'],
   '@deepseek-ai/dsh-hemi-memory': ['lib/remote.js'],
+  // Hemi fork: the SSH plugin publishes its bundled subpath entries and the app-owned
+  // remote helper artifact payload that ships beside them under lib/remote.
+  '@deepseek-ai/dsh-hemi-ssh-servers': [
+    'lib/types.js',
+    'lib/workspaces.js',
+    'lib/workspace-types.js',
+    'lib/askpass.js',
+    'lib/spec-*.js',
+    'lib/remembered-passwords-*.js',
+    'lib/remote/manifest.json',
+    'lib/remote/runtime/package.json',
+    'lib/remote/runtime/helper/*.js',
+  ],
   '@deepseek-ai/dsh-hemi-model-access': ['lib/desktop-import.js', 'HEMI-LICENSE'],
-  // Hemi fork: plain-Node release tooling is imported before compiling or bundling the desktop shell.
-  '@deepseek-ai/dsh-hemi-customizations': ['lib/preload.js', 'release/*.mjs', 'release/*.d.mts', 'release/*.cer', 'src/desktop-startup.css', 'artwork'],
+  // Hemi fork: plain-Node release tooling precedes shell compilation; the workspace-only renderer is not a runtime artifact.
+  '@deepseek-ai/dsh-hemi-customizations': [
+    'lib/preload.js', 'release/artwork.mjs', 'release/command.mjs', 'release/config.mjs', 'release/cua.mjs',
+    'release/identity.mjs', 'release/publish.mjs', 'release/setup.mjs', 'release/signing.mjs', 'release/web.mjs',
+    'release/*.d.mts', 'release/*.cer', 'src/desktop-startup.css', 'artwork',
+  ],
   // Tools entry points share error classes and invocation stages through runtime chunks.
   '@deepseek-ai/dsh-tools': ['lib/pipeline.js', 'lib/shared-*.js'],
   // The embedded OAR implementation retains its upstream license.

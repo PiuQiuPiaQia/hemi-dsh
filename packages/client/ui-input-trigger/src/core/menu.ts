@@ -81,9 +81,9 @@ const allReadyEmpty = (groups: MenuState['groups']): boolean =>
 /**
  * Pure menu reducer. `hit` opens a new generation over the seeded roster
  * (null hit closes); `source-settled` outside the current generation, the
- * open menu, or the roster is dropped; a settlement or failure leaving every
- * group ready-and-empty (or no groups) auto-closes; `source-failed` silently
- * removes the group (the shell logs); `move` cycles the highlight across
+ * open menu, or the roster is dropped. A settlement leaving every group
+ * ready-and-empty auto-closes. Failed sources remain visible without stale
+ * selectable items; `move` cycles the highlight across
  * ready items; `hover` parks it on one ready item (pointer and keyboard
  * share the single highlight — last input wins).
  *
@@ -120,6 +120,14 @@ export const menuReduce: MenuReduce = (state, ev) => {
       return { ...state, groups, highlight }
     }
     case 'source-failed': {
+      if (!state.open || ev.generation !== state.generation) return state
+      if (!state.groups.some(g => g.source === ev.source)) return state
+      // Hemi fork: unavailable suggestions remain visibly distinct from successful empty results.
+      const groups = state.groups.map(g => g.source === ev.source ? { ...g, status: 'failed' as const, items: [] } : g)
+      const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+      return { ...state, groups, highlight }
+    }
+    case 'source-removed': {
       if (!state.open || ev.generation !== state.generation) return state
       if (!state.groups.some(g => g.source === ev.source)) return state
       const groups = state.groups.filter(g => g.source !== ev.source)

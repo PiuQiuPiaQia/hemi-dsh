@@ -11,9 +11,13 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
-import type { Session, SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, Session, SessionEvent, SessionExecutionTarget, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import { installTurnArchiveAdmission } from './archive-admission.ts'
+import type { AgentExecutionLease, AgentExecutionProvider } from './execution-types.ts'
+import { ExecutionTargetUnavailableError } from './execution.ts'
+export type * from './execution-types.ts'
+export { ExecutionTargetUnavailableError } from './execution.ts'
 import type { Agent, TurnBoundaryProjection } from './types.ts'
 import type { AgentOptions, SessionStartSource } from './runtime-types.ts'
 import { turnBoundaryProjectionDefinition } from './projection.ts'
@@ -70,10 +74,10 @@ export interface CreateAgentOptions {
    * Session creation metadata: validated absolute `cwd`, `parentSession`
    * fork lineage, the `isSeeded` fork marker, the coarse `origin`
    * classification, and the `delegationDepth` recursion budget. Mirrors the
-   * `cwd`/`parentSession`/`isSeeded`/`origin`/`delegationDepth` fields of
-   * {@link CreateSessionOptions.meta} in dsh-session (the internal-only
-   * `createdAt`, used when reconstructing a persisted session, is deliberately
-   * excluded — a factory caller never sets it). This is durable session data,
+   * corresponding fields of {@link CreateSessionOptions.meta} in dsh-session.
+   * `executionTarget` preserves the execution environment independently of cwd.
+   * The internal-only `createdAt`, used when reconstructing a persisted session,
+   * is excluded — a factory caller never sets it. This is durable session data,
    * so the session boundary validates and snapshots it before asynchronous
    * setup begins.
    */
@@ -84,6 +88,8 @@ export interface CreateAgentOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    /** Fixed execution environment; never inferred from the cwd alone. */
+    readonly executionTarget?: SessionExecutionTarget
   }
   /** Exact fork-inherited prefix length when the session metadata sets `isSeeded`. */
   readonly inheritedEventCount?: SessionLogOffset
@@ -390,6 +396,31 @@ export class AgentRegistry extends Service {
     // registration under that effect.
     // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
     return dispose
+  }
+
+  /**
+   * Register an execution provider in the caller's fiber.
+   * @param id - immutable provider identity stored in Session and Workspace metadata.
+   * @param provider - target acquisition implementation.
+   * @returns the exact effect disposer; aborts consumers and awaits lease release before withdrawal completes.
+   */
+  registerExecutionProvider(id: ExecutionProviderId, provider: AgentExecutionProvider): () => Promise<void> {
+    // Hemi fork: Agent and directory consumers use the same Session-owned provider registry.
+    const sessions = this.ctx.get('sessions')
+    if (sessions === undefined) throw new Error('execution provider registration requires the Session store')
+    return sessions.registerExecutionProvider(id, provider)
+  }
+
+  /**
+   * Retain the exact execution environment named by durable metadata.
+   * @param target - validated provider and immutable target identity.
+   * @param signal - operation cancellation; remains part of the returned lease's lifetime.
+   * @returns a lease whose execution services can bind a Core-derived context; never falls back to defaults.
+   */
+  acquireExecution(target: SessionExecutionTarget, signal: AbortSignal): Promise<AgentExecutionLease> {
+    const sessions = this.ctx.get('sessions')
+    if (sessions === undefined) return Promise.reject(new ExecutionTargetUnavailableError(target, 'provider-unavailable'))
+    return sessions.acquireExecution(target, signal)
   }
 
   /** Return the active creation factory. */

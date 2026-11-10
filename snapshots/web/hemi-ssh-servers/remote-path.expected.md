@@ -1,0 +1,19 @@
+- dialog "选择远端文件夹":
+  - heading "选择远端文件夹" [level=2]
+  - button "关闭"
+  - paragraph: {{ssh-address}}
+  - button "上一级"
+  - textbox "远端绝对路径":
+    - /placeholder: /home/user/project
+    - text: {{cwd}}/remote-project-one
+  - button "前往"
+  - navigation "常用目录":
+    - button "首选目录"
+    - button "主目录"
+    - button "{{workspace}}"
+    - button "remote-project-two"
+  - region "当前目录":
+    - list
+    - paragraph: 此文件夹没有子文件夹
+  - button "取消"
+  - button "使用此文件夹"

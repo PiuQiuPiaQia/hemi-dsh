@@ -25,6 +25,10 @@ it('validates remote shell facts and distinguishes a lookup miss from transport 
     facts = { platform: 'untrusted' }
     await expect(runtime.terminalEnvironment()).rejects.toBeInstanceOf(z.ZodError)
     expect(await runtime.resolveExecutable('bash', undefined, signal)).toBe('/remote/bin/bash')
+    const locate = vi.fn(async () => { throw new Error('Host packaged program must not be read') })
+    expect(await runtime.resolveExecutable({ command: 'rg', resolveLocalPath: locate }, { PATH: '/remote/bin' }, signal)).toBe('/remote/bin/bash')
+    expect(request).toHaveBeenLastCalledWith('executable', { command: 'rg', env: { PATH: '/remote/bin' } }, expect.anything(), signal)
+    expect(locate).not.toHaveBeenCalled()
     failure = new RemoteOperationError('not installed', 'SUBPROCESS_EXECUTABLE_NOT_FOUND')
     await expect(runtime.resolveExecutable('absent')).rejects.toBeInstanceOf(SubprocessExecutableNotFoundError)
     failure = new RemoteOperationError('permission', 'EACCES')
@@ -42,7 +46,11 @@ it.skipIf(process.platform === 'win32')('queries the real helper and resizes its
   const runtime = new SshSubprocessRuntime(ctx)
   try {
     expect(await runtime.terminalEnvironment()).toMatchObject({ platform: 'posix' })
-    await expect(runtime.resolveExecutable(`${helper.root}/absent`)).rejects.toBeInstanceOf(SubprocessExecutableNotFoundError)
+    const locate = vi.fn(async () => process.execPath)
+    expect(await runtime.resolveExecutable({ command: 'sh', resolveLocalPath: locate })).toMatch(/\/sh$/u)
+    await expect(runtime.resolveExecutable({ command: `${helper.root}/absent`, resolveLocalPath: locate }))
+      .rejects.toBeInstanceOf(SubprocessExecutableNotFoundError)
+    expect(locate).not.toHaveBeenCalled()
     const terminal = await runtime.spawnTerminal({ argv: ['/bin/sh', '-i'], cwd: helper.root, cols: 80, rows: 24, terminalType: 'xterm-256color', graceMs: 100, shellActivity: true })
     let output = ''
     terminal.output.on('data', (chunk: Buffer) => { output += chunk.toString() })

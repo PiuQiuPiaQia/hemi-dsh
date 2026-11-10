@@ -12,7 +12,7 @@ import { isMobileDevice } from '@deepseek-ai/dsh-client-ui-primitives'
 
 import type { ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionId, SessionExecutionTarget } from '@deepseek-ai/dsh-session/types'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -155,7 +155,7 @@ describe('open-in-app browser half', () => {
         : { kind: 'failed', failure: 'openError', seq: 1 })
       expect(notify).not.toHaveBeenCalled()
       expect(fetcher).toHaveBeenCalledWith('open-in-app/open', expect.objectContaining({
-        body: JSON.stringify({ app: 'finder', path: '/captured' }),
+        body: JSON.stringify({ app: 'finder', path: '/captured', sessionId: 'captured' }),
       }))
     } finally { menu.dispose(); await fiber.dispose() }
     expect(ctx.slots.entries('contextMenu.icon')).toEqual([])
@@ -217,7 +217,7 @@ describe('open-in-app browser half', () => {
     await expect(face.launch('finder', '/second')).resolves.toEqual({ kind: 'skipped' })
     const calls = fetcher.mock.calls.filter(call => call[0] === 'open-in-app/open')
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.[1]?.body).toBe(JSON.stringify({ app: 'cursor', path: '/first' }))
+    expect(calls[0]?.[1]?.body).toBe(JSON.stringify({ app: 'cursor', path: '/first', sessionId: 'main' }))
     finish(new Response('{}'))
     await vi.waitFor(() => { expect(face.hooks.openInAppLaunch.getSnapshot().phase).toBe('idle') })
     await fiber.dispose()
@@ -307,6 +307,22 @@ describe('open-in-app browser half', () => {
     } finally { await fiber.dispose() }
   })
 
+  it('blocks the local-opening shortcut for a retained remote Session without launching an application', async () => {
+    const fetcher = vi.fn(async (_input: string | URL) => new Response(JSON.stringify({ apps: ['finder'] })))
+    vi.stubGlobal('fetch', fetcher)
+    const { fiber, list, commands } = await bench()
+    const id = 'remote-session' as SessionId
+    const executionTarget = { provider: 'fixture-remote', id: 'target' } as SessionExecutionTarget
+    list.set({ ...list.getSnapshot(), ids: [id], byId: {
+      [id]: { id, displayTitle: 'Remote', cwd: '/workspace', executionTarget,
+        retainedBy: { mainView: 1 }, running: false, blank: false, updatedAt: 1 },
+    } })
+    await vi.waitFor(() => { expect(fetcher).toHaveBeenCalled() })
+    expect(commands.get('workspace.openLocal')!.resolve({ region: 'page', modal: null, target: null }).status).toBe('blocked')
+    expect(fetcher.mock.calls.every(([path]) => String(path) === 'open-in-app/apps')).toBe(true)
+    await fiber.dispose()
+  })
+
   it('registers both document-preview path controls behind one desktop answer, and fiber teardown removes them', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ apps: [] }), { status: 200 })))
     const { ctx, fiber } = await bench()
@@ -316,19 +332,18 @@ describe('open-in-app browser half', () => {
     expect(empty?.component).toBe(OpenPathEmptyAction)
     expect(ctx.slots.entries('deliverables.file.actions')).toHaveLength(1)
     expect(header?.options).toMatchObject({ id: 'open-in-app' })
-    const face = (header?.inject as unknown as () => OpenPathInjected)()
-    const emptyFace = (empty?.inject as unknown as () => OpenPathInjected)()
+    const face = (header?.inject as unknown as (id: SessionId) => OpenPathInjected)('preview' as SessionId)
+    const emptyFace = (empty?.inject as unknown as (id: SessionId) => OpenPathInjected)('preview' as SessionId)
     expect(emptyFace.hooks.openInAppDesktop).toBe(face.hooks.openInAppDesktop)
-    expect(emptyFace.applications).toBe(face.applications)
     expect(face.hooks.openInAppDesktop.getSnapshot()).toBeNull()
     await Promise.all([face.loadDesktop(), emptyFace.loadDesktop()])
     expect(remote.session.canOpenWorkspacePath).toHaveBeenCalledOnce()
     const signal = new AbortController().signal
     await expect(face.applications('/w/clip.mp4', signal)).resolves.toEqual([])
-    expect(remote.session.workspacePathApplications).toHaveBeenCalledWith({ path: '/w/clip.mp4' }, signal)
+    expect(remote.session.workspacePathApplications).toHaveBeenCalledWith({ path: '/w/clip.mp4', sessionId: 'preview' }, signal)
     expect(face.hooks.openInAppDesktop.getSnapshot()).toBe(true)
     expect(await face.openPath('/w/clip.mp4', 'reveal')).toEqual({ kind: 'revealed' })
-    expect(remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/w/clip.mp4', action: 'reveal' })
+    expect(remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/w/clip.mp4', action: 'reveal', sessionId: 'preview' })
     await fiber.dispose()
     expect(ctx.slots.entries('sidebar.right.tab.document.actions').map(entry => entry.options.id)).not.toContain('open-in-app')
     expect(ctx.slots.entries('sidebar.right.tab.document.unpreviewable').map(entry => entry.options.id)).not.toContain('open-in-app')

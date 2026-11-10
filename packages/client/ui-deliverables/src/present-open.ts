@@ -62,6 +62,8 @@ function coordinate(value: string | null): number | undefined {
 /** Translate lookup and filesystem failures into the not-found or failure status the browser retries from. */
 function failureStatus(error: unknown): number {
   const remote = remoteErrorOf(error)
+  if (remote?.code === 'session/path-unavailable') return 422
+  if (remote?.code === 'session/execution-unavailable') return 503
   const missing = remote?.code === 'session/not-found' || remote?.code === 'workspace-file/not-found'
     || remote?.code === 'workspace-file/not-regular-file' || error instanceof Error && 'code' in error
     && (error.code === 'SESSION_QUERY_SESSION_NOT_FOUND' || error.code === 'SESSION_QUERY_EVENT_NOT_FOUND'
@@ -80,23 +82,19 @@ async function readTarget(ctx: Context, request: Request, id: string, seq: numbe
 }
 
 /**
- * Open one verified Host path. A file is verified through the Session
- * filesystem; a directory is verified by the Host filesystem mapping alone.
+ * Hand the viewed Session's file to the native verifier without interpreting its path on the Host.
  * @returns the HTTP status to answer with.
  */
-async function openVerified(ctx: Context, request: Request, path: string, action: 'open' | 'reveal'): Promise<Response> {
-  const { fs } = ctx
-  const mapped = fs.processPathFromHostPath(path)
-  if (mapped === undefined || fs.processPath(await fs.resolve(mapped, { signal: request.signal })) !== path) {
-    return new Response('Path has no verified Host path.', { status: 422 })
-  }
+async function openVerified(
+  ctx: Context, request: Request, sessionId: SessionId, path: string, action: 'open' | 'reveal',
+): Promise<Response> {
   request.signal.throwIfAborted()
   if (request.method === 'GET') {
-    return Response.json(await ctx.sessionController.workspacePathApplications({ path }, request.signal),
+    return Response.json(await ctx.sessionController.workspacePathApplications({ sessionId, path }, request.signal),
       { headers: { 'cache-control': 'no-store' } })
   }
   const application = new URL(request.url).searchParams.get('application')
-  await ctx.sessionController.openWorkspacePath({ path, ...(action === 'reveal' ? { action }
+  await ctx.sessionController.openWorkspacePath({ sessionId, path, ...(action === 'reveal' ? { action }
     : application === null ? {} : { application }) }, request.signal)
   return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } })
 }
@@ -116,11 +114,14 @@ async function handlePresentOpen(ctx: Context, request: Request): Promise<Respon
     const file = target.type === 'deliverables/presented' && isPresentedData(target.data) ? target.data.files[index] : undefined
     if (!isPresentedFile(file)) return new Response('Presented file not found in this Session result.', { status: 404 })
     request.signal.throwIfAborted()
+    if (session.executionTarget !== undefined && session.cwd === undefined) return new Response('Session workspace unavailable.', { status: 503 })
+    // Hemi fork: the event header selects the file execution environment, including inherited declarations.
     const { absolutePath: path } = await ctx.workspaceFiles.stat({
       sessionId: id as SessionId,
       workspaceRoot: session.cwd ?? ctx.sandboxPolicy.workspaceRoot,
+      executionTarget: session.executionTarget,
     }, file.path, request.signal)
-    return await openVerified(ctx, request, path, action)
+    return await openVerified(ctx, request, id as SessionId, path, action)
   } catch (error: unknown) {
     request.signal.throwIfAborted()
     return new Response('Presented file unavailable.', { status: failureStatus(error) })
@@ -178,8 +179,12 @@ async function handleChangesOpen(ctx: Context, request: Request): Promise<Respon
     const workspaceRoot = changes.cwd
     const file = changes.files[index]
     if (file === undefined) return new Response('Changed file not found in this summary.', { status: 404 })
-    const { absolutePath: path } = await ctx.workspaceFiles.stat({ sessionId: id, workspaceRoot }, file.path, request.signal)
-    return await openVerified(ctx, request, path, action)
+    const read = await readTarget(ctx, request, id, seq)
+    if (read instanceof Response) return read
+    const { absolutePath: path } = await ctx.workspaceFiles.stat({
+      sessionId: id, workspaceRoot, executionTarget: read.session.executionTarget,
+    }, file.path, request.signal)
+    return await openVerified(ctx, request, id, path, action)
   } catch (error: unknown) {
     request.signal.throwIfAborted()
     return new Response('Changed file unavailable.', { status: failureStatus(error) })

@@ -210,15 +210,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'The declared composition beside its published metadata.',
       },
       {
-        signature: 'async mount(ctx: Context, id?: string, usage?: \'main-session\'): Promise<AgentPreset>',
+        signature: 'async mount(ctx: Context, id?: string, usage?: \'main-session\', execution?: AgentExecutionContext): Promise<AgentPreset>',
         description: 'Bind an unpublished Agent to the current preset revision.',
-        parameters: [{ name: 'ctx', description: 'Agent context from its setup callback.' }, { name: 'id', description: 'Requested preset, or the default.' }, { name: 'usage', description: 'Apply main-session restrictions to the retained revision.' }],
+        parameters: [{ name: 'ctx', description: 'Agent context from its setup callback.' }, { name: 'id', description: 'Requested preset, or the default.' }, { name: 'usage', description: 'Apply main-session restrictions to the retained revision.' }, { name: 'execution', description: 'Core-bound execution context; omission uses the deployment-default generation.' }],
         returns: 'Bound preset identity.',
       },
       {
-        signature: 'composeFrom(ctx: Context, parent: Context): string | undefined',
+        signature: 'composeFrom(ctx: Context, parent: Context, execution?: AgentExecutionContext): string | undefined',
         description: 'Join a child to the exact revision retained by its parent.',
-        parameters: [{ name: 'ctx', description: 'Child Agent context.' }, { name: 'parent', description: 'Parent Agent context.' }],
+        parameters: [{ name: 'ctx', description: 'Child Agent context.' }, { name: 'parent', description: 'Parent Agent context.' }, { name: 'execution', description: 'Child execution instance; omission requires a deployment-default parent.' }],
         returns: 'Inherited preset id, or undefined in a preset-free composition.',
       },
       {
@@ -234,9 +234,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'The service, or undefined.',
       },
       {
-        signature: 'async recompose(ctx: Context, id: string, usage?: \'main-session\'): Promise<AgentPreset>',
+        signature: 'async recompose(ctx: Context, id: string, usage?: \'main-session\', execution?: AgentExecutionContext): Promise<AgentPreset>',
         description: 'Rebind a blank Agent; the caller owns the blank-session check.',
-        parameters: [{ name: 'ctx', description: 'Agent context.' }, { name: 'id', description: 'Requested preset.' }, { name: 'usage', description: 'Apply main-session restrictions to the retained revision.' }],
+        parameters: [{ name: 'ctx', description: 'Agent context.' }, { name: 'id', description: 'Requested preset.' }, { name: 'usage', description: 'Apply main-session restrictions to the retained revision.' }, { name: 'execution', description: 'Core-bound execution context; omission uses the deployment-default generation.' }],
         returns: 'The bound identity.',
       },
       {
@@ -303,6 +303,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Register the agent-creation factory (the loop calls this on construction, effect-scoped). A traced Cordis service is canonicalized to its concrete target; each create/resume call is then traced through that caller\'s context so ownership follows the caller without stacking proxy layers. Throws if a factory is already registered. Returns the disposer; on dispose the factory slot is cleared.',
         parameters: [{ name: 'factory', description: 'the loop-owned factory {@link create}/{@link resume} delegate to.' }],
         returns: 'the disposer that clears the factory slot. The exact Cordis effect disposer (single-shot): composite (generator) effects may yield it directly — exact identity nests the teardown in order.',
+      },
+      {
+        signature: 'registerExecutionProvider(id: ExecutionProviderId, provider: AgentExecutionProvider): () => Promise<void>',
+        description: 'Register an execution provider in the caller\'s fiber.',
+        parameters: [{ name: 'id', description: 'immutable provider identity stored in Session and Workspace metadata.' }, { name: 'provider', description: 'target acquisition implementation.' }],
+        returns: 'the exact effect disposer; aborts consumers and awaits lease release before withdrawal completes.',
+      },
+      {
+        signature: 'acquireExecution(target: SessionExecutionTarget, signal: AbortSignal): Promise<AgentExecutionLease>',
+        description: 'Retain the exact execution environment named by durable metadata.',
+        parameters: [{ name: 'target', description: 'validated provider and immutable target identity.' }, { name: 'signal', description: 'operation cancellation; remains part of the returned lease\'s lifetime.' }],
+        returns: 'a lease whose execution services can bind a Core-derived context; never falls back to defaults.',
       },
       {
         signature: 'async create(options: CreateAgentOptions): Promise<AgentHandle>',
@@ -1999,6 +2011,129 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'hemiSshServers',
+    summary: 'Durable CRUD under the Gateway\'s global-resource access policy.',
+    description: 'Durable CRUD under the Gateway\'s global-resource access policy.',
+    methods: [
+      {
+        signature: '@Remote list(signal: AbortSignal): readonly SshServer[]',
+        description: 'Read the saved directory without contacting its hosts.',
+        parameters: [{ name: 'signal', description: 'Caller cancellation before the synchronous read.' }],
+        returns: 'Saved server references in creation order.',
+      },
+      {
+        signature: '@Remote create(input: SshServerInput, signal: AbortSignal): Promise<SshServer>',
+        description: 'Save a new server reference without modifying OpenSSH configuration.',
+        parameters: [{ name: 'input', description: 'Explicit server fields; no secrets or connection options.' }, { name: 'signal', description: 'Cancellation before writing begins; an admitted durable write is not rolled back.' }],
+        returns: 'The durable record and its initial revision.',
+      },
+      {
+        signature: '@Remote update(id: SshServerId, revision: string, input: SshServerInput, signal: AbortSignal): Promise<SshServer>',
+        description: 'Replace a server only while its revision still matches the editor\'s copy.',
+        parameters: [{ name: 'id', description: 'Saved server identity.' }, { name: 'revision', description: 'Revision loaded with that record.' }, { name: 'input', description: 'Replacement fields.' }, { name: 'signal', description: 'Cancellation before writing begins; an admitted durable write is not rolled back.' }],
+        returns: 'The durable record with a new revision.',
+        throws: ['RemoteError `hemi-ssh/credential-cleanup-failed` if the endpoint change is saved but its old password could not be cleared.'],
+      },
+      {
+        signature: '@Remote removeServer(id: SshServerId, revision: string, signal: AbortSignal): Promise<void>',
+        description: 'Remove a reference and its password when no saved connection shares that endpoint; SSH configuration and remote files stay untouched.',
+        parameters: [{ name: 'id', description: 'Saved server identity.' }, { name: 'revision', description: 'Revision being removed; a changed record is refused.' }, { name: 'signal', description: 'Cancellation before writing begins; an admitted durable write is not rolled back.' }],
+        returns: 'Resolution after the removal is durable.',
+        throws: ['RemoteError `hemi-ssh/credential-cleanup-failed` if the reference is removed but its password could not be cleared.'],
+      },
+      {
+        signature: 'authenticationPasswords(): SshAuthenticationPasswordMemory',
+        description: 'Supply Host-only password operations to the authentication owner; no secret is part of the Remote API.',
+        parameters: [],
+        returns: 'operations bound to this directory\'s queue and optional credential provider.',
+      },
+      {
+        signature: 'rememberPassword(endpoint: SshPasswordEndpoint, nativeUser: string, password: string): Promise<void>',
+        description: 'Commit one password OpenSSH already accepted for an exact saved endpoint, on this service\'s write queue. Host-side only; the value goes to the credential seam and never crosses to a Client. The queued commit re-checks that a saved server still owns the endpoint, so a parallel removal cannot leave a rewritten orphan.',
+        parameters: [{ name: 'endpoint', description: 'exact endpoint fields the password authenticated.' }, { name: 'nativeUser', description: 'login name the native password prompt printed.' }, { name: 'password', description: 'the accepted value; never included in any failure.' }],
+        returns: 'after the durable grant write.',
+        throws: ['RemoteError `hemi-ssh/remember-failed` when no store is active, the write fails, or no saved server owns the endpoint.'],
+      },
+      {
+        signature: 'forgetPassword(endpoint: SshPasswordEndpoint, password: string): Promise<void>',
+        description: 'Drop a remembered password while the record still holds one specific rejected value, on this service\'s write queue. A concurrently stored replacement value survives.',
+        parameters: [{ name: 'endpoint', description: 'exact endpoint fields.' }, { name: 'password', description: 'the value a later native prompt proved wrong.' }],
+      },
+    ],
+  },
+  {
+    key: 'hemiSshWorkspaces',
+    summary: 'Explicit deployments and verified remote directories under the Gateway\'s global-resource policy.',
+    description: 'Explicit deployments and verified remote directories under the Gateway\'s global-resource policy.',
+    methods: [
+      {
+        signature: '@Remote({ mode: \'stream\' }) async *followAuthentication(signal: AbortSignal): AsyncIterable<readonly SshAuthenticationChallenge[]>',
+        description: 'Follow native OpenSSH login prompts without including responses or stored passwords.',
+        parameters: [{ name: 'signal', description: 'calling UI lifetime; service unload ends this stream.' }],
+        returns: 'current authentication challenges, including the initial snapshot.',
+      },
+      {
+        signature: '@Remote // oxlint-disable-next-line typescript/require-await -- Preserve Promise rejection semantics for synchronous native prompt acceptance. async answerAuthentication(id: SshAuthenticationChallengeId, answer: string | null, signal: AbortSignal): Promise<void>',
+        description: 'Answer exactly one active login prompt without saving or logging its response.',
+        parameters: [{ name: 'id', description: 'active challenge identity received from the authentication stream.' }, { name: 'answer', description: 'native response, or null to cancel; never a connection setting.' }, { name: 'signal', description: 'caller cancellation before the response is accepted.' }],
+      },
+      {
+        signature: '@Remote // oxlint-disable-next-line typescript/require-await -- Preserve Promise rejection semantics for synchronous prompt acceptance. async answerAuthenticationAndRemember( id: SshAuthenticationChallengeId, answer: string | null, remember: boolean, signal: AbortSignal, ): Promise<void>',
+        description: 'Answer one native prompt with an explicit password-saving choice; successful authentication commits the opted-in password.',
+        parameters: [{ name: 'id', description: 'active challenge identity; only a challenge marked canRemember accepts a non-cancelled opt-in.' }, { name: 'answer', description: 'native response, or null to cancel without saving.' }, { name: 'remember', description: 'true saves the accepted password through DSH credentials; false keeps the response transient.' }, { name: 'signal', description: 'caller cancellation before the response is accepted.' }],
+        returns: 'after accepting the response, not a password-save receipt; a store failure rejects the awaiting connection operation.',
+      },
+      {
+        signature: '@Remote getRuntime(serverId: SshServerId, signal: AbortSignal): SshSavedRuntime | undefined',
+        description: 'Read the explicit helper deployment without contacting the remote machine.',
+        parameters: [{ name: 'serverId', description: 'saved connection whose deployment to read.' }, { name: 'signal', description: 'caller cancellation before reading.' }],
+        returns: 'the saved deployment, or undefined until configured.',
+      },
+      {
+        signature: '@Remote configureRuntime( serverId: SshServerId, revision: string | undefined, deployment: SshRuntimeDeployment, signal: AbortSignal, ): Promise<SshSavedRuntime>',
+        description: 'Save an explicit installed helper; this operation installs nothing and reads no key.',
+        parameters: [{ name: 'serverId', description: 'saved connection to configure.' }, { name: 'revision', description: 'last observed deployment revision; omitted for initial configuration.' }, { name: 'deployment', description: 'absolute remote artifact coordinates and verified digests.' }, { name: 'signal', description: 'cancellation before the durable write starts.' }],
+        returns: 'the durable deployment and its replacement revision.',
+      },
+      {
+        signature: '@Remote connectServer(serverId: SshServerId, serverRevision: string, signal: AbortSignal): Promise<SshSavedRuntime>',
+        description: 'Prepare and verify the automatic helper runtime for one saved connection without user artifact input. Re-verifying an unchanged saved deployment keeps its revision, so concurrent editors never invalidate each other.',
+        parameters: [{ name: 'serverId', description: 'saved connection to make ready.' }, { name: 'serverRevision', description: 'endpoint revision loaded with that record.' }, { name: 'signal', description: 'cancellation of probing, streaming and the verification connection.' }],
+        returns: 'the durable deployment the connection is verified against.',
+      },
+      {
+        signature: '@Remote browseServer(input: SshServerInput, path: string, signal: AbortSignal): Promise<SshRemoteDirectory>',
+        description: 'Browse a not-yet-saved endpoint read-only over plain OpenSSH; no helper, remote runtime or remote write is involved.',
+        parameters: [{ name: 'input', description: 'editor connection fields; validated exactly like saving.' }, { name: 'path', description: 'existing absolute remote directory, or empty for the remote login directory.' }, { name: 'signal', description: 'cancellation of the one-shot OpenSSH command.' }],
+        returns: 'remote directory names and physical location.',
+      },
+      {
+        signature: '@Remote browseFolders(serverId: SshServerId, path: string, revision: SshWorkspaceRevision, signal: AbortSignal): Promise<SshRemoteFolders>',
+        description: 'List directories of a saved connection read-only over plain OpenSSH.',
+        parameters: [{ name: 'serverId', description: 'saved connection to browse.' }, { name: 'path', description: 'existing absolute remote directory, or empty for the remote login directory.' }, { name: 'revision', description: 'endpoint and deployment revisions captured before browsing; checked before SSH starts.' }, { name: 'signal', description: 'cancellation of the one-shot OpenSSH command.' }],
+        returns: 'remote directory names and physical location.',
+      },
+      {
+        signature: '@Remote browseSavedFolders(serverId: SshServerId, path: string, serverRevision: string, signal: AbortSignal): Promise<SshRemoteDirectory>',
+        description: 'Browse a saved connection read-only without requiring any prepared runtime; directory choice needs no remote Node.',
+        parameters: [{ name: 'serverId', description: 'saved connection to browse.' }, { name: 'path', description: 'existing absolute remote directory, or empty for the remote login directory.' }, { name: 'serverRevision', description: 'endpoint revision loaded with the record; a changed endpoint refuses before SSH starts.' }, { name: 'signal', description: 'cancellation of the one-shot OpenSSH command.' }],
+        returns: 'remote directory names and physical location.',
+      },
+      {
+        signature: '@Remote prepareServerFolder( serverId: SshServerId, path: string, serverRevision: string, signal: AbortSignal, ): Promise<SshDirectorySelection>',
+        description: 'Open one directory of a saved connection end to end: prepare the runtime, then retain the immutable target. The runtime requirement surfaces here, not during directory selection.',
+        parameters: [{ name: 'serverId', description: 'saved connection to open.' }, { name: 'path', description: 'chosen absolute remote directory, or empty for the remote login directory.' }, { name: 'serverRevision', description: 'endpoint revision loaded with the record; re-checked at both steps.' }, { name: 'signal', description: 'cancellation of runtime preparation, verification and target persistence.' }],
+        returns: 'a real directory and target, not a synthetic Workspace id.',
+      },
+      {
+        signature: '@Remote prepareFolder(serverId: SshServerId, path: string, revision: SshWorkspaceRevision, signal: AbortSignal): Promise<SshDirectorySelection>',
+        description: 'Validate a physical folder and retain its immutable target reference for Workspace creation.',
+        parameters: [{ name: 'serverId', description: 'saved connection to open.' }, { name: 'path', description: 'existing absolute remote directory, or empty for the remote login directory.' }, { name: 'revision', description: 'successful browse revisions; mismatch refuses before contacting a replacement endpoint.' }, { name: 'signal', description: 'cancellation before target persistence begins; an admitted write remains durable.' }],
+        returns: 'a real directory and target, not a synthetic Workspace id.',
+      },
+    ],
+  },
+  {
     key: 'hmr',
     summary: 'Hot reload service with Cordis-compatible module configuration and events.',
     description: 'Hot reload service with Cordis-compatible module configuration and events.',
@@ -3054,7 +3189,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['RemoteError when the request is invalid, has no verified Host mapping, is cancelled, or the opener fails.'],
       },
       {
-        signature: '@Remote(\'workspacePathApplications\') async workspacePathApplications( request: { readonly path: string }, signal: AbortSignal, ): Promise<readonly SessionWorkspacePathApplication[]>',
+        signature: '@Remote(\'workspacePathApplications\') async workspacePathApplications( request: Pick<SessionOpenWorkspacePathRequest, \'path\' | \'sessionId\'>, signal: AbortSignal, ): Promise<readonly SessionWorkspacePathApplication[]>',
         description: 'Query current file handlers on the serving desktop without activating an Agent.',
         parameters: [{ name: 'request', description: 'file path in Host filesystem syntax.' }, { name: 'signal', description: 'caller lifetime, propagated to filesystem and desktop queries.' }],
         returns: 'OS application names, icons, and default selection; empty when desktop opening is unavailable.',
@@ -3171,7 +3306,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Host Remote adapter over the composed file-reference provider.',
     methods: [
       {
-        signature: '@Remote list( agent: Agent, query: string, signal: AbortSignal, ): Promise<FileReferenceCandidate[]>',
+        signature: '@Remote async list( agent: Agent, query: string, signal: AbortSignal, ): Promise<FileReferenceCandidate[]>',
         description: 'List file and directory candidates for one Agent\'s working directory.',
         parameters: [{ name: 'agent', description: 'target Agent resolved from the Session identity on the wire.' }, { name: 'query', description: 'path text following `@` or `@"`.' }, { name: 'signal', description: 'caller cancellation.' }],
         returns: 'deterministic path-only candidates from the composed provider.',
@@ -3477,6 +3612,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     summary: 'In-memory session store (`ctx.sessions`).',
     description: 'In-memory session store (`ctx.sessions`).\n\nPersistence is intentionally not implemented here — the agent lifecycle attaches a session-log writer to each published session\'s write handle; a session published outside that lifecycle persists nothing.',
     methods: [
+      {
+        signature: 'registerExecutionProvider(id: ExecutionProviderId, provider: AgentExecutionProvider): () => Promise<void>',
+        description: 'Register an execution provider in the caller\'s fiber, shared by Agent and directory consumers.',
+        parameters: [{ name: 'id', description: 'immutable provider identity stored in Session and Workspace metadata.' }, { name: 'provider', description: 'target acquisition implementation.' }],
+        returns: 'the exact effect disposer; aborts consumers and awaits lease release before withdrawal completes.',
+      },
+      {
+        signature: 'acquireExecution(target: SessionExecutionTarget, signal: AbortSignal): Promise<AgentExecutionLease>',
+        description: 'Retain the exact execution environment named by durable metadata without creating an Agent.',
+        parameters: [{ name: 'target', description: 'validated provider and immutable target identity.' }, { name: 'signal', description: 'operation cancellation; remains part of the returned lease\'s lifetime.' }],
+        returns: 'a lease binding execution services to the consumer\'s dependency context; never falls back.',
+      },
       {
         signature: 'registerMessageProjection(projection: SessionMessageProjection): () => Promise<void>',
         description: 'Register one event interpreter for live creation, restore, and fork. Disposing the contribution makes sessions that used it refuse further derivation.',
@@ -4087,9 +4234,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Abstract subprocess service. Subclass, implement spawn, and load the subclass as a plugin — it registers as `ctx.subprocess` (one implementation per context; loading a second throws, which is cordis\' standard duplicate-service behavior).\n\nImplementations must honor these semantics:\n\n- Executable paths belong to one execution world shared with the mounted filesystem provider.\n- spawn returns a live handle synchronously. Target identity remains provider-private; `done` resolves with the spawned command\'s exit facts and may reject for spawn or provider failures.\n- Collect-mode readers are offset-based and non-consuming, so independent readers never consume one another\'s output; lossy reads report truncation and the spill file holding the complete stream when one exists. Piped streams are handed to the caller raw and never buffered here.\n- SubprocessHandle.terminate (and the spec\'s abort signal) starts the provider\'s documented procedure against its managed range. SubprocessHandle.waitForExit observes that same range so a consumer-owned teardown ladder can hold each tier on real quiescence; each provider documents its signalling and observability limits.\n- Disposal of the service terminates all still-running managed processes and awaits their exit.\n- spawnTerminal owns terminal allocation, text transport, foreground groups, signalling, and whole-session quiescence behind one awaited termination method; readiness and persistent-shell policy stay in the PTY consumer. Its output stream ends after queued terminal output when the top-level process exits.',
     methods: [
       {
-        signature: 'abstract resolveExecutable( command: string, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>',
-        description: 'Resolve one configured executable in this provider\'s execution world. Absolute paths are verified; bare names use the provider\'s scrubbed PATH plus explicit environment overrides. Relative paths containing separators are rejected: the resolution base is undefined, so providers fail loud instead of guessing.',
-        parameters: [{ name: 'command', description: 'absolute executable path or bare PATH name.' }, { name: 'env', description: 'explicit environment entries used for lookup.' }, { name: 'signal', description: 'aborts remote or local lookup.' }],
+        signature: 'abstract resolveExecutable( command: SubprocessExecutable, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>',
+        description: 'Resolve one configured executable in this provider\'s execution world. Absolute paths are verified; bare names use the provider\'s scrubbed PATH plus explicit environment overrides. Relative paths containing separators are rejected: the resolution base is undefined, so providers fail loud instead of guessing. A packaged resource supplies a lazy same-machine locator: local providers use and verify it, while other execution environments resolve only its logical command on their PATH. The locator never enters a spawn spec, remote request, or persisted data.',
+        parameters: [{ name: 'command', description: 'absolute path, bare PATH name, or consumer-owned packaged executable resource.' }, { name: 'env', description: 'explicit environment entries used for lookup.' }, { name: 'signal', description: 'aborts remote or local lookup.' }],
         returns: 'a canonical executable path.',
       },
       {
@@ -4778,6 +4925,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read the committed directory without filesystem I/O.',
         parameters: [{ name: 'session', description: 'Session whose directory is requested.' }],
         returns: 'its effective absolute directory.',
+        throws: ['when an explicit execution target has no recorded initial directory.'],
       },
       {
         signature: 'ensure(agent: Agent, signal?: AbortSignal): Promise<string>',
@@ -4820,6 +4968,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     summary: 'Host service backing the generated `ctx.remote.workspace` namespace.',
     description: 'Host service backing the generated `ctx.remote.workspace` namespace.',
     methods: [
+      {
+        signature: 'registerDisplayTitle(provider: WorkspaceDisplayTitleProvider): () => void',
+        description: 'Register display-only Workspace naming; stored titles and mutation requests remain unchanged.',
+        parameters: [{ name: 'provider', description: 'pure resolver and invalidation subscription; first registered match wins.' }],
+        returns: 'idempotent disposer owned by the contributing plugin effect.',
+      },
       {
         signature: '@Remote(\'create\') create(request: WorkspaceCreateRequest): Promise<WorkspaceCreateValue>',
         description: 'Create or idempotently resolve one Workspace over an existing directory.',
@@ -4918,7 +5072,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the directory\'s children in the backend\'s stable name order, bounded by the entry cap.',
       },
       {
-        signature: '@Remote({ mode: \'stream\' }) changes(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame>',
+        signature: '@Remote({ mode: \'stream\' }) async *changes(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame>',
         description: 'Watch one file or a directory\'s direct entries in the Session\'s filesystem. Files use the backend\'s read authority; directories remain workspace-scoped.',
         parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'path', description: 'target path; the Host determines its type and confines directories to the workspace.' }, { name: 'signal', description: 'generation cancellation.' }],
         returns: '`ready` once the target watch is active, then current metadata for queued and live invalidations.',
@@ -4932,9 +5086,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Durable workspace registry. Startup waits for `sessionPersistence`, builds one canonical-cwd header index, and completes the one-time history bootstrap before the service becomes active. The persistence dependency is mandatory so an unavailable peer can never be mistaken for an empty history and commit the initialized marker.',
     methods: [
       {
-        signature: 'async create(path: string, title?: string): Promise<Workspace>',
+        signature: 'async create(path: string, title?: string, options: WorkspaceDirectoryOptions = {}): Promise<Workspace>',
         description: 'Create or reuse a workspace for an existing directory. The fully qualified path is canonicalized through `fs.realpath`; a relative, nonexistent, or non-directory path rejects. Repeated calls for the same canonical path return the existing entity without changing its title. A newly created workspace is prepended to the durable registry order. Different canonical paths may share a display title.',
-        parameters: [{ name: 'path', description: 'Existing directory to own, in a fully qualified path spelling.' }, { name: 'title', description: 'Display title used only when a new record is created.' }],
+        parameters: [{ name: 'path', description: 'Existing directory to own, in a fully qualified path spelling.' }, { name: 'title', description: 'Display title used only when a new record is created.' }, { name: 'options', description: 'explicit execution environment and pre-write cancellation.' }],
         returns: 'the existing or newly durable workspace.',
       },
       {
@@ -4992,9 +5146,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'resolution after durability.',
       },
       {
-        signature: 'async resolveByPath(path: string): Promise<Workspace | undefined>',
+        signature: 'async resolveByPath(path: string, options: WorkspaceDirectoryOptions = {}): Promise<Workspace | undefined>',
         description: 'Resolve by canonical directory path without creating or mutating a workspace. A missing path rejects during `realpath`; an existing unowned directory returns `undefined`.',
-        parameters: [{ name: 'path', description: 'Existing directory path in a fully qualified spelling.' }],
+        parameters: [{ name: 'path', description: 'Existing directory path in a fully qualified spelling.' }, { name: 'options', description: 'explicit execution environment and lookup cancellation.' }],
         returns: 'the workspace owning the canonical path, when one exists.',
       },
     ],
@@ -5213,6 +5367,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'A command was registered or unregistered.',
     description: 'A command was registered or unregistered. This is an unfiltered registry notification because a global or scoped change may affect any UI view. Observer failures are contained and cannot veto the registry mutation.',
     parameters: [],
+  },
+  {
+    name: 'compaction/overflow-recovery',
+    mode: 'waterfall',
+    signature: '\'compaction/overflow-recovery\'( this: CompactionEngine, payload: { agent: CompactionAgentContext; request: EpochHeader; start: SessionSeq; end: SessionSeq; signal: AbortSignal } & { summary: { provider: string; model: string; maxTokens: number; thresholdRatio: number } }, next: () => Promise<CompactionResult | null>, ): Promise<CompactionResult | null>',
+    summary: 'Recover a summary that exceeded its window during automatic overflow recovery.',
+    description: 'Recover a summary that exceeded its window during automatic overflow recovery. The failed compaction is closed before dispatch to the engine\'s isolation group. The engine owns request retries.',
+    parameters: [{ name: 'payload', description: '.signal - cancellation for the active turn.' }, { name: 'next', description: 'delegate when no smaller compaction can be attempted.' }],
   },
   {
     name: 'compaction/summary-error',
@@ -5879,6 +6041,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AgentCancelCause = {\n    readonly kind: \'user\';\n} | {\n    readonly kind: \'parent\';\n} | {\n    readonly kind: \'hook\';\n    readonly reason: string;\n} | {\n    readonly kind: \'disposed\';\n};',
   },
   {
+    name: 'AgentExecutionContext',
+    declaration: 'export interface AgentExecutionContext {\n    readonly base: Context;\n    readonly realm: symbol;\n}',
+  },
+  {
+    name: 'AgentExecutionLease',
+    declaration: 'export interface AgentExecutionLease {\n    readonly realm: symbol;\n    readonly signal: AbortSignal;\n    bind(base: Context): Context;\n    close(): Promise<void>;\n}',
+  },
+  {
+    name: 'AgentExecutionProvider',
+    declaration: 'export interface AgentExecutionProvider {\n    acquire(target: ExecutionTargetId, signal: AbortSignal): Promise<AgentExecutionLease>;\n}',
+  },
+  {
     name: 'AgentFactory',
     declaration: 'export interface AgentFactory {\n    createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle>;\n    resume(ownerCtx: Context, options: ResumeAgentOptions): Promise<AgentHandle>;\n}',
   },
@@ -6307,6 +6481,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CompactionAgentContext {\n    session: Session;\n    options: {\n        provider?: string | undefined;\n        model?: string | undefined;\n    };\n}',
   },
   {
+    name: 'CompactionEngine',
+    declaration: 'export abstract class CompactionEngine extends Service {\n    constructor(ctx: Context);\n    abstract compactIfNeeded(agent: CompactionAgentContext, trigger: CompactionTrigger, signal: AbortSignal): Promise<CompactionResult | null>;\n    abstract compactNow(agent: ManualCompactAgentContext, signal: AbortSignal, sourceCommandId?: CommandId): Promise<CompactionResult | null>;\n    abstract compactRegion(start: SessionSeq, end: SessionSeq, agent: CompactionAgentContext, signal?: AbortSignal): Promise<CompactionResult>;\n}',
+  },
+  {
     name: 'CompactionId',
     declaration: 'export type CompactionId = Branded<\'CompactionId\'>;',
   },
@@ -6496,7 +6674,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateAgentOptions',
-    declaration: 'export interface CreateAgentOptions {\n    readonly sessionId: SessionId;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly seed?: readonly SessionEvent[];\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+    declaration: 'export interface CreateAgentOptions {\n    readonly sessionId: SessionId;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n        readonly executionTarget?: SessionExecutionTarget;\n    };\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly seed?: readonly SessionEvent[];\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
   },
   {
     name: 'CreatedShare',
@@ -6516,7 +6694,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CreateSessionOptions',
-    declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
+    declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly inheritedEventCount?: SessionLogOffset;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly isSeeded?: boolean;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n        readonly executionTarget?: SessionExecutionTarget;\n    };\n}',
   },
   {
     name: 'CreateShareRequest',
@@ -6761,6 +6939,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'EveryScheduleRecord',
     declaration: 'export interface EveryScheduleRecord {\n    readonly id: ScheduleId;\n    readonly kind: \'every\';\n    readonly title: string;\n    readonly prompt: string;\n    readonly everySeconds: number;\n    readonly scheduledAt: string;\n}',
+  },
+  {
+    name: 'ExecutionProviderId',
+    declaration: 'export type ExecutionProviderId = Branded<\'ExecutionProviderId\'>;',
+  },
+  {
+    name: 'ExecutionTargetId',
+    declaration: 'export type ExecutionTargetId = Branded<\'ExecutionTargetId\'>;',
   },
   {
     name: 'FeedbackCategory',
@@ -8580,7 +8766,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SandboxPolicyRequest',
-    declaration: 'export interface SandboxPolicyRequest {\n    session?: Session;\n    mode?: SandboxMode;\n}',
+    declaration: 'export interface SandboxPolicyRequest {\n    session?: Session;\n    mode?: SandboxMode;\n    executionTarget?: SessionExecutionTarget;\n    workspaceRoot?: string;\n}',
   },
   {
     name: 'SaveFileAttachment',
@@ -8923,6 +9109,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionEventWindow {\n    session: SessionHeader;\n    inheritedEventCount: SessionLogOffset;\n    target: SessionEvent;\n    events: SessionEvent[];\n    startSeq: SessionSeq;\n    endSeq: SessionSeq;\n}',
   },
   {
+    name: 'SessionExecutionTarget',
+    declaration: 'export type SessionExecutionTarget = {\n    readonly provider: ExecutionProviderId;\n    readonly id: ExecutionTargetId;\n};',
+  },
+  {
     name: 'SessionFeedbackRecordRequest',
     declaration: 'export interface SessionFeedbackRecordRequest {\n    readonly sessionId: SessionId;\n    readonly text?: string;\n    readonly category?: FeedbackCategory;\n}',
   },
@@ -8980,7 +9170,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionHeader',
-    declaration: 'export interface SessionHeader {\n    readonly version: typeof SESSION_FORMAT_VERSION;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly isSeeded: boolean;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n}',
+    declaration: 'export interface SessionHeader {\n    readonly version: typeof SESSION_FORMAT_VERSION;\n    readonly id: SessionId;\n    readonly createdAt: number;\n    readonly cwd?: string;\n    readonly parentSession?: SessionId;\n    readonly isSeeded: boolean;\n    readonly origin?: \'subagent\';\n    readonly delegationDepth?: number;\n    readonly agentPreset?: string;\n    readonly executionTarget?: SessionExecutionTarget;\n}',
   },
   {
     name: 'SessionHistoryRecord',
@@ -9072,7 +9262,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionOpenWorkspacePathRequest',
-    declaration: 'export interface SessionOpenWorkspacePathRequest {\n    readonly action?: \'reveal\';\n    readonly application?: string;\n    readonly path: string;\n}',
+    declaration: 'export interface SessionOpenWorkspacePathRequest {\n    readonly sessionId?: SessionId;\n    readonly action?: \'reveal\';\n    readonly application?: string;\n    readonly path: string;\n}',
   },
   {
     name: 'SessionOpenWorkspacePathValue',
@@ -9292,7 +9482,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionSummary',
-    declaration: 'export interface SessionSummary {\n    readonly agentAvailable: boolean;\n    readonly formatStatus?: \'current\' | \'migration-required\';\n    readonly sessionId: SessionId;\n    readonly updatedAt: number;\n    readonly running: boolean;\n    readonly blank: boolean;\n    readonly parentSessionId?: SessionId;\n    readonly origin?: \'subagent\';\n    readonly cwd?: string;\n    readonly projections?: SessionProjectionHints;\n}',
+    declaration: 'export interface SessionSummary {\n    readonly agentAvailable: boolean;\n    readonly formatStatus?: \'current\' | \'migration-required\';\n    readonly sessionId: SessionId;\n    readonly updatedAt: number;\n    readonly running: boolean;\n    readonly blank: boolean;\n    readonly parentSessionId?: SessionId;\n    readonly origin?: \'subagent\';\n    readonly cwd?: string;\n    readonly executionTarget?: SessionExecutionTarget;\n    readonly projections?: SessionProjectionHints;\n}',
   },
   {
     name: 'SessionSurface',
@@ -9671,8 +9861,68 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SpillSource = {\n    kind: \'tool\';\n    toolName: string;\n    callId: ToolCallId;\n    label: string;\n} | {\n    kind: \'session-reference\';\n    sessionId: SessionId;\n    label: string;\n};',
   },
   {
+    name: 'SshAuthenticationChallenge',
+    declaration: 'export interface SshAuthenticationChallenge {\n    readonly id: SshAuthenticationChallengeId;\n    readonly endpoint: Pick<SshEndpointArgs, \'host\' | \'port\' | \'username\' | \'identityFile\'>;\n    readonly prompt: string;\n    readonly kind: SshAuthenticationPromptKind;\n    readonly canRemember: boolean;\n}',
+  },
+  {
+    name: 'SshAuthenticationChallengeId',
+    declaration: 'export type SshAuthenticationChallengeId = Branded<\'HemiSshAuthenticationChallengeId\'>;',
+  },
+  {
+    name: 'SshAuthenticationPasswordMemory',
+    declaration: 'export interface SshAuthenticationPasswordMemory {\n    lookup(endpoint: SshPasswordEndpoint): Promise<{\n        nativeUser: string;\n        password: string;\n    } | undefined>;\n    persist(endpoint: SshPasswordEndpoint, nativeUser: string, password: string): Promise<void>;\n    discard(endpoint: SshPasswordEndpoint, password: string): Promise<void>;\n    canPersist(endpoint: SshPasswordEndpoint): boolean;\n}',
+  },
+  {
+    name: 'SshAuthenticationPromptKind',
+    declaration: 'export type SshAuthenticationPromptKind = \'input\' | \'confirm\' | \'notification\';',
+  },
+  {
+    name: 'SshDirectorySelection',
+    declaration: 'export interface SshDirectorySelection {\n    readonly executionTarget: SessionExecutionTarget;\n    readonly path: string;\n    readonly title: string;\n    readonly serverName: string;\n}',
+  },
+  {
+    name: 'SshEndpointArgs',
+    declaration: 'export type SshEndpointArgs = Pick<SshServerInput, \'host\' | \'port\' | \'username\' | \'identityFile\'> & {\n    readonly controlPath?: string;\n};',
+  },
+  {
+    name: 'SshPasswordEndpoint',
+    declaration: 'export type SshPasswordEndpoint = Readonly<{\n    host: string;\n    port: number;\n    username: string;\n    identityFile: string;\n}>;',
+  },
+  {
+    name: 'SshRemoteDirectory',
+    declaration: 'export interface SshRemoteDirectory {\n    readonly path: string;\n    readonly parentPath: string;\n    readonly directories: readonly {\n        readonly name: string;\n        readonly path: string;\n    }[];\n}',
+  },
+  {
+    name: 'SshRemoteFolders',
+    declaration: 'export interface SshRemoteFolders extends SshRemoteDirectory {\n    readonly revision: SshWorkspaceRevision;\n}',
+  },
+  {
+    name: 'SshRuntimeDeployment',
+    declaration: 'export interface SshRuntimeDeployment {\n    readonly helper: string;\n    readonly helperHash: string;\n    readonly launch: {\n        readonly kind: \'executable\';\n    } | {\n        readonly kind: \'node-script\';\n        readonly node: string;\n        readonly bootstrapPath: string;\n        readonly bootstrapHash: string;\n    };\n}',
+  },
+  {
+    name: 'SshSavedRuntime',
+    declaration: 'export interface SshSavedRuntime {\n    readonly serverId: SshServerId;\n    readonly revision: string;\n    readonly deployment: SshRuntimeDeployment;\n}',
+  },
+  {
+    name: 'SshServer',
+    declaration: 'export interface SshServer extends SshServerInput {\n    readonly id: SshServerId;\n    readonly revision: string;\n}',
+  },
+  {
+    name: 'SshServerId',
+    declaration: 'export type SshServerId = Branded<\'HemiSshServerId\'>;',
+  },
+  {
+    name: 'SshServerInput',
+    declaration: 'export interface SshServerInput {\n    readonly name: string;\n    readonly host: string;\n    readonly port: number;\n    readonly username: string;\n    readonly identityFile: string;\n    readonly directory?: string | undefined;\n}',
+  },
+  {
     name: 'SshStreamEndpoint',
     declaration: 'export type SshStreamEndpoint = z.infer<typeof streamEndpointSchema>;',
+  },
+  {
+    name: 'SshWorkspaceRevision',
+    declaration: 'export interface SshWorkspaceRevision {\n    readonly serverRevision: string;\n    readonly runtimeRevision: string;\n}',
   },
   {
     name: 'StagedAttachment',
@@ -9809,6 +10059,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SubprocessCollectedOutputs',
     declaration: 'export interface SubprocessCollectedOutputs {\n    readonly stdout?: SubprocessOutputReader;\n    readonly stderr?: SubprocessOutputReader;\n}',
+  },
+  {
+    name: 'SubprocessExecutable',
+    declaration: 'export type SubprocessExecutable = string | {\n    readonly command: string;\n    readonly resolveLocalPath: () => Promise<string>;\n};',
   },
   {
     name: 'SubprocessHandle',
@@ -10656,7 +10910,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'Workspace',
-    declaration: 'export interface Workspace {\n    readonly id: WorkspaceId;\n    readonly path: string;\n    readonly title: string;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n    readonly sessionIds: readonly SessionId[];\n    setTitle(title: string): Promise<void>;\n    attachSession(sessionId: SessionId): Promise<void>;\n    insertSessionBefore(sessionId: SessionId, beforeSessionId?: SessionId): Promise<void>;\n    detachSession(sessionId: SessionId): Promise<void>;\n    status(): Promise<\'ok\' | \'missing-dir\'>;\n}',
+    declaration: 'export interface Workspace {\n    readonly id: WorkspaceId;\n    readonly path: string;\n    readonly executionTarget?: SessionExecutionTarget | undefined;\n    readonly title: string;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n    readonly sessionIds: readonly SessionId[];\n    setTitle(title: string): Promise<void>;\n    attachSession(sessionId: SessionId): Promise<void>;\n    insertSessionBefore(sessionId: SessionId, beforeSessionId?: SessionId): Promise<void>;\n    detachSession(sessionId: SessionId): Promise<void>;\n    status(): Promise<\'ok\' | \'missing-dir\'>;\n}',
   },
   {
     name: 'WorkspaceArchiveSessionRequest',
@@ -10688,7 +10942,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkspaceCreateRequest',
-    declaration: 'export interface WorkspaceCreateRequest {\n    readonly path: string;\n}',
+    declaration: 'export interface WorkspaceCreateRequest {\n    readonly path: string;\n    readonly executionTarget?: SessionExecutionTarget;\n}',
   },
   {
     name: 'WorkspaceCreateValue',
@@ -10715,6 +10969,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface WorkspaceDirectoryListing {\n    readonly path: string;\n    readonly entries: readonly WorkspaceDirectoryEntry[];\n    readonly truncated: boolean;\n}',
   },
   {
+    name: 'WorkspaceDirectoryOptions',
+    declaration: 'export interface WorkspaceDirectoryOptions {\n    readonly executionTarget?: SessionExecutionTarget;\n    readonly signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'WorkspaceDisplayTitleProvider',
+    declaration: 'export interface WorkspaceDisplayTitleProvider {\n    resolve(workspace: WorkspaceView, views: readonly WorkspaceView[]): string | undefined;\n    subscribe(listener: () => void): () => void;\n}',
+  },
+  {
     name: 'WorkspaceFileBytes',
     declaration: 'export interface WorkspaceFileBytes<Data extends Uint8Array = Uint8Array> extends WorkspaceFileStat {\n    readonly offset: number;\n    readonly data: Data;\n    readonly eof: boolean;\n}',
   },
@@ -10732,7 +10994,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkspaceFileScope',
-    declaration: 'export interface WorkspaceFileScope {\n    readonly sessionId: SessionId;\n    readonly workspaceRoot: string;\n}',
+    declaration: 'export interface WorkspaceFileScope {\n    readonly sessionId: SessionId;\n    readonly workspaceRoot: string;\n    readonly executionTarget: SessionExecutionTarget | undefined;\n}',
   },
   {
     name: 'WorkspaceFileStat',
@@ -10792,7 +11054,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'WorkspaceView',
-    declaration: 'export interface WorkspaceView {\n    readonly workspaceId: WorkspaceId;\n    readonly path: string;\n    readonly title: string;\n    readonly sessionIds: readonly SessionId[];\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+    declaration: 'export interface WorkspaceView {\n    readonly workspaceId: WorkspaceId;\n    readonly path: string;\n    readonly executionTarget?: SessionExecutionTarget;\n    readonly title: string;\n    readonly displayTitle?: string;\n    readonly sessionIds: readonly SessionId[];\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
   },
 ]
 

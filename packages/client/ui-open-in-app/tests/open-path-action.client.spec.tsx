@@ -32,7 +32,7 @@ interface Bench {
   report: Mock<(outcome: OpenInAppOutcome) => void>
 }
 
-function bench(over: { desktop?: boolean | null; openPath?: Bench['openPath'] } = {}): Bench {
+function bench(over: { desktop?: boolean | null; native?: boolean; openPath?: Bench['openPath'] } = {}): Bench {
   const desktop = createSnapshotStore<boolean | null>(over.desktop === undefined ? true : over.desktop)
   const loadDesktop = vi.fn(async () => {})
   const openPath = over.openPath ?? vi.fn(async (): Promise<OpenInAppOutcome> => ({ kind: 'opened' }))
@@ -43,6 +43,7 @@ function bench(over: { desktop?: boolean | null; openPath?: Bench['openPath'] } 
   const props = {
     absolutePath: ABSOLUTE_PATH,
     useOpenInAppDesktop: useSelector(desktop),
+    useOpenInAppLocalPaths: useSelector(createSnapshotStore(over.native ?? true)),
     loadDesktop,
     applications: vi.fn(async () => [{ id: '/Music.app', name: 'Music', default: true, icon: null }]),
     openPath,
@@ -53,6 +54,14 @@ function bench(over: { desktop?: boolean | null; openPath?: Bench['openPath'] } 
 }
 
 describe('OpenPathAction visibility', () => {
+  it('hides remote file controls without querying native associations, including the unpreviewable fallback', () => {
+    const b = bench({ native: false })
+    expect(render(<OpenPathAction {...b.props} />).container.innerHTML).toBe('')
+    cleanup()
+    expect(render(<OpenPathEmptyAction {...b.props} />).container.innerHTML).toBe('')
+    expect(b.props.applications).not.toHaveBeenCalled()
+    expect(b.openPath).not.toHaveBeenCalled()
+  })
   it('renders nothing and asks for the desktop answer while it is unknown, and nothing without a desktop', () => {
     const unknown = bench({ desktop: null })
     const { container } = render(<OpenPathAction {...unknown.props} />)

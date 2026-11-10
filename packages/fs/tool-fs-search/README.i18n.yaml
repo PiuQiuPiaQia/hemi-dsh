@@ -9,14 +9,14 @@
   en: 6fd594ab2eacb521
   zh: bcbce1550c71bbae
 /deepseek-ai-dsh-tool-fs-search/summary:
-  en: a2d8407299a71efe
-  zh: d43338a4c7954a39
+  en: bb5fb17d30960e31
+  zh: a9a7dd8ffab0da11
 /deepseek-ai-dsh-tool-fs-search/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
 /deepseek-ai-dsh-tool-fs-search/use-this-package:
-  en: 494119ddc7157140
-  zh: 2fb6e69531ccb2b8
+  en: b535349ba036f66b
+  zh: 87cf4826f5721007
 /deepseek-ai-dsh-tool-fs-search/use-this-package/minimal-composition:
   en: a5a01d14e0bec814
   zh: 409298cfafd91b05
@@ -27,8 +27,8 @@
   en: 3e84e19a22aeb6c8
   zh: 8ac44b21eb697f2f
 /deepseek-ai-dsh-tool-fs-search/use-this-package/deployment-requirement:
-  en: 4aa9b74deef586bc
-  zh: f855f815829d4e1e
+  en: c9d54ef9110d1db9
+  zh: fc36912767bc8ac8
 /deepseek-ai-dsh-tool-fs-search/use-this-package/failures-and-recovery:
   en: d7a59e296308b2bd
   zh: 66243fcd932fe49a
@@ -42,8 +42,8 @@
   en: 5a30f023dd86c345
   zh: 558b6e80c62648ba
 /deepseek-ai-dsh-tool-fs-search/understand-the-implementation/how-a-search-runs:
-  en: 7904c9f013272819
-  zh: 656763e9a7e97c1e
+  en: 73ba09f67b60bf21
+  zh: 78ccfebdd1572aa8
 /deepseek-ai-dsh-tool-fs-search/understand-the-implementation/native-mode-benchmark:
   en: 031654f59e63d07e
   zh: a3b488fb1880d2f5
@@ -111,8 +111,8 @@
   en: f5d5f97a153f7c70
   zh: 14660e568cd51bdc
 /deepseek-ai-dsh-tool-fs-search/known-limitations-and-deferred-work:
-  en: 6d66672c1cdcff13
-  zh: f5a5f6cbbe8365cf
+  en: 88b336a2dc11ddd9
+  zh: 393e9d597205fe76
 /deepseek-ai-dsh-tool-fs-search/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 3bb0c20c93f16f98

@@ -22,6 +22,18 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+// Hemi fork: local-only discovery must refuse an explicit execution environment before Host I/O.
+/** The selected provider cannot enumerate files in this execution environment. */
+export class FileReferenceEnvironmentUnsupportedError extends Error {
+  /** Stable failure identity for a provider that cannot enumerate this environment. */
+  readonly code = 'FILE_REFERENCE_ENVIRONMENT_UNSUPPORTED'
+
+  constructor() {
+    super('File suggestions are unavailable in this execution environment; enter the path directly.')
+    this.name = 'FileReferenceEnvironmentUnsupportedError'
+  }
+}
+
 /** Host capability for cancellable file-reference discovery. */
 export abstract class FileReferenceService extends Service {
   constructor(ctx: Context) {

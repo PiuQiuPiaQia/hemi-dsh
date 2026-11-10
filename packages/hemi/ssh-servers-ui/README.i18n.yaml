@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/ssh-servers-ui/README.md
+/:
+  en: e82f0d3c8ec8ac11
+  zh: 8f8b8f5115ec5fed
+/deepseek-ai-dsh-hemi-ssh-servers-ui:
+  en: 7145f9f5b87ca465
+  zh: efc8ba3ed60fc496
+/deepseek-ai-dsh-hemi-ssh-servers-ui/summary:
+  en: 6a4e4330573f0d32
+  zh: 835d67727aa08445
+/deepseek-ai-dsh-hemi-ssh-servers-ui/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: af2f3a72884f5587
+/deepseek-ai-dsh-hemi-ssh-servers-ui/use-this-package:
+  en: 190feb5683c2615f
+  zh: 0b913e3be87875c0
+/deepseek-ai-dsh-hemi-ssh-servers-ui/understand-the-implementation:
+  en: 31a2c67ac5318916
+  zh: 03213edccc19cc08
+/deepseek-ai-dsh-hemi-ssh-servers-ui/further-exploration:
+  en: e6111f128c2cd46b
+  zh: 05b3fc0ee1adbefc
+/deepseek-ai-dsh-hemi-ssh-servers-ui/model-experience:
+  en: 1855293e99b860ea
+  zh: 5dc52e2ceca78d05
+/deepseek-ai-dsh-hemi-ssh-servers-ui/model-experience/kv-cache-effect:
+  en: 29b426802a6eac6b
+  zh: e013560363d16b9c
+/deepseek-ai-dsh-hemi-ssh-servers-ui/known-limitations-and-deferred-work:
+  en: 9fef767801550899
+  zh: 88296363478e5625
+/deepseek-ai-dsh-hemi-ssh-servers-ui/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: e88aeb617ffb74ea

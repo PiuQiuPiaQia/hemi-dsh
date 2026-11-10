@@ -2,7 +2,7 @@
 
 import { isAbsolute } from 'node:path'
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
-import type { SessionFormatArtifact, SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
+import type { SessionFormatArtifact, SessionFormatEvent, SessionFormatHeader, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
 import { assertV4DeveloperData } from './developer.ts'
 import { assertV4LifecycleRelationships } from './relationships.ts'
 import { assertV4MessageSources } from './message-sources.ts'
@@ -15,11 +15,13 @@ import { assertV4ToolResultMessage } from './tool-role.ts'
 /**
  * Validate the exact native V4 logical header.
  * @param header - decoded or otherwise untrusted V4 Session header candidate.
+ * @returns normally only for a valid header, narrowing it to SessionFormatHeader.
  */
-export function assertReleasedV4Header(header: unknown): void {
+export function assertReleasedV4Header(header: unknown): asserts header is SessionFormatHeader {
   if (!isSessionFormatJsonObject(header) || header['version'] !== 4) throw new SessionFormatError('expected format v4 header')
   const required = ['version', 'id', 'createdAt', 'isSeeded', 'delegationDepth']
-  const allowed = new Set([...required, 'cwd', 'parentSession', 'origin', 'agentPreset'])
+  // Hemi fork: older V4 readers reject this explicit field instead of resuming against Host providers.
+  const allowed = new Set([...required, 'cwd', 'parentSession', 'origin', 'agentPreset', 'executionTarget'])
   const missing = required.find(key => !Object.hasOwn(header, key))
   const unexpected = Object.keys(header).find(key => !allowed.has(key))
   if (missing !== undefined) throw new SessionFormatError(`format v4 header lacks required field ${missing}`)
@@ -38,6 +40,15 @@ export function assertReleasedV4Header(header: unknown): void {
   }
   if (header.origin !== undefined && header.origin !== 'subagent') {
     throw new SessionFormatError('format v4 header origin must be "subagent"')
+  }
+  if (header.executionTarget !== undefined) {
+    const target = header.executionTarget
+    if (!isSessionFormatJsonObject(target) || Object.keys(target).length !== 2
+      || !Object.hasOwn(target, 'provider') || !Object.hasOwn(target, 'id')
+      || ![target.provider, target.id].every(value => typeof value === 'string'
+        && value.length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/u.test(value))) {
+      throw new SessionFormatError('format v4 executionTarget must contain bounded provider and id identities')
+    }
   }
 }
 

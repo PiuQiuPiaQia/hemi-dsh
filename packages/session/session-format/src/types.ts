@@ -23,6 +23,8 @@ export interface SessionFormatHeader extends SessionFormatJsonObject {
   readonly origin?: 'subagent'
   readonly delegationDepth: number
   readonly agentPreset?: string
+  /** Explicit environment reference when the selected generation supports non-Host execution. */
+  readonly executionTarget?: { readonly provider: string; readonly id: string }
 }
 
 /** One decoded logical Session event. */

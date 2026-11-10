@@ -1,0 +1,52 @@
+- dialog "选择远端文件夹":
+  - heading "选择远端文件夹" [level=2]
+  - button "关闭"
+  - paragraph: {{ssh-address}}
+  - button "上一级"
+  - textbox "远端绝对路径":
+    - /placeholder: /home/user/project
+    - text: {{cwd}}
+  - button "前往"
+  - navigation "常用目录":
+    - button "首选目录"
+    - button "主目录"
+    - button "remote-project-two"
+    - button "{{workspace}}"
+  - region "当前目录":
+    - list:
+      - listitem:
+        - button "浏览 bin": bin
+      - listitem:
+        - button "浏览 bin:": "bin:"
+      - listitem:
+        - button "浏览 cache": cache
+      - listitem:
+        - button "浏览 folder-00": folder-00
+      - listitem:
+        - button "浏览 folder-01": folder-01
+      - listitem:
+        - button "浏览 folder-02": folder-02
+      - listitem:
+        - button "浏览 folder-03": folder-03
+      - listitem:
+        - button "浏览 folder-04": folder-04
+      - listitem:
+        - button "浏览 folder-05": folder-05
+      - listitem:
+        - button "浏览 folder-06": folder-06
+      - listitem:
+        - button "浏览 folder-07": folder-07
+      - listitem:
+        - button "浏览 folder-08": folder-08
+      - listitem:
+        - button "浏览 folder-09": folder-09
+      - listitem:
+        - button "浏览 folder-10": folder-10
+      - listitem:
+        - button "浏览 folder-11": folder-11
+      - listitem:
+        - button "浏览 remote-project-one": remote-project-one
+      - listitem:
+        - button "浏览 remote-project-two": remote-project-two
+  - button "取消"
+  - button "使用此文件夹"

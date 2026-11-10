@@ -24,6 +24,12 @@ flowchart LR
   pkg_hemi_routing["hemi-routing"]
   svc_hemiRoutingSettings["ctx.hemiRoutingSettings<br/>Hemi role routes"]
   pkg_hemi_routing_ui["hemi-routing-ui"]
+  pkg_hemi_ssh_servers["hemi-ssh-servers"]
+  svc_hemiSshServers["ctx.hemiSshServers<br/>Hemi SSH servers"]
+  pkg_hemi_ssh_servers_ui["hemi-ssh-servers-ui"]
+  svc_hemiSshWorkspaces["ctx.hemiSshWorkspaces<br/>Hemi SSH directories"]
+  pkg_session["session"]
+  pkg_workspace["workspace"]
   pkg_action_cards["action-cards"]
   svc_actionCards["ctx.actionCards<br/>Optional action cards"]
   pkg_creation_recommendations["creation-recommendations"]
@@ -110,7 +116,6 @@ flowchart LR
   svc_tokenMeter["ctx.tokenMeter<br/>Replay token measurement"]
   pkg_compaction_tool_result_pruner["compaction-tool-result-pruner"]
   svc_toolResultPruner["ctx.toolResultPruner<br/>Model-free tool-result pruning"]
-  pkg_session["session"]
   svc_sessions["ctx.sessions<br/>In-memory session store"]
   pkg_agent["agent"]
   pkg_session_persistence["session-persistence"]
@@ -177,7 +182,6 @@ flowchart LR
   pkg_storage_sqlite["storage-sqlite"]
   pkg_storage_domain["storage-domain"]
   svc_storageDomain["ctx.storageDomain<br/>Domain data facility"]
-  pkg_workspace["workspace"]
   svc_messageFeedback["ctx.messageFeedback<br/>Lifecycle-bound message feedback"]
   pkg_command_feedback["command-feedback"]
   svc_sessionFeedback["ctx.sessionFeedback<br/>Session-level feedback recorder"]
@@ -408,6 +412,8 @@ flowchart LR
   pkg_hemi_model_access --> svc_hemiModelAccess
   pkg_hemi_model_settings --> svc_hemiModelSettings
   pkg_hemi_routing --> svc_hemiRoutingSettings
+  pkg_hemi_ssh_servers --> svc_hemiSshServers
+  pkg_hemi_ssh_servers --> svc_hemiSshWorkspaces
   pkg_hmr --> svc_hmr
   pkg_host_directory_picker --> svc_directoryPicker
   pkg_host_directory_picker_browse --> svc_directoryPicker
@@ -554,6 +560,9 @@ flowchart LR
   svc_hemiModelAccess --> pkg_hemi_model_access_ui
   svc_hemiModelSettings --> pkg_hemi_model_settings_ui
   svc_hemiRoutingSettings --> pkg_hemi_routing_ui
+  svc_hemiSshServers --> pkg_hemi_ssh_servers_ui
+  svc_hemiSshWorkspaces --> pkg_session
+  svc_hemiSshWorkspaces --> pkg_workspace
   svc_hmr --> pkg_app_boot
   svc_jobs --> pkg_api_job_controller
   svc_jobs --> pkg_tool_bash
@@ -681,6 +690,8 @@ flowchart LR
 | `ctx.hemiModelAccess` | `service` | [`hemi-model-access`](../packages/hemi/model-access) | - | [`hemi-model-access-ui`](../packages/hemi/model-access-ui) | - | 管理订阅授权、额度查询与模型导入。 |
 | `ctx.hemiModelSettings` | `service` | [`hemi-model-settings`](../packages/hemi/model-settings) | - | [`hemi-model-settings-ui`](../packages/hemi/model-settings-ui) | - | 管理显式模型连接测试。 |
 | `ctx.hemiRoutingSettings` | `service` | [`hemi-routing`](../packages/hemi/routing) | - | [`hemi-routing-ui`](../packages/hemi/routing-ui) | - | 管理保存的主模型与角色路由，以及每个 Session 的自动模式。 |
+| `ctx.hemiSshServers` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`hemi-ssh-servers-ui`](../packages/hemi/ssh-servers-ui) | - | 管理服务器登记，不建立连接。 |
+| `ctx.hemiSshWorkspaces` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`session`](../packages/core/session), [`workspace`](../packages/workspace/workspace) | - | 管理显式 helper 部署配置及不可变 SSH 执行目标，供 Session 与目录消费者使用。 |
 | `ctx.actionCards` | `service` | [`action-cards`](../packages/experimental/action-cards) | - | [`creation-recommendations`](../packages/experimental/creation-recommendations), [`client-ui-action-cards`](../packages/experimental/client-ui-action-cards) | - | 负责卡片工具、卡片状态、用户操作和状态通知；各卡片种类注册自己的动作和处理器。 |
 | `ctx.pluginRecommendations` | `service` | [`plugin-recommendations`](../packages/experimental/plugin-recommendations) | - | [`client-ui-plugin-recommendations`](../packages/experimental/client-ui-plugin-recommendations) | - | 读取官方插件卡片的当前目录文本，并在用户点击后通过配置插件管理器启用该插件。 |
 | `ctx.headlessStartup` | `core` | [`headless`](../packages/bundle/headless) | - | [`headless`](../packages/bundle/headless) | - | 将解析后的任务和运行选项提供给无界面运行器及其 sandbox-policy 配置。 |

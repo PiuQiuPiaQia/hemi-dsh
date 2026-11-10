@@ -22,7 +22,7 @@ import {
   IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconQueueOutlineRegular, IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
-  IconWorkspaceTreeOutlineRegular, Menu, Tooltip,
+  IconWorkspaceTreeOutlineRegular, Menu, MenuItemButton, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionListState, SessionSearchResultItem,
@@ -40,6 +40,7 @@ import {
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
+import { distinguishingPathSuffixes } from '../path-suffix.ts'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -918,6 +919,7 @@ export function WorkspaceBrowser({
   searchSessions,
   searchResultLimit,
   useDirectoryFlow,
+  useAddActions,
   useHostInfo,
   useShortcuts,
   useWorkspaceShortcuts,
@@ -939,13 +941,21 @@ export function WorkspaceBrowser({
   // The resolved name, not `t`, is the memo dependency: the bound seat keeps
   // its identity across a language switch.
   const defaultWorkspaceName = t('workspace.defaultName')
-  const workspaces = useMemo(
-    () => storedWorkspaces.map(workspace => ({
+  const workspaces = useMemo(() => {
+    // Hemi fork: shared projected labels drive rows, search and captured menus; raw titles remain in the model.
+    const rows = storedWorkspaces.map(workspace => ({
       ...workspace,
-      title: workspaceDisplayTitle(workspace.title, defaultWorkspaceName),
-    })),
-    [storedWorkspaces, defaultWorkspaceName],
-  )
+      title: workspace.displayTitle ?? workspaceDisplayTitle(workspace.title, defaultWorkspaceName),
+    }))
+    const suffixes = distinguishingPathSuffixes(rows.map(workspace => ({
+      id: workspace.workspaceId, title: workspace.title, path: workspace.path,
+    })))
+    return rows.map((workspace) => {
+      const suffix = suffixes.get(workspace.workspaceId)
+      return suffix === undefined || workspace.displayTitle === undefined
+        ? workspace : { ...workspace, title: `${workspace.title} ${suffix}` }
+    })
+  }, [storedWorkspaces, defaultWorkspaceName])
   const workspacePhase = useWorkspaces(state => state.phase)
   const workspaceStreamState = useWorkspaces(state => state.state)
   const archivedSessionIds = useWorkspaces(state => state.archivedSessionIds)
@@ -953,6 +963,10 @@ export function WorkspaceBrowser({
   // Live occupancy of this surface's directory-flow hole (the same source the
   // flow reads): a composition without a picking affordance can add nothing.
   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
+  // Hemi fork: only an occupied extension adds a menu; plugin-free directory gestures stay unchanged.
+  const addActionsAvailable = useAddActions(occupied => occupied)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  if (!addActionsAvailable && addMenuOpen) setAddMenuOpen(false)
   const groupBy = useStore(s => s.groupBy)
   const orderBy = useStore(s => s.orderBy)
   // Persisted view blobs written before the archived filter existed rehydrate
@@ -1299,7 +1313,7 @@ export function WorkspaceBrowser({
           {/* Adding is the button's one action, so a composition with no
               picking affordance has nothing to offer here: the region hides the
               button rather than leaving a dead one in the header. */}
-          {directoryFlowAvailable && (
+          {(directoryFlowAvailable || addActionsAvailable) && (
             <Tooltip label={t('workspace.add')} shortcutKeys={addShortcut?.keys} side="bottom" delayMs={500} portal>
               <button
                 ref={wsPlusRef}
@@ -1307,8 +1321,17 @@ export function WorkspaceBrowser({
                 className={css.iconButton}
                 aria-label={t('workspace.add')}
                 aria-keyshortcuts={addShortcut?.aria}
+                aria-haspopup={addActionsAvailable ? 'menu' : undefined}
+                aria-expanded={addActionsAvailable ? addMenuOpen : undefined}
                 onClick={() => {
-                  requestAddWorkspace()
+                  if (addActionsAvailable) setAddMenuOpen(value => !value)
+                  else requestAddWorkspace()
+                }}
+                onKeyDown={(event) => {
+                  if (addActionsAvailable && event.key === 'ArrowDown') {
+                    event.preventDefault()
+                    setAddMenuOpen(true)
+                  }
                 }}
               >
                 <IconProjectAddOutlineRegular size={wide ? 16 : 18} />
@@ -1316,6 +1339,17 @@ export function WorkspaceBrowser({
             </Tooltip>
           )}
         </div>
+        {/* Hemi fork: generic action rows extend only the sidebar menu, not the hero or directory shortcut. */}
+        <Menu open={addMenuOpen && addActionsAvailable} anchor={null} onClose={() => { setAddMenuOpen(false) }}
+          anchorRef={wsPlusRef} side="right" portal autoFocus>
+          {directoryFlowAvailable && <MenuItemButton icon={<IconProjectAddOutlineRegular size={16} />}
+            disabled={shortcutState.directoryBusy} onSelect={() => { setAddMenuOpen(false); requestAddWorkspace() }}>
+            {t('menu.addWorkspace')}
+          </MenuItemButton>}
+          {renderSlot('sidebar.workspaces.add.actions', {
+            onDismiss: () => { setAddMenuOpen(false) }, disabled: shortcutState.directoryBusy,
+          })}
+        </Menu>
         {/* Add flow + its error dialog (same package — direct composition). */}
         <WorkspacePickFlow
           t={t}

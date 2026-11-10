@@ -13,6 +13,7 @@ import type {
 import type { AgentCancelCause, Session, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
 export type { AgentCancelCause } from '@deepseek-ai/dsh-session'
 import type { Agent, InboxTarget, ModelSelection } from './types.ts'
+import type { AgentExecutionContext } from './execution-types.ts'
 export type { Agent } from './types.ts'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 declare module '@deepseek-ai/dsh-system-prompt' {
@@ -202,6 +203,8 @@ declare module './types.ts' {
     readonly status: AgentStatus
     /** Agent-scoped context; its contributions are agent-local, unwind on disposal, and reject registration afterward. */
     readonly ctx: Context
+    /** Bound base and live realm for explicit execution targets; absent for deployment-default execution. */
+    readonly execution?: AgentExecutionContext | undefined
 
     /**
    * Clear queued and steering work — unless `keepInbox` — and abort the active

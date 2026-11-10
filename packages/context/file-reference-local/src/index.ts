@@ -10,6 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import FileReferenceService, {
   FILE_REFERENCE_PROMPT,
+  FileReferenceEnvironmentUnsupportedError,
   type FileReferenceCandidate,
 } from '@deepseek-ai/dsh-file-reference'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -118,6 +119,9 @@ export class LocalFileReferenceService extends FileReferenceService {
     query: string,
     signal: AbortSignal,
   ): Promise<FileReferenceCandidate[]> {
+    // Hemi fork: this Node-backed index cannot interpret another environment's path strings.
+    signal.throwIfAborted()
+    if (agent.session.header.executionTarget !== undefined) throw new FileReferenceEnvironmentUnsupportedError()
     const cwd = await this.ctx.workingDirectory.ensure(agent, signal)
     let cached = this.searches.get(agent)
     if (cached?.cwd !== cwd) {

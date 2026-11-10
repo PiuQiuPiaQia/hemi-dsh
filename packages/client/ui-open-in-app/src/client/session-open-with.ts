@@ -6,6 +6,7 @@ import { OPEN_IN_APP_ICON_PREFIX_ROUTE } from '@deepseek-ai/dsh-host-open-in-app
 import { APP_LABEL_KEY } from './applications.ts'
 import type { OpenInAppController } from './controller.ts'
 import type { OpenInAppToastSource } from './open-toast.tsx'
+import { sessionHasNativePaths } from './native-paths.ts'
 
 /**
  * Share directory availability, successful choices, and launch feedback with the file-tree control.
@@ -21,7 +22,10 @@ export function registerSessionOpenWith(
   report: OpenInAppToastSource['report'],
 ): void {
   const resolve = ({ sessionId }: ContextMenuTargetMap['sessionHeader']): readonly MenuAction[] => {
-    const directory = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+    const sessions = ctx.sessions.list.getSnapshot()
+    // Hemi fork: an execution-environment directory is not a native application target on the serving Host.
+    if (!sessionHasNativePaths(sessions, sessionId)) return []
+    const directory = sessions.byId[sessionId]?.cwd
     const applications = (controller.apps.getSnapshot() ?? []).flatMap((id) => {
       const key = APP_LABEL_KEY[id]
       return key === undefined ? [] : [{ id, name: t(key) }]
@@ -34,7 +38,7 @@ export function registerSessionOpenWith(
         id: `app:${id}`, label: name, disabled,
         icon: { key: 'open-in-app.application', src: `${OPEN_IN_APP_ICON_PREFIX_ROUTE}/${id}` },
         run: async () => {
-          const outcome = await controller.launch(id, directory)
+          const outcome = await controller.launch(id, directory, { sessionId })
           if (outcome.kind === 'opened') controller.choose(id)
           report(outcome)
         },

@@ -615,6 +615,12 @@
   padding: 0 16px 0 20px;
 }
 
+/* Hemi fork: reserve the mode control's natural width while the Workspace label ellipsizes. */
+.heroAgentPreset {
+  flex: none;
+  min-width: 0;
+}
+
 /* Plugin options share the row, pushed to its right edge. */
 .heroOptions {
   display: flex;
@@ -625,6 +631,7 @@
   margin-left: auto;
 }
 
+.heroAgentPreset:empty,
 .heroOptions:empty {
   display: none;
 }

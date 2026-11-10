@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hemi-SSH-Server",
+    "description": "Durchsucht gespeicherte SSH-Verbindungen und wählt Remote-Ordner in Hemi aus."
+  }
+}

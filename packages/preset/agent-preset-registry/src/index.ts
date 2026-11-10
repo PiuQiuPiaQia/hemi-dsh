@@ -6,7 +6,7 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { bindScopeParent, createScope, scopeOf, scopeParentOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@deepseek-ai/dsh-scope'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { dump } from 'js-yaml'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentExecutionContext } from '@deepseek-ai/dsh-agent'
 import type { Session } from '@deepseek-ai/dsh-session'
 // Type-only: the optional `settings` service this registry keeps off the generated pages.
 import type {} from '@deepseek-ai/dsh-settings'
@@ -32,16 +32,21 @@ declare module '@deepseek-ai/cordis' {
 
 interface Generation {
   scope: Scope
+  close(): Promise<void>
   key: ScopeKey
   mount: PresetMount
   users: number
   retired: boolean
+  definition: Definition
+  realm?: symbol
+  collecting?: Promise<void>
 }
 interface Definition {
   config: PresetDefinition
   context: Context
   ready: Promise<void>
   generation?: Generation
+  readonly remotes: Map<symbol, Promise<Generation>>
   /** Mount failure; unset while a tree is mounted, whose rows {@link AgentPresetRegistry.diagnostic} re-audits on read. */
   broken?: string
 }
@@ -102,7 +107,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
     const context = this.ctx
     if (!definition.id.trim()) throw new Error('Preset id must not be empty')
     if (this.definitions.has(definition.id)) throw new Error(`Duplicate agent preset: ${definition.id}`)
-    const record: Definition = { config: definition, context, ready: Promise.resolve() }
+    const record: Definition = { config: definition, context, ready: Promise.resolve(), remotes: new Map() }
     this.definitions.set(definition.id, record)
     let disposed = false
     const unregister = async (): Promise<void> => {
@@ -110,34 +115,60 @@ export class AgentPresetRegistry extends TypertRemoteService {
       disposed = true
       this.definitions.delete(definition.id)
       await record.ready
-      if (record.generation !== undefined) {
-        record.generation.retired = true
-        await this.collect(record.generation)
+      const remote = await Promise.allSettled(record.remotes.values())
+      const retained = [...record.generation === undefined ? [] : [record.generation],
+        ...remote.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])]
+      for (const generation of retained) {
+        generation.retired = true
+        await this.collect(generation)
       }
     }
-    record.ready = this.activate(record)
+    record.ready = this.activate(record).then((generation) => { record.generation = generation }, (error: unknown) => {
+      record.broken = error instanceof Error ? error.message : String(error)
+      this.owner.logger.warn(`agent preset ${record.config.id}: ${record.broken}`)
+    })
     await record.ready
     return unregister
   }
 
-  private async activate(record: Definition): Promise<void> {
+  private async activate(record: Definition, execution?: AgentExecutionContext): Promise<Generation> {
     const key = {}
-    const scope = createScope(this.owner, key)
+    // Hemi fork: a realm's shared preset tree must not inherit an Agent subject or Host execution services.
+    const scope = createScope(execution === undefined ? this.owner : execution.base, key)
+    let closeScope = (): Promise<void> => scope.dispose()
+    if (execution !== undefined) {
+      const released = Promise.withResolvers<undefined>()
+      const drained = released.promise.then(() => scope.dispose())
+      // The enclosing Core fiber can stop alongside Agents; its exact scope disposer waits for consumers first.
+      const unfollow = execution.base.effect(function* () {
+        yield scope.rawDispose
+        yield () => drained
+      })
+      closeScope = async () => {
+        released.resolve(undefined)
+        try { await drained } finally { await unfollow() }
+      }
+    }
     try {
       const problem = entryListProblem(record.config.plugins)
       if (problem !== undefined) throw new Error(problem)
-      const context = scope.ctx.extend({ baseUrl: record.context.baseUrl })
+      let context = scope.ctx.extend({ baseUrl: record.context.baseUrl })
+      if (execution !== undefined) {
+        const injected = Promise.withResolvers<Context>()
+        await context.inject(['loader'], (loaderCtx: Context) => { injected.resolve(loaderCtx) })
+        context = await injected.promise
+      }
       const mount = await mountPreset(context, record.config.id, record.config.plugins)
-      const generation: Generation = { scope, key, mount, users: 0, retired: false }
+      const generation: Generation = { scope, close: closeScope, key, mount, users: 0, retired: false, definition: record,
+        ...execution === undefined ? {} : { realm: execution.realm } }
       context.effect(() => {
         this.generations.set(key, generation)
         return () => { this.generations.delete(key) }
       }, 'agent-preset.mount')
-      record.generation = generation
-    } catch (error) {
-      record.broken = (error as Error).message
-      this.owner.logger.warn(`agent preset ${record.config.id}: ${record.broken}`)
-      await scope.dispose()
+      return generation
+    } catch (error: unknown) {
+      await closeScope()
+      throw error
     }
   }
 
@@ -155,7 +186,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
   private async diagnostic(record: Definition): Promise<string | undefined> {
     await record.ready
     if (record.generation === undefined) return record.broken
-    const tree = record.generation.mount.tree
+    return this.generationDiagnostic(record.generation)
+  }
+
+  private async generationDiagnostic(generation: Generation): Promise<string | undefined> {
+    const tree = generation.mount.tree
     let audit = await auditRows(tree)
     if (audit.pending.length > 0) {
       await this.owner.loader.await()
@@ -165,10 +200,16 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return lines.length === 0 ? undefined : lines.join('\n')
   }
 
-  private async collect(generation: Generation): Promise<void> {
-    if (!generation.retired || generation.users !== 0) return
+  private collect(generation: Generation): Promise<void> {
+    if (generation.collecting !== undefined) return generation.collecting
+    if ((!generation.retired && generation.realm === undefined) || generation.users !== 0) return Promise.resolve()
+    const settled = Promise.withResolvers<undefined>()
+    generation.collecting = settled.promise
     this.generations.delete(generation.key)
-    await generation.scope.dispose()
+    if (generation.realm !== undefined) generation.definition.remotes.delete(generation.realm)
+    // Remote closures cannot outlive the last Agent lease keeping their execution providers alive.
+    void generation.close().then(() => { settled.resolve(undefined) }, settled.reject)
+    return settled.promise
   }
 
   private generationFor(ctx: Context): Generation | undefined {
@@ -260,26 +301,58 @@ export class AgentPresetRegistry extends TypertRemoteService {
     })
   }
 
-  private async retain(id?: string, usage?: 'main-session'): Promise<Generation> {
+  private async retain(id?: string, usage?: 'main-session', execution?: AgentExecutionContext): Promise<Generation> {
     const wanted = id ?? this.defaultId
     while (true) {
       const record = this.definitions.get(wanted)
       if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
         { agentPreset: wanted, available: [...this.definitions.keys()] })
-      const broken = await this.diagnostic(record)
+      const broken = execution === undefined ? await this.diagnostic(record) : undefined
       if (this.definitions.get(wanted) !== record) continue
       if (usage === 'main-session') this.assertMainSessionPreset(record.config)
-      const generation = record.generation
+      let generation: Generation | undefined
+      if (execution === undefined) generation = record.generation
+      else {
+        let pending = record.remotes.get(execution.realm)
+        if (pending === undefined) {
+          pending = this.activate(record, execution)
+          record.remotes.set(execution.realm, pending)
+          const current = pending
+          void pending.catch(() => {
+            if (record.remotes.get(execution.realm) === current) record.remotes.delete(execution.realm)
+          })
+        }
+        try { generation = await pending } catch (error: unknown) {
+          const reason = error instanceof Error ? error.message : String(error)
+          throw new RemoteError('agent-preset/invalid', reason, { agentPreset: wanted, reason })
+        }
+        if (generation.collecting !== undefined) continue
+        if (this.definitions.get(wanted) !== record) { await this.collect(generation); continue }
+      }
       if (broken !== undefined || generation === undefined) {
         const reason = broken as string
         throw new RemoteError('agent-preset/invalid', reason, { agentPreset: wanted, reason })
       }
       generation.users++
+      if (execution !== undefined) {
+        let retained = false
+        try {
+          const problem = await this.generationDiagnostic(generation)
+          if (this.definitions.get(wanted) !== record) continue
+          if (problem !== undefined) {
+            throw new RemoteError('agent-preset/invalid', problem, { agentPreset: wanted, reason: problem })
+          }
+          retained = true
+        } finally {
+          if (!retained) { generation.users--; await this.collect(generation) }
+        }
+      }
       return generation
     }
   }
 
   private async bind(ctx: Context, generation: Generation): Promise<void> {
+    ctx.fiber.assertActive()
     const key = scopeOf(ctx)
     if (key === undefined) throw new Error('Agent preset binding requires a scoped context')
     const binding = this.bindings.get(key)
@@ -309,25 +382,35 @@ export class AgentPresetRegistry extends TypertRemoteService {
    * @param ctx Agent context from its setup callback.
    * @param id Requested preset, or the default.
    * @param usage Apply main-session restrictions to the retained revision.
+   * @param execution Core-bound execution context; omission uses the deployment-default generation.
    * @returns Bound preset identity.
    */
-  async mount(ctx: Context, id?: string, usage?: 'main-session'): Promise<AgentPreset> {
-    const generation = await this.retain(id, usage)
+  async mount(ctx: Context, id?: string, usage?: 'main-session', execution?: AgentExecutionContext): Promise<AgentPreset> {
+    const settled = Promise.withResolvers<undefined>()
+    const unfollow = ctx.effect(() => () => settled.promise, 'agent-preset.acquisition')
     try {
-      await this.bind(ctx, generation)
-      return { id: generation.mount.presetId }
+      const generation = await this.retain(id, usage, execution)
+      try {
+        await this.bind(ctx, generation)
+        return { id: generation.mount.presetId }
+      } finally {
+        generation.users--
+        await this.collect(generation)
+      }
     } finally {
-      generation.users--
-      await this.collect(generation)
+      settled.resolve(undefined)
+      await unfollow()
     }
   }
 
   /** Join a child to the exact revision retained by its parent.
    * @param ctx Child Agent context.
    * @param parent Parent Agent context.
+   * @param execution Child execution instance; omission requires a deployment-default parent.
    * @returns Inherited preset id, or undefined in a preset-free composition.
    */
-  composeFrom(ctx: Context, parent: Context): string | undefined {
+  composeFrom(ctx: Context, parent: Context, execution?: AgentExecutionContext): string | undefined {
+    ctx.fiber.assertActive()
     const generation = this.generationFor(parent)
     if (generation === undefined) {
       if (parent.get('agentPresets')?.composedPreset(parent) !== undefined) {
@@ -335,6 +418,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
       }
       return undefined
     }
+    if (generation.realm !== execution?.realm) throw new Error('Parent preset belongs to another execution instance')
     // A child has no existing binding, so this path has no asynchronous cleanup.
     const key = scopeOf(ctx)
     if (key === undefined) throw new Error('Child preset binding requires a scope')
@@ -363,10 +447,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
    * @param ctx Agent context.
    * @param id Requested preset.
    * @param usage Apply main-session restrictions to the retained revision.
+   * @param execution Core-bound execution context; omission uses the deployment-default generation.
    * @returns The bound identity.
    */
-  async recompose(ctx: Context, id: string, usage?: 'main-session'): Promise<AgentPreset> {
-    const preset = await this.mount(ctx, id, usage)
+  async recompose(ctx: Context, id: string, usage?: 'main-session', execution?: AgentExecutionContext): Promise<AgentPreset> {
+    const preset = await this.mount(ctx, id, usage, execution)
     try { this.owner.emit('tools/change') }
     catch (error) { this.owner.logger.warn(`Preset tools observer: ${String(error)}`) }
     return preset
@@ -386,11 +471,12 @@ export class AgentPresetRegistry extends TypertRemoteService {
       if (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0) {
         throw new RemoteError('agent-preset/locked', 'This session has already started', { sessionId: agent.id, agentPreset })
       }
-      const current = this.definitions.get(agentPreset)?.generation
-      if (current !== undefined && this.generationFor(agent.ctx) === current
+      const current = this.generationFor(agent.ctx)
+      if (current !== undefined && current.definition === this.definitions.get(agentPreset)
+        && current.realm === agent.execution?.realm
         && this.agentPresetProjectionHandle.stateOf(agent.session) === agentPreset) return agentPreset
       const usage = agent.session.header.origin === 'subagent' ? undefined : 'main-session'
-      const preset = await this.recompose(agent.ctx, agentPreset, usage)
+      const preset = await this.recompose(agent.ctx, agentPreset, usage, agent.execution)
       agent.session.append('agent-preset/selected', { agentPreset: preset.id })
       return preset.id
     })

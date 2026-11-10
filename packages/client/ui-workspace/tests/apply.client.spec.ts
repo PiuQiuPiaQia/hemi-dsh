@@ -874,11 +874,25 @@ describe('ui-workspace apply', () => {
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     // Registration declared the child holes (declaration = render authorization).
     expect(b.slots.spec('sidebar.workspaces.directoryFlow')).toMatchObject({ kind: 'single' })
+    expect(b.slots.spec('sidebar.workspaces.add.actions')).toMatchObject({ kind: 'list' })
+    expect(b.slots.spec('conversation.hero.workspace.connections')).toMatchObject({ kind: 'list' })
     expect(b.slots.spec('conversation.hero.workspace.directoryFlow')).toMatchObject({ kind: 'single' })
+    expect(b.slots.spec('conversation.hero.workspace.add.actions')).toMatchObject({ kind: 'list' })
 
     const browser = faceOf(b.slots.entries('sidebar.workspaces')[0]!) as WorkspaceBrowserInjected
     const picker = faceOf(b.slots.entries('conversation.hero.workspace')[0]!) as WorkspacePickerInjected
     expect(browser.hooks.directoryFlow.getSnapshot()).toBe(false)
+    expect(browser.hooks.addActions.getSnapshot()).toBe(false)
+    const removeAction = b.slots.register({ name: 'sidebar.workspaces.add.actions', id: 'extra' } as never, () => null)
+    expect(browser.hooks.addActions.getSnapshot()).toBe(true)
+    removeAction()
+    expect(browser.hooks.addActions.getSnapshot()).toBe(false)
+    expect(picker.hooks.addActions.getSnapshot()).toBe(false)
+    const removePickerAction = b.slots.register({ name: 'conversation.hero.workspace.add.actions', id: 'extra' } as never, () => null)
+    expect(picker.hooks.addActions.getSnapshot()).toBe(true)
+    expect(browser.hooks.addActions.getSnapshot()).toBe(false)
+    removePickerAction()
+    expect(picker.hooks.addActions.getSnapshot()).toBe(false)
     expect(browser.hooks.hostInfo.getSnapshot()).toMatchObject({ home: undefined })
     expect(picker.hooks.directoryFlow.getSnapshot()).toBe(false)
     // A flow occupant flips exactly its own surface, and the source notifies.

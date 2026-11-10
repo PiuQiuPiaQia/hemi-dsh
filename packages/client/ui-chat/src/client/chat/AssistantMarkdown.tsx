@@ -1,6 +1,7 @@
 import { Fragment, memo, useMemo } from 'react'
 import { fileMediaUrl } from '@deepseek-ai/dsh-util-workspace-path'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ReactNode } from 'react'
 import { JsonBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownFileMentions, MarkdownPathImages } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -17,14 +18,16 @@ import css from './AssistantMarkdown.module.css'
  * Resolve an authored absolute image path against the document's file API.
  * @param base - canonical `document.baseURI` at render time.
  * @param value - authored Markdown destination; URL escapes are decoded once.
+ * @param sessionId - owning Session; no identity leaves local images unavailable.
  * @returns an absolute Web or Desktop file-API URL, or undefined for unsupported
  * protocols and non-local paths.
  */
-export function localPathMediaUrl(base: string, value: string): string | undefined {
+export function localPathMediaUrl(base: string, value: string, sessionId?: string): string | undefined {
+  if (sessionId === undefined) return undefined
   let path: string
   try { path = decodeURIComponent(value.split(/[?#]/u)[0] ?? '') }
   catch { return undefined } // Malformed URL escapes cannot identify a file.
-  return fileMediaUrl(base, path)
+  return fileMediaUrl(base, path, sessionId)
 }
 
 export interface AssistantMarkdownProps extends
@@ -32,6 +35,8 @@ export interface AssistantMarkdownProps extends
   Pick<ChatNodeOwnerProps, 'loadImage'> {
   /** Render only the requested business portion, preserving original block indexes. */
   groupPart?: string | undefined
+  /** Session owning path images; without an identity, local media stays unavailable. */
+  sessionId?: SessionId
   /** Stable Hook forwarded to each independently expandable reasoning block. */
   useDisclosure: UseDisclosure
   blocks: readonly AssistantBlock[]
@@ -56,7 +61,7 @@ export interface AssistantMarkdownProps extends
 
 /** Renders non-blank reasoning blocks as independent disclosures alongside the response. */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
-  blocks, streaming, textInteractionSource = false, interrupted, loadImage, groupPart, useDisclosure,
+  blocks, streaming, textInteractionSource = false, interrupted, loadImage, groupPart, useDisclosure, sessionId,
   reasoningHidden = false, usePresentation, revealProcess, mentions, renderSlot, useGroupAction, t,
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
@@ -64,8 +69,8 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   const labels = useMemo(() => markdownLabels(t), [t])
   // MarkdownText memoizes its vocabulary; keep its identity stable across renders.
   const pathImages = useMemo<MarkdownPathImages>(() => {
-    return { resolve: value => localPathMediaUrl(document.baseURI, value) }
-  }, [])
+    return { resolve: value => localPathMediaUrl(document.baseURI, value, sessionId) }
+  }, [sessionId])
   const last = blocks.length - 1
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
   // a node that is only those heads (or empty) would paint an empty root

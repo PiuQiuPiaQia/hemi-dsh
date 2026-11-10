@@ -6,6 +6,7 @@
 
 import type {
   Agent,
+  AgentExecutionContext,
   AgentCancelCause,
   AgentEventDispatch,
   AgentOptions,
@@ -141,6 +142,7 @@ export class ReactLoopAgent implements Agent {
     public readonly session: Session,
     projections: LoopProjections,
     lastTurn: number,
+    public readonly execution?: AgentExecutionContext,
   ) {
     this.requestSurfaceGeneration = session.surface.contentGeneration
     this.dispatch = agentEvents(loopCtx, this)

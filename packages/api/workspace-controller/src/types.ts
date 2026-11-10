@@ -5,7 +5,7 @@
  * restated: a browser consumer reads the very declaration the backend answers.
  */
 
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionExecutionTarget, SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionActivity, WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 
 export type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -17,10 +17,16 @@ export type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-host-dir
 /** One durable Workspace projected for browser consumers. */
 export interface WorkspaceView {
   readonly workspaceId: WorkspaceId
-  /** Canonical host directory path. */
+  /** Canonical physical directory path in this Workspace's execution environment. */
   readonly path: string
-  /** User-visible title. */
+  // Hemi fork: projected directory strings are meaningful only together with their execution reference.
+  /** Explicit execution reference; absent for the deployment-default environment. */
+  readonly executionTarget?: SessionExecutionTarget
+  /** Stored title; display-only providers never rewrite it. */
   readonly title: string
+  // Hemi fork: generic presentation metadata keeps execution-provider naming out of the Workspace registry.
+  /** Optional provider-supplied label; consumers retain title for rename drafts and mutations. */
+  readonly displayTitle?: string
   /** Sessions accounted to this Workspace in manual order. */
   readonly sessionIds: readonly SessionId[]
   /** ISO-8601 creation instant. */
@@ -64,6 +70,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 /** Existing directory requested for Workspace adoption. */
 export interface WorkspaceCreateRequest {
   readonly path: string
+  /** Explicit execution environment whose filesystem validates the directory. */
+  readonly executionTarget?: SessionExecutionTarget
 }
 
 /** Created or previously registered Workspace. */

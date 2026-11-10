@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { resolveChildAgentOptions, resolveChildDepth } from '../src/child-agent.ts'
+import { Session, SessionId, SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId } from '@deepseek-ai/dsh-session'
+import { childSessionMeta, resolveChildAgentOptions, resolveChildDepth } from '../src/child-agent.ts'
 
 function parentAgent(): Agent {
   const id = SessionId('parent')
@@ -19,6 +20,17 @@ function parentAgent(): Agent {
 }
 
 describe('child Agent options', () => {
+  it('inherits the execution environment even when the child selects another preset', () => {
+    const id = SessionId('remote-parent')
+    const executionTarget = { provider: 'ssh' as ExecutionProviderId, id: 'folder-1' as ExecutionTargetId }
+    const parent = { ...parentAgent(), session: Session.create(id, undefined, {
+      version: SESSION_FORMAT_VERSION, id, createdAt: 1, isSeeded: false, cwd: '/project', executionTarget,
+    }) }
+    expect(childSessionMeta(parent, 1, false, 'oracle')).toMatchObject({
+      executionTarget, cwd: '/project', agentPreset: 'oracle', parentSession: id,
+    })
+  })
+
   it('inherits the parent effort when no route is supplied', () => {
     expect(resolveChildAgentOptions(parentAgent(), undefined, 1)).toEqual({
       provider: 'parent-provider',

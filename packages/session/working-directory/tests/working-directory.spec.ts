@@ -9,6 +9,9 @@ import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import WorkingDirectory, { type Config as WorkingDirectoryConfig } from '@deepseek-ai/dsh-working-directory'
 import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId } from '@deepseek-ai/dsh-session'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as WorkingDirectoryTool from '@deepseek-ai/dsh-tool-working-directory'
@@ -38,6 +41,79 @@ async function fixture(config?: (root: string) => WorkingDirectoryConfig) {
 }
 
 describe('Session working directories', () => {
+  it('validates an explicitly bound execution filesystem without consulting the Host provider', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-bound-directory-')))
+    const ctx = new Context()
+    try {
+      const remote = join(root, 'remote')
+      await mkdir(join(remote, 'child'), { recursive: true })
+      await mountAgentLoopTestDependencies(ctx)
+      await ctx.plugin(LocalFileSystem, { cwd: root })
+      await ctx.plugin(WorkingDirectory, { defaultDirectory: root })
+      await ctx.plugin(AgentLoop, { agents: [] })
+      const realm = Symbol('other-filesystem')
+      const world = ctx.isolate('fs', realm)
+      const filesystem = await world.plugin(LocalFileSystem, { cwd: remote })
+      const provider = brandString<ExecutionProviderId>('test-filesystem')
+      const close = vi.fn(async () => {})
+      ctx.agents.registerExecutionProvider(provider, { acquire: async () => ({
+        realm, signal: new AbortController().signal, bind: base => base.isolate('fs', realm), close,
+      }) })
+      const hostResolve = vi.spyOn(ctx.fs, 'resolve')
+      const hostStat = vi.spyOn(ctx.fs, 'stat')
+      const handle = await ctx.agents.create({ sessionId: SessionId('bound-directory'), meta: {
+        cwd: remote, executionTarget: { provider, id: brandString<ExecutionTargetId>('directory-1') },
+      } })
+      await expect(ctx.workingDirectory.ensure(handle.agent)).resolves.toBe(remote)
+      await expect(ctx.workingDirectory.set(handle.agent, 'child')).resolves.toBe(join(remote, 'child'))
+      vi.spyOn(world.fs, 'stat').mockRejectedValueOnce(new Error('execution filesystem is offline'))
+      await expect(ctx.workingDirectory.ensure(handle.agent)).rejects.toThrow('execution filesystem is offline')
+      expect(ctx.workingDirectory.get(handle.agent.session)).toBe(join(remote, 'child'))
+      const other = await ctx.agents.create({ sessionId: SessionId('pending-bound-directory'), meta: {
+        cwd: remote, executionTarget: { provider, id: brandString<ExecutionTargetId>('directory-1') },
+      } })
+      const entered = Promise.withResolvers<undefined>()
+      const release = Promise.withResolvers<undefined>()
+      vi.spyOn(world.fs, 'stat').mockImplementationOnce(async (_target, signal) => {
+        entered.resolve(undefined)
+        await release.promise
+        signal?.throwIfAborted()
+        throw new Error('expected scope cancellation')
+      })
+      const inspection = ctx.workingDirectory.ensure(other.agent).then(() => undefined, (error: unknown) => error)
+      let disposal: Promise<void> | undefined
+      try {
+        await entered.promise
+        disposal = other.dispose()
+        await setImmediate()
+        expect(close).not.toHaveBeenCalled()
+        release.resolve(undefined)
+        expect(await inspection).toMatchObject({ message: 'working-directory: Agent scope disposed' })
+        await disposal
+      } finally {
+        release.resolve(undefined)
+        await inspection
+        await disposal
+      }
+      expect(close).toHaveBeenCalledTimes(1)
+      await filesystem.dispose()
+      await expect(ctx.workingDirectory.ensure(handle.agent)).rejects.toThrow('execution filesystem is unavailable')
+      expect(hostResolve).not.toHaveBeenCalled()
+      expect(hostStat).not.toHaveBeenCalled()
+      await handle.dispose()
+    } finally {
+      try { await ctx.fiber.dispose() } finally { await rm(root, { recursive: true, force: true }) }
+    }
+  })
+
+  it('does not invent a deployment directory for an explicit target without an initial directory', async () => {
+    await using f = await fixture()
+    const session = f.ctx.sessions.create(SessionId('missing-target-directory'), { meta: { executionTarget: {
+      provider: brandString<ExecutionProviderId>('test-filesystem'), id: brandString<ExecutionTargetId>('directory-1'),
+    } } })
+    expect(() => f.ctx.workingDirectory.get(session)).toThrow('requires an initial directory')
+  })
+
   it('keeps origin metadata and other Sessions independent while logging the changed directory', async () => {
     await using f = await fixture()
     const child = join(f.root, 'child')
@@ -285,7 +361,7 @@ describe('Session working directories', () => {
     }
   })
 
-  it('refuses an Agent disposed during directory inspection without publishing a change', async () => {
+  it('drains an Agent directory inspection during disposal without publishing a change', async () => {
     await using f = await fixture()
     await mkdir(join(f.root, 'child'))
     const entered = Promise.withResolvers<undefined>()
@@ -298,18 +374,23 @@ describe('Session working directories', () => {
       return info
     })
     const pending = f.ctx.workingDirectory.set(f.agent, 'child')
-    const rejection = expect(pending).rejects.toThrow('inactive context')
+    const rejection = expect(pending).rejects.toThrow('Agent scope disposed')
+    let disposal: Promise<void> | undefined
+    let disposed = false
     try {
       await entered.promise
-      await f.agent.ctx.fiber.dispose()
+      disposal = Promise.resolve(f.agent.ctx.fiber.dispose()).then(() => { disposed = true })
+      await setImmediate()
+      expect(disposed).toBe(false)
       release.resolve(undefined)
       await rejection
+      await disposal
       expect(f.agent.session.snapshotEvents().filter(event => event.type === 'working-directory/change')).toEqual([])
       await expect(f.ctx.workingDirectory.ensure(f.agent)).rejects.toThrow('inactive context')
       expect(probe).toHaveBeenCalledOnce()
     } finally {
       release.resolve(undefined)
-      await Promise.allSettled([pending, rejection])
+      await Promise.allSettled([pending, rejection, disposal])
       probe.mockRestore()
     }
   })

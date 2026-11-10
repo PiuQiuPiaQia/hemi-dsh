@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hemi SSH servers",
+    "description": "Save and reuse SSH server references and remembered passwords in Hemi."
+  }
+}

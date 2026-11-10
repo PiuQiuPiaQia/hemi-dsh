@@ -1,0 +1,25 @@
+- dialog "编辑 SSH 服务器":
+  - heading "编辑 SSH 服务器" [level=2]
+  - button "关闭"
+  - paragraph: 保存连接和远端目录；选择目录时会通过 SSH 连接，不会修改 SSH 配置
+  - text: 显示名称
+  - textbox "显示名称":
+    - /placeholder: 生产服务器
+    - text: 部署服务器
+  - text: SSH 地址
+  - textbox "SSH 地址":
+    - /placeholder: root@192.168.1.10
+    - text: deploy@prod.example.com
+  - text: 可填写“用户名@主机”，也可只填主机或 SSH 别名；端口请填下方，不要包含 ssh 命令 端口
+  - textbox "端口": "2222"
+  - text: 私钥文件路径 可选
+  - textbox "私钥文件路径":
+    - /placeholder: ~/.ssh/id_ed25519
+  - text: 留空沿用 SSH 配置
+  - paragraph: 填写运行 Hemi 的电脑上的路径；不会上传私钥，请勿粘贴私钥内容或密码
+  - text: 远端目录
+  - textbox "远端目录":
+    - /placeholder: /home/user/project
+  - button "选择目录"
+  - button "取消"
+  - button "保存"

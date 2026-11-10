@@ -28,7 +28,7 @@ export const inject: string[] = []
 
 /** Plugin config (all optional — the built-in facts resolve without defaults). */
 export interface Config {
-  /** DeepSeek Harness home directory exposed as `DSH_HOME`; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** Harness home exposed as `DSH_HOME` only in deployment-default execution; defaults to `$DSH_HOME` or `~/.dsh`. */
   dshHome?: string
 }
 
@@ -154,9 +154,10 @@ export class ShellEnvRegistry extends Service {
    * @returns an immutable environment overlay containing built-ins and current contributions.
    */
   collect(execution: ToolExecution): DshEnvironment {
-    const values: Record<DshEnvironmentKey, string> = {
-      [DSH_HOME_ENV]: this.dshHome,
-      [DSH_SHELL_KEY]: '1',
+    // Hemi fork: deployment-local directories have no meaning in an explicit execution environment.
+    const deploymentEnvironment = execution.agent?.session.header.executionTarget === undefined
+    const values: Record<DshEnvironmentKey, string> = { [DSH_SHELL_KEY]: '1',
+      ...deploymentEnvironment ? { [DSH_HOME_ENV]: this.dshHome } : {},
     }
     if (execution.agent !== undefined) {
       values[DSH_SESSION_ID_KEY] = execution.agent.session.header.id
@@ -164,7 +165,7 @@ export class ShellEnvRegistry extends Service {
     const profile = this.ctx.get('profileContext')
     if (profile !== undefined) {
       values[DSH_PROFILE_KEY] = profile.name
-      values[DSH_PROFILE_DIR_KEY] = profile.dir
+      if (deploymentEnvironment) values[DSH_PROFILE_DIR_KEY] = profile.dir
     }
 
     for (const contributor of [...this.contributors.values()].sort((left, right) => left.name.localeCompare(right.name))) {

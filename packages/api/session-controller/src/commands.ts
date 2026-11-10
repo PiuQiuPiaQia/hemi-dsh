@@ -136,6 +136,8 @@ export class SessionCommandController {
       created = await this.agents.createSession({
         ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
         cwd,
+        // Hemi fork: execution identity comes from the authoritative Workspace, not a caller-supplied path.
+        ...workspace?.executionTarget === undefined ? {} : { executionTarget: workspace.executionTarget },
         ...(request.agentPreset === undefined ? {} : { agentPreset: request.agentPreset }),
         reusable: sessionId => !this.ctx.workspaceRegistry.archivedSessionIds.includes(sessionId)
           && (workspace === undefined || workspace.sessionIds.includes(sessionId)),
@@ -275,7 +277,7 @@ export class SessionCommandController {
       )
     }
     const childId = brandString<SessionId>(`session-${randomUUID()}`)
-    // Hemi fork: a fork inherits the source's recorded composition.
+    // Hemi fork: a fork inherits the source's recorded composition and execution environment.
     const composition = await this.agents.composeAgent(this.agents.presetForObservation(source), 'restore')
     try {
       const selection = this.ctx.agentDefaultModel.currentSelection()
@@ -285,6 +287,7 @@ export class SessionCommandController {
         inheritedEventCount: SessionLogOffset(boundary + 1),
         meta: {
           ...(source.header.cwd === undefined ? {} : { cwd: source.header.cwd }),
+          ...(source.header.executionTarget === undefined ? {} : { executionTarget: source.header.executionTarget }),
           isSeeded: true,
           ...(composition.agentPreset === undefined
             ? {}

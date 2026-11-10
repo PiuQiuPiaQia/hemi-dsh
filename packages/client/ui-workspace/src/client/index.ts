@@ -149,6 +149,19 @@ export function apply(ctx: Context): void {
     subscribe: listener => ctx.slots.subscribe(hole, listener),
   })
   const browserFlowSource = flowSource('sidebar.workspaces.directoryFlow')
+  // Hemi fork: menu occupancy is generic; feature code stays in its contributing plugin.
+  const addActionsSource: HostObservable<boolean> = {
+    getSnapshot: () => ctx.slots.entries('sidebar.workspaces.add.actions').length > 0,
+    subscribe: listener => ctx.slots.subscribe('sidebar.workspaces.add.actions', listener),
+  }
+  const pickerAddActionsSource: HostObservable<boolean> = {
+    getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.add.actions').length > 0,
+    subscribe: listener => ctx.slots.subscribe('conversation.hero.workspace.add.actions', listener),
+  }
+  const pickerConnectionsSource: HostObservable<boolean> = {
+    getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.connections').length > 0,
+    subscribe: listener => ctx.slots.subscribe('conversation.hero.workspace.connections', listener),
+  }
   const hostInfo: HostObservable<RemoteHostFacts> = {
     getSnapshot: () => ctx.remote.$host,
     subscribe: listener => ctx.on('connection/reset', listener),
@@ -308,12 +321,15 @@ export function apply(ctx: Context): void {
     requestAddWorkspace: shortcutControls.add,
     closeAddWorkspace: shortcutControls.closeAdd,
     setDirectoryBusy: shortcutControls.directoryBusy,
-    hooks: { workspaceActionRequest, contextMenuTarget: ctx.contextMenus.active, directoryFlow: browserFlowSource, hostInfo,
-      workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog },
+    hooks: {
+      workspaceActionRequest, contextMenuTarget: ctx.contextMenus.active,
+      directoryFlow: browserFlowSource, addActions: addActionsSource, hostInfo,
+      workspaceShortcuts: shortcutControls.state, shortcuts: ctx.shortcuts.catalog,
+    },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({
     createWorkspace: input => workspaces.create(input),
-    hooks: { directoryFlow: pickerFlowSource },
+    hooks: { directoryFlow: pickerFlowSource, addActions: pickerAddActionsSource, connections: pickerConnectionsSource },
   })
   // Each registration declares its owned children in the same call; slot
   // injection follows both the owner and declaration HMR lifetimes.
@@ -322,6 +338,7 @@ export function apply(ctx: Context): void {
       name: 'sidebar.workspaces',
       children: {
         'sidebar.workspaces.directoryFlow': { kind: 'single', scope: 'root' },
+        'sidebar.workspaces.add.actions': { kind: 'list', scope: 'root' },
         'sidebar.workspaces.session.row.action': { kind: 'list', scope: 'root' },
         'sidebar.session.row.leading': { kind: 'list', scope: 'root', inline: true },
         'sidebar.session.row.trailing': { kind: 'list', scope: 'root', inline: true },
@@ -363,7 +380,11 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.hero.workspace', () => ctx.slots.register(
     {
       name: 'conversation.hero.workspace',
-      children: { 'conversation.hero.workspace.directoryFlow': { kind: 'single', scope: 'root' } },
+      children: {
+        'conversation.hero.workspace.directoryFlow': { kind: 'single', scope: 'root' },
+        'conversation.hero.workspace.add.actions': { kind: 'list', scope: 'root' },
+        'conversation.hero.workspace.connections': { kind: 'list', scope: 'root' },
+      },
       inject: pickerInjected,
       locale: NS,
     },

@@ -73,6 +73,8 @@ await handle.agent.whenIdle()
 
 `Agent.ctx` 是该 agent 的作用域上下文：通过它进行的注册（工具、提示词段、变量、事件监听器、限制）只对该 agent 生效，并在 dispose（资源释放）时全部撤销。同一机制也是 agent preset 用来让一个会话获得不同能力集、同时不影响其邻居的方式。
 
+显式 Session 执行目标通过受 effect 管理的 `registerExecutionProvider()` 注册解析。`acquireExecution(reference, signal)` 返回 lease；其 `bind(base)` 选择执行服务，不替换 Core 依赖。消费方先停止并释放自身作用域，再关闭 lease。provider 撤销会中止 lease 并等待释放。`agent.execution` 为共享 preset 激活提供绑定后的 base 和实际 realm 实例；沿用部署默认执行环境时该字段缺省。
+
 ### 拦截或观察进行中的工作
 
 `agent/request` 已弃用，仅为现有监听器保留。不要添加新监听器。提供方、模型和可选的显式推理强度在步骤准备时固定；监听器必须保留三者，包括未指定强度的状态。`AgentOptions.maxTokens` 设置输出上限。其他逐请求控制参数覆盖没有替代 API。受影响的调用方参见[迁移指南](../../../docs/upgrade-guide/v0.2.1-alpha.4/session-model-selection/guide.zh.md)。

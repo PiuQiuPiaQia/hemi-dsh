@@ -14,6 +14,7 @@ import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-work
 import type { OpenInAppPathController } from './open-path.ts'
 import type { OpenInAppKey } from './locales.ts'
 import type { OpenInAppToastSource } from './open-toast.tsx'
+import { sessionHasNativePaths } from './native-paths.ts'
 
 /**
  * Register native opening, original-path reveal, and URL actions.
@@ -31,8 +32,8 @@ export function registerContextMenus(
   report: OpenInAppToastSource['report'],
 ): void {
   const fileManager = () => t(directories.apps.getSnapshot()?.includes('finder') ? 'menu.finder' : 'menu.reveal')
-  const open = async (path: string, action: 'open' | 'reveal', application?: string): Promise<void> => {
-    report(await paths.openPath(path, action, application))
+  const open = async (sessionId: SessionId, path: string, action: 'open' | 'reveal', application?: string): Promise<void> => {
+    report(await paths.openPath(path, action, application, sessionId))
   }
   const resolvePath = async (sessionId: SessionId, path: string, signal: AbortSignal): Promise<string | undefined> => {
     try {
@@ -47,14 +48,16 @@ export function registerContextMenus(
   }
   ctx.effect(() => ctx.contextMenus.register({
     id: 'open-in-app.workspace', target: 'workspace', order: 200,
-    resolve: async ({ path }, signal) => {
+    resolve: async ({ workspaceId, path, executionTarget }, signal) => {
+      // Hemi fork: native directory applications cannot interpret explicit execution-environment paths.
+      if (executionTarget !== undefined) return []
       await directories.load()
       signal.throwIfAborted()
       const manager = directories.apps.getSnapshot()?.find(id => ['finder', 'explorer', 'filemanager'].includes(id))
       return [{ id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: manager === undefined,
         failureLabel: t('path.revealError'),
         ...manager === undefined ? {} : { run: async () => {
-          const outcome = await directories.launch(manager, path)
+          const outcome = await directories.launch(manager, path, { workspaceId })
           report(outcome.kind === 'failed' ? { kind: 'failed', failure: 'revealError' } : outcome)
         } } }]
     },
@@ -62,14 +65,17 @@ export function registerContextMenus(
   ctx.effect(() => ctx.contextMenus.register({
     id: 'open-in-app.directory', target: 'directory', order: 100,
     resolve: async ({ sessionId, path }, signal) => {
-      await paths.load()
-      const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+      const session = ctx.sessions.list.getSnapshot().byId[sessionId]
+      const native = sessionHasNativePaths(ctx.sessions.list.getSnapshot(), sessionId)
+      const remote = session?.executionTarget !== undefined
+      if (native) await paths.load()
+      const cwd = session?.cwd
       const absolutePath = resolveWorkspacePath(cwd, path)
       signal.throwIfAborted()
       return [
-        { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: paths.desktop.getSnapshot() !== true,
-          run: () => open(absolutePath, 'reveal') },
-        { id: 'copyPath', icon: { key: 'open-in-app.copy' }, label: t('menu.copyDirectoryPath'), failureLabel: t('menu.copyFailed'), run: async () => {
+        ...native ? [{ id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: paths.desktop.getSnapshot() !== true,
+          run: () => open(sessionId, absolutePath, 'reveal') }] : [],
+        { id: 'copyPath', icon: { key: 'open-in-app.copy' }, label: t(remote ? 'menu.copyRemotePath' : 'menu.copyDirectoryPath'), failureLabel: t('menu.copyFailed'), run: async () => {
           await navigator.clipboard.writeText(absolutePath)
           ctx.contextMenus.notify(t('menu.copied'), true)
         } },
@@ -83,8 +89,10 @@ export function registerContextMenus(
       await paths.load()
       const absolutePath = await resolvePath(sessionId, path, signal)
       const available = absolutePath !== undefined
-      const desktop = paths.desktop.getSnapshot() === true && available
-      const apps = desktop ? await paths.applications(absolutePath, signal) : []
+      const native = sessionHasNativePaths(ctx.sessions.list.getSnapshot(), sessionId)
+      const remote = ctx.sessions.list.getSnapshot().byId[sessionId]?.executionTarget !== undefined
+      const desktop = native && paths.desktop.getSnapshot() === true && available
+      const apps = desktop ? await paths.applications(absolutePath, signal, sessionId) : []
       signal.throwIfAborted()
       const application = apps?.find(app => app.default)
       // The menu names a host, not the pane it was raised in: a floating pane is never a docked landing place.
@@ -97,13 +105,15 @@ export function registerContextMenus(
       return [
         { id: 'sidebar', icon: { key: 'open-in-app.sidebar' }, label: t('menu.openInSidebar'), disabled: !available, run: openIn('sidebar') },
         { id: 'float', icon: { key: 'open-in-app.float' }, label: t('menu.openInFloat'), disabled: !available, run: openIn('float') },
-        { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: !desktop,
-          ...absolutePath === undefined ? {} : { run: () => open(absolutePath, 'reveal') } },
-        { id: 'open', label: application ? t('open.title', { app: application.name }) : t('menu.defaultApp'),
-          icon: { key: 'open-in-app.application', ...application?.icon ? { src: application.icon } : {} },
-          disabled: application === undefined,
-          ...absolutePath === undefined || application === undefined ? {} : { run: () => open(absolutePath, 'open', application.id) } },
-        { id: 'copyPath', icon: { key: 'open-in-app.copy' }, failureLabel: t('menu.copyFailed'), label: t('menu.copyPath'),
+        ...native ? [
+          { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: !desktop,
+            ...absolutePath === undefined ? {} : { run: () => open(sessionId, absolutePath, 'reveal') } },
+          { id: 'open', label: application ? t('open.title', { app: application.name }) : t('menu.defaultApp'),
+            icon: { key: 'open-in-app.application', ...application?.icon ? { src: application.icon } : {} },
+            disabled: application === undefined,
+            ...absolutePath === undefined || application === undefined ? {} : { run: () => open(sessionId, absolutePath, 'open', application.id) } },
+        ] : [],
+        { id: 'copyPath', icon: { key: 'open-in-app.copy' }, failureLabel: t('menu.copyFailed'), label: t(remote ? 'menu.copyRemotePath' : 'menu.copyPath'),
           run: async () => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
             await navigator.clipboard.writeText(absolutePath ?? resolveWorkspacePath(cwd, path))
@@ -128,13 +138,14 @@ export function registerContextMenus(
     id: 'open-in-app.image', target: 'image', order: 200,
     resolve: async (target, signal) => {
       const { sessionId, path } = target
+      if (sessionId !== undefined && !sessionHasNativePaths(ctx.sessions.list.getSnapshot(), sessionId)) return []
       await paths.load()
       const local = path !== undefined && sessionId !== undefined && paths.desktop.getSnapshot() === true
         ? await resolvePath(sessionId, path, signal) : undefined
       signal.throwIfAborted()
       return [
         { id: 'reveal', icon: { key: 'open-in-app.reveal' }, label: fileManager(), disabled: local === undefined,
-          ...local !== undefined ? { run: () => open(local, 'reveal') } : {} },
+          ...local !== undefined && sessionId !== undefined ? { run: () => open(sessionId, local, 'reveal') } : {} },
       ]
     },
   }), 'open-in-app: image context menu')

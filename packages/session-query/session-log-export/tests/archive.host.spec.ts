@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { unzipSync, strFromU8 } from 'fflate'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import type { SessionEvent, SessionHeader, SessionId, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId, SessionEvent, SessionHeader, SessionId, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-session'
 import type { SessionLineageNode } from '@deepseek-ai/dsh-session-query'
 import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionAccess, SessionHandle } from '@deepseek-ai/dsh-session-persistence'
@@ -260,6 +260,7 @@ describe('serializeSessionLog', () => {
       parentSession: sid('parent'),
       origin: 'subagent',
       agentPreset: 'minimal',
+      executionTarget: { provider: 'ssh' as ExecutionProviderId, id: 'folder-1' as ExecutionTargetId },
     }
     const events: SessionEvent[] = [
       { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
@@ -276,6 +277,7 @@ describe('serializeSessionLog', () => {
       origin: 'subagent',
       delegationDepth: 0,
       agentPreset: 'minimal',
+      executionTarget: { provider: 'ssh', id: 'folder-1' },
     })}\n${events.map(event => JSON.stringify(event)).join('\n')}\n`)
   })
 })

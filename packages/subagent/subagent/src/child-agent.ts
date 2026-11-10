@@ -7,7 +7,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent, AgentOptions, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentExecutionContext, AgentOptions, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
@@ -142,6 +142,8 @@ export function childSessionMeta(
   const agentPreset = selectedPreset ?? parent.ctx.get('agentPresets')?.composedPreset(parent.ctx)
   return {
     ...parentHeader.cwd !== undefined ? { cwd: parentHeader.cwd } : {},
+    // Hemi fork: choosing a child preset must not change its execution environment.
+    ...parentHeader.executionTarget !== undefined ? { executionTarget: parentHeader.executionTarget } : {},
     ...agentPreset === undefined ? {} : { agentPreset },
     parentSession: parentHeader.id,
     isSeeded,
@@ -182,23 +184,25 @@ export const SUBAGENT_DELEGATION_CONTEXT
  * @param childCtx - the child agent's scoped creation context.
  * @param parent - creator for fresh delegation; absent during target-only restoration.
  * @param composition - independent preset and any overrides read from a historical descriptor.
+ * @param execution - child's Core-bound execution context; absent for deployment-default execution.
  * @returns A promise when mounting an independent preset; otherwise completes synchronously.
  */
 export function applyChildComposition(
   childCtx: Context,
   parent: Agent | undefined,
   composition: ChildComposition,
+  execution?: AgentExecutionContext,
 ): void | Promise<void> {
   if (composition.agentPreset !== undefined) {
     const presets = childCtx.get('agentPresets')
     if (presets === undefined) {
       throw new SubagentError('selecting a child agent preset requires the agent-presets service', 'PRESET_UNAVAILABLE')
     }
-    return presets.mount(childCtx, composition.agentPreset).then(() => {
+    return presets.mount(childCtx, composition.agentPreset, undefined, execution).then(() => {
       applyChildOverrides(childCtx, composition)
     })
   }
-  if (parent !== undefined) childCtx.get('agentPresets')?.composeFrom(childCtx, parent.ctx)
+  if (parent !== undefined) childCtx.get('agentPresets')?.composeFrom(childCtx, parent.ctx, execution)
   applyChildOverrides(childCtx, composition)
 }
 

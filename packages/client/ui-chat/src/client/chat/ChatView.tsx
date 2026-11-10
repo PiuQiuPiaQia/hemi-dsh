@@ -99,7 +99,7 @@ export function ChatView({
   const cwd = useSessions(s => s.byId[sessionId]?.cwd)
   const fileImages = useMemo(() => ({
     fileDrag,
-    resolve: (path: string) => fileMediaUrl(document.baseURI, resolveWorkspacePath(cwd, path)),
+    resolve: (path: string) => fileMediaUrl(document.baseURI, resolveWorkspacePath(cwd, path), sessionId),
     resourceAddress: (path: string) => sessionFileAddress(sessionId, resolveWorkspacePath(cwd, path)),
     labels: {
       open: t('image.open'), loading: t('image.loading'), failed: t('image.failed'),

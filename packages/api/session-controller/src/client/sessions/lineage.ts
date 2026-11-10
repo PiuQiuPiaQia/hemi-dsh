@@ -2,7 +2,7 @@
 // The input order is authoritative; lineage only makes each child adjacent to its parent.
 // Orphaned lineage degrades to root level; cycles fail soft and emit as roots.
 
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionExecutionTarget, SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionProjectionSummaryValues } from '@deepseek-ai/dsh-session-projection/types'
 import type { SessionSummary } from '../../types.ts'
 
@@ -35,6 +35,11 @@ export interface SessionListEntry {
   /** Format classification supplied by the Host list. */
   formatStatus?: SessionSummary['formatStatus']
   cwd?: string
+  /**
+   * Explicit execution environment from the Session header; absent means the
+   * Host's default environment. Rows must not infer it from `cwd`.
+   */
+  executionTarget?: SessionExecutionTarget
   /**
    * The row's summary projection values, never the full projection set; see
    * `TitledSessionSummary.projectionValues`.

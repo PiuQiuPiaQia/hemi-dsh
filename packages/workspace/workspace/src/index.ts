@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat } from 'node:fs/promises'
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionExecutionTarget, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { DomainGlobal, KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { WorkspaceEntity } from './entity.ts'
@@ -18,10 +18,11 @@ export { WorkspaceMoveInvalidError } from './entity.ts'
 import { defaultWorkspaceTitle, fullyQualifiedWorkspacePath, realpathNormalize } from './paths.ts'
 import { workspaceDomainSpec } from './spec.ts'
 import type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
-import type { SessionActivity, Workspace, WorkspaceId as WorkspaceIdBrand } from './types.ts'
+import type { SessionActivity, Workspace, WorkspaceDirectoryOptions, WorkspaceId as WorkspaceIdBrand } from './types.ts'
+import { directoryKey, sameExecutionTarget, WorkspaceDirectories } from './execution.ts'
 
 export type {
-  SessionActivity, SessionActivityItem, SessionActivityKind, SessionActivityKindMap, Workspace,
+  SessionActivity, SessionActivityItem, SessionActivityKind, SessionActivityKindMap, Workspace, WorkspaceDirectoryOptions,
 } from './types.ts'
 export { workspaceDomainState, workspaceRecord, workspaceDomainSpec } from './spec.ts'
 export type { WorkspaceDomainState, WorkspaceRecord } from './spec.ts'
@@ -150,6 +151,7 @@ declare module '@deepseek-ai/cordis' {
 
 interface BootstrapGroup {
   readonly path: string
+  readonly executionTarget?: SessionExecutionTarget
   readonly headers: SessionHeader[]
   readonly newestAt: number
 }
@@ -179,10 +181,14 @@ export class WorkspaceRegistry extends Service {
   private readonly missingSessionPaths = new Set<SessionId>()
   private readonly invalidSessionPaths = new Map<SessionId, string>()
   private operationTail: Promise<void> = Promise.resolve()
+  private readonly directories: WorkspaceDirectories
 
   private readonly host: WorkspaceEntityHost = {
     table: () => this.requireTable(),
-    candidateMatches: (id, path) => this.sessionPaths.get(id) === path || this.missingSessionPaths.has(id),
+    candidateMatches: (id, path, target) => sameExecutionTarget(this.headers.get(id)?.executionTarget, target)
+      && (this.sessionPaths.get(id) === path || this.missingSessionPaths.has(id)),
+    canonicalDirectory: (path, target) => this.directories.canonical(path, target),
+    directoryStatus: (path, target) => this.directories.status(path, target),
     readSessionHeader: id => this.readSessionHeader(id),
     rememberSessionPath: (id, path) => {
       this.sessionPaths.set(id, path)
@@ -193,12 +199,17 @@ export class WorkspaceRegistry extends Service {
 
   constructor(ctx: Context) {
     super(ctx, 'workspaceRegistry')
+    // Hemi fork: directory admission stays in its recorded execution environment, with no SSH business branch.
+    this.directories = new WorkspaceDirectories(ctx)
   }
 
   /** Open the domain, finish bootstrap when required, and rebuild the ordered cache. */
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(workspaceDomainSpec)
-    this.ctx.effect(() => () => domain.close(), 'workspace.domainClose')
+    this.ctx.effect(() => async () => {
+      await this.directories.close()
+      try { await this.operationTail } finally { await domain.close() }
+    }, 'workspace.directoryOperationsAndDomainClose')
     this.table = domain.table('workspaces')
     this.global = domain.global
     this.state = domain.global.get()
@@ -228,6 +239,7 @@ export class WorkspaceRegistry extends Service {
    * Different canonical paths may share a display title.
    * @param path - Existing directory to own, in a fully qualified path spelling.
    * @param title - Display title used only when a new record is created.
+   * @param options - explicit execution environment and pre-write cancellation.
    * @returns the existing or newly durable workspace.
    */
   // TODO: `title` lost its last production caller when the gateway's
@@ -235,12 +247,13 @@ export class WorkspaceRegistry extends Service {
   // (.agents/notes/archived/simplification/2026-07-31-one-route-to-add-a-workspace.md);
   // drop the parameter with its @param clause and the `create(path, title?)`
   // lines in this package's README pair.
-  async create(path: string, title?: string): Promise<Workspace> {
-    const canonical = await realpathNormalize(path)
-    if (!(await stat(canonical)).isDirectory()) {
-      throw new Error(`cannot create a workspace at '${canonical}': path is not a directory`)
-    }
-    return await this.enqueueOperation(() => this.createCanonical(canonical, title))
+  async create(path: string, title?: string, options: WorkspaceDirectoryOptions = {}): Promise<Workspace> {
+    const target = options.executionTarget === undefined ? undefined : Object.freeze({ ...options.executionTarget })
+    const canonical = await this.directories.canonical(path, target, options.signal)
+    return await this.enqueueOperation(() => {
+      options.signal?.throwIfAborted()
+      return this.createCanonical(canonical, title, false, target)
+    })
   }
 
   /**
@@ -497,19 +510,22 @@ export class WorkspaceRegistry extends Service {
    * workspace. A missing path rejects during `realpath`; an existing unowned
    * directory returns `undefined`.
    * @param path - Existing directory path in a fully qualified spelling.
+   * @param options - explicit execution environment and lookup cancellation.
    * @returns the workspace owning the canonical path, when one exists.
    */
-  async resolveByPath(path: string): Promise<Workspace | undefined> {
-    const canonical = await realpathNormalize(path)
+  async resolveByPath(path: string, options: WorkspaceDirectoryOptions = {}): Promise<Workspace | undefined> {
+    const canonical = await this.directories.canonical(path, options.executionTarget, options.signal)
     for (const entity of this.entities.values()) {
-      if (entity.path === canonical) return entity
+      if (entity.path === canonical && sameExecutionTarget(entity.executionTarget, options.executionTarget)) return entity
     }
     return undefined
   }
 
-  private async createCanonical(canonical: string, title?: string, firstUse = false): Promise<WorkspaceEntity> {
+  private async createCanonical(
+    canonical: string, title?: string, firstUse = false, executionTarget?: SessionExecutionTarget,
+  ): Promise<WorkspaceEntity> {
     for (const entity of this.entities.values()) {
-      if (entity.path === canonical) return entity
+      if (entity.path === canonical && sameExecutionTarget(entity.executionTarget, executionTarget)) return entity
     }
 
     const workspaceName = title ?? defaultWorkspaceTitle(canonical)
@@ -519,6 +535,7 @@ export class WorkspaceRegistry extends Service {
     const now = new Date().toISOString()
     const record: WorkspaceRecord = {
       path: canonical,
+      ...executionTarget === undefined ? {} : { executionTarget },
       title: workspaceName,
       sessionIds: [],
       createdAt: now,
@@ -650,31 +667,36 @@ export class WorkspaceRegistry extends Service {
   private async bootstrap(headers: readonly SessionHeader[]): Promise<void> {
     const table = this.requireTable()
     const state = this.requireState()
-    const groupsByPath = new Map<string, SessionHeader[]>()
+    const groupsByPath = new Map<string, { path: string; headers: SessionHeader[] }>()
     for (const header of headers) {
       const path = this.sessionPaths.get(header.id)
       if (path === undefined) continue
-      const group = groupsByPath.get(path)
-      if (group === undefined) groupsByPath.set(path, [header])
-      else group.push(header)
+      const key = directoryKey(path, header.executionTarget)
+      const group = groupsByPath.get(key)
+      if (group === undefined) groupsByPath.set(key, { path, headers: [header] })
+      else group.headers.push(header)
     }
-    const groups: BootstrapGroup[] = [...groupsByPath].map(([path, groupHeaders]) => {
+    const groups: BootstrapGroup[] = [...groupsByPath.values()].map(({ path, headers: groupHeaders }) => {
       groupHeaders.sort(compareHeaders)
       const newest = groupHeaders[0] as SessionHeader
-      return { path, headers: groupHeaders, newestAt: newest.createdAt }
-    }).sort((left, right) =>
-      right.newestAt - left.newestAt || left.path.localeCompare(right.path))
+      return { path, headers: groupHeaders, newestAt: newest.createdAt,
+        ...newest.executionTarget === undefined ? {} : { executionTarget: newest.executionTarget } }
+    }).sort((left, right) => right.newestAt - left.newestAt
+      || directoryKey(left.path, left.executionTarget).localeCompare(directoryKey(right.path, right.executionTarget)))
 
     const byPath = new Map<string, WorkspaceId>()
     const accounted = new Map<SessionId, WorkspaceId>()
     for (const [id, record] of table.entries()) {
-      byPath.set(record.path, id)
+      byPath.set(directoryKey(record.path, record.executionTarget), id)
       for (const sessionId of record.sessionIds) accounted.set(sessionId, id)
     }
 
     for (const group of groups) {
-      let id = byPath.get(group.path)
+      const key = directoryKey(group.path, group.executionTarget)
+      let id = byPath.get(key)
       if (id === undefined) {
+        // Cold headers cannot validate a new remote directory; existing registrations still recover offline.
+        if (group.executionTarget !== undefined) continue
         const sessionIds = group.headers
           .map(header => header.id)
           .filter(sessionId => !accounted.has(sessionId))
@@ -689,7 +711,7 @@ export class WorkspaceRegistry extends Service {
           updatedAt: createdAt,
         }
         await table.put(id, record)
-        byPath.set(group.path, id)
+        byPath.set(key, id)
         for (const sessionId of sessionIds) accounted.set(sessionId, id)
         continue
       }
@@ -712,12 +734,12 @@ export class WorkspaceRegistry extends Service {
       for (const sessionId of historical) accounted.set(sessionId, id)
     }
 
-    const groupRank = new Map(groups.map(group => [group.path, group.newestAt]))
+    const groupRank = new Map(groups.map(group => [directoryKey(group.path, group.executionTarget), group.newestAt]))
     const priorRank = new Map(state.workspaceIds.map((id, index) => [id, index]))
     const workspaceIds = [...table.entries()]
       .sort(([leftId, left], [rightId, right]) => {
-        const leftTime = groupRank.get(left.path) ?? Date.parse(left.createdAt)
-        const rightTime = groupRank.get(right.path) ?? Date.parse(right.createdAt)
+        const leftTime = groupRank.get(directoryKey(left.path, left.executionTarget)) ?? Date.parse(left.createdAt)
+        const rightTime = groupRank.get(directoryKey(right.path, right.executionTarget)) ?? Date.parse(right.createdAt)
         return rightTime - leftTime
           || (priorRank.get(leftId) ?? Number.MAX_SAFE_INTEGER)
             - (priorRank.get(rightId) ?? Number.MAX_SAFE_INTEGER)
@@ -763,14 +785,15 @@ export class WorkspaceRegistry extends Service {
     const paths = new Map<string, WorkspaceId>()
     const accounted = new Map<SessionId, WorkspaceId>()
     for (const [id, record] of table.entries()) {
-      const pathHolder = paths.get(record.path)
+      const key = directoryKey(record.path, record.executionTarget)
+      const pathHolder = paths.get(key)
       if (pathHolder !== undefined) {
         throw new Error(
           `workspace domain is inconsistent: path '${record.path}' is claimed `
           + `by both workspace '${pathHolder}' and workspace '${id}'`,
         )
       }
-      paths.set(record.path, id)
+      paths.set(key, id)
       for (const sessionId of record.sessionIds) {
         const holder = accounted.get(sessionId)
         if (holder !== undefined) {
@@ -812,6 +835,13 @@ export class WorkspaceRegistry extends Service {
       this.invalidSessionPaths.set(header.id, 'header has no cwd')
       return
     }
+    if (header.executionTarget !== undefined) {
+      if (fullyQualifiedWorkspacePath(header.cwd)) {
+        this.sessionPaths.set(header.id, header.cwd)
+        this.invalidSessionPaths.delete(header.id)
+      } else this.invalidSessionPaths.set(header.id, 'targeted header cwd is not fully qualified')
+      return
+    }
     try {
       const path = await realpathNormalize(header.cwd)
       if (!(await stat(path)).isDirectory()) {
@@ -845,7 +875,7 @@ export class WorkspaceRegistry extends Service {
     for (const entity of this.entities.values()) {
       const record = this.requireTable().get(entity.id) as WorkspaceRecord
       for (const sessionId of record.sessionIds) {
-        if (this.host.candidateMatches(sessionId, record.path)) continue
+        if (this.host.candidateMatches(sessionId, record.path, record.executionTarget)) continue
         const path = this.sessionPaths.get(sessionId)
         const reason = this.invalidSessionPaths.get(sessionId)
           ?? (this.headers.has(sessionId)

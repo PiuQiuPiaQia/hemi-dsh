@@ -27,6 +27,8 @@ kind: "package-reference"
 
 将本提供方与共享 [SSH 连接](../ssh/README.zh.md)、SSH 文件系统及 SSH 子进程提供方一同挂载。本包没有专用配置。等待 `confine(argv, policy, signal)`，由正在运行的远端辅助程序解析每次调用的策略与命令。
 
+绑定目标的连接向无 Agent 策略消费者提供不可变执行引用和已验证工作区。`confine` 在联系 helper 前拒绝非空额外可写根，不把部署默认授权转移给该目标。排队请求持有自己的策略快照，而非可被调用方修改的对象。
+
 传入完整的 `read-only` 或 `workspace-write` 策略。工作区路径在远端主机解释并规范化。消费方在 `danger-full-access` 模式下绕过 `confine()`；连接不额外引入本地／远端策略标记。
 
 -----

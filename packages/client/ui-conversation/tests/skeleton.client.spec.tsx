@@ -147,6 +147,8 @@ function mount(
     entryActions?: boolean
     /** Isolate header capability checks from the composer's required layout observers. */
     headerOnly?: boolean
+    /** Plain mode control supplied by the hero slot for control-row assembly cases. */
+    agentPresetLabel?: string
   } = {},
 ) {
   const sessionId = 'sessionId' in options ? options.sessionId : SID
@@ -210,6 +212,9 @@ function mount(
       seatOwners.push({ key, owner })
     }
     if (key === 'conversation.hero.workspace') { pickerOwner = owner; return null }
+    if (key === 'conversation.hero.agentPreset' && options.agentPresetLabel !== undefined) {
+      return <button type="button">{options.agentPresetLabel}</button>
+    }
     if (key === 'conversation.hero.frame') {
       // A hoc slot with no layers renders its content unchanged.
       frameOwners.push(owner as HeroFrameOwnerProps)
@@ -889,6 +894,42 @@ describe('ConversationRoot resident composer', () => {
     expect(more.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it('keeps the selected provider label consistent with its picker and respects a pending local selection', () => {
+    const b = mount(sessionSnapshotOf({ blank: true }), [
+      { ...workspace('remote'), title: 'modyzer', displayTitle: 'modyzer（aimuxr）', sessionIds: [SID],
+        executionTarget: { provider: 'hemi-ssh', id: 'target' } as NonNullable<WorkspaceView['executionTarget']> },
+      { ...workspace('local'), title: 'Custom local' },
+    ], vi.fn(() => new Promise<void>(() => {})))
+    const chip = b.view.getByRole('button', { name: '选择工作区' })
+    expect(chip.textContent).toBe('modyzer（aimuxr）')
+    expect(chip.getAttribute('aria-description')).toBe('modyzer（aimuxr）')
+    expect(chip.getAttribute('title')).toBe('modyzer（aimuxr）')
+    expect(chip.querySelector('[data-icon="dsw-icon-globe-outline-regular"]')).toBeTruthy()
+    fireEvent.click(chip)
+    const owner = b.pickerOwner() as { onPick(id: WorkspaceId): void }
+    act(() => { owner.onPick(wid('local')) })
+    expect(chip.textContent).toBe('Custom local')
+    expect(chip.getAttribute('aria-description')).toBe('Custom local')
+    expect(chip.querySelector('[data-icon="dsw-icon-folder-open-regular"]')).toBeTruthy()
+    expect(chip.querySelector('[data-icon="dsw-icon-globe-outline-regular"]')).toBeNull()
+  })
+
+  it('keeps both hero controls mounted with a long Workspace label and retains full-name access', () => {
+    const title = `remote-project（${'远程开发服务器'.repeat(20)}）`
+    const b = mount(sessionSnapshotOf({ blank: true }), [
+      { ...workspace('remote'), displayTitle: title, sessionIds: [SID] },
+    ], undefined, { agentPresetLabel: '标准模式' })
+    const workspaceButton = b.view.getByRole('button', { name: '选择工作区' })
+    const modeButton = b.view.getByRole('button', { name: '标准模式' })
+    expect(modeButton.parentElement?.parentElement).toBe(workspaceButton.parentElement)
+    expect(workspaceButton.getAttribute('title')).toBe(title)
+    modeButton.focus()
+    fireEvent.click(workspaceButton)
+    expect(b.view.getByRole('button', { name: '标准模式' })).toBe(modeButton)
+    expect(document.activeElement).toBe(modeButton)
+    expect(workspaceButton.getAttribute('aria-expanded')).toBe('true')
+  })
+
   it('rolls the pending workspace label back when switching fails', async () => {
     const selectWorkspace = vi.fn(async () => { throw new Error('connect failed') })
     const b = mount(
@@ -922,7 +963,7 @@ describe('ConversationRoot resident composer', () => {
     const b = mount(sessionSnapshotOf({ blank: true }))
     const preset = within(b.view.container).getByTestId('view-conversation.hero.agentPreset')
     const options = within(b.view.container).getByTestId('view-conversation.hero.options')
-    expect(options.parentElement?.previousElementSibling).toBe(preset)
+    expect(options.parentElement?.previousElementSibling?.contains(preset)).toBe(true)
 
     const cold = mount(sessionSnapshotOf(), [], undefined, { sessionId: undefined })
     expect(cold.slotCalls).toContain('conversation.hero.agentPreset')

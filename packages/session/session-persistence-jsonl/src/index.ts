@@ -35,7 +35,7 @@ import {
 import { JsonlBackendTracker, JsonlSessionHandle, type StorageHandleState } from './storage.ts'
 import { SessionWriteLease } from './lease.ts'
 import { SESSION_FORMAT_VERSION, SessionId as makeSessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
-import type { SessionEvent, SessionId, SessionHeader, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionExecutionTarget, SessionId, SessionHeader, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
 import {
   assertNoRetiredHeaderFields, encodeSegment, eventLines, generationLogFilename, generationLogPath, logPath, logSuffix,
   parseGenerationLogFilename, projectDir, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
@@ -1239,6 +1239,7 @@ class JsonlSessionPersistence extends SessionPersistence {
     readonly origin?: 'subagent'
     readonly delegationDepth: number
     readonly agentPreset?: string
+    readonly executionTarget?: { readonly provider: string; readonly id: string }
   }): SessionHeader {
     /* v8 ignore next 3 -- readable catalog results are restored to its configured current version. */
     if (header.version !== SESSION_FORMAT_VERSION) {
@@ -1256,6 +1257,7 @@ class JsonlSessionPersistence extends SessionPersistence {
       ...(header.origin === undefined ? {} : { origin: header.origin }),
       delegationDepth: header.delegationDepth,
       ...(header.agentPreset === undefined ? {} : { agentPreset: header.agentPreset }),
+      ...(header.executionTarget === undefined ? {} : { executionTarget: header.executionTarget as SessionExecutionTarget }),
     }
   }
 

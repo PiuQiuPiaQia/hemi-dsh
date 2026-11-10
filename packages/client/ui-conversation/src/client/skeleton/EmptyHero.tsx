@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
-  FISH_LOGO_PATH, FISH_LOGO_VIEWBOX, IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
+  FISH_LOGO_PATH, FISH_LOGO_VIEWBOX, IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular, IconGlobeOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConversationContentProps } from '../contract/slots.ts'
@@ -32,13 +32,15 @@ export function workspaceLabel(cwd: string): string {
  * "Choose workspace" call to action.
  * @param props.label - chip label (see {@link workspaceLabel}); omitted → placeholder.
  * @param props.menuOpen - menu expansion echo.
+ * @param props.remote - explicit execution environment marker; omitted keeps the ordinary folder icon.
  * @param props.onClick - menu toggle.
  * @returns the chip button element.
  */
-export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }: {
+export function WorkspaceChip({ buttonRef, label, menuOpen = false, remote = false, onClick, t }: {
   buttonRef?: RefObject<HTMLButtonElement>
   label?: string | undefined
   menuOpen?: boolean
+  remote?: boolean
   onClick?: () => void
   t: HeroTranslate
 }) {
@@ -48,13 +50,17 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
       type="button"
       className={css.workspace}
       aria-label={t('hero.chooseWorkspace')}
+      // Hemi fork: the complete selected name stays available when the selector truncates it.
+      aria-description={label}
+      title={label}
       aria-haspopup="menu"
       aria-expanded={menuOpen}
       onClick={onClick}
     >
-      {label === undefined
-        ? <IconFolderCloseRegular className={css.folder} size={16} />
-        : <IconFolderOpenRegular className={css.folder} size={16} />}
+      {/* Hemi fork: the selected remote Workspace uses the same marker as its picker and sidebar row. */}
+      {remote ? <IconGlobeOutlineRegular className={css.folder} size={16} />
+        : label === undefined ? <IconFolderCloseRegular className={css.folder} size={16} />
+          : <IconFolderOpenRegular className={css.folder} size={16} />}
       <span className={css.workspaceLabel}>{label ?? t('hero.chooseWorkspace')}</span>
       <IconChevronDownOutlineRegular className={css.chevron} size={12} />
     </button>

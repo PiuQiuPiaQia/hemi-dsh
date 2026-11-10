@@ -292,6 +292,8 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-hemi-model-settings-ui` | no | Hemi Models and Routing settings page over the Harness model editor |
 | `@deepseek-ai/dsh-hemi-routing` | yes | Hemi role-based delegation routing: preset explorer/oracle/fixer/designer roles with user-chosen model routes, per-conversation auto/fixed mode, and model-bound native subagents |
 | `@deepseek-ai/dsh-hemi-routing-ui` | no | Hemi model routing: session mode controls and main/role model configuration |
+| `@deepseek-ai/dsh-hemi-ssh-servers` | no | Saved SSH server references for Hemi |
+| `@deepseek-ai/dsh-hemi-ssh-servers-ui` | no | Saved SSH connections and remote folder selection in Hemi |
 
 ## host
 

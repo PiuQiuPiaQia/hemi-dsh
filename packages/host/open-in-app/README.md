@@ -31,6 +31,8 @@ Mount the package in a composition that carries `webServer`, `connection`, and `
 
 Choose it for a Web deployment whose users work beside a local editor, Git GUI, terminal, or file manager and want the workspace directory opened there in one click. Avoid it for opening one path with the OS-default application from host code — that is `dsh-apiproxy`'s `openPath`; this package's subject is *which* application, with per-application resolution and launchers.
 
+Session-origin requests carry `sessionId`; Workspace-origin requests carry `workspaceId`. The Host resolves the named header or registry entry and checks its execution filesystem's Host mapping before application launch. A same-spelled SSH directory is not a local mapping. Missing/offline environments refuse, and non-owner HTTP principals cannot use the native launch route. Explicit unscoped requests keep their Host-directory meaning.
+
 ### Minimal configuration
 
 ```yaml

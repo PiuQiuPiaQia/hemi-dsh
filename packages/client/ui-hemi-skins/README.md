@@ -22,12 +22,12 @@ Register the six Hemi desktop-assistant skins (classic plus the five character s
 <a id="use-this-package"></a>
 ## Use this package
 
-The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme` is available. Every `ThemeDefinition` id is a valid `setTheme` argument for downstream pickers. The skin settings section shows six equal-width presets below its heading and uses fewer columns in narrow panels. A check marks the active skin; selection applies immediately and is saved per browser.
+The web-app bundle mounts this plugin after `dsh-client-ui-theme`, so `ctx.theme` is available. Every `ThemeDefinition` id is a valid `setTheme` argument for downstream pickers. The skin settings section shows six equal-width presets below its heading and uses fewer columns in narrow panels. A check marks the active skin; selection applies immediately and is saved per browser. Classic is the default black-and-white skin, with no character backdrop; it follows the native light/dark palette. Valid saved selections take precedence, while absent or unavailable selections use Classic.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-`src/client/skins.ts` mirrors the Hemi `skins.config.json` palette table (rail, accent, scale-600, line) into a small `--dsw-alias-*` token set. The client half registers each skin and disposes the registrations on teardown.
+`src/client/skins.ts` keeps Classic on the native neutral palette and maps the five Hemi character palettes from `skins.config.json` (rail, accent, scale-600, line) into a small `--dsw-alias-*` token set. The client half registers each skin and disposes the registrations on teardown.
 
 The backdrop layer is a full-viewport body child mounted after `#root` and is visual only. Its sheet opts it out of app-region collection with `-webkit-app-region: initial !important`: the shell's darwin `body > :not(#root)` rule subtracts body-level overlays from the window drag surface by DOM order, and a full-viewport no-drag box would otherwise disable titlebar dragging and its native double-click maximize/restore on macOS.
 
@@ -59,7 +59,7 @@ Skin changes preserve model request prefixes.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- Startup application overwrites the persisted preference until a skin picker row ships. Background images, portraits, idle animation, and lettering are deferred.
+- Portraits, idle animation, and lettering are not rendered.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -15,6 +15,8 @@ import type { NS } from './locales.ts'
 export interface OpenPathInjected extends OpenTargetReporter {
   hooks: {
     openInAppDesktop: ObservableSnapshot<boolean | null>
+    /** Whether this Session's paths belong to the deployment filesystem. */
+    openInAppLocalPaths: ObservableSnapshot<boolean>
   }
   loadDesktop: () => Promise<void>
   openPath: (path: string, action: OpenInAppPathAction, application?: string) => Promise<OpenInAppOutcome>
@@ -28,9 +30,10 @@ export type OpenPathActionProps =
   & InjectFace<OpenPathInjected>
 
 /** File inputs shared by the document header and its unpreviewable state. */
-type FileOpenTargetProps = Pick<OpenPathActionProps, 'absolutePath' | 'useOpenInAppDesktop' | 'loadDesktop' | 'openPath' | 'applications' | 'report' | 't'> & {
-  empty?: boolean
-}
+type FileOpenTargetProps = Pick<OpenPathActionProps,
+  'absolutePath' | 'useOpenInAppDesktop' | 'useOpenInAppLocalPaths' | 'loadDesktop' | 'openPath' | 'applications' | 'report' | 't'> & {
+    empty?: boolean
+  }
 
 /**
  * Resolve file associations and adapt operations without embedding platform behavior in the control.
@@ -39,11 +42,12 @@ type FileOpenTargetProps = Pick<OpenPathActionProps, 'absolutePath' | 'useOpenIn
  */
 export function FileOpenTarget(props: FileOpenTargetProps): ReactNode {
   const desktop = props.useOpenInAppDesktop(value => value)
-  const association = useFileApplications(props.absolutePath, props.applications, desktop === true)
+  const native = props.useOpenInAppLocalPaths(value => value)
+  const association = useFileApplications(props.absolutePath, props.applications, desktop === true && native)
   useEffect(() => {
     if (desktop === null) void props.loadDesktop()
   }, [desktop, props.loadDesktop])
-  if (desktop !== true) return null
+  if (desktop !== true || !native) return null
   const { apps } = association
   return (
     <OpenTargetButton

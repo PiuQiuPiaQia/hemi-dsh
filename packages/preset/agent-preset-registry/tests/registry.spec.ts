@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { setImmediate as immediate } from 'node:timers/promises'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import AgentRegistry, { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { entryListProblem } from '../src/index.ts'
 import { currentKey, harness, declare, contribution, agentOn, liveRegistries, plugin } from './harness.ts'
 import { omitsGeneratedPage } from '../../../settings/settings/tests/live-config.ts'
@@ -10,11 +13,164 @@ import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import AgentPresets from '../src/index.ts'
 import type { Context } from '@deepseek-ai/cordis'
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    executionProbe: { readonly world: string }
+    executionEvents: string[]
+  }
+}
+
 const contexts: Context[] = []
 afterEach(async () => { for (const ctx of contexts.splice(0)) await ctx.fiber.dispose() })
 async function setup() { const ctx = await harness(); contexts.push(ctx); return ctx }
 
+function remoteExecution(ctx: Context) {
+  const events: string[] = []
+  const realm = Symbol('live-remote')
+  const provider = brandString<ExecutionProviderId>('test-remote')
+  const lost = new AbortController()
+  ctx.provide('executionProbe', { world: 'default' })
+  ctx.isolate('executionProbe', realm).provide('executionProbe', { world: 'remote' })
+  ctx.agents.registerExecutionProvider(provider, { acquire: async () => ({
+    realm, signal: lost.signal, bind: base => base.isolate('executionProbe', realm),
+    close: async () => { events.push('lease-closed') },
+  }) })
+  const create = () => ctx.agents.create({
+    sessionId: SessionId('remote-preset-lifecycle'),
+    meta: { executionTarget: { provider, id: brandString<ExecutionTargetId>('remote') } },
+    setup: async (agentCtx, agent) => { await ctx.agentPresets.mount(agentCtx, 'standard', undefined, agent.execution) },
+  })
+  return { events, lost, create }
+}
+
 describe('declarative preset revisions', () => {
+  it.each([false, true])('drains preset activation before execution release (activation fails: %s)', async (fail) => {
+    const ctx = await setup()
+    const remote = remoteExecution(ctx)
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    ctx.loader.builtins.pausedRemote = { async apply(child: Context) {
+      if (child.get('executionProbe')?.world === 'default') return
+      child.effect(() => () => { remote.events.push('preset-disposed') })
+      entered.resolve(undefined)
+      await release.promise
+      remote.events.push('activation-settled')
+      if (fail) throw new Error('remote activation failed')
+    } }
+    await declare(ctx, { id: 'standard', plugins: [{ name: 'cordis:pausedRemote' }] })
+    const outcome = remote.create().then(() => undefined, (error: unknown) => error)
+    try {
+      await entered.promise
+      remote.lost.abort(new Error('remote lost during activation'))
+      await immediate()
+      expect(remote.events).toEqual([])
+      release.resolve(undefined)
+      expect(await outcome).toMatchObject({ message: 'remote lost during activation' })
+      expect(remote.events).toEqual(['activation-settled', 'preset-disposed', 'lease-closed'])
+      expect(ctx.agentPresets.inspectCompositions()).toHaveLength(1)
+    } finally {
+      release.resolve(undefined)
+      await outcome
+    }
+  })
+
+  it('keeps a remote preset alive through admitted work during enclosing Core unload', async () => {
+    const ctx = await setup()
+    const remote = remoteExecution(ctx)
+    const release = Promise.withResolvers<undefined>()
+    const cancelled = Promise.withResolvers<undefined>()
+    let resourceAlive = false
+    ctx.loader.builtins.liveRemote = { apply(child: Context) {
+      if (child.get('executionProbe')?.world === 'default') return
+      child.effect(() => {
+        resourceAlive = true
+        return () => { resourceAlive = false; remote.events.push('preset-disposed') }
+      })
+    } }
+    await declare(ctx, { id: 'standard', plugins: [{ name: 'cordis:liveRemote' }] })
+    const handle = await remote.create()
+    const loop = handle.agent.execution?.base.fiber
+    if (loop === undefined) throw new Error('missing bound Core context')
+    const work = handle.agent.runMaintenance(async (signal) => {
+      signal.addEventListener('abort', () => { cancelled.resolve(undefined) }, { once: true })
+      await release.promise
+      remote.events.push(`consumer-used-resource:${resourceAlive}`)
+    })
+    const disposal = Promise.resolve(loop.dispose())
+    try {
+      await cancelled.promise
+      await immediate()
+      expect(resourceAlive).toBe(true)
+      expect(remote.events).toEqual([])
+      release.resolve(undefined)
+      await work
+      await disposal
+      expect(remote.events).toEqual(['consumer-used-resource:true', 'preset-disposed', 'lease-closed'])
+    } finally {
+      release.resolve(undefined)
+      await work
+      await disposal
+    }
+  })
+
+  it('shares presets only within one live execution instance and settles them before the last lease', async () => {
+    const ctx = await setup()
+    const events: string[] = []
+    ctx.provide('executionEvents', events)
+    ctx.provide('executionProbe', { world: 'default' })
+    await declare(ctx, { id: 'standard', plugins: [{ name: plugin('execution-contribute') }] })
+    const provider = brandString<ExecutionProviderId>('test-execution')
+    const realms = new Map<ExecutionTargetId, { token: symbol; world: string }>()
+    for (const world of ['a', 'b']) {
+      const token = Symbol(world)
+      const id = brandString<ExecutionTargetId>(world)
+      realms.set(id, { token, world })
+      ctx.isolate('executionProbe', token).provide('executionProbe', { world })
+    }
+    ctx.agents.registerExecutionProvider(provider, { acquire: async (id) => {
+      const realm = realms.get(id)
+      if (realm === undefined) throw new Error('missing fixture execution instance')
+      return { realm: realm.token, signal: new AbortController().signal,
+        bind: base => base.isolate('executionProbe', realm.token),
+        close: () => { events.push(`release:${realm.world}`); return Promise.resolve() },
+      }
+    } })
+    const create = (id: string, target: string) => ctx.agents.create({
+      sessionId: SessionId(id), meta: { cwd: '/same/project', executionTarget: { provider, id: brandString<ExecutionTargetId>(target) } },
+      setup: async (agentCtx, agent) => {
+        expect(agent.execution?.realm).toBe(realms.get(brandString<ExecutionTargetId>(target))?.token)
+        await ctx.agentPresets.mount(agentCtx, 'standard', undefined, agent.execution)
+      },
+    })
+    const first = await create('realm-a-1', 'a')
+    const second = await create('realm-a-2', 'a')
+    const other = await create('realm-b', 'b')
+    expect(events).toContain('mount:a')
+    expect(ctx.agentPresets.inspectCompositions(first.agent.ctx).map(row => row.id)).toEqual(['standard'])
+    expect(ctx.tools.schemas(first.agent).map(tool => tool.description)).toEqual(['execution in a'])
+    expect(ctx.tools.schemas(other.agent).map(tool => tool.description)).toEqual(['execution in b'])
+    const differentWorld = createScope(ctx, {})
+    expect(() => ctx.agentPresets.composeFrom(differentWorld.ctx, first.agent.ctx, other.agent.execution))
+      .toThrow('another execution instance')
+    await differentWorld.dispose()
+    expect(events.filter(event => event === 'mount:a')).toHaveLength(1)
+    expect(ctx.agentPresets.inspectCompositions()).toHaveLength(3)
+    await first.dispose()
+    expect(events).not.toContain('unmount:a')
+    await second.dispose()
+    expect(events.slice(-2)).toEqual(['unmount:a', 'release:a'])
+    expect(ctx.agentPresets.inspectCompositions()).toHaveLength(2)
+    await other.dispose()
+    expect(ctx.agentPresets.inspectCompositions()).toHaveLength(1)
+    const replacement = Symbol('a-reconnected')
+    realms.set(brandString<ExecutionTargetId>('a'), { token: replacement, world: 'a-new' })
+    ctx.isolate('executionProbe', replacement).provide('executionProbe', { world: 'a-new' })
+    const reconnected = await create('realm-a-new', 'a')
+    expect(ctx.tools.schemas(reconnected.agent).map(tool => tool.description)).toEqual(['execution in a-new'])
+    await reconnected.dispose()
+    expect(events.slice(-2)).toEqual(['unmount:a-new', 'release:a-new'])
+  })
+
   it('eagerly scopes tool and prompt registrations and shares one revision across Agents', async () => {
     const ctx = await setup()
     await declare(ctx, contribution('standard'))

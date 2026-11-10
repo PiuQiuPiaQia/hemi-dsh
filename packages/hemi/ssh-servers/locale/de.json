@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hemi-SSH-Server",
+    "description": "Speichert und wiederverwendet SSH-Server-Referenzen und gemerkte Passwörter in Hemi."
+  }
+}

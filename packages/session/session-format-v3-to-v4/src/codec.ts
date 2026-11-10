@@ -1,7 +1,7 @@
 /** V4 framing with native tool-role admission and released physical rows. */
 
 import { SessionFormatError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
-import type { SessionFormatCodec, SessionFormatCurrentEncoder, SessionFormatHeader, SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
+import type { SessionFormatCodec, SessionFormatCurrentEncoder, SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import { releasedV2SessionFormatCodec } from '@deepseek-ai/dsh-session-format-v2-to-v3'
 import { assertV4SourceRowAdmission } from './message-sources.ts'
 import { assertV4RetiredSyntax } from './retired-syntax.ts'
@@ -11,9 +11,15 @@ import { assertV4ForkResult } from './fork-result.ts'
 import { assertV4ToolResultMessage } from './tool-role.ts'
 import { assertReleasedV4Header } from './validation.ts'
 
-function physicalV2(value: unknown): SessionFormatHeader {
-  if (!isSessionFormatJsonObject(value) || value['version'] !== 4) throw new SessionFormatError('expected format v4 physical header')
-  return { ...value, version: 2 } as SessionFormatHeader
+function physicalV2(value: unknown) {
+  if (!isSessionFormatJsonObject(value) || value['version'] !== 4 || value['type'] !== 'session') {
+    throw new SessionFormatError('expected format v4 physical header')
+  }
+  const { type: _type, ...header } = value
+  assertReleasedV4Header(header)
+  // Hemi fork: extend current V4 metadata without teaching historical V2 readers a new execution meaning.
+  const { executionTarget, ...legacy } = header
+  return { physical: { ...legacy, type: 'session', version: 2 }, executionTarget }
 }
 
 /**
@@ -23,13 +29,16 @@ function physicalV2(value: unknown): SessionFormatHeader {
 export const releasedV4SessionFormatCodec = Object.freeze({
   version: 4,
   decodeHeader(value: unknown) {
-    return { ...releasedV2SessionFormatCodec.decodeHeader(physicalV2(value)), version: 4 }
+    const { physical, executionTarget } = physicalV2(value)
+    return { ...releasedV2SessionFormatCodec.decodeHeader(physical), version: 4,
+      ...(executionTarget === undefined ? {} : { executionTarget }) }
   },
   createDecoder(value, recovery) {
-    const decoder = releasedV2SessionFormatCodec.createDecoder(physicalV2(value), recovery)
+    const { physical, executionTarget } = physicalV2(value)
+    const decoder = releasedV2SessionFormatCodec.createDecoder(physical, recovery)
     return {
       ...decoder,
-      header: { ...decoder.header, version: 4 },
+      header: { ...decoder.header, version: 4, ...(executionTarget === undefined ? {} : { executionTarget }) },
       decodeRow(row, context) {
         assertV4RowAdmission(row)
         decoder.decodeRow(row, {
@@ -41,7 +50,9 @@ export const releasedV4SessionFormatCodec = Object.freeze({
   },
   encodeHeader(header, inheritedEventCount) {
     assertReleasedV4Header(header)
-    return { ...releasedV2SessionFormatCodec.encodeHeader({ ...header, version: 2 }, inheritedEventCount), version: 4 }
+    const { executionTarget, ...legacy } = header
+    return { ...releasedV2SessionFormatCodec.encodeHeader({ ...legacy, version: 2 }, inheritedEventCount), version: 4,
+      ...(executionTarget === undefined ? {} : { executionTarget }) }
   },
   encodeEvent(event: SessionFormatEvent) {
     if (event.type === 'developer/message' && event['ignorable'] === true) {

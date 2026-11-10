@@ -1,10 +1,13 @@
 /** Hemi's shipped Client roster keeps skins while replacing product artwork and unused upstream controls. */
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { chromium } from 'playwright'
+import { chromium, type Browser } from 'playwright'
 import { expect, it, onTestFinished } from 'vitest'
 import { readClientBuildRecord } from '../../../scripts/client-build-environment.ts'
-import { captureStableAria, compareOrRefreshGolden, launchWebScaffold, watchConsole, webSnapshotMode } from './scaffold.ts'
+import {
+  assertFixtureInventory, captureStableAria, compareOrRefreshGolden, launchWebScaffold,
+  seedSession, watchConsole, webSnapshotMode,
+} from './scaffold.ts'
 import { ZH_BROWSER_LOCALE, connectFreshWorkspaceZh } from './support.ts'
 import { ScriptedAdapter, textResponse } from '../../../packages/hemi/routing/tests/mock-llm.ts'
 
@@ -124,6 +127,105 @@ it('keeps Hemi branding with skins and hides upstream controls', async () => {
     await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd), webSnapshotMode())
   expect(tripwire.pageErrors).toEqual([])
   expect(tripwire.warnings).toEqual([])
+})
+
+it.skipIf(webSnapshotMode() === 'record')('defaults to monochrome in both schemes and preserves explicit skin choices', async () => {
+  const mode = webSnapshotMode()
+  const dir = fileURLToPath(new URL('../../../snapshots/web/hemi-default-skin/', import.meta.url))
+  const scaffold = await launchWebScaffold({
+    extraOverlayPath: fileURLToPath(new URL('./hemi-branding.overlay.yml', import.meta.url)),
+  })
+  const resources: { browser?: Browser } = {}
+  onTestFinished(async () => {
+    try { await resources.browser?.close() } finally { await scaffold.close() }
+  })
+  await seedSession(scaffold, await readFile(new URL('../../../snapshots/web/seeded-history/session.v3.jsonl', import.meta.url), 'utf8'), 'hemi-default-skin')
+  const browser = await chromium.launch()
+  resources.browser = browser
+  const page = await browser.newPage({ locale: ZH_BROWSER_LOCALE, viewport: { width: 1280, height: 820 }, colorScheme: 'light' })
+  await page.addInitScript('globalThis.dshDesktop = { protocolVersion: 1 }')
+  const tripwire = watchConsole(page)
+  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+  const group = page.getByRole('treeitem').first()
+  await group.waitFor()
+  if (await group.getAttribute('aria-expanded') !== 'true') await group.click()
+  await page.getByRole('treeitem').nth(1).click()
+  await page.getByText('DONE', { exact: true }).waitFor()
+  expect(await page.evaluate(() => localStorage.getItem('hemi-skin'))).toBeNull()
+  const input = page.locator('[data-composer-input]').first()
+  await input.fill('Preview only')
+  const send = page.getByRole('button', { name: '发送消息', exact: true, includeHidden: true })
+  await expect.poll(() => send.isEnabled()).toBe(true)
+  await mkdir('.artifacts', { recursive: true })
+  const screenshots = await mkdtemp('.artifacts/hemi-default-skin-')
+  console.log(`Hemi monochrome screenshots: ${screenshots}`)
+  const palettes: Record<string, string>[] = []
+  for (const dark of [false, true]) {
+    await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
+    await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(dark)
+    await expect.poll(() => send.evaluate(node =>
+      getComputedStyle(node).backgroundColor === getComputedStyle(document.body).color)).toBe(true)
+    const colors = await send.evaluate((node) => {
+      const button = getComputedStyle(node)
+      const body = getComputedStyle(document.body)
+      return {
+        background: body.backgroundColor, text: body.color, sendFill: button.backgroundColor, sendInk: button.color,
+        bubble: getComputedStyle(document.querySelector('[data-message-bubble]')!).backgroundColor,
+        brand: body.getPropertyValue('--dsw-alias-brand-primary').trim(),
+        focus: body.getPropertyValue('--dsw-focus-ring-color').trim(),
+      }
+    })
+    const luminance = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3)
+      .map(Number).map(channel => channel / 255)
+      .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+      .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index]!, 0)
+    const contrast = (Math.max(luminance(colors.sendFill), luminance(colors.sendInk)) + 0.05)
+      / (Math.min(luminance(colors.sendFill), luminance(colors.sendInk)) + 0.05)
+    expect(contrast).toBeGreaterThanOrEqual(4.5)
+    expect(colors.sendFill).toBe(colors.text)
+    expect(colors.focus).toBe(colors.brand)
+    expect(colors.bubble).toBe(dark ? 'rgb(44, 44, 46)' : 'rgb(245, 246, 247)')
+    palettes.push({ mode: dark ? 'dark' : 'light', ...colors })
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 820 })
+      await page.screenshot({ path: `${screenshots}/chat-${width}-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
+    }
+  }
+  await compareOrRefreshGolden(`${dir}/palette.expected.json`, JSON.stringify(palettes, null, 2), mode)
+  await page.setViewportSize({ width: 1280, height: 820 })
+  await compareOrRefreshGolden(`${dir}/chat.expected.md`, await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd), mode)
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: '设置', exact: true })
+  await settings.getByRole('button', { name: '皮肤', exact: true }).click()
+  const section = settings.getByRole('region', { name: '皮肤', exact: true })
+  const classic = section.getByRole('button', { name: '经典', exact: true })
+  expect(await classic.getAttribute('aria-pressed')).toBe('true')
+  await classic.press('Tab')
+  await page.keyboard.press('Shift+Tab')
+  for (const dark of [false, true]) {
+    await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' })
+    await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(dark)
+    await page.screenshot({ path: `${screenshots}/settings-${dark ? 'dark' : 'light'}.png`, animations: 'disabled' })
+  }
+  await compareOrRefreshGolden(`${dir}/skins.expected.md`, await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd), mode)
+  for (const name of ['晴海蓝', '月见紫', '焦糖橙', '蜜糖金', '围巾红']) {
+    await section.getByRole('button', { name, exact: true }).click()
+    expect(await page.evaluate(() => document.body.style.getPropertyValue('--dsh-composer-primary-foreground'))).toBe('')
+    expect(await send.evaluate(node => getComputedStyle(node).color)).toBe('rgb(255, 255, 255)')
+  }
+  await page.reload({ waitUntil: 'load' })
+  await page.getByRole('button', { name: '设置', exact: true }).click()
+  await settings.getByRole('button', { name: '皮肤', exact: true }).click()
+  expect(await section.getByRole('button', { name: '围巾红', exact: true }).getAttribute('aria-pressed')).toBe('true')
+  await classic.click()
+  expect(await page.evaluate(() => localStorage.getItem('hemi-skin'))).toBe('classic')
+  await page.reload({ waitUntil: 'load' })
+  await page.getByText('DONE', { exact: true }).waitFor()
+  expect(await send.evaluate(node => getComputedStyle(node).backgroundColor)).toBe(palettes[1]!.sendFill)
+  expect(await page.locator('body > div[aria-hidden="true"] img[src]').count()).toBe(0)
+  expect(tripwire.pageErrors).toEqual([])
+  expect(tripwire.warnings).toEqual([])
+  await assertFixtureInventory(dir, ['palette.expected.json', 'chat.expected.md', 'skins.expected.md'])
 })
 
 it('renders a text-only running status with a live clock', async () => {

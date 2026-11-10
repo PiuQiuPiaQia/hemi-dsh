@@ -1,0 +1,7 @@
+- tree "会话":
+  - treeitem "remote-project-two（测试 SSH）" [expanded]
+  - treeitem "新会话" [selected]
+  - treeitem "remote-project-one（测试 SSH）" [expanded]
+  - treeitem "remote-project-one" [expanded]
+  - treeitem "未分组" [expanded]
+  - treeitem "Use the read tool twice {{age}}"

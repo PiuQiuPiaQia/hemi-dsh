@@ -1,0 +1,19 @@
+{
+  "formatVersion": 2,
+  "roots": [
+    {"key":"SessionHeader","kind":"header","digest":"eeb6349d6cbab77802fc238c14bdf63c0d9f00844826f3caa96f6eb25fd2d744"},
+    {"key":"JsonlHeaderLine","kind":"header","digest":"1fe1256ec59a2231aa92888824a2c61c8554c1a55b5b8fb709428a62daf6f5b8"}
+  ],
+  "types": [],
+  "nodes": {
+    "0657d3ca5ac4e7bf": {"kind":"primitive","type":"number"},
+    "1fe1256ec59a2231": {"kind":"object","properties":[{"name":"agentPreset","type":"4cd48f3e5108bd6e","optional":true},{"name":"createdAt","type":"0657d3ca5ac4e7bf","optional":false},{"name":"cwd","type":"4cd48f3e5108bd6e","optional":true},{"name":"delegationDepth","type":"0657d3ca5ac4e7bf","optional":false},{"name":"executionTarget","type":"4f677723bceca6e2","optional":true},{"name":"id","type":"4cd48f3e5108bd6e","optional":false},{"name":"isSeeded","type":"aa93010d0e521ad7","optional":false},{"name":"origin","type":"aacda84a69739238","optional":true},{"name":"parentSession","type":"4cd48f3e5108bd6e","optional":true},{"name":"type","type":"e41bdebe246abe17","optional":false},{"name":"version","type":"0657d3ca5ac4e7bf","optional":false}],"indices":[]},
+    "4cd48f3e5108bd6e": {"kind":"primitive","type":"string"},
+    "4f677723bceca6e2": {"kind":"object","properties":[{"name":"id","type":"4cd48f3e5108bd6e","optional":false},{"name":"provider","type":"4cd48f3e5108bd6e","optional":false}],"indices":[]},
+    "aa93010d0e521ad7": {"kind":"primitive","type":"boolean"},
+    "aacda84a69739238": {"kind":"literal","value":"subagent"},
+    "af6e173f7be819bc": {"kind":"literal","value":4},
+    "e41bdebe246abe17": {"kind":"literal","value":"session"},
+    "eeb6349d6cbab778": {"kind":"object","properties":[{"name":"agentPreset","type":"4cd48f3e5108bd6e","optional":true},{"name":"createdAt","type":"0657d3ca5ac4e7bf","optional":false},{"name":"cwd","type":"4cd48f3e5108bd6e","optional":true},{"name":"delegationDepth","type":"0657d3ca5ac4e7bf","optional":true},{"name":"executionTarget","type":"4f677723bceca6e2","optional":true},{"name":"id","type":"4cd48f3e5108bd6e","optional":false},{"name":"isSeeded","type":"aa93010d0e521ad7","optional":false},{"name":"origin","type":"aacda84a69739238","optional":true},{"name":"parentSession","type":"4cd48f3e5108bd6e","optional":true},{"name":"version","type":"af6e173f7be819bc","optional":false}],"indices":[]}
+  }
+}

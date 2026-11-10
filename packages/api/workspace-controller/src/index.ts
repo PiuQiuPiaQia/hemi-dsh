@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-api-remote-access'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WorkspaceCommands } from './commands.ts'
 import { DirectoryPickerController } from './directory-picker.ts'
-import { WorkspaceFeed, workspaceView } from './feed.ts'
+import { WorkspaceFeed, type WorkspaceDisplayTitleProvider } from './feed.ts'
 import { defaultWorkspaceDirectory, validateDocumentsDirectory } from './default-directory.ts'
 import type {
   WorkspaceArchiveSessionRequest,
@@ -32,6 +32,7 @@ import type {
 
 export type * from './types.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
+export type { WorkspaceDisplayTitleProvider } from './feed.ts'
 
 /** First-use directory policy for the Host account. */
 export interface Config {
@@ -73,13 +74,23 @@ export class WorkspaceController extends TypertRemoteService {
     ctx.typert.resources.register('workspace', { field: 'workspaceId' })
     this.config = WorkspaceController.Config(config)
     if (this.config.documentsDirectory !== undefined) validateDocumentsDirectory(this.config.documentsDirectory)
-    this.commands = new WorkspaceCommands(ctx)
     this.feed = new WorkspaceFeed(ctx)
+    this.commands = new WorkspaceCommands(ctx, workspace => this.feed.view(workspace))
     // This package is the Loader entry for both Remote owners it hosts: the
     // directory-picking seam is abstract and never an entry itself. The child
     // stays pending until a picking backend is composed, so a host without one
     // registers no picking namespace instead of answering an unservable verb.
     ctx.plugin(DirectoryPickerController)
+  }
+
+  // Hemi fork: provider-owned names reach all Workspace readers without adding provider business logic here.
+  /**
+   * Register display-only Workspace naming; stored titles and mutation requests remain unchanged.
+   * @param provider - pure resolver and invalidation subscription; first registered match wins.
+   * @returns idempotent disposer owned by the contributing plugin effect.
+   */
+  registerDisplayTitle(provider: WorkspaceDisplayTitleProvider): () => void {
+    return this.feed.registerDisplayTitle(provider)
   }
 
   /**
@@ -108,7 +119,7 @@ export class WorkspaceController extends TypertRemoteService {
         this.config.documentsDirectory, AbortSignal.any([signal, timeout]),
       )
     })
-    return workspace === undefined ? undefined : { workspace: workspaceView(workspace) }
+    return workspace === undefined ? undefined : { workspace: this.feed.view(workspace) }
   }
 
   /**

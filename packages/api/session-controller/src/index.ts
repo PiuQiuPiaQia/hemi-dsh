@@ -3,7 +3,7 @@
 import { hostname } from 'node:os'
 import { resolve } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type {} from '@deepseek-ai/dsh-fs'
+import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { errorChain, ReasoningEffortId, type MessageSource } from '@deepseek-ai/dsh-llm'
@@ -30,6 +30,7 @@ import { ApiSessionList } from './list.ts'
 import { buildModelCatalog, hasProviderApiKey } from './catalog.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
 import { SessionMediaReferences } from './media-references.ts'
+import { withSessionFileSystem } from './file-system.ts'
 import { ArchivedSessionGate } from './archived-session-gate.ts'
 import type {
   ModelCatalog,
@@ -377,10 +378,11 @@ export class SessionController extends TypertRemoteService {
     signal: AbortSignal,
   ): Promise<SessionOpenWorkspacePathValue> {
     try {
-      const path = await this.verifyDesktopPath(request.path, signal)
-      if (request.action === 'reveal') await this.revealPath(path, signal)
-      else if (request.application !== undefined) await this.openFileApplication(path, request.application, signal)
-      else await this.openPath(path, signal)
+      await this.withDesktopPath(request, signal, async (path, lifetime) => {
+        if (request.action === 'reveal') await this.revealPath(path, lifetime)
+        else if (request.application !== undefined) await this.openFileApplication(path, request.application, lifetime)
+        else await this.openPath(path, lifetime)
+      })
       return { opened: true }
     } catch (error: unknown) {
       if (signal.aborted) throw new RemoteError('gateway/cancelled', 'path open was aborted', {})
@@ -403,12 +405,11 @@ export class SessionController extends TypertRemoteService {
    */
   @Remote('workspacePathApplications')
   async workspacePathApplications(
-    request: { readonly path: string }, signal: AbortSignal,
+    request: Pick<SessionOpenWorkspacePathRequest, 'path' | 'sessionId'>, signal: AbortSignal,
   ): Promise<readonly SessionWorkspacePathApplication[]> {
     if (!this.canOpenPath()) return []
     try {
-      const path = await this.verifyDesktopPath(request.path, signal)
-      return await this.fileApplications(path, signal)
+      return await this.withDesktopPath(request, signal, (path, lifetime) => this.fileApplications(path, lifetime))
     } catch (error: unknown) {
       if (signal.aborted) throw new RemoteError('gateway/cancelled', 'application query was aborted', {})
       if (error instanceof RemoteError) throw error
@@ -416,13 +417,29 @@ export class SessionController extends TypertRemoteService {
     }
   }
 
-  private async verifyDesktopPath(path: string, signal: AbortSignal): Promise<string> {
-    if (path.length === 0) throw new RemoteError('gateway/bad-request', 'A non-empty file path is required', {})
+  private async withDesktopPath<T>(
+    request: Pick<SessionOpenWorkspacePathRequest, 'path' | 'sessionId'>, signal: AbortSignal,
+    operation: (path: string, signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    if (request.path.length === 0) throw new RemoteError('gateway/bad-request', 'A non-empty file path is required', {})
+    const sessionId = request.sessionId
+    if (sessionId === undefined) {
+      return operation(await this.verifyDesktopPath(this.ctx.fs, request.path, signal), signal)
+    }
+    // Hemi fork: native handoffs retain the Session's filesystem identity; same-spelled Host paths are not mappings.
+    return withSessionFileSystem(this.ctx, sessionId, signal, async (fs, header, lifetime) => {
+      const path = header.cwd === undefined ? request.path : resolve(header.cwd, request.path)
+      const verified = await this.verifyDesktopPath(fs, path, lifetime, sessionId)
+      return operation(verified, lifetime)
+    })
+  }
+
+  private async verifyDesktopPath(fs: FileSystem, path: string, signal: AbortSignal, sessionId?: SessionId): Promise<string> {
     signal.throwIfAborted()
     const hostPath = resolve(path)
-    const { fs } = this.ctx
     const mapped = fs.processPathFromHostPath(hostPath)
     if (mapped === undefined || fs.processPath(await fs.resolve(mapped, { signal })) !== hostPath) {
+      if (sessionId !== undefined) throw new RemoteError('session/path-unavailable', 'This Session file has no Host mapping; download it before opening it locally', { sessionId })
       throw new RemoteError('gateway/bad-request', 'Path has no verified Host path', {})
     }
     signal.throwIfAborted()

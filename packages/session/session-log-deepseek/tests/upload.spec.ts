@@ -7,6 +7,8 @@ import SessionStore, {
   SessionLogOffset,
   SessionSeq,
   type CreateSessionOptions,
+  type ExecutionProviderId,
+  type ExecutionTargetId,
   type SessionEvent,
   type SessionHeader,
 } from '@deepseek-ai/dsh-session'
@@ -553,6 +555,7 @@ describe('incremental DeepSeek session-log upload', () => {
         origin: 'subagent',
         delegationDepth: 1,
         agentPreset: 'minimal',
+        executionTarget: { provider: 'ssh' as ExecutionProviderId, id: 'folder-1' as ExecutionTargetId },
       },
     })
 
@@ -569,6 +572,7 @@ describe('incremental DeepSeek session-log upload', () => {
       origin: 'subagent',
       delegationDepth: 1,
       agentPreset: 'minimal',
+      executionTarget: { provider: 'ssh', id: 'folder-1' },
     })
     expect(wire.session).not.toHaveProperty('isSeeded')
     expect(typeof wire.afterSeq).toBe('number')

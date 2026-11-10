@@ -11,7 +11,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { proxyEnvironmentForChild } from '@deepseek-ai/dsh-http-proxy'
 import { DSH_ENV_PREFIX } from './types.ts'
-import type { SubprocessHandle, SubprocessSpawnSpec } from './types.ts'
+import type { SubprocessExecutable, SubprocessHandle, SubprocessSpawnSpec } from './types.ts'
 import type { SubprocessTerminalEnvironment, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from './types.ts'
 
 export { DSH_ENV_PREFIX } from './types.ts'
@@ -20,6 +20,7 @@ export type {
   DshEnvironment,
   DshEnvironmentKey,
   SubprocessCollect,
+  SubprocessExecutable,
   SubprocessCollectedOutputs,
   SubprocessHandle,
   SubprocessOutcome,
@@ -119,19 +120,23 @@ export abstract class SubprocessRuntime extends Service {
     super(ctx, 'subprocess')
   }
 
+  // Hemi fork: provider-owned lookup keeps packaged program locations in their same-machine environment.
   /**
    * Resolve one configured executable in this provider's execution world.
    * Absolute paths are verified; bare names use the provider's scrubbed PATH
    * plus explicit environment overrides. Relative paths containing separators
    * are rejected: the resolution base is undefined, so providers fail loud
    * instead of guessing.
-   * @param command - absolute executable path or bare PATH name.
+   * A packaged resource supplies a lazy same-machine locator: local providers use and verify
+   * it, while other execution environments resolve only its logical command on their PATH.
+   * The locator never enters a spawn spec, remote request, or persisted data.
+   * @param command - absolute path, bare PATH name, or consumer-owned packaged executable resource.
    * @param env - explicit environment entries used for lookup.
    * @param signal - aborts remote or local lookup.
    * @returns a canonical executable path.
    */
   abstract resolveExecutable(
-    command: string,
+    command: SubprocessExecutable,
     env?: Readonly<Record<string, string>>,
     signal?: AbortSignal,
   ): Promise<string>

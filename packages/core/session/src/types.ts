@@ -89,6 +89,21 @@ export type OptionalSessionSeq = SessionSeq | null
  */
 export const SESSION_FORMAT_VERSION = 4
 
+// Hemi fork: execution identity is independent of directory spelling and Agent preset.
+/** Identifies the provider that resolves an execution environment. */
+export type ExecutionProviderId = Branded<'ExecutionProviderId'>
+
+/** Identifies one immutable environment within its provider. */
+export type ExecutionTargetId = Branded<'ExecutionTargetId'>
+
+/** Durable execution identity; absence retains the deployment's default execution environment. */
+export type SessionExecutionTarget = {
+  /** Provider that owns this environment. */
+  readonly provider: ExecutionProviderId
+  /** Provider-owned immutable target record; never retargeted in place. */
+  readonly id: ExecutionTargetId
+}
+
 /**
  * Immutable validated storage metadata, kept outside the conversation event log.
  */
@@ -133,6 +148,8 @@ export interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /** Explicit execution environment; an unavailable reference must never fall back to the Host. */
+  readonly executionTarget?: SessionExecutionTarget
 }
 
 /**
@@ -161,6 +178,8 @@ export interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    /** Immutable execution environment resolved before Agent activation. */
+    readonly executionTarget?: SessionExecutionTarget
   }
 }
 

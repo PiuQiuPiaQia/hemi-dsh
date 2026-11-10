@@ -1,0 +1,22 @@
+[
+  {
+    "mode": "light",
+    "background": "rgb(255, 255, 255)",
+    "text": "rgb(15, 17, 21)",
+    "sendFill": "rgb(15, 17, 21)",
+    "sendInk": "rgb(255, 255, 255)",
+    "bubble": "rgb(245, 246, 247)",
+    "brand": "#0f1115",
+    "focus": "#0f1115"
+  },
+  {
+    "mode": "dark",
+    "background": "rgb(21, 21, 23)",
+    "text": "rgb(249, 250, 251)",
+    "sendFill": "rgb(249, 250, 251)",
+    "sendInk": "rgb(15, 17, 21)",
+    "bubble": "rgb(44, 44, 46)",
+    "brand": "#f9fafb",
+    "focus": "#f9fafb"
+  }
+]

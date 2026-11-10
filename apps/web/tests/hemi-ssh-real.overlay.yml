@@ -1,0 +1,15 @@
+# SSH directory acceptance uses the shipped Web composition with isolated deterministic preferences.
+- id: hemi-ssh-servers
+  disabled: false
+- id: hemi-ssh-servers-ui
+  disabled: false
+- id: hemi-ssh-workspaces
+  disabled: false
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-browse'
+- id: hemi-routing-settings
+  config:
+    newSessionMode: fixed
+    newSessionEffort: null
+- id: session-title-llm
+  disabled: true

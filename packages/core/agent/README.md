@@ -73,6 +73,8 @@ await handle.agent.whenIdle()
 
 `Agent.ctx` is the agent's scoped context: registrations made through it (tools, prompt sections, variables, event listeners, restrictions) apply to that agent alone and unwind on disposal. The same mechanism is what agent presets use to give one session a different capability set without affecting its neighbors.
 
+Explicit Session execution targets resolve through effect-owned `registerExecutionProvider()` contributions. `acquireExecution(reference, signal)` returns a lease; its `bind(base)` selects execution services without replacing Core dependencies. Consumers stop and unwind their scopes before closing the lease. Provider withdrawal aborts leases and awaits their release. `agent.execution` exposes the bound base and actual realm instance for shared preset activation; it is absent when the Session retains deployment-default execution.
+
 ### Intercept or observe work in flight
 
 `agent/request` is deprecated and retained for existing listeners. Do not add new listeners. Provider, model, and optional explicit reasoning effort are fixed at step preparation; listeners must preserve all three, including an absent effort. `AgentOptions.maxTokens` sets the output cap. Other per-request control overrides have no replacement API. See the [migration guide](../../../docs/upgrade-guide/v0.2.1-alpha.4/session-model-selection/guide.md) for affected callers.

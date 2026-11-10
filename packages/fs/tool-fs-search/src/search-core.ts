@@ -1,14 +1,14 @@
 /**
  * Shared execution plumbing for the `glob` / `grep` search tools: the
  * package-owned `SEARCH_*` error vocabulary, one spawn helper that runs the
- * PACKAGED ripgrep binary (`@vscode/ripgrep`) with a plain argv vector and
+ * execution-world ripgrep binary with a plain argv vector and
  * returns complete raw stdout, the best-effort formatted-result spill handoff,
  * and workdir-relative path display.
  *
  * Both tools execute as ordinary foreground spawns through `ctx.subprocess` —
  * never `ctx.shell`, never `ctx.shell.start()`, never a model-visible background
- * task. The ripgrep binary ships inside the npm package, so no system `rg`
- * install is required, and no shell layer exists between the argv vector and
+ * task. Same-machine execution uses the packaged binary; another environment
+ * requires `rg` on its PATH. No shell layer exists between the argv vector and
  * ripgrep, so no shell quoting is involved. Raw `rg` stdout is an internal
  * transport detail: the tools request a per-run stdout capture budget from the
  * subprocess seam, parse only complete in-memory stdout within
@@ -184,7 +184,7 @@ export function resolveRgPath(): Promise<string> {
 }
 
 /**
- * Run the packaged ripgrep binary with a plain argv vector and return its
+ * Run the execution-world ripgrep binary with a plain argv vector and return its
  * complete raw stdout. The working directory is the calling agent's session
  * current directory when available, else
  * `process.cwd()`. `exec.signal` is forwarded so the cooperative tool timeout
@@ -237,7 +237,8 @@ export async function runRipgrep(
   let handle: SubprocessHandle
   try {
     handle = ctx.subprocess.spawn({
-      argv: [await resolveRgPath(), '--no-config', ...argv],
+      // Hemi fork: the provider selects a local packaged program or the execution world's PATH name.
+      argv: [await ctx.subprocess.resolveExecutable({ command: 'rg', resolveLocalPath: resolveRgPath }, undefined, exec.signal), '--no-config', ...argv],
       cwd: workdir,
       stdio: {
         stdin: 'ignore',

@@ -103,6 +103,12 @@ describe('MenuView', () => {
     expect(view.container.childElementCount).toBe(0)
   })
 
+  it('keeps an unavailable suggestion source visibly distinct from a successful empty directory', () => {
+    mount(openState({ groups: [{ source: 'reference', showGroupTitle: false, status: 'failed', items: [] }], highlight: null }))
+    expect(screen.getByRole('status').textContent).toBe(zh.failed)
+    expect(screen.queryByRole('option')).toBeNull()
+  })
+
   it('renders ready groups as option rows and pending groups as two skeleton rows', () => {
     mount(openState())
     const options = screen.getAllByRole('option')

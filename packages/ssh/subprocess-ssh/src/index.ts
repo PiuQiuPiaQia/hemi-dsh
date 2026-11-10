@@ -3,7 +3,7 @@ import { Duplex, PassThrough, type Readable, type Writable } from 'node:stream'
 import type { Socket } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import { SubprocessRuntime, SubprocessExecutableNotFoundError } from '@deepseek-ai/dsh-subprocess'
-import type { SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputMode, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalEnvironment, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessExecutable, SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputMode, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalEnvironment, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { OutputCollector } from '@deepseek-ai/dsh-subprocess-local/output'
 import type { SshConnection } from '@deepseek-ai/dsh-ssh'
 import { doneSchema, foregroundSchema, terminalActivitySchema, outputSnapshotFrameLimit, outputSnapshotSchema, preparedSchema, remotePath, streamEndpointSchema } from '@deepseek-ai/dsh-ssh/schemas'
@@ -252,9 +252,13 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
     })
   }
 
-  override async resolveExecutable(command: string, env?: Readonly<Record<string, string>>, signal?: AbortSignal): Promise<string> {
+  override async resolveExecutable(
+    command: SubprocessExecutable, env?: Readonly<Record<string, string>>, signal?: AbortSignal,
+  ): Promise<string> {
+    // Hemi fork: no local resource callback or Host path crosses the remote executable lookup.
+    const program = typeof command === 'string' ? command : command.command
     try {
-      return await this.ctx.ssh.request('executable', { command, env }, remotePath, signal)
+      return await this.ctx.ssh.request('executable', { command: program, env }, remotePath, signal)
     } catch (error) {
       if (error instanceof RemoteOperationError && error.code === 'SUBPROCESS_EXECUTABLE_NOT_FOUND') {
         throw new SubprocessExecutableNotFoundError(error.message, { cause: error })

@@ -30,7 +30,7 @@ import type { OpenInAppLauncher } from '../src/resolver.ts'
 let root: string | undefined
 let context: Context | undefined
 /** Answer the connection stub gives every route until a test changes it. */
-const trust: { rejection: 401 | 403 | undefined } = { rejection: undefined }
+const trust: { rejection: 401 | 403 | undefined; principal: string } = { rejection: undefined, principal: 'owner' }
 
 afterEach(async () => {
   await context?.fiber.dispose()
@@ -39,6 +39,7 @@ afterEach(async () => {
   root = undefined
   internals.catalog = {}
   trust.rejection = undefined
+  trust.principal = 'owner'
   vi.unstubAllEnvs()
 })
 
@@ -68,7 +69,7 @@ async function boot(layers: readonly LaunchEnvironmentLayerInput[] = []): Promis
   context = new Context()
   context.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot(layers))
   context.baseUrl = pathToFileURL(root).href + '/'
-  context.provide('connection', { requestRejection: () => trust.rejection } as never)
+  context.provide('connection', { admit: () => trust.rejection === undefined ? { peer: { principal: { kind: trust.principal } } } : { rejection: trust.rejection } } as never)
   // The plugin resolves PATH names through the composition's subprocess
   // capability; the not-found rejection is the provider's real signal.
   context.provide('subprocess', {
@@ -475,6 +476,74 @@ describe('open-in-app host routes (real Loader composition)', () => {
     // The spec host's subprocess stub rejects every lookup, which the plugin
     // reads as not-on-PATH: the catalog resolves empty instead of failing.
     expect(await (await fetch(`${base}/open-in-app/apps`)).json()).toEqual({ apps: [] })
+  })
+
+  it('refuses non-owner Peers before native catalog access', async () => {
+    const run = vi.fn<NativeCommandRunner>()
+    internals.catalog = { platform: 'darwin', run, resolveExecutable: pathTable() }
+    const base = await boot()
+    trust.principal = 'shared'
+    expect((await fetch(`${base}/open-in-app/apps`)).status).toBe(403)
+    expect((await fetch(`${base}/open-in-app/open`, { method: 'POST' })).status).toBe(403)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it.each([{ sessionId: '' }, { workspaceId: '' }, { sessionId: null }, { workspaceId: 1 },
+    { sessionId: 's', workspaceId: 'w' }])('rejects ambiguous or invalid directory scope %j', async (scope) => {
+    internals.catalog = { platform: 'darwin', applicationRoots: [], env: {}, resolveExecutable: pathTable() }
+    const base = await boot()
+    const response = await fetch(`${base}/open-in-app/open`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ app: 'finder', path: root, ...scope }),
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it.each(['sessionId', 'workspaceId'] as const)('refuses an explicit target directory through the %s HTTP operation before Host I/O or native launch', async (scope) => {
+    const launch = vi.fn<OpenInAppLauncher>(async () => {})
+    internals.catalog = { platform: 'darwin', applicationRoots: [], env: {}, launch, resolveExecutable: pathTable() }
+    const base = await boot()
+    const hostPath = join(root!, 'same-directory')
+    await mkdir(hostPath)
+    const ctx = context!
+    const target = { provider: 'target-provider', id: 'remote' }
+    const close = vi.fn(async () => {})
+    const label = Symbol('remote filesystem')
+    const remote = ctx.isolate('fs', label)
+    const mapping = vi.fn(() => undefined)
+    remote.provide('fs', { processPathFromHostPath: mapping } as never)
+    const hostMapping = vi.fn(() => { throw new Error('Host filesystem must not inspect a target path') })
+    ctx.provide('fs', { processPathFromHostPath: hostMapping } as never)
+    const acquire = vi.fn(async () => ({ realm: Symbol('remote'), signal: new AbortController().signal,
+      bind: (owner: Context) => owner.isolate('fs', label), close }))
+    ctx.provide('sessions', { get: () => undefined, acquireExecution: acquire } as never)
+    ctx.provide('sessionPersistence', { stat: async () => ({ header: { executionTarget: target } }) } as never)
+    ctx.provide('workspaceRegistry', { get: () => ({ path: hostPath, executionTarget: target }) } as never)
+    const response = await fetch(`${base}/open-in-app/open`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ app: 'finder', path: hostPath, [scope]: 'selected' }),
+    })
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ code: 'path-unavailable' })
+    expect(mapping).toHaveBeenCalledWith(hostPath)
+    expect(hostMapping).not.toHaveBeenCalled()
+    expect(launch).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('refuses an offline target without opening a same-named Host directory', async () => {
+    const launch = vi.fn<OpenInAppLauncher>(async () => {})
+    internals.catalog = { platform: 'darwin', applicationRoots: [], env: {}, launch, resolveExecutable: pathTable() }
+    const base = await boot()
+    const acquire = vi.fn(async () => { throw new Error('offline') })
+    context!.provide('sessions', { get: () => ({ header: { executionTarget: { provider: 'remote', id: 'offline' } } }), acquireExecution: acquire } as never)
+    const response = await fetch(`${base}/open-in-app/open`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ app: 'finder', path: root, sessionId: 'offline' }),
+    })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ code: 'environment-unavailable' })
+    expect(launch).not.toHaveBeenCalled()
   })
 
   it('removes all three routes when the plugin row is disposed (HMR safety)', async () => {

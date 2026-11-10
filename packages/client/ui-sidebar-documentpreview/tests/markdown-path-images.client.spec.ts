@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { markdownImageUrl } from '../src/client/markdown/path-images.ts'
+import { markdownImageUrl as resolveMarkdownImageUrl } from '../src/client/markdown/path-images.ts'
+
+const markdownImageUrl = (base: string, path: string | undefined, destination: string) => resolveMarkdownImageUrl(base, path, destination, 'preview')
 
 const BASE = 'https://example.test/tools/dsh/'
 
@@ -15,6 +17,7 @@ describe('Markdown preview image URLs', () => {
     const url = new URL(markdownImageUrl(BASE, '/work/guide/notes.md', destination)!)
     expect(url.origin + url.pathname).toBe(`${BASE}api/file`)
     expect(url.searchParams.get('path')).toBe(path)
+    expect(url.searchParams.get('sessionId')).toBe('preview')
     expect(url.hash).toBe('')
   })
 
@@ -45,7 +48,7 @@ describe('Markdown preview image URLs', () => {
 
   it('retains the deployment prefix when the base includes an HTML filename', () => {
     expect(markdownImageUrl(`${BASE}index.html`, '/work/notes.md', 'a.png'))
-      .toBe(`${BASE}api/file?path=${encodeURIComponent('/work/a.png')}`)
+      .toBe(`${BASE}api/file?path=${encodeURIComponent('/work/a.png')}&sessionId=preview`)
   })
 
   it('resolves relative and absolute images through the Desktop file route', () => {

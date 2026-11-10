@@ -6,7 +6,7 @@
  */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionExecutionTarget, SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TypertResource } from '@deepseek-ai/dsh-typert-protocol'
 
 /**
@@ -59,11 +59,20 @@ export interface SessionActivity {
   readonly items?: readonly SessionActivityItem[]
 }
 
+// Hemi fork: generic directory operations select an explicit execution environment without exposing SSH business types.
+/** Explicit execution selection and cancellation for directory admission. */
+export interface WorkspaceDirectoryOptions {
+  /** Immutable execution reference; omission retains deployment-default directory behavior. */
+  readonly executionTarget?: SessionExecutionTarget
+  /** Cancellation before a registry write begins; admitted writes are not rolled back. */
+  readonly signal?: AbortSignal
+}
+
 /**
  * One workspace: a stable id over an existing directory, a display title, and
- * an ordered candidate account of sessions. Membership validates header cwd
- * against the workspace path, but preserves an existing account when its
- * fully qualified cwd is missing. Consumers only see this interface; the
+ * an ordered candidate account of sessions. Membership validates the execution
+ * reference and header cwd. Native missing-directory accounts and offline
+ * explicit-target accounts preserve their recorded ownership. Consumers only see this interface; the
  * implementation stays private.
  */
 export interface Workspace {
@@ -71,11 +80,14 @@ export interface Workspace {
   readonly id: WorkspaceId
 
   /**
-   * Canonical directory path: the `fs.realpath` of the path given at create
+   * Canonical directory path from this execution environment's filesystem at create
    * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
    * afterwards, even when the directory disappears (see {@link status}).
    */
   readonly path: string
+
+  /** Immutable execution environment; absent for the deployment-default directory world. */
+  readonly executionTarget?: SessionExecutionTarget | undefined
 
   /** Display title. Defaults to the final path segment, or a filesystem root's own spelling; duplicates are allowed. */
   readonly title: string
@@ -91,8 +103,9 @@ export interface Workspace {
    * prepended at attach, explicit reordering goes through
    * `insertSessionBefore`, and activity never reorders. The durable candidate
    * account is filtered synchronously: missing headers, invalid cwd values,
-   * and canonical cwd mismatches are never returned. A fully qualified cwd
-   * whose realpath or directory stat fails with ENOENT preserves an existing
+   * canonical cwd mismatches and execution-reference mismatches are never returned.
+   * Explicit targets compare their stored canonical cwd without network access.
+   * A native fully qualified cwd whose realpath or directory stat fails with ENOENT preserves an existing
    * candidate, including a dangling symlink; other filesystem failures do not.
    * A subsequent mutation prunes filtered candidates, not missing-directory
    * candidates. This does not admit new sessions or recreate directories.
@@ -111,8 +124,8 @@ export interface Workspace {
    * accounted id resolves without writing, aside from the durable
    * filtered-candidate prune every accepted mutation performs. A new id's
    * live or persisted
-   * header cwd must resolve to an existing directory equal to {@link path};
-   * unknown ids, missing or invalid cwd values, and mismatches reject without
+   * header cwd must resolve through the matching execution environment to an existing directory equal to {@link path};
+   * unknown ids, missing or invalid cwd values, and directory or target mismatches reject without
    * writing.
    * @param sessionId - The session to record.
    * @returns resolution after durability.
@@ -146,8 +159,9 @@ export interface Workspace {
   /**
    * Live directory check, uncached: whether {@link path} currently exists and
    * is a directory. A missing directory never mutates the record — the
-   * directory may only be temporarily moved.
-   * @returns `'ok'` when the directory exists, `'missing-dir'` otherwise.
+   * directory may only be temporarily moved. Unavailable explicit targets and
+   * remote failures other than missing-directory errors reject without a Host probe.
+   * @returns `'ok'` when the directory exists, `'missing-dir'` when absent or not a directory.
    */
   status(): Promise<'ok' | 'missing-dir'>
 }

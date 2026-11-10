@@ -7,6 +7,9 @@
  * .agents/notes/implemented/architecture/2026-09-14-web-document-relative-app-routes.md.
  */
 
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+
 /** GET route path serving the probed application ids. */
 export const OPEN_IN_APP_APPS_PATH = '/open-in-app/apps'
 
@@ -34,4 +37,8 @@ export interface OpenInAppAppsPayload {
 export interface OpenInAppOpenPayload {
   readonly app: string
   readonly path: string
+  /** Session owning the directory; omission with no Workspace explicitly selects a Host path. */
+  readonly sessionId?: SessionId
+  /** Workspace owning the directory; mutually exclusive with sessionId. */
+  readonly workspaceId?: WorkspaceId
 }

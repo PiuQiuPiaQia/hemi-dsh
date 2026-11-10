@@ -14,12 +14,18 @@ import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/c
 import type { DirectoryFlowOwnerProps, WorkspacePickerProps } from '../src/client/contract/slots.ts'
 import { WorkspacePicker } from '../src/client/WorkspacePicker.tsx'
 import { zh } from '../src/client/locales.ts'
+import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
-afterEach(cleanup)
+const anchors = new Set<HTMLElement>()
+afterEach(() => {
+  cleanup()
+  for (const element of anchors) element.remove()
+  anchors.clear()
+})
 
 // The seat's key domain is workspace ∪ common; the stub mirrors the real
 // lookup chain (namespace, then common vocabulary, then the key).
@@ -44,6 +50,9 @@ const workspaceState = (items: readonly WorkspaceView[]): WorkspaceSnapshot => (
 })
 function anchor(): { current: HTMLElement } {
   const element = document.createElement('button')
+  // Menu dismisses disconnected anchors; the fixture owns a real trigger for its full lifetime.
+  document.body.append(element)
+  anchors.add(element)
   element.getBoundingClientRect = () => ({
     top: 10, left: 20, width: 30, height: 40, right: 50, bottom: 50,
     x: 20, y: 10, toJSON: () => ({}),
@@ -89,14 +98,16 @@ function mount(
   items: readonly WorkspaceView[] = [workspace('alpha', 'Alpha')],
   createWorkspace = vi.fn(),
   occupancy = occupancySource(),
+  extra?: Pick<WorkspacePickerProps, 'useAddActions' | 'renderSlot'> & Partial<Pick<WorkspacePickerProps, 'useConnections'>>,
 ) {
   const onPick = vi.fn()
   const onClose = vi.fn()
   const anchorRef = anchor()
   const { probe, renderSlot } = flowProbe()
+  let pickerOpen = true
   const renderPicker = (nextItems: readonly WorkspaceView[]) => (
     <WorkspacePicker
-      open
+      open={pickerOpen}
       anchorRef={anchorRef}
       useSessions={hook(sessions)}
       useSessionStatus={hook(noPendingInteraction)}
@@ -108,7 +119,9 @@ function mount(
       onClose={onClose}
       createWorkspace={createWorkspace}
       useDirectoryFlow={occupancy.useDirectoryFlow}
-      renderSlot={renderSlot}
+      useAddActions={extra?.useAddActions ?? hook(false)}
+      useConnections={extra?.useConnections ?? hook(false)}
+      renderSlot={extra?.renderSlot ?? renderSlot}
       t={t}
     />
   )
@@ -117,6 +130,7 @@ function mount(
   )
   return {
     view, onPick, onClose, createWorkspace, probe, occupancy,
+    setOpen: (open: boolean) => { pickerOpen = open; view.rerender(renderPicker(items)) },
     rerenderItems: (nextItems: readonly WorkspaceView[]) => { view.rerender(renderPicker(nextItems)) },
   }
 }
@@ -125,7 +139,118 @@ function chooseAdd(): void {
   fireEvent.click(screen.getByRole('menuitem', { name: '添加工作区…' }))
 }
 
+function extraActions(): Pick<WorkspacePickerProps, 'useAddActions' | 'renderSlot'> {
+  return {
+    useAddActions: hook(true),
+    renderSlot: (name: string, owner: object) => {
+      if (name !== 'conversation.hero.workspace.add.actions') return null
+      const action = owner as { onDismiss: () => void; disabled: boolean }
+      return <MenuItemButton disabled={action.disabled} onSelect={action.onDismiss}>添加 SSH</MenuItemButton>
+    },
+  }
+}
+
 describe('WorkspacePicker', () => {
+  it('uses projected names for existing remote Workspaces while preserving local names and selection identity', () => {
+    const executionTarget = { provider: 'hemi-ssh', id: 'target' } as NonNullable<WorkspaceView['executionTarget']>
+    const b = mount([
+      { ...workspace('remote-one', 'modyzer'), path: '/home/modyzer', executionTarget, displayTitle: 'modyzer（aimuxr）' },
+      { ...workspace('remote-two', 'modyzer'), path: '/home/modyzer', executionTarget, displayTitle: 'modyzer（staging）' },
+      { ...workspace('local', 'Custom local'), path: '/home/modyzer' },
+    ])
+    expect(screen.getAllByRole('menuitem').map(row => row.textContent))
+      .toEqual(['modyzer（aimuxr）', 'modyzer（staging）', 'Custom local', '添加工作区…'])
+    expect(screen.getByText('modyzer（aimuxr）').getAttribute('title')).toBe('modyzer（aimuxr）')
+    expect(screen.getByRole('menuitem', { name: 'modyzer（aimuxr）' }).querySelector('[data-icon="dsw-icon-globe-outline-regular"]')).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Custom local' }).querySelector('[data-icon="dsw-icon-folder-close-regular"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'modyzer（staging）' }))
+    expect(b.onPick).toHaveBeenCalledWith(wid('remote-two'))
+    expect(b.createWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('keeps complete long provider titles and same-name directory suffixes available in the menu', () => {
+    const title = `A deliberately long directory name（${'long-connection-name-'.repeat(8)}）`
+    mount([
+      { ...workspace('one', 'directory'), path: '/one/directory', displayTitle: title },
+      { ...workspace('two', 'directory'), path: '/two/directory', displayTitle: title },
+    ])
+    expect(screen.getByRole('menuitem', { name: `${title} one/directory` })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: `${title} two/directory` })).toBeTruthy()
+    expect(screen.getAllByText(title).every(label => label.getAttribute('title') === title)).toBe(true)
+  })
+
+  it('keeps connection sources between directory Workspaces and add actions without selecting a Workspace', () => {
+    const openConnection = vi.fn()
+    const b = mount([workspace('alpha', 'Alpha')], vi.fn(), occupancySource(), {
+      useAddActions: hook(true),
+      useConnections: hook(true),
+      renderSlot: (name: string, owner: object) => {
+        const action = owner as { onDismiss: () => void; disabled: boolean }
+        if (name === 'conversation.hero.workspace.connections') {
+          return <MenuItemButton disabled={action.disabled} onSelect={() => { action.onDismiss(); openConnection() }}>生产服务器</MenuItemButton>
+        }
+        if (name === 'conversation.hero.workspace.add.actions') {
+          return <MenuItemButton onSelect={action.onDismiss}>添加 SSH</MenuItemButton>
+        }
+        return null
+      },
+    })
+    expect(screen.getAllByRole('menuitem').map(row => row.textContent)).toEqual(['Alpha', '生产服务器', '添加工作区…', '添加 SSH'])
+    fireEvent.click(screen.getByRole('menuitem', { name: '生产服务器' }))
+    expect(b.onClose).toHaveBeenCalledOnce()
+    expect(openConnection).toHaveBeenCalledOnce()
+    expect(b.onPick).not.toHaveBeenCalled()
+    expect(b.createWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('offers a connection before choosing a directory when no Workspace exists', () => {
+    const b = mount([], vi.fn(), occupancySource(), {
+      useAddActions: hook(false),
+      useConnections: hook(true),
+      renderSlot: (name: string, owner: object) => name === 'conversation.hero.workspace.connections'
+        ? <MenuItemButton onSelect={(owner as { onDismiss: () => void }).onDismiss}>生产服务器</MenuItemButton> : null,
+    })
+    expect(screen.getAllByRole('menuitem').map(row => row.textContent)).toEqual(['生产服务器', '添加工作区…'])
+    expect(b.createWorkspace).not.toHaveBeenCalled()
+    expect(b.onClose).not.toHaveBeenCalled()
+  })
+
+  it('pins contributed actions below Add workspace without selecting a Workspace', () => {
+    const b = mount([workspace('alpha', 'Alpha')], vi.fn(), occupancySource(), extraActions())
+    expect(screen.getAllByRole('menuitem').map(row => row.textContent)).toEqual(['Alpha', '添加工作区…', '添加 SSH'])
+    const add = screen.getByRole('menuitem', { name: '添加工作区…' })
+    const ssh = screen.getByRole('menuitem', { name: '添加 SSH' })
+    expect(ssh.parentElement?.parentElement).toBe(add.parentElement?.parentElement)
+    fireEvent.click(ssh)
+    expect(b.onClose).toHaveBeenCalledOnce()
+    expect(b.onPick).not.toHaveBeenCalled()
+    expect(b.createWorkspace).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])('keeps contributed actions reachable without Workspaces, directory flow %s', (directory) => {
+    const b = mount([], vi.fn(), occupancySource(directory), extraActions())
+    expect(screen.getByRole('menuitem', { name: '添加 SSH' })).toBeTruthy()
+    expect(screen.queryByTestId('directory-flow')).toBeNull()
+    if (directory) expect(screen.getByRole('menuitem', { name: '添加工作区…' })).toBeTruthy()
+    else expect(screen.queryByRole('menuitem', { name: '添加工作区…' })).toBeNull()
+    expect(b.createWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('does not turn withdrawn extra actions into a directory request during the same gesture', () => {
+    const actions = occupancySource(true)
+    const b = mount([], vi.fn(), occupancySource(), { ...extraActions(), useAddActions: actions.useDirectoryFlow })
+    expect(screen.getByRole('menuitem', { name: '添加 SSH' })).toBeTruthy()
+    act(() => { actions.flip(false) })
+    expect(screen.getByRole('menuitem', { name: '添加工作区…' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: '添加 SSH' })).toBeNull()
+    expect(b.onClose).not.toHaveBeenCalled()
+    expect(b.createWorkspace).not.toHaveBeenCalled()
+    b.setOpen(false)
+    b.setOpen(true)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(b.onClose).toHaveBeenCalledOnce()
+  })
+
   it('labels same-title Workspaces with distinguishing path suffixes and forwards the selected id', () => {
     const b = mount([
       { ...workspace('alpha', 'Shared'), path: '/one/a/Shared' },
@@ -235,7 +360,8 @@ describe('WorkspacePicker', () => {
         usePanelInfo={usePanelInfo} useContextMenu={contextMenuHook()} useResource={useResource}
         {...allowAllAccess}
         onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()}
-        useDirectoryFlow={occupancySource().useDirectoryFlow} renderSlot={renderSlot} t={t}
+        useDirectoryFlow={occupancySource().useDirectoryFlow} useAddActions={hook(false)} useConnections={hook(false)}
+        renderSlot={renderSlot} t={t}
       />,
     )
     expect(screen.queryByRole('menu')).toBeNull()
@@ -254,7 +380,8 @@ describe('WorkspacePicker', () => {
         usePanelInfo={usePanelInfo} useContextMenu={contextMenuHook()} useResource={useResource}
         {...allowAllAccess}
         onPick={vi.fn()} onClose={vi.fn()} createWorkspace={vi.fn()}
-        useDirectoryFlow={occupancySource().useDirectoryFlow} renderSlot={renderSlot} t={t}
+        useDirectoryFlow={occupancySource().useDirectoryFlow} useAddActions={hook(false)} useConnections={hook(false)}
+        renderSlot={renderSlot} t={t}
       />,
     )
     // An empty list is not final yet: jumping into the directory flow here

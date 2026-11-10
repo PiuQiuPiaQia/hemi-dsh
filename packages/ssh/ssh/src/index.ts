@@ -3,11 +3,13 @@
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createConnection, type Socket } from 'node:net'
+import { createConnection, isIP, type Socket } from 'node:net'
 import { Context, Service } from '@deepseek-ai/cordis'
 import schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+// Hemi fork: an explicit target marks a non-default execution environment, never a Host-path policy namespace.
+import { isSessionExecutionTarget, type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
 import { SshRpcPeer, SSH_PROTOCOL_VERSION } from './protocol.ts'
 import { helloSchema, type SshStreamEndpoint } from './schemas.ts'
 import { authenticateStream } from './stream-security.ts'
@@ -31,14 +33,24 @@ export type HelperLaunch = {
 
 /** Deployment-owned SSH identity and installed helper; no model argument selects these values. */
 export interface Config {
-  /** OpenSSH host alias, including its existing user, key and known-host configuration. */
+  /** OpenSSH alias, DNS name or IP address; legacy user@host remains supported. */
   host: string
+  /** Explicit login; omission retains the alias or legacy host's user selection. */
+  username?: string
+  /** Explicit TCP port; omission retains OpenSSH configuration. */
+  port?: number
+  /** Local identity-file path; omission retains OpenSSH credential selection. No key contents are read by this service. */
+  identityFile?: string
+  /** Hemi fork: borrowed OpenSSH control socket already authenticated to this exact endpoint; its owner retains and closes the master. */
+  authenticatedControlPath?: string
   /** Explicit script or self-contained executable invocation. */
   launch: HelperLaunch
   /** Absolute path to the installed, bundled helper entry. */
   helper: string
   /** SHA-256 of that bundled helper; mismatches refuse the connection. */
   helperHash: string
+  /** Explicit non-default environment; absent when SSH is the deployment-default provider. */
+  executionTarget?: SessionExecutionTarget
   /** Absolute remote default workspace. */
   workspace: string
   /** Connection and administrative-request deadline, at most 2,147,483,647 milliseconds. */
@@ -51,6 +63,17 @@ export interface Config {
   leaseMs?: number
 }
 
+type OptionalConfig = 'username' | 'port' | 'identityFile' | 'executionTarget' | 'authenticatedControlPath'
+type ResolvedConfig = Required<Omit<Config, OptionalConfig>> & Pick<Config, OptionalConfig>
+
+function validHost(value: string): boolean {
+  if (/^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$/.test(value)) return true
+  const separator = value.lastIndexOf('@')
+  const host = value.slice(separator + 1)
+  if (separator >= 0 && !/^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$/.test(value.slice(0, separator))) return false
+  return isIP(host) === 6 || host.startsWith('[') && host.endsWith(']') && isIP(host.slice(1, -1)) === 6
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context { ssh: SshConnection }
 }
@@ -59,11 +82,14 @@ declare module '@deepseek-ai/cordis' {
 export class SshConnection extends Service {
   static Config: schema<Config> = schema.object({
     host: schema.string().required(), helper: schema.string().required(),
+    username: schema.string(), port: schema.number().step(1).min(1).max(65535), identityFile: schema.string(),
+    authenticatedControlPath: schema.string(),
     launch: schema.union([
       schema.object({ kind: schema.const('node-script').required(), node: schema.string().required(), bootstrapPath: schema.string(), bootstrapHash: schema.string() }),
       schema.object({ kind: schema.const('executable').required() }),
     ]).required(),
     helperHash: schema.string().required(), workspace: schema.string().required(),
+    executionTarget: schema.any<SessionExecutionTarget>(),
     requestTimeoutMs: schema.number().default(30_000), maxFrameBytes: schema.number().default(64 * 1024 * 1024),
     maxPending: schema.number().default(128), leaseMs: schema.number().default(30_000),
   })
@@ -82,14 +108,18 @@ export class SshConnection extends Service {
   private failure: Error | undefined
   private sockets = new Set<Socket>()
   private nextSocket = 0
-  private readonly config: Required<Config>
+  private readonly config: ResolvedConfig
   private remote: Hello | undefined
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'ssh')
     if (process.platform !== 'linux' && process.platform !== 'darwin') throw new Error('SSH runtime requires a POSIX client')
     this.config = z.object({
-      host: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.@-]*$/),
+      host: z.string().refine(validHost, 'invalid SSH host'),
+      username: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.@-]+$/).refine(value => !value.startsWith('-')).optional(),
+      port: z.number().int().min(1).max(65535).optional(),
+      identityFile: z.string().min(1).max(4096).regex(/^[^\p{Cc}]+$/u).optional(),
+      authenticatedControlPath: z.string().startsWith('/').max(4096).regex(/^[^\p{Cc}]+$/u).optional(),
       launch: z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('node-script'), node: z.string().startsWith('/'),
           bootstrapPath: z.string().startsWith('/').optional(), bootstrapHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
@@ -97,10 +127,13 @@ export class SshConnection extends Service {
         z.object({ kind: z.literal('executable') }).strict(),
       ]),
       helper: z.string().startsWith('/'), helperHash: z.string().regex(/^[0-9a-f]{64}$/),
+      executionTarget: z.custom<SessionExecutionTarget>(isSessionExecutionTarget)
+        .transform(value => Object.freeze({ ...value })).optional(),
       workspace: z.string().startsWith('/'), requestTimeoutMs: z.number().int().positive().max(2_147_483_647),
       maxFrameBytes: z.number().int().positive().max(64 * 1024 * 1024), maxPending: z.number().int().positive().max(128),
       leaseMs: z.number().int().min(3000).max(600_000),
-    }).strict().parse(config) as Required<Config>
+    }).strict().refine(value => value.username === undefined || !value.host.includes('@'),
+      'username and legacy user@host must not be combined').parse(config) as ResolvedConfig
     this.ready = this.start()
     // Startup uses Node I/O, local validation, and Error-valued RPC failures.
     void this.ready.catch((error: unknown) => { this.fail(error as Error) })
@@ -109,6 +142,18 @@ export class SshConnection extends Service {
 
   /** Hold plugin readiness until the remote identity and helper digest are verified. */
   async [Service.init](): Promise<void> { await this.ready }
+
+  /** Aborts on transport loss or owner shutdown; consumers must stop before releasing this execution instance. */
+  get signal(): AbortSignal { return this.lifetime.signal }
+
+  /** Explicit execution environment; its deployment-default writable roots must not be inherited. */
+  get executionTarget(): SessionExecutionTarget | undefined { return this.config.executionTarget }
+
+  /** Physical remote workspace verified during readiness; never the Host fallback path. */
+  get workspaceRoot(): string {
+    if (this.remote === undefined) throw new Error('SSH helper is not ready')
+    return this.remote.workspace
+  }
 
   /** Verified remote PTC launch configuration; script deployments require a verified bootstrap. */
   get ptcLaunch(): { kind: 'embedded'; executable: string } | { kind: 'node-script'; executable: string; bootstrapPath: string } {
@@ -164,13 +209,16 @@ export class SshConnection extends Service {
     const forward = `${local}:${remote}`
     const cancelForward = async (): Promise<void> => {
       // An unavailable master already removed its forwarding listeners.
-      if (!this.closed) await this.controlCommand(['-O', 'cancel', '-L', forward]).catch(() => {})
+      // Hemi fork: a retained external master outlives this consumer and still owns the forwarding until cancellation.
+      if (!this.closed || this.config.authenticatedControlPath !== undefined) {
+        await this.controlCommand(['-O', 'cancel', '-L', forward], undefined, true).catch(() => {})
+      }
       await rm(local, { force: true })
     }
     try {
       await this.controlCommand(['-O', 'forward', '-o', 'ExitOnForwardFailure=yes', '-L', forward], signal)
+      signal.throwIfAborted()
     } catch (error) { await cancelForward(); throw error }
-    signal.throwIfAborted()
     const socket = createConnection({ path: local, allowHalfOpen: true })
     this.sockets.add(socket)
     socket.once('close', () => {
@@ -229,7 +277,17 @@ export class SshConnection extends Service {
     }
   }
 
-  private controlPath(): string { return join(this.directory as string, 'master') }
+  // Hemi fork: interactive authentication owns a shared master; helper groups only borrow its endpoint-bound socket.
+  private controlPath(): string { return this.config.authenticatedControlPath ?? join(this.directory as string, 'master') }
+
+  private identityArguments(): string[] {
+    // Hemi fork: saved login fields remain argv values, never shell syntax or rewritten SSH configuration.
+    return [
+      ...this.config.username === undefined ? [] : ['-l', this.config.username],
+      ...this.config.port === undefined ? [] : ['-p', String(this.config.port)],
+      ...this.config.identityFile === undefined ? [] : ['-i', this.config.identityFile],
+    ]
+  }
 
   private assertOpen(): void {
     if (this.closed) throw new Error('SSH connection is closed')
@@ -242,13 +300,14 @@ export class SshConnection extends Service {
     return operation
   }
 
-  private async controlCommand(args: string[], signal?: AbortSignal): Promise<void> {
-    const signals = [this.lifetime.signal, AbortSignal.timeout(this.config.requestTimeoutMs)]
+  private async controlCommand(args: string[], signal?: AbortSignal, cleanup = false): Promise<void> {
+    const signals = [AbortSignal.timeout(this.config.requestTimeoutMs)]
+    if (!cleanup) signals.push(this.lifetime.signal)
     if (signal !== undefined) signals.push(signal)
     const combined = AbortSignal.any(signals)
     combined.throwIfAborted()
     const result = Promise.withResolvers<undefined>()
-    const command = execFile('ssh', ['-S', this.controlPath(), ...args, this.config.host], {
+    const command = execFile('ssh', ['-S', this.controlPath(), ...this.identityArguments(), ...args, this.config.host], {
       signal: combined, maxBuffer: 64 * 1024,
     }, (error) => { if (error === null) result.resolve(undefined); else result.reject(error) })
     const closed = new Promise<void>((resolve) => { command.once('close', () => { resolve() }) })
@@ -297,9 +356,10 @@ export class SshConnection extends Service {
       default: return assertNever(launch)
     }
     const child = spawn('ssh', [
-      '-T', '-M', '-S', this.controlPath(), '-o', 'ControlPersist=no', '-o', 'BatchMode=yes',
+      '-T', ...this.config.authenticatedControlPath === undefined ? ['-M'] : ['-o', 'ControlMaster=no', '-o', 'ProxyCommand=false'],
+      '-S', this.controlPath(), '-o', 'ControlPersist=no', '-o', 'BatchMode=yes',
       '-o', 'StrictHostKeyChecking=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
-      '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3', this.config.host, command,
+      '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3', ...this.identityArguments(), this.config.host, command,
     ], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
     this.childClosed = new Promise((resolve) => { child.once('close', () => { resolve() }) })

@@ -101,6 +101,24 @@ it('aligns data groups, footers and submenus independently without modifying slo
   expect(hasColumn(view.getByRole('menuitem', { name: 'Footer' }))).toBe(false)
 })
 
+it('keeps component footer actions after pinned data rows in the keyboard walk', async () => {
+  const select = vi.fn()
+  const view = render(<Menu open portal autoFocus anchor={null} onClose={() => {}}
+    anchorRef={{ current: document.body }} items={[{ id: 'workspace', label: 'Workspace' }]}
+    footer={[{ id: 'add', label: 'Add workspace' }]}
+    footerChildren={<MenuItemButton onSelect={select}>Add SSH</MenuItemButton>} />)
+  expect(view.getAllByRole('menuitem').map(row => row.textContent)).toEqual(['Workspace', 'Add workspace', 'Add SSH'])
+  const first = view.getByRole('menuitem', { name: 'Workspace' })
+  const extra = view.getByRole('menuitem', { name: 'Add SSH' })
+  expect(extra.parentElement?.parentElement).toBe(view.getByRole('menuitem', { name: 'Add workspace' }).parentElement?.parentElement)
+  expect(extra.querySelector('button')).toBeNull()
+  await waitFor(() => { expect(document.activeElement).toBe(first) })
+  fireEvent.keyDown(first, { key: 'End' })
+  expect(document.activeElement).toBe(extra)
+  fireEvent.click(extra)
+  expect(select).toHaveBeenCalledOnce()
+})
+
 it('keeps a menu-only reference focusable without inventing an activation action', () => {
   const open = vi.fn()
   const view = render(<ReferenceChip appearance="file" label="Reference" title="File reference" contextMenuProps={contextMenuHook(open)().getTriggerProps({ kind: 'image', value: { url: 'file' } })} />)

@@ -1,0 +1,246 @@
+/** The existing Hemi remote picker's address / locations / directory / footer layout. */
+.dialog.dialog {
+  width: min(580px, 100%);
+  max-height: 100%;
+  padding-bottom: 16px;
+  gap: 0;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.content > :last-child {
+  margin-top: 0;
+}
+
+.dialog > :last-child {
+  flex-shrink: 0;
+  padding: 16px 24px 0;
+  border-top: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-bottom: 20px;
+}
+
+.host {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.host svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.address {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.address > button,
+.parent {
+  flex: none;
+}
+
+.parent {
+  width: 28px;
+  padding-inline: 0;
+}
+
+.pathInput {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  background: transparent;
+}
+
+.pathInput input {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.shortcuts > button {
+  min-width: 0;
+  max-width: 150px;
+}
+
+.shortcut {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folders {
+  position: relative;
+  flex: none;
+  height: 200px;
+  overflow-y: auto;
+  border-top: 0.5px solid var(--dsw-alias-border-l3);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  padding: 6px 4px 6px 0;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.row span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row svg {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.row:disabled {
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+}
+
+.row:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .row:not(:disabled):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.empty,
+.failure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 100%;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.notice {
+  padding: 8px;
+}
+
+.problem,
+.diagnostic {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.problem {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.diagnostic {
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.pending {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px;
+}
+
+.skeleton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px;
+}
+
+.skeleton span {
+  height: 16px;
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-bg-skeleton);
+}
+
+.skeleton span:first-child {
+  width: 16px;
+  flex: none;
+}
+
+.skeleton span:last-child {
+  width: 55%;
+}
+
+@media (pointer: coarse) {
+  .pathInput input {
+    font-size: 16px;
+  }
+
+  .pathInput,
+  .address button,
+  .shortcuts button,
+  .row,
+  .dialog > :last-child > button {
+    min-height: 44px;
+  }
+
+  .parent {
+    width: 36px;
+  }
+}

@@ -202,6 +202,18 @@ export interface SubprocessHandle {
  */
 export type SubprocessTerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL' | 'SIGTSTP' | 'SIGHUP'
 
+// Hemi fork: packaged executables retain a local asset owner without transferring its filesystem path to another provider.
+/** Executable lookup input; a packaged local resource is evaluated only by a same-machine provider. */
+export type SubprocessExecutable = string | {
+  /** Logical command resolved on PATH by providers in a different execution environment. */
+  readonly command: string
+  /**
+   * Locate the consumer-owned packaged executable on the Harness machine.
+   * @returns its absolute local path; rejection must not fall back to PATH.
+   */
+  readonly resolveLocalPath: () => Promise<string>
+}
+
 /** Shell-selection facts from the subprocess provider's execution environment. */
 export interface SubprocessTerminalEnvironment {
   /** Operating-system family that interprets executable paths and shell arguments. */

@@ -1,0 +1,9 @@
+- menu:
+  - menuitem "remote-project-two（测试 SSH）"
+  - menuitem "remote-project-one（测试 SSH）"
+  - menuitem "remote-project-one"
+  - group "SSH 连接":
+    - text: SSH 连接
+    - menuitem "测试 SSH {{ssh-address}}"
+  - menuitem "添加工作区…"
+  - menuitem "添加 SSH"

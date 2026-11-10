@@ -21,4 +21,5 @@ export default defineConfig([
   entry('lib/types/settings.js'),
   entry('lib/types/client.js'),
   entry('lib/types/usage.js'),
+  entry('lib/types/overflow-compaction.js'),
 ])

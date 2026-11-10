@@ -4,7 +4,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-file-reference'
 import type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { FileReferenceEnvironmentUnsupportedError } from '@deepseek-ai/dsh-file-reference'
+import type {} from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -30,12 +32,18 @@ export class SessionFileReferences extends TypertRemoteService {
    * @returns deterministic path-only candidates from the composed provider.
    */
   @Remote
-  list(
+  async list(
     agent: Agent,
     query: string,
     signal: AbortSignal,
   ): Promise<FileReferenceCandidate[]> {
-    return this.ctx.fileReferences.list(agent, query, signal)
+    try { return await this.ctx.fileReferences.list(agent, query, signal) }
+    catch (cause: unknown) {
+      if (cause instanceof FileReferenceEnvironmentUnsupportedError) {
+        throw new RemoteError('file-reference/unsupported-environment', 'File suggestions are unavailable in this execution environment; enter the remote file path directly', {}, { cause })
+      }
+      throw cause
+    }
   }
 }
 

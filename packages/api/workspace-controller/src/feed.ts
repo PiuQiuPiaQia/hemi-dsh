@@ -23,10 +23,12 @@ type WorkspaceFeedFrame = Exclude<WorkspaceFollowFrame, { readonly type: 'replac
  * @param workspace - authoritative registry entity.
  * @returns detached Workspace projection for Remote consumers.
  */
+// Hemi fork: both baseline and durable-change projections preserve the environment of a physical directory.
 export function workspaceView(workspace: Workspace): WorkspaceView {
   return {
     workspaceId: workspace.id,
     path: workspace.path,
+    ...workspace.executionTarget === undefined ? {} : { executionTarget: { ...workspace.executionTarget } },
     title: workspace.title,
     sessionIds: [...workspace.sessionIds],
     createdAt: workspace.createdAt,
@@ -39,6 +41,7 @@ function changedWorkspaceView(workspaceId: string, value: unknown): WorkspaceVie
   return {
     workspaceId: WorkspaceId(workspaceId),
     path: record.path,
+    ...record.executionTarget === undefined ? {} : { executionTarget: { ...record.executionTarget } },
     title: record.title,
     sessionIds: [...record.sessionIds],
     createdAt: record.createdAt,
@@ -46,10 +49,30 @@ function changedWorkspaceView(workspaceId: string, value: unknown): WorkspaceVie
   }
 }
 
+// Hemi fork: display providers project existing execution identities without persisting presentation state.
+/** Synchronous display-only naming with an invalidation subscription owned by its registration. */
+export interface WorkspaceDisplayTitleProvider {
+  /**
+   * Read a label without mutating the Workspace or contacting its execution environment.
+   * @param workspace - detached committed row, with its stored title.
+   * @param views - committed registered rows before any display provider decorates them.
+   * @returns a display title, or undefined to delegate to another provider or native naming.
+   */
+  resolve(workspace: WorkspaceView, views: readonly WorkspaceView[]): string | undefined
+  /**
+   * Observe facts the resolver reads; published changes refresh existing follow consumers.
+   * @param listener - synchronous display invalidation callback.
+   * @returns idempotent unsubscribe function.
+   */
+  subscribe(listener: () => void): () => void
+}
+
 /** Owns Workspace domain observation and all active follow generations. */
 export class WorkspaceFeed {
   private readonly followers = new Set<WorkspaceFollower>()
-  private knownIds: Set<string>
+  private readonly displayTitles = new Map<symbol, WorkspaceDisplayTitleProvider>()
+  // Hemi fork: domain notifications precede Workspace entity swaps; naming refreshes retain committed rows, not stale entities.
+  private readonly views: Map<string, WorkspaceView>
   private order: readonly string[]
   private archived: readonly string[]
   private pinned: readonly string[]
@@ -57,7 +80,7 @@ export class WorkspaceFeed {
   /** @param ctx - Host context containing the authoritative Workspace registry. */
   constructor(private readonly ctx: Context) {
     const baseline = ctx.workspaceRegistry.list()
-    this.knownIds = new Set(baseline.map(workspace => String(workspace.id)))
+    this.views = new Map(baseline.map(workspace => [String(workspace.id), workspaceView(workspace)]))
     this.order = baseline.map(workspace => String(workspace.id))
     this.archived = ctx.workspaceRegistry.archivedSessionIds.map(String)
     this.pinned = ctx.workspaceRegistry.pinnedSessionIds.map(String)
@@ -68,13 +91,56 @@ export class WorkspaceFeed {
     }, 'workspace-controller.feed')
   }
 
+  // Hemi fork: baseline, increments and unary echoes share one generic display projection.
+  /**
+   * Project a Workspace with the first applicable display provider.
+   * @param workspace - authoritative registry entity.
+   * @returns detached row with committed naming and the entity's current filtered Session membership.
+   */
+  view(workspace: Workspace): WorkspaceView {
+    const committed = this.views.get(workspace.id) ?? workspaceView(workspace)
+    return this.withDisplayTitle({ ...committed, sessionIds: [...workspace.sessionIds] })
+  }
+
+  /**
+   * Install display-only naming and refresh existing consumers on registration, invalidation and removal.
+   * @param provider - synchronous resolver and its invalidation source; first registered match wins.
+   * @returns idempotent disposer; the caller owns it through its plugin effect.
+   */
+  registerDisplayTitle(provider: WorkspaceDisplayTitleProvider): () => void {
+    const id = Symbol('Workspace display title')
+    const unsubscribe = provider.subscribe(() => { this.refreshDisplayTitles() })
+    this.displayTitles.set(id, provider)
+    this.refreshDisplayTitles()
+    return () => {
+      if (!this.displayTitles.delete(id)) return
+      unsubscribe()
+      this.refreshDisplayTitles()
+    }
+  }
+
+  private withDisplayTitle(workspace: WorkspaceView): WorkspaceView {
+    const views = [...this.views.values()]
+    for (const provider of this.displayTitles.values()) {
+      const displayTitle = provider.resolve(workspace, views)
+      if (displayTitle !== undefined) return { ...workspace, displayTitle }
+    }
+    return workspace
+  }
+
+  private refreshDisplayTitles(): void {
+    for (const workspace of this.views.values()) {
+      this.publish({ type: 'upsert', workspace: this.withDisplayTitle(workspace) })
+    }
+  }
+
   /**
    * Read the complete current projection synchronously.
    * @returns all active Workspaces plus archived and pinned Session identities.
    */
   baseline(): WorkspaceBaseline {
     return {
-      items: this.ctx.workspaceRegistry.list().map(workspaceView),
+      items: this.ctx.workspaceRegistry.list().map(workspace => this.view(workspace)),
       archivedSessionIds: [...this.ctx.workspaceRegistry.archivedSessionIds],
       pinnedSessionIds: [...this.ctx.workspaceRegistry.pinnedSessionIds],
     }
@@ -105,15 +171,19 @@ export class WorkspaceFeed {
       const state = workspaceDomainState.parse(change.value)
       const nextOrder = state.workspaceIds.map(String)
       const orderChanged = !sameStrings(this.order, nextOrder)
+      const added: WorkspaceView[] = []
       for (const id of state.workspaceIds) {
-        if (this.knownIds.has(id)) continue
+        if (this.views.has(id)) continue
         const workspace = this.ctx.workspaceRegistry.get(id)
         if (workspace === undefined) {
           throw new Error(`committed Workspace registry references missing Workspace "${id}"`)
         }
-        this.knownIds.add(id)
-        this.publish({ type: 'upsert', workspace: workspaceView(workspace) })
+        const view = workspaceView(workspace)
+        this.views.set(id, view)
+        added.push(view)
       }
+      if (added.length > 0 && this.displayTitles.size > 0) this.refreshDisplayTitles()
+      else for (const workspace of added) this.publish({ type: 'upsert', workspace })
       this.order = nextOrder
       if (orderChanged) this.publish({ type: 'order', workspaceIds: [...state.workspaceIds] })
       const nextArchived = state.archivedSessionIds.map(String)
@@ -130,15 +200,16 @@ export class WorkspaceFeed {
     }
     if (change.table !== 'workspaces') return
     if (change.operation === 'deleted') {
-      if (!this.knownIds.delete(change.key)) return
+      if (!this.views.delete(change.key)) return
       this.publish({ type: 'remove', workspaceId: WorkspaceId(change.key) })
+      if (this.displayTitles.size > 0) this.refreshDisplayTitles()
       return
     }
-    if (!this.knownIds.has(change.key)) return
-    this.publish({
-      type: 'upsert',
-      workspace: changedWorkspaceView(change.key, change.value),
-    })
+    if (!this.views.has(change.key)) return
+    const workspace = changedWorkspaceView(change.key, change.value)
+    this.views.set(change.key, workspace)
+    if (this.displayTitles.size > 0) this.refreshDisplayTitles()
+    else this.publish({ type: 'upsert', workspace })
   }
 
   private publish(frame: Exclude<WorkspaceFeedFrame, { readonly type: 'baseline' }>): void {

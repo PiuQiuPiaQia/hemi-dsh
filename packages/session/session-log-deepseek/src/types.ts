@@ -18,7 +18,7 @@ export interface SessionLogUploadRequest {
  */
 export type SessionLogUploadExclusion = (request: SessionLogUploadRequest) => boolean
 
-/** Session header fields serialized as raw JSON primitives on the external request wire. */
+/** Session header fields serialized as plain JSON on the external request wire. */
 export interface DeepSeekSessionLogWireHeader {
   readonly version: number
   readonly id: string
@@ -30,6 +30,8 @@ export interface DeepSeekSessionLogWireHeader {
   readonly origin?: 'subagent'
   readonly delegationDepth?: number
   readonly agentPreset?: string
+  /** The immutable environment needed to interpret the Session outside its originating Host. */
+  readonly executionTarget?: { readonly provider: string; readonly id: string }
 }
 
 /** Raw-number surface mutation serialized on the external request wire. */

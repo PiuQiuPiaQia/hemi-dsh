@@ -263,6 +263,29 @@ describe('LocalSubprocessRuntime', () => {
     await fiber.dispose()
   })
 
+  it('resolves a packaged local program without PATH fallback and checks cancellation around its locator', async () => {
+    const ctx = new Context()
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    try {
+      const locate = vi.fn(async () => process.execPath)
+      expect(await ctx.subprocess.resolveExecutable({ command: 'unavailable-name', resolveLocalPath: locate }, { PATH: '' })).toBe(process.execPath)
+      expect(locate).toHaveBeenCalledOnce()
+      const failure = new Error('packaged asset missing')
+      await expect(ctx.subprocess.resolveExecutable({ command: basename(process.execPath),
+        resolveLocalPath: async () => { throw failure } })).rejects.toBe(failure)
+      await expect(ctx.subprocess.resolveExecutable({ command: basename(process.execPath),
+        resolveLocalPath: async () => 'relative' })).rejects.toThrow('absolute local path')
+      const controller = new AbortController()
+      const reason = new Error('cancel locator')
+      await expect(ctx.subprocess.resolveExecutable({ command: 'node', resolveLocalPath: async () => {
+        controller.abort(reason); return process.execPath
+      } }, {}, controller.signal)).rejects.toBe(reason)
+      const unused = vi.fn(async () => process.execPath)
+      await expect(ctx.subprocess.resolveExecutable({ command: 'node', resolveLocalPath: unused }, {}, AbortSignal.abort(reason))).rejects.toBe(reason)
+      expect(unused).not.toHaveBeenCalled()
+    } finally { await fiber.dispose() }
+  })
+
   it('builds Windows executable candidates with case-insensitive overrides', async () => {
     const ctx = new Context()
     const fiber = await ctx.plugin(LocalSubprocessRuntime)

@@ -31,6 +31,8 @@ kind: "package-reference"
 
 当 Web 部署的用户在本地编辑器、Git GUI、终端或文件管理器旁工作、希望一键在其中打开 workspace 目录时选择本包。若只需从主机代码用系统默认应用打开一个路径，请用 `dsh-apiproxy` 的 `openPath`——本包的主体是*用哪个*应用，带逐应用解析与启动器。
 
+来自 Session 的请求携带 `sessionId`，来自 Workspace 的请求携带 `workspaceId`。Host 解析对应 header 或登记项，在启动应用前检查其执行文件系统提供的 Host 映射。同名 SSH 目录不等于本地映射。环境缺失或离线时拒绝；非 owner HTTP principal 不能调用原生启动路由。明确不带作用域的请求仍指向 Host 目录。
+
 ### 最小配置
 
 ```yaml

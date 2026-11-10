@@ -46,7 +46,7 @@ The package needs a session store, a session persistence backend, and the storag
 - name: '@deepseek-ai/dsh-workspace'
 ```
 
-With these rows mounted, creating a project shows up in the list immediately and survives a restart; the first start also groups existing sessions by the directory they ran in. If a required peer is missing, the workspace feature stays unavailable until it is mounted.
+With these rows mounted, creating a project shows up in the list immediately and survives a restart; the first start also groups deployment-default Sessions by their directory. Existing explicit-target registrations recover their Session account offline; cold headers never create an unverified remote directory. If a required peer is missing, the workspace feature stays unavailable until it is mounted.
 
 ### Creating and ordering projects
 
@@ -58,6 +58,8 @@ const project = await ctx.workspaceRegistry.create('/path/to/dir', 'My Project')
 await project.setTitle('Renamed')
 ctx.workspaceRegistry.list() // shows the project, newest first
 ```
+
+Pass `{ executionTarget, signal? }` as the third `create` argument, or the second `resolveByPath` argument, for an explicit environment. Directory validation uses its leased filesystem and closes the lease after I/O settles. The same physical path under different target references names different Workspaces; ids remain independent UUIDs. New Session attachment requires both target and canonical directory to match. An unavailable target rejects creation, attachment or status checks rather than probing the Host.
 
 <a id="first-use-workspace"></a>
 ### First-use Workspace
@@ -90,7 +92,7 @@ This section explains the design decisions behind the feature and points at the 
 
 ### Design philosophy
 
-- **One record per canonical path.** `fs.realpath` is the single uniqueness canon: paths are stored canonicalized, so a symlink to an owned directory collides, and uniqueness is string equality of canonical paths.
+- **One record per execution environment and canonical path.** Deployment-default paths use native `realpath`; explicit targets use their filesystem provider. A symlink to an owned directory collides only within that same environment.
 - **Membership starts from the recorded account.** The header index validates ordered `sessionIds`; missing-directory candidates retain their account, while other invalid candidates are filtered on read and pruned by the next mutation. The strict canonical-path index used for history bootstrap includes existing directories only.
 - **Header-only reads.** Bootstrap and attach validation read `SessionHeader` fields only; event bodies are never loaded.
 - **Two-write mutations with an explicit marker.** Create and delete persist a `pendingMutation` marker before the record/order pair can diverge, so startup completes exactly the interrupted operation and unmarked divergence fails loud as corruption.
@@ -110,11 +112,12 @@ Archive admission is a capability seam over two Host events this package declare
 | [`src/entity.ts`](src/entity.ts) | Package-private `Workspace` implementation and its single `mutate` write path |
 | [`src/spec.ts`](src/spec.ts) | Domain declaration: record schema, registry state, `defineDomain` spec |
 | [`src/types.ts`](src/types.ts) | Public `Workspace` interface and `WorkspaceId` brand |
-| [`src/paths.ts`](src/paths.ts) | The `realpath` uniqueness canon |
+| [`src/paths.ts`](src/paths.ts) | Native path qualification and normalization |
+| [`src/execution.ts`](src/execution.ts) | Execution-aware directory identity and leased validation |
 
 ### Durable shape
 
-The registry opens the `workspace` domain (version 2): a `workspaces` table keyed by `WorkspaceId` plus one global state holding `workspaceIds` (the authoritative display order), `archivedSessionIds`, `pinnedSessionIds`, the optional `defaultWorkspaceId` first-use identity, and the optional `pendingMutation` marker. Archive and pin sets contain Session id strings, default to empty, and carry no per-entry objects or timestamps; the pin array keeps the most recently pinned id first. Archiving clears the pin in the same global-state write without changing Workspace membership. Unarchive runs no session-existence probe, because dropping an id from the set cannot introduce an unknown one, while archive verifies the session before adding it.
+The registry opens the `workspace` domain (version 3, accepting version 2 records without restamping on read): a `workspaces` table keyed by `WorkspaceId` plus one global state holding `workspaceIds` (the authoritative display order), `archivedSessionIds`, `pinnedSessionIds`, the optional `defaultWorkspaceId` first-use identity, and the optional `pendingMutation` marker. Archive and pin sets contain Session id strings, default to empty, and carry no per-entry objects or timestamps; the pin array keeps the most recently pinned id first. Archiving clears the pin in the same global-state write without changing Workspace membership. Unarchive runs no session-existence probe, because dropping an id from the set cannot introduce an unknown one, while archive verifies the session before adding it.
 
 ### Lifecycle
 

@@ -14,7 +14,9 @@
 
 管理 RPC 使用辅助进程的 SSH exec 流。普通 stdin、stdout、stderr、终端输出及可选 fd 7 控制流使用分别认证的转发 Unix 套接字。每条转发流拥有独立 SSH 通道窗口；暂停的程序输出不与控制或管理消息共用窗口。所有通道仍共享连接带宽及传输失败。
 
-部署认证、已安装产物验证及逐流 TLS 认证属于 [`dsh-ssh`](../../packages/ssh/ssh/README.zh.md)。辅助进程使用远端机器上的可信本地提供方执行文件系统与进程请求。SSH 是传输方式；文件效果限制由所选远端沙箱提供方执行。
+[`dsh-ssh`](../../packages/ssh/ssh/README.zh.md) 使用严格检查主机密钥的非交互 OpenSSH，或通过 `authenticatedControlPath` 借用绑定到端点的已认证主连接。借用方不持久化或终止该主连接；套接字不可用时，也不新建连接。交互登录由所属应用负责；[Hemi SSH 认证](hemi.zh.md#ssh-authentication)单独提供该功能。
+
+已安装产物验证及逐流 TLS 认证属于 `dsh-ssh`。辅助进程使用远端机器上的可信本地提供方执行文件系统与进程请求。SSH 是传输方式；文件效果限制由所选远端沙箱提供方执行。
 
 ## 进程生命周期与取消
 
@@ -50,14 +52,24 @@ type HelperLaunch = {
 ```ts type-equiv
 /** Deployment-owned SSH identity and installed helper; no model argument selects these values. */
 interface Config {
-  /** OpenSSH host alias, including its existing user, key and known-host configuration. */
+  /** OpenSSH alias, DNS name or IP address; legacy user@host remains supported. */
   host: string
+  /** Explicit login; omission retains the alias or legacy host's user selection. */
+  username?: string
+  /** Explicit TCP port; omission retains OpenSSH configuration. */
+  port?: number
+  /** Local identity-file path; omission retains OpenSSH credential selection. No key contents are read by this service. */
+  identityFile?: string
+  /** Hemi fork: borrowed OpenSSH control socket already authenticated to this exact endpoint; its owner retains and closes the master. */
+  authenticatedControlPath?: string
   /** Explicit script or self-contained executable invocation. */
   launch: HelperLaunch
   /** Absolute path to the installed, bundled helper entry. */
   helper: string
   /** SHA-256 of that bundled helper; mismatches refuse the connection. */
   helperHash: string
+  /** Explicit non-default environment; absent when SSH is the deployment-default provider. */
+  executionTarget?: SessionExecutionTarget
   /** Absolute remote default workspace. */
   workspace: string
   /** Connection and administrative-request deadline, at most 2,147,483,647 milliseconds. */
@@ -80,6 +92,12 @@ declare class SshConnection extends Service {
   constructor(ctx: Context, config: Config);
   /** Hold plugin readiness until the remote identity and helper digest are verified. */
   async [Service.init](): Promise<void>;
+  /** Aborts on transport loss or owner shutdown; consumers must stop before releasing this execution instance. */
+  get signal(): AbortSignal;
+  /** Explicit execution environment; its deployment-default writable roots must not be inherited. */
+  get executionTarget(): SessionExecutionTarget | undefined;
+  /** Physical remote workspace verified during readiness; never the Host fallback path. */
+  get workspaceRoot(): string;
   /** Verified remote PTC launch configuration; script deployments require a verified bootstrap. */
   get ptcLaunch(): { kind: 'embedded'; executable: string } | { kind: 'node-script'; executable: string; bootstrapPath: string };
   /**

@@ -136,9 +136,29 @@ interface SessionLocation {
 
 ## `SessionHeader`：日志旁的元数据
 
-每个会话的元数据与事件日志**分开**存储：header 携带格式版本、cwd 与 `isSeeded` 谱系 bit，含正文的存储值则在其旁边单独携带精确 inherited cut。二者都不进入 `SessionEventMap`，也不会到达 `deriveMessages()`。logical header 通过 `session.header` 附加，Session 则以 `inheritedEventCount` 暴露其 cut。
+每个会话的元数据与事件日志**分开**存储：header 携带格式版本、cwd 与 `isSeeded` 谱系 bit，含正文的存储值则在其旁边单独携带精确 inherited cut。二者都不进入 `SessionEventMap`，也不会到达 `deriveMessages()`。logical header 通过 `session.header` 附加，Session 则以 `inheritedEventCount` 暴露其 cut。可选的 `executionTarget` 独立于目录拼写和 Agent preset 固定 provider 与执行环境；缺省沿用部署的默认执行 providers。运行时拒绝不可用的显式目标，而不是在 Host 上解释该目录。
 
 源码：[`packages/core/session/src/types.ts`](../../packages/core/session/src/types.ts)
+
+```ts type-equiv
+/** Identifies the provider that resolves an execution environment. */
+type ExecutionProviderId = Branded<'ExecutionProviderId'>
+```
+
+```ts type-equiv
+/** Identifies one immutable environment within its provider. */
+type ExecutionTargetId = Branded<'ExecutionTargetId'>
+```
+
+```ts type-equiv
+/** Durable execution identity; absence retains the deployment's default execution environment. */
+type SessionExecutionTarget = {
+  /** Provider that owns this environment. */
+  readonly provider: ExecutionProviderId
+  /** Provider-owned immutable target record; never retargeted in place. */
+  readonly id: ExecutionTargetId
+}
+```
 
 ```ts type-equiv
 /**
@@ -185,6 +205,8 @@ interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /** Explicit execution environment; an unavailable reference must never fall back to the Host. */
+  readonly executionTarget?: SessionExecutionTarget
 }
 ```
 
@@ -194,7 +216,7 @@ interface SessionHeader {
 
 ## `CreateSessionOptions`：seed 与元数据
 
-通过 store 创建 `Session` 时会接收 `seed`（初始回放或 fork 历史）、可选的精确 `inheritedEventCount` 与 `meta`（store 整合进 `SessionHeader` 的存储层字段）。store 填充 `version`/`id` 并为 `createdAt` 提供默认值；调用方可以提供已校验的绝对 `cwd`、`parentSession` 谱系、`isSeeded` 谱系标记、可选的粗粒度 `origin`、`delegationDepth`、用于组装该 agent（智能体）的 `agentPreset` 以及已有的 `createdAt`。seeded 创建必须显式提供与 inherited prefix 完全相等的 seed 和精确 cut；constructor 会先在该 cut 追加 child-owned tagged end-seed marker，setup 再添加 child-owned event。`origin: 'subagent'` 让产品导航能够隐藏重复的 child 行；它不证明描述符有效，也不证明 child 可以恢复。
+通过 store 创建 `Session` 时会接收 `seed`（初始回放或 fork 历史）、可选的精确 `inheritedEventCount` 与 `meta`（store 整合进 `SessionHeader` 的存储层字段）。store 填充 `version`/`id` 并为 `createdAt` 提供默认值；调用方可以提供已校验的绝对 `cwd`、`parentSession` 谱系、`isSeeded` 谱系标记、可选的粗粒度 `origin`、`delegationDepth`、用于组装该 agent（智能体）的 `agentPreset`、`executionTarget` 以及已有的 `createdAt`。seeded 创建必须显式提供与 inherited prefix 完全相等的 seed 和精确 cut；constructor 会先在该 cut 追加 child-owned tagged end-seed marker，setup 再添加 child-owned event。`origin: 'subagent'` 让产品导航能够隐藏重复的 child 行；它不证明描述符有效，也不证明 child 可以恢复。
 
 ```ts type-equiv
 /**
@@ -223,6 +245,8 @@ interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    /** Immutable execution environment resolved before Agent activation. */
+    readonly executionTarget?: SessionExecutionTarget
   }
 }
 ```

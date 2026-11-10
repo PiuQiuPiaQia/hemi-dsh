@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { Session, SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionExecutionTarget, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
@@ -58,6 +58,8 @@ export interface ApiSessionCreateRequest {
   readonly sessionId?: SessionId
   /** Directory the Session owns. */
   readonly cwd: string
+  /** Immutable execution reference selected by the authoritative Workspace. */
+  readonly executionTarget?: SessionExecutionTarget
   /** Preset the Session runs; the configured default when omitted. */
   readonly agentPreset?: string
   /**
@@ -228,7 +230,10 @@ export class ApiSessionAgentController {
    */
   async createSession(request: ApiSessionCreateRequest): Promise<ApiSessionCreated> {
     const named = request.sessionId
-    if (named === undefined) return this.created(await this.createMinted(request.cwd, await this.composeAgent(request.agentPreset, 'create')))
+    if (named === undefined) {
+      return this.created(await this.createMinted(request.cwd,
+        await this.composeAgent(request.agentPreset, 'create'), request.executionTarget))
+    }
     return this.inOrder(named, async () => this.created(await this.claim(named, request)))
   }
 
@@ -269,9 +274,9 @@ export class ApiSessionAgentController {
     const resolvedId = (await presets.resolve(presetId, usage)).id
     return {
       agentPreset: resolvedId,
-      setup: async (agentCtx) => {
+      setup: async (agentCtx, agent) => {
         installModelSelection(agentCtx)
-        await presets.mount(agentCtx, resolvedId, usage)
+        await presets.mount(agentCtx, resolvedId, usage, agent.execution)
       },
     }
   }
@@ -339,18 +344,16 @@ export class ApiSessionAgentController {
       throw new ApiSessionSubagentOwnership(sessionId)
     }
     if (live !== undefined) {
-      if (live.session.header.cwd !== request.cwd) {
-        throw new ApiSessionCwdConflict(live.id, request.cwd, live.session.header.cwd)
-      }
+      this.assertPlacement(live.id, live.session.header, request)
       const composition = await this.composeAgent(request.agentPreset, 'create')
-      return await this.reuseLive(live, request, composition) ?? this.createMinted(request.cwd, composition)
+      return await this.reuseLive(live, request, composition) ?? this.createMinted(request.cwd, composition, request.executionTarget)
     }
     let observation: SessionObservation
     try {
       observation = await this.ctx.sessionQuery.observeSession(sessionId)
     } catch (error: unknown) {
       if (!(error instanceof SessionQueryError) || error.code !== 'SESSION_QUERY_SESSION_NOT_FOUND') throw error
-      return this.createAgent(sessionId, request.cwd, await this.composeAgent(request.agentPreset, 'create'))
+      return this.createAgent(sessionId, request.cwd, await this.composeAgent(request.agentPreset, 'create'), request.executionTarget)
     }
     let reusable: boolean
     {
@@ -358,13 +361,11 @@ export class ApiSessionAgentController {
       if (hasApiSessionSubagentOwner({ header: observed.header })) {
         throw new ApiSessionSubagentOwnership(sessionId)
       }
-      if (observed.header.cwd !== request.cwd) {
-        throw new ApiSessionCwdConflict(sessionId, request.cwd, observed.header.cwd)
-      }
+      this.assertPlacement(sessionId, observed.header, request)
       reusable = request.reusable(sessionId) && !observed.events.some(event => event.type === 'turn/start')
     }
     const composition = await this.composeAgent(request.agentPreset, 'create')
-    if (!reusable) return this.createMinted(request.cwd, composition)
+    if (!reusable) return this.createMinted(request.cwd, composition, request.executionTarget)
     this.assertPresetApplicable(sessionId, request.agentPreset)
     try {
       return (await this.ctx.agents.resume({
@@ -373,11 +374,11 @@ export class ApiSessionAgentController {
         setup: this.reuseSetup(composition),
       })).agent
     } catch (error: unknown) {
-      if (error instanceof ApiSessionStartedSinceObserved) return this.createMinted(request.cwd, composition)
+      if (error instanceof ApiSessionStartedSinceObserved) return this.createMinted(request.cwd, composition, request.executionTarget)
       if (!(error instanceof Error) || error.name !== 'SessionAlreadyOwnedError') throw error
       // Another resume in this process may hold the writer for the Agent it published.
       return this.ctx.agents.get(sessionId) === undefined
-        ? this.createMinted(request.cwd, composition)
+        ? this.createMinted(request.cwd, composition, request.executionTarget)
         : this.claim(sessionId, request)
     }
   }
@@ -432,21 +433,37 @@ export class ApiSessionAgentController {
     return { agent, agentPreset: this.presetForSession(agent.session) }
   }
 
-  private createMinted(cwd: string, composition: ApiSessionComposition): Promise<Agent> {
-    return this.createAgent(brandString<SessionId>(`session-${randomUUID()}`), cwd, composition)
+  private assertPlacement(sessionId: SessionId, header: SessionHeader, request: ApiSessionCreateRequest): void {
+    if (header.cwd !== request.cwd) throw new ApiSessionCwdConflict(sessionId, request.cwd, header.cwd)
+    if (header.executionTarget?.provider !== request.executionTarget?.provider
+      || header.executionTarget?.id !== request.executionTarget?.id) {
+      throw new RemoteError('session/conflict', `session "${sessionId}" belongs to a different execution environment`, {
+        sessionId, requestedCwd: request.cwd, existingCwd: header.cwd,
+      })
+    }
   }
 
-  private async createAgent(sessionId: SessionId, cwd: string, composition: ApiSessionComposition): Promise<Agent> {
-    try {
-      await mkdir(cwd, { recursive: true })
-    } catch (error: unknown) {
-      throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+  private createMinted(cwd: string, composition: ApiSessionComposition, executionTarget?: SessionExecutionTarget): Promise<Agent> {
+    return this.createAgent(brandString<SessionId>(`session-${randomUUID()}`), cwd, composition, executionTarget)
+  }
+
+  private async createAgent(
+    sessionId: SessionId, cwd: string, composition: ApiSessionComposition, executionTarget?: SessionExecutionTarget,
+  ): Promise<Agent> {
+    // Hemi fork: an explicit execution target must never create its project directory on the Host.
+    if (executionTarget === undefined) {
+      try {
+        await mkdir(cwd, { recursive: true })
+      } catch (error: unknown) {
+        throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+      }
     }
     return (await this.ctx.agents.create({
       sessionId,
       agentOptions: this.agentOptions(),
       meta: {
         cwd,
+        ...executionTarget === undefined ? {} : { executionTarget },
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
       },
       setup: composition.setup,

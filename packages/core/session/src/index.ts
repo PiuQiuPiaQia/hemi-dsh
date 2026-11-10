@@ -23,6 +23,15 @@ import { ToolHistoryProjection } from './tool-history.ts'
 import type { ToolHistory } from '@deepseek-ai/dsh-llm'
 
 import { buildForkSeed } from './fork.ts'
+import { isSessionExecutionTarget } from './execution-target.ts'
+import { ExecutionProviders } from './execution-providers.ts'
+import type { AgentExecutionLease, AgentExecutionProvider } from './execution-types.ts'
+import type { ExecutionProviderId, SessionExecutionTarget } from './types.ts'
+export type * from './execution-types.ts'
+export { ExecutionProviders, ExecutionTargetUnavailableError } from './execution-providers.ts'
+
+// Hemi fork: persist execution identity so remote Sessions cannot resume against Host files.
+export { isSessionExecutionTarget } from './execution-target.ts'
 
 export { buildForkSeed } from './fork.ts'
 export * from './types.ts'
@@ -132,6 +141,9 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
   }
   if (record.agentPreset !== undefined && typeof record.agentPreset !== 'string') {
     throw new Error('session header agentPreset must be a string')
+  }
+  if (record.executionTarget !== undefined && !isSessionExecutionTarget(record.executionTarget)) {
+    throw new Error('session header executionTarget must contain bounded provider and id identities')
   }
   return deepFreeze(record as unknown as SessionHeader)
 }
@@ -1069,6 +1081,28 @@ export class SessionStore extends Service {
   private store = new Map<SessionId, SessionEntry>()
   private counter = 0
   private readonly projections: SessionMessageProjection[] = []
+  // Hemi fork: one Session-owned provider registry serves both Agent and directory consumers without a dependency cycle.
+  private readonly execution = { providers: new ExecutionProviders() }
+
+  /**
+   * Register an execution provider in the caller's fiber, shared by Agent and directory consumers.
+   * @param id - immutable provider identity stored in Session and Workspace metadata.
+   * @param provider - target acquisition implementation.
+   * @returns the exact effect disposer; aborts consumers and awaits lease release before withdrawal completes.
+   */
+  registerExecutionProvider(id: ExecutionProviderId, provider: AgentExecutionProvider): () => Promise<void> {
+    return this.execution.providers.register(this.ctx, id, provider)
+  }
+
+  /**
+   * Retain the exact execution environment named by durable metadata without creating an Agent.
+   * @param target - validated provider and immutable target identity.
+   * @param signal - operation cancellation; remains part of the returned lease's lifetime.
+   * @returns a lease binding execution services to the consumer's dependency context; never falls back.
+   */
+  acquireExecution(target: SessionExecutionTarget, signal: AbortSignal): Promise<AgentExecutionLease> {
+    return this.execution.providers.acquire(target, signal)
+  }
 
   /** Borrowed definitions for detached replay; contributions live until their registering fibers unload. */
   get messageProjections(): readonly SessionMessageProjection[] {
@@ -1203,6 +1237,7 @@ export class SessionStore extends Service {
       ...meta?.origin === undefined ? {} : { origin: meta.origin },
       ...meta?.delegationDepth === undefined ? {} : { delegationDepth: meta.delegationDepth },
       ...meta?.agentPreset === undefined ? {} : { agentPreset: meta.agentPreset },
+      ...meta?.executionTarget === undefined ? {} : { executionTarget: meta.executionTarget },
     }
     const session = Session.create(sessionId, seed, header, options?.inheritedEventCount, this.projections)
     attachments.set(session, null)
@@ -1418,6 +1453,7 @@ export class SessionStore extends Service {
       inheritedEventCount: SessionLogOffset(resolved === undefined ? 0 : resolved + 1),
       meta: {
         ...liveSource.header.cwd !== undefined ? { cwd: liveSource.header.cwd } : {},
+        ...liveSource.header.executionTarget !== undefined ? { executionTarget: liveSource.header.executionTarget } : {},
         isSeeded: true,
       },
     })

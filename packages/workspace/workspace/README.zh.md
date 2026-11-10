@@ -46,7 +46,7 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-workspace'
 ```
 
-挂载这些行之后，创建项目会立即出现在列表中并在重启后保留；首次启动还会按会话运行的目录对既有会话分组。如果缺少某个必需依赖，workspace 功能会一直不可用，直到它被挂载。
+挂载这些行之后，创建项目会立即出现在列表中并在重启后保留；首次启动还会按目录对采用部署默认执行环境的会话分组。已有显式目标登记可离线恢复会话归属；冷态头部不会创建未经验证的远端目录。如果缺少某个必需依赖，workspace 功能会一直不可用，直到它被挂载。
 
 ### 创建与排序项目
 
@@ -58,6 +58,8 @@ const project = await ctx.workspaceRegistry.create('/path/to/dir', 'My Project')
 await project.setTitle('Renamed')
 ctx.workspaceRegistry.list() // shows the project, newest first
 ```
+
+显式环境通过 `create` 的第三参数或 `resolveByPath` 的第二参数传入 `{ executionTarget, signal? }`。目录校验使用该环境的租约文件系统，I/O 结算后关闭租约。不同目标引用下的相同物理路径属于不同 Workspace，id 仍是独立 UUID。新会话挂接要求目标和规范目录同时匹配。目标不可用时，创建、挂接或状态检查会拒绝，不会探测 Host 路径。
 
 <a id="first-use-workspace"></a>
 ### 首次使用工作区
@@ -90,7 +92,7 @@ Workspace 注册不意味着拥有其目录。未来的破坏性文件系统操�
 
 ### 设计理念
 
-- **每个规范路径一条记录。** `fs.realpath` 是唯一的一套唯一性规范：路径以规范化形式存储，因此指向已有记录目录的符号链接会与之冲突，唯一性即规范路径的字符串相等。
+- **每个执行环境与规范路径一条记录。** 部署默认路径使用原生 `realpath`；显式目标使用其文件系统 provider。指向已有目录的符号链接只在同一环境内冲突。
 - **成员资格以已记录的归属为起点。** 头部索引校验有序的 `sessionIds`；目录缺失的候选保留归属，其他无效候选在读取时过滤，并在下一次变更时剪除。历史引导使用的严格规范路径索引只包含现存目录。
 - **仅读取头部。** 引导与 attach 校验只读取 `SessionHeader` 字段；事件正文绝不加载。
 - **两次写入的变更带显式标记。** 创建与删除在记录/顺序对可能分叉之前先持久化 `pendingMutation` 标记，因此启动只补全被中断的操作，未标记的分叉作为损坏明确报错。
@@ -111,11 +113,12 @@ Workspace 注册不意味着拥有其目录。未来的破坏性文件系统操�
 | [`src/entity.ts`](src/entity.ts) | 包私有 `Workspace` 实现及其唯一的 `mutate` 写入路径 |
 | [`src/spec.ts`](src/spec.ts) | 领域声明：记录 schema、注册表状态、`defineDomain` 规范 |
 | [`src/types.ts`](src/types.ts) | 公开 `Workspace` 接口与 `WorkspaceId` 品牌 |
-| [`src/paths.ts`](src/paths.ts) | `realpath` 唯一性规范 |
+| [`src/paths.ts`](src/paths.ts) | 原生路径限定与规范化 |
+| [`src/execution.ts`](src/execution.ts) | 按执行域区分目录身份并通过租约校验 |
 
 ### 持久形态
 
-注册表打开 `workspace` 领域（版本 2）：一张以 `WorkspaceId` 为键的 `workspaces` 表，加上一个持有 `workspaceIds`（权威显示顺序）、`archivedSessionIds`、`pinnedSessionIds`、可选的首次使用身份 `defaultWorkspaceId` 与可选 `pendingMutation` 标记的全局状态。归档与置顶集合存储会话 id 字符串，默认值为空，不包含逐项对象或时间戳；置顶数组把最近置顶的 id 放在前面。归档在同一次全局状态写入中清除置顶，但不改变 Workspace 成员关系。取消归档不做会话存在性探测，因为从集合中移除 id 不可能引入未知 id，而归档会在加入前校验会话。
+注册表打开 `workspace` 领域（版本 3，读取时兼容版本 2 记录且不重写版本戳）：一张以 `WorkspaceId` 为键的 `workspaces` 表，加上一个持有 `workspaceIds`（权威显示顺序）、`archivedSessionIds`、`pinnedSessionIds`、可选的首次使用身份 `defaultWorkspaceId` 与可选 `pendingMutation` 标记的全局状态。归档与置顶集合存储会话 id 字符串，默认值为空，不包含逐项对象或时间戳；置顶数组把最近置顶的 id 放在前面。归档在同一次全局状态写入中清除置顶，但不改变 Workspace 成员关系。取消归档不做会话存在性探测，因为从集合中移除 id 不可能引入未知 id，而归档会在加入前校验会话。
 
 ### 生命周期
 

@@ -8,7 +8,7 @@ import type {
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { LlmAttemptId, MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { LlmModelBadge, TextBlock } from '@deepseek-ai/dsh-llm'
-import type { SessionId, SessionSeq, SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
+import type { SessionExecutionTarget, SessionId, SessionSeq, SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
 import type { SessionProjectionMap, SessionProjectionSummaryExcluded, SessionProjectionSummaryValues } from '@deepseek-ai/dsh-session-projection/types'
 import type { Principal } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -163,6 +163,12 @@ export interface SessionSummary {
   readonly parentSessionId?: SessionId
   readonly origin?: 'subagent'
   readonly cwd?: string
+  /**
+   * Explicit execution environment recorded in the Session header; absent
+   * means the Host's default environment. Presence alone is the wire signal
+   * that a local-open affordance must not assume the Host filesystem.
+   */
+  readonly executionTarget?: SessionExecutionTarget
   readonly projections?: SessionProjectionHints
 }
 
@@ -193,7 +199,13 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
       readonly requestedCwd: string
       readonly existingCwd?: string
     }
+    /** The composed file-reference provider cannot search this execution environment. */
+    'file-reference/unsupported-environment': Record<string, never>
     'session/projections-unavailable': Record<string, never>
+    /** The selected execution services cannot serve this Session's files. */
+    'session/execution-unavailable': { readonly sessionId: SessionId }
+    /** A Session file has no verified mapping to the serving desktop. */
+    'session/path-unavailable': { readonly sessionId: SessionId }
     'session/writer-held': { readonly sessionId: SessionId }
     'session/agent-busy': { readonly reason: string }
     'session/invalid-time-zone': { readonly value: string }
@@ -373,8 +385,10 @@ export interface SessionCancelValue {
   readonly accepted: true
 }
 
-/** Request to open one path prepared by a Session-aware caller on the Host desktop. */
+/** Request to open a Session file, or an explicitly Host-owned path when no Session is supplied. */
 export interface SessionOpenWorkspacePathRequest {
+  /** Authoritative file execution environment; omission means an explicitly Host-owned path such as a saved download. */
+  readonly sessionId?: SessionId
   /** File-manager navigation when requested; omission uses the default application. */
   readonly action?: 'reveal'
   /** Registered application identifier; ignored for reveal. Omission preserves the operating system default. */

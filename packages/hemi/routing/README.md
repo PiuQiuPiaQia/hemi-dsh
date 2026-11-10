@@ -45,6 +45,8 @@ The web/desktop bundle declares the four role presets in `presets/hemi-roles.pat
 
 The four roles are child-only presets. Hemi hides them from main-session mode and default settings while standard mode still delegates to each role through the native subagent tool.
 
+In the standard preset, `@deepseek-ai/dsh-hemi-routing/overflow-compaction` recovers when both a conversation request and its automatic summary exceed their context windows. It selects smaller ranges using the summary model's estimated budget, keeps tool calls with their results, and checks remaining pressure against the conversation model's window. `maxAttempts` limits additional summary requests to four by default. Each successful segment is saved as a native checkpoint, and the engine owns the conversation retry.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

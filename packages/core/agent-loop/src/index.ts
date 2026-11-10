@@ -12,6 +12,8 @@ import z from '@deepseek-ai/schemastery'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type {
   Agent,
+  AgentExecutionContext,
+  AgentExecutionLease,
   AgentFactory,
   AgentHandle,
   AgentOptions,
@@ -162,12 +164,20 @@ interface StoredSession {
   storedCount: number
 }
 
+/** One acquired environment plus the owner observation retained through Agent teardown. */
+interface ExecutionBinding {
+  readonly context: AgentExecutionContext
+  readonly signal: AbortSignal
+  close(): Promise<void>
+}
+
 /** Acquired Session resources and composition inputs for one Agent initialization. */
 interface AgentInitializationOptions {
   readonly session: Session
   readonly agentOptions: AgentOptions
   readonly source: SessionStartSource
   readonly stored?: StoredSession | undefined
+  readonly execution?: ExecutionBinding | undefined
   readonly setup?: AgentSetup | undefined
   readonly signal?: AbortSignal | undefined
 }
@@ -465,9 +475,11 @@ export class AgentLoop extends Service implements AgentFactory {
     ownerCtx: Context,
     options: AgentInitializationOptions,
   ): Promise<AgentHandle> {
-    const { session, agentOptions, source, stored, setup, signal: callerSignal } = options
+    const { session, agentOptions, source, stored, setup, execution } = options
+    const callerSignal = execution === undefined ? options.signal
+      : AbortSignal.any([execution.signal, ...options.signal === undefined ? [] : [options.signal]])
     const id = session.id
-    const loopCtx = this.runtime.ctx
+    const loopCtx = execution === undefined ? this.runtime.ctx : execution.context.base
 
     // Deactivation fuses three owners, each with its own reason: the caller's
     // cancellation signal, the owner fiber's unload, and factory teardown.
@@ -481,6 +493,12 @@ export class AgentLoop extends Service implements AgentFactory {
         : new Error(`agent "${id}" creation aborted`, { cause: callerSignal?.reason }))
     }
     const onFactoryTeardown = (): void => { abort.abort(this.ownership.signal.reason) }
+    const onExecutionAbort = (): void => {
+      abort.abort(execution?.signal.reason)
+      void dispose().catch((error: unknown) => {
+        this.runtime.ctx.logger.warn(`agent "${id}": execution-loss cleanup failed: ${errorChain(error)}`)
+      })
+    }
     callerSignal?.addEventListener('abort', onCallerAbort, { once: true })
     this.ownership.signal.addEventListener('abort', onFactoryTeardown, { once: true })
 
@@ -500,6 +518,7 @@ export class AgentLoop extends Service implements AgentFactory {
         : 'agent loop is not active'))
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
+      execution?.signal.removeEventListener('abort', onExecutionAbort)
       // Teardown failures are collected, never swallowed: registry, scope,
       // and ownership cleanup always run to quiescence, then the memoized
       // disposal rejects with what failed so every racing owner observes it.
@@ -522,6 +541,12 @@ export class AgentLoop extends Service implements AgentFactory {
       }
       try {
         await machine?.scope.dispose()
+      } catch (error: unknown) {
+        failures.push(error)
+      }
+      // Execution providers outlive every Agent-scope consumer, including preset teardown.
+      try {
+        await execution?.close()
       } catch (error: unknown) {
         failures.push(error)
       }
@@ -552,6 +577,7 @@ export class AgentLoop extends Service implements AgentFactory {
       }
     }
     const untrack = this.ownership.track(dispose)
+    execution?.signal.addEventListener('abort', onExecutionAbort, { once: true })
     try {
       assertAgentOptions(agentOptions)
       ownerCtx.fiber.assertActive()
@@ -573,6 +599,7 @@ export class AgentLoop extends Service implements AgentFactory {
           loopCtx, id, agentOptions, session,
           projections,
           lastTurn,
+          execution?.context,
         )
         machineReady.resolve()
         // Adopt the scope on its original fiber so it cannot unload before teardown.
@@ -597,9 +624,13 @@ export class AgentLoop extends Service implements AgentFactory {
       untrack()
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
+      execution?.signal.removeEventListener('abort', onExecutionAbort)
       await stored?.handle.close().catch((_closeError: unknown) => {
         // Initialization failure remains primary when releasing the acquired handle fails.
       })
+      try { await execution?.close() } catch (releaseError: unknown) {
+        throw new AggregateError([error, releaseError], `agent "${id}" initialization and execution cleanup failed`)
+      }
       throw error
     }
 
@@ -694,6 +725,40 @@ export class AgentLoop extends Service implements AgentFactory {
     return { handle, storedCount: 0 }
   }
 
+  private async acquireExecution(
+    ownerCtx: Context, header: SessionHeader, callerSignal?: AbortSignal,
+  ): Promise<ExecutionBinding | undefined> {
+    const target = header.executionTarget
+    if (target === undefined) return undefined
+    // Hemi fork: acquire before persistence repair; keep the Core dependency origin when binding execution services.
+    const owner = new AbortController()
+    const unfollow = ownerCtx.effect(() => () => {
+      owner.abort(new Error(`execution owner was disposed: ${header.id}`))
+    }, `agentLoop.execution(${header.id})`)
+    const signal = AbortSignal.any([owner.signal, this.ownership.signal, ...callerSignal === undefined ? [] : [callerSignal]])
+    let lease: AgentExecutionLease | undefined
+    try {
+      lease = await this.runtime.ctx.agents.acquireExecution(target, signal)
+      signal.throwIfAborted()
+      lease.signal.throwIfAborted()
+      const context = { base: lease.bind(this.runtime.ctx), realm: lease.realm }
+      const acquired = lease
+      let disposal: Promise<void> | undefined
+      return {
+        context,
+        signal: AbortSignal.any([signal, acquired.signal]),
+        close: () => disposal ??= (async () => {
+          try { await acquired.close() } finally { await unfollow() }
+        })(),
+      }
+    } catch (error: unknown) {
+      try { await lease?.close() } catch (releaseError: unknown) {
+        throw new AggregateError([error, releaseError], 'execution acquisition and cleanup failed')
+      } finally { await unfollow() }
+      throw error
+    }
+  }
+
   /**
    * Durably store the session events appended since the last stored cursor.
    * @param stored - the session's owned handle and stored cursor, if any.
@@ -721,23 +786,28 @@ export class AgentLoop extends Service implements AgentFactory {
     }))
     const published = (async () => {
       using ownedPreparation = preparation
-      // raceAbortCall closes a handle that finishes creating after cancellation.
-      const stored = options.signal === undefined
-        ? await this.createStoredSession(ownedPreparation.session)
-        : await raceAbortCall(
-          () => this.createStoredSession(ownedPreparation.session, options.signal),
-          options.signal,
-          options.sessionId,
-          (abandoned) => { void abandoned?.handle.close().catch(() => {}) },
-        )
-      return await this.initializeAgent(ownerCtx, {
-        session: ownedPreparation.session,
-        stored,
-        agentOptions: options.agentOptions ?? {},
-        setup: options.setup,
-        signal: options.signal,
-        source: 'startup',
-      })
+      let execution = await this.acquireExecution(ownerCtx, ownedPreparation.session.header, options.signal)
+      try {
+        const signal = execution === undefined ? options.signal : execution.signal
+        // raceAbortCall closes a handle that finishes creating after cancellation.
+        const stored = signal === undefined
+          ? await this.createStoredSession(ownedPreparation.session)
+          : await raceAbortCall(
+            () => this.createStoredSession(ownedPreparation.session, signal), signal, options.sessionId,
+            (abandoned) => { void abandoned?.handle.close().catch(() => {}) },
+          )
+        const retained = execution
+        execution = undefined // initialization owns the lease through rollback and teardown.
+        return await this.initializeAgent(ownerCtx, {
+          session: ownedPreparation.session,
+          stored,
+          execution: retained,
+          agentOptions: options.agentOptions ?? {},
+          setup: options.setup,
+          signal: options.signal,
+          source: 'startup',
+        })
+      } finally { await execution?.close() }
     })()
     this.ownership.trackWrapper(published)
     return published
@@ -780,6 +850,7 @@ export class AgentLoop extends Service implements AgentFactory {
       let handle: SessionHandle | undefined
       let stored: StoredSession | undefined
       let preparation: SessionPreparation | undefined
+      let execution: ExecutionBinding | undefined
       try {
         try {
           // Taking write ownership FIRST excludes a concurrent resume of the
@@ -790,15 +861,17 @@ export class AgentLoop extends Service implements AgentFactory {
             id,
             (abandoned) => { void abandoned.close() },
           )
+          execution = await this.acquireExecution(ownerCtx, handle.header, options.signal)
+          const loadSignal = execution === undefined ? fused : AbortSignal.any([fused, execution.signal])
           // Semantic crash repair is the agent layer's job: persistence hands
           // back the physically valid log; an interrupted final turn receives
           // synthetic closers (missing tool errors, step/end, turn/end) that
           // are appended through the same handle as an ordinary batch.
-          const coldRead = await handle.read(0, undefined, { signal: fused })
-          fused.throwIfAborted()
+          const coldRead = await handle.read(0, undefined, { signal: loadSignal })
+          loadSignal.throwIfAborted()
           const persisted = coldRead.events
           const closers = interruptedTurnClosers(persisted)
-          if (closers.length > 0) await handle.append(closers)
+          if (closers.length > 0) await handle.append(closers, { signal: loadSignal })
           preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(id, {
             seed: [...persisted, ...closers],
             meta: structuredClone(handle.header),
@@ -813,10 +886,13 @@ export class AgentLoop extends Service implements AgentFactory {
         ownerCtx.fiber.assertActive()
         if (!this.ownership.isActive()) throw new Error('agent loop is not active')
         const owned = stored
-        handle = undefined // initializeAgent owns the write handle through rollback and teardown.
+        const retained = execution
+        execution = undefined
+        handle = undefined // initializeAgent owns the write handle and execution lease through rollback and teardown.
         return await this.initializeAgent(ownerCtx, {
           session: preparation.session,
           stored: owned,
+          execution: retained,
           agentOptions: options.agentOptions ?? {},
           setup: options.setup,
           signal: options.signal,
@@ -825,6 +901,7 @@ export class AgentLoop extends Service implements AgentFactory {
       } finally {
         preparation?.[Symbol.dispose]()
         await handle?.close().catch(() => {})
+        await execution?.close()
       }
     })()
     this.ownership.trackWrapper(published)

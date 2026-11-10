@@ -25,7 +25,7 @@ Change one Session’s working directory while existing processes retain theirs.
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount alongside `fs`, `sessionProjections`, and `systemPrompt`. `defaultDirectory` selects an absolute fallback for Sessions without an original directory; omission uses the launch directory. See the [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-working-directory).
+Mount alongside `fs`, `sessionProjections`, and `systemPrompt`. `defaultDirectory` selects an absolute fallback for deployment-default Sessions without an original directory; omission uses the launch directory. An explicit execution target requires a recorded initial directory. See the [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-working-directory).
 
 ```yaml
 - name: '@deepseek-ai/dsh-working-directory'
@@ -39,7 +39,7 @@ Mount alongside `fs`, `sessionProjections`, and `systemPrompt`. `defaultDirector
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The Session projection owns the effective directory and exposes it in Session observations, so cold readers can use it without activating an Agent; the header continues to identify the original project. Changes serialize per Session, validate through the filesystem provider, check cancellation and Agent lifetime, commit an event, and queue a user-context notice. If notice queuing fails after commit, the operation returns the committed directory and logs a warning; the next request or resume still receives the required directory context. Prompt assembly validates the current directory before publishing its required context contribution. Existing processes and sandbox grants keep their independent ownership. The [service implementation](src/index.ts) defines the API.
+The Session projection owns the effective directory and exposes it in Session observations, so cold readers can use it without activating an Agent; the header continues to identify the original project. Changes serialize per Session, validate through the Agent context's filesystem provider without falling back to the Host provider, check cancellation and Agent lifetime, commit an event, and queue a user-context notice. If notice queuing fails after commit, the operation returns the committed directory and logs a warning; the next request or resume still receives the required directory context. Prompt assembly validates the current directory before publishing its required context contribution. Agent-scope disposal cancels and drains admitted directory I/O before execution resources close. Existing processes and sandbox grants keep their independent ownership. The [service implementation](src/index.ts) defines the API.
 
 No runtime invariant companion is published because the service reads its only directory state from the Session projection and checks filesystem validity at use.
 

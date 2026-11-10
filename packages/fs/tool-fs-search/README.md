@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-fs-search` to give models `glob` file discovery and `grep` content search over a local workspace. Searches need no host `rg` installation or filesystem provider, return workdir-relative results, and include hidden and ignored files while excluding VCS metadata. Configurable caps bound inline output; with an optional spill store, capped results remain fully recoverable. Choose the sibling `dsh-tool-fs` package for reading, writing, or editing files.
+Use `dsh-tool-fs-search` to give models `glob` file discovery and `grep` content search over a workspace in the mounted execution environment. Same-machine searches use packaged `rg`, while remote environments need `rg` on PATH. Searches need no filesystem provider, return workdir-relative results, and include hidden and ignored files while excluding VCS metadata. Configurable caps bound inline output; with an optional spill store, capped results remain fully recoverable. Choose the sibling `dsh-tool-fs` package for reading, writing, or editing files.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ Use `dsh-tool-fs-search` to give models `glob` file discovery and `grep` content
 
 Searches use the Session's current working directory, including changes made with `working_directory`.
 
-Mount the tools after a `ctx.subprocess` backend; no host `rg` install is needed, and no filesystem provider is required. The model then gets modification-time-ordered file discovery and line-oriented content search, each bounded and timeout-guarded.
+Mount the tools after a `ctx.subprocess` backend; no filesystem provider is required. Local execution uses the packaged `rg`; remote execution resolves `rg` on its own PATH and fails with `SEARCH_FAILED` if unavailable, without using a Host path. The model then gets modification-time-ordered file discovery and line-oriented content search, each bounded and timeout-guarded.
 
 ### Minimal composition
 
@@ -72,7 +72,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### Deployment requirement
 
-Node deployments receive the `@vscode/ripgrep` platform package on supported macOS, Linux, and Windows targets; Python SDK wheels copy the target-native binary beside the single-file runtime as a `-rg` sidecar. No carrier requires a host `rg`. Returned paths are displayed relative to the resolved workdir (the calling session's cwd when present) and are follow-up-readable with `read` only when that workdir and the filesystem root are the same workspace.
+Node deployments receive the `@vscode/ripgrep` platform package on supported macOS, Linux, and Windows targets; Python SDK wheels copy the target-native binary beside the single-file runtime as a `-rg` sidecar. These local carriers need no system `rg`; an SSH execution environment supplies its own PATH command. Returned paths are displayed relative to the resolved workdir (the calling session's cwd when present) and are follow-up-readable with `read` only when that workdir and the filesystem root are the same workspace.
 
 ### Failures and recovery
 
@@ -107,7 +107,7 @@ Local workspace discovery is naturally a process-backed `rg` workflow, and putti
 
 Without an explicit `path`, `glob` prunes unrelated subtrees for patterns such as `packages/core/src/*.ts` when every directory component is a plain relative name outside VCS metadata. Ordered ripgrep globs exclude the tree, admit directories with the prefix's distinct names, then apply the original file pattern. Same-named directories elsewhere may also be traversed, but only the original pattern admits files. The added arguments are capped at 8 KiB; larger sets use the original traversal. The search root, path separators, symlink handling, matching, and modification-time ordering stay unchanged; other patterns retain the original traversal.
 
-Each call resolves the packaged binary (`@vscode/ripgrep`, or the executable's `-rg` sidecar in a pkg single-file runtime), prepends `--no-config` so a host `RIPGREP_CONFIG_PATH` cannot inject a `--pre` preprocessor into the unconfined spawn, and passes every model-controlled value as a plain argv element — no shell layer exists, so no quoting applies. Collect-mode budgets bound complete stdout and a stderr tail; a lossy stdout read fails as `SEARCH_RAW_OUTPUT_OVERFLOW` rather than parsing a silently-partial stream. The tools never read a raw spill path.
+Each call asks the subprocess provider to resolve the logical `rg` command, with a lazy packaged-binary locator for same-machine execution, prepends `--no-config` so a host `RIPGREP_CONFIG_PATH` cannot inject a `--pre` preprocessor into the unconfined spawn, and passes every model-controlled value as a plain argv element — no shell layer exists, so no quoting applies. Collect-mode budgets bound complete stdout and a stderr tail; a lossy stdout read fails as `SEARCH_RAW_OUTPUT_OVERFLOW` rather than parsing a silently-partial stream. The tools never read a raw spill path.
 
 ### Native-mode benchmark
 
@@ -225,7 +225,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 These limits define when the search tools are a poor fit or need special operational care. They are current package constraints, not a general search comparison or a task backlog.
 
 - **Search and file access have no shared-workspace proof** — returned paths are follow-up-readable only when the workdir and filesystem root denote the same workspace; the package performs no runtime cross-service validation.
-- **The packaged binary is fixed at dependency version** — Node deployments use the version selected by `@vscode/ripgrep`; Python single-file runtimes copy that target-native version into the required `-rg` sidecar. An unsupported platform or a corrupted installation fails with `SEARCH_FAILED`, while the Python runtime package rejects a missing sidecar before launch. Remote or virtual filesystems need a co-located workspace or another search consumer.
+- **The packaged binary is fixed at dependency version** — Node deployments use the version selected by `@vscode/ripgrep`; Python single-file runtimes copy that target-native version into the required `-rg` sidecar. An unsupported platform or a corrupted installation fails with `SEARCH_FAILED`, while the Python runtime package rejects a missing sidecar before launch. The subprocess and filesystem providers must address the same workspace; remote search requires an executable `rg` on that environment's PATH.
 - **Directory wildcards retain workspace traversal** — patterns such as `src/**/*.ts` do not narrow the traversal root automatically; supply an explicit `path` to constrain them.
 - **The schemas expose one bounded page** — offset pagination, case-mode switches, alternate output modes, and provider-backed discovery remain outside this package; capped complete output requires a spill backend.
 - **Sampling, when enabled, groups by first path segment beneath the search root only** — an over-cap `glob` page balances across those top-level entries, so a result concentrated deeper is still shown unevenly below that level; recursive balancing is deferred.

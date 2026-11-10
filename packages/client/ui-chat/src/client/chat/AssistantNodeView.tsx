@@ -49,6 +49,7 @@ export const AssistantNodeView = memo(function AssistantNodeView({
   return (
     <AssistantMarkdown
       blocks={data.blocks}
+      sessionId={sessionId}
       groupPart={groupPart}
       useDisclosure={useDisclosure}
       streaming={data.status === 'running'}

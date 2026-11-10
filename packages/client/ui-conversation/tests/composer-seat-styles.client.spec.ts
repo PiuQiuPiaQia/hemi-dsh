@@ -8,6 +8,7 @@ function readStyles(path: string): string {
 
 const conversationCss = readStyles('../src/client/skeleton/ConversationRoot.module.css')
 const inputBarCss = readStyles('../src/client/skeleton/InputBar.module.css')
+const heroCss = readStyles('../src/client/skeleton/HeroShell.module.css')
 const contextMeterCss = readStyles('../src/client/skeleton/ContextMeter.module.css')
 
 /** Return the body of the rule whose selector list starts with `selector`. */
@@ -40,6 +41,26 @@ describe('docked composer seat styles', () => {
 
   it('keeps scroll anchoring off composer content', () => {
     expect(seat).toMatch(/overflow-anchor:\s*none;/)
+  })
+})
+
+it('lets themes pair the send foreground with its fill while keeping native white by default', () => {
+  expect(rule(inputBarCss, '.primary')).toContain('color: var(--dsh-composer-primary-foreground, #fff)')
+  expect(rule(inputBarCss, '.primary')).toContain('background: var(--dsw-alias-button-info-fill)')
+})
+
+describe('hero control row styles', () => {
+  it('lets the Workspace chip shrink while retaining its existing single-line ellipsis', () => {
+    expect(rule(heroCss, '.workspace')).toMatch(/flex:\s*0 1 auto;/)
+    expect(rule(heroCss, '.workspace')).toMatch(/min-width:\s*0;/)
+    expect(rule(heroCss, '.workspaceLabel')).toMatch(/text-overflow:\s*ellipsis;/)
+    expect(rule(heroCss, '.workspaceLabel')).toMatch(/white-space:\s*nowrap;/)
+  })
+
+  it('reserves the mode control natural width without shrinking its text or clipping the row', () => {
+    expect(rule(conversationCss, '.heroAgentPreset')).toMatch(/flex:\s*none;/)
+    expect(rule(conversationCss, '.heroAgentPreset')).toMatch(/min-width:\s*0;/)
+    expect(rule(conversationCss, '.heroWorkspaceRow')).not.toMatch(/overflow:\s*hidden;/)
   })
 })
 

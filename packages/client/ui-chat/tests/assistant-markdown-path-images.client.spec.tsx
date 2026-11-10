@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AssistantMarkdown, localPathMediaUrl } from '../src/client/chat/AssistantMarkdown.tsx'
+import { AssistantMarkdown, localPathMediaUrl as resolveLocalMediaUrl } from '../src/client/chat/AssistantMarkdown.tsx'
 import { useDetailedPresentation } from './presentation-fixture.client.ts'
 import { unusedImageLoader } from './reasoning-component-fixture.tsx'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { useDisclosure } from '../src/client/chat/use-disclosure.ts'
 import { useSearchableHidden } from '../src/client/chat/searchable-hidden.ts'
 import type { ChatViewSlotProps } from '../src/client/contract/slots.ts'
@@ -16,6 +17,8 @@ const t = ((_key: string) => 'label') as ChatViewSlotProps['t']
 function textBlock(text: string): AssistantBlock {
   return { kind: 'text', text }
 }
+
+const localPathMediaUrl = (base: string, value: string) => resolveLocalMediaUrl(base, value, 'preview')
 
 const BASE = 'http://127.0.0.1:3080/'
 const MOUNTED_BASE = 'http://127.0.0.1:3080/tools/dsh/'
@@ -31,7 +34,7 @@ describe('localPathMediaUrl', () => {
       ['dsh-app://app/index.html', 'dsh-app://app/'],
       ['http://127.0.0.1:3080/tools/dsh/index.html', MOUNTED_BASE],
     ]) {
-      expect(localPathMediaUrl(base!, '/tmp/graph.png')).toBe(`${root!}api/file?path=${path}`)
+      expect(localPathMediaUrl(base!, '/tmp/graph.png')).toBe(`${root!}api/file?path=${path}&sessionId=preview`)
     }
   })
 
@@ -51,7 +54,7 @@ describe('localPathMediaUrl', () => {
 
   it('encodes the full path including spaces', () => {
     expect(localPathMediaUrl(BASE, '/tmp/my graph.png'))
-      .toBe(`${BASE}api/file?path=${encodeURIComponent('/tmp/my graph.png')}`)
+      .toBe(`${BASE}api/file?path=${encodeURIComponent('/tmp/my graph.png')}&sessionId=preview`)
   })
 })
 
@@ -59,7 +62,7 @@ describe('AssistantMarkdown local-path images', () => {
   it.each([BASE, 'dsh-app://app/'])('renders a local image in closing prose through %s', (base) => {
     vi.spyOn(document, 'baseURI', 'get').mockReturnValue(base)
     const { container } = render(
-      <AssistantMarkdown renderSlot={() => null} useDisclosure={useDisclosure} useGroupAction={useSearchableHidden}
+      <AssistantMarkdown sessionId={SessionId('preview')} renderSlot={() => null} useDisclosure={useDisclosure} useGroupAction={useSearchableHidden}
         usePresentation={useDetailedPresentation}
         blocks={[textBlock('See ![diagram](/tmp/graph.png) for the layout.')]}
         streaming={false}
@@ -73,11 +76,12 @@ describe('AssistantMarkdown local-path images', () => {
     expect(url.pathname).toBe('/api/file')
     expect(url.protocol).toBe(new URL(base).protocol)
     expect(url.searchParams.get('path')).toBe('/tmp/graph.png')
+    expect(url.searchParams.get('sessionId')).toBe('preview')
   })
 
   it('keeps non-absolute destinations inert', () => {
     const { container } = render(
-      <AssistantMarkdown renderSlot={() => null} useDisclosure={useDisclosure} useGroupAction={useSearchableHidden}
+      <AssistantMarkdown sessionId={SessionId('preview')} renderSlot={() => null} useDisclosure={useDisclosure} useGroupAction={useSearchableHidden}
         usePresentation={useDetailedPresentation}
         blocks={[textBlock('See ![diagram](relative.png).')]}
         streaming={false}

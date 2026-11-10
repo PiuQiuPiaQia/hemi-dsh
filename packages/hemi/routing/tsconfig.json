@@ -10,6 +10,7 @@
   "references": [
     { "path": "../../compaction/compaction" },
     { "path": "../../llm/llm-retry" },
+    { "path": "../../llm/token-meter" },
     { "path": "../../session/session-projection" },
     {
       "path": "../../../vendor/cordis"

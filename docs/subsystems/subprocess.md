@@ -240,6 +240,23 @@ interface SubprocessOutcome {
 }
 ```
 
+## Executable lookup
+
+`resolveExecutable` accepts execution-world paths or command names. A packaged resource retains its local asset locator; remote providers use only the logical command and never send or evaluate that locator. Lookup failures stop the call without a different-world fallback.
+
+```ts type-equiv
+/** Executable lookup input; a packaged local resource is evaluated only by a same-machine provider. */
+type SubprocessExecutable = string | {
+  /** Logical command resolved on PATH by providers in a different execution environment. */
+  readonly command: string
+  /**
+   * Locate the consumer-owned packaged executable on the Harness machine.
+   * @returns its absolute local path; rejection must not fall back to PATH.
+   */
+  readonly resolveLocalPath: () => Promise<string>
+}
+```
+
 ## Terminal-process primitive
 
 `spawnTerminal(spec)` is the non-pipe process primitive. The provider allocates the controlling terminal and owns UTF-8 text transport, foreground-process-group inspection and signalling, and one awaited TERM-to-KILL operation that reaches quiescence for every session member the provider can still observe; providers document substrate-specific observability limits. The PTY backend remains responsible for prompt detection, readiness inference, scrollback, sandbox policy, and persistent-session ownership; ordinary `spawn()` cannot reconstruct controlling-terminal semantics.
@@ -284,12 +301,15 @@ Implementations must honor these semantics:
  * plus explicit environment overrides. Relative paths containing separators
  * are rejected: the resolution base is undefined, so providers fail loud
  * instead of guessing.
- * @param command - absolute executable path or bare PATH name.
+ * A packaged resource supplies a lazy same-machine locator: local providers use and verify
+ * it, while other execution environments resolve only its logical command on their PATH.
+ * The locator never enters a spawn spec, remote request, or persisted data.
+ * @param command - absolute path, bare PATH name, or consumer-owned packaged executable resource.
  * @param env - explicit environment entries used for lookup.
  * @param signal - aborts remote or local lookup.
  * @returns a canonical executable path.
  */
-abstract resolveExecutable( command: string, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>
+abstract resolveExecutable( command: SubprocessExecutable, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>
 
 /**
  * Inspect shell-selection facts in the provider's execution environment.

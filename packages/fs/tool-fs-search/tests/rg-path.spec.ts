@@ -6,8 +6,9 @@
  * surfaces as a per-call `SEARCH_FAILED` — not a composition-load failure.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { resolveRgPath, runRipgrep } from '@deepseek-ai/dsh-tool-fs-search'
@@ -22,12 +23,18 @@ vi.mock('@vscode/ripgrep', () => new Proxy({}, {
 
 describe('lazy packaged-ripgrep resolution', () => {
   it('fails the first search call with SEARCH_FAILED instead of failing module load', async () => {
-    // The resolution rejects before any spawn, so no subprocess service is needed.
-    const controller = new AbortController()
-    const exec = { signal: controller.signal, name: 'glob', callId: ToolCallId('missing-platform-package') } as unknown as ToolExecution
-
-    await expect(runRipgrep(new Context(), exec, 'glob', ['--files'], 1_000_000, 3_000, 64 * 1024))
-      .rejects.toMatchObject({ name: 'SearchError', code: 'SEARCH_FAILED' })
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    onTestFinished(() => ctx.fiber.dispose())
+    const callId = ToolCallId('missing-platform-package')
+    const exec: ToolExecution = { signal: new AbortController().signal, name: 'glob', callId, rootCallId: callId,
+      token: Symbol('missing-platform-package') as ToolExecution['token'], arguments: {} }
+    const spawn = vi.spyOn(ctx.subprocess, 'spawn')
+    const search = runRipgrep(ctx, exec, 'glob', ['--files'], 1_000_000, 3_000, 64 * 1024)
+    await expect(search).rejects.toMatchObject({ name: 'SearchError', code: 'SEARCH_FAILED' })
+    await expect(search).rejects.toSatisfy((error: unknown) => error instanceof Error && error.cause instanceof Error
+      && error.cause.message.includes('platform package'))
+    expect(spawn).not.toHaveBeenCalled()
   })
 
   it('keeps failing every subsequent call (the resolution is memoized)', async () => {

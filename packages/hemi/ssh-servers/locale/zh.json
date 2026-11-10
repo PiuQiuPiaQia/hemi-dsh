@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hemi SSH 服务器",
+    "description": "在 Hemi 中保存并复用 SSH 服务器引用与记住的密码。"
+  }
+}

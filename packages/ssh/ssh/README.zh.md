@@ -31,15 +31,20 @@ kind: "package-reference"
 
 ### 部署前提
 
-两端均需运行 Linux 或 macOS。本地 `ssh` 命令必须支持连接复用与 Unix 套接字转发，服务器也必须允许该转发。启动前配置主机别名、凭据与已知主机记录：本服务启用 `BatchMode`、要求严格检查主机密钥、禁用认证代理转发，且不提供交互认证流程。
+两端均需运行 Linux 或 macOS。本地 `ssh` 命令必须支持连接复用与 Unix 套接字转发，服务器也必须允许该转发。启动前配置主机别名、凭据与已知主机记录，或通过 `authenticatedControlPath` 提供绑定到该端点的已认证连接：本服务启用 `BatchMode`、要求严格检查主机密钥、禁用认证代理转发，且不提供交互认证流程。
 
 安装 [SSH helper 可执行文件发行包](../ssh-helper-runtime/README.zh.md)，或已构建的 helper 脚本及其匹配的 Node 依赖。运行时必须位于工作区和可写临时目录之外，也必须位于后端会替换的临时目录树之外，例如 bwrap 的私有 `/tmp`；工作区仍可位于 `/tmp` 下。摘要校验在辅助程序启动后发现非预期的已安装产物；它不能保证可写部署文件的执行安全，也不能认证恶意 SSH 主机。
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `host` | 必填 | 已有的 OpenSSH 主机别名 |
+| `host` | 必填 | OpenSSH 别名、DNS 名、IPv4 或 IPv6 地址；兼容 `user@host` |
+| `username` | 省略 | 显式登录名；不能与 `host` 中内嵌的用户名同时提供 |
+| `port` | 省略 | 显式 TCP 端口，范围为 1 至 65535 |
+| `identityFile` | 省略 | 本地私钥文件路径；本服务不读取密钥内容 |
+| `authenticatedControlPath` | 省略 | 借用的已认证 OpenSSH 套接字绝对路径，由其所有者绑定到本端点；本消费者不持久化或终止主连接，套接字不可用时拒绝而不新建连接 |
 | `launch` | 必填 | `{ kind: "executable" }`，或 `{ kind: "node-script", node: "/absolute/node" }` |
 | `helper`、`workspace` | 必填 | 远端 helper 入口和默认工作区的绝对路径 |
+| `executionTarget` | 省略 | 标记非默认环境的不可变引用；Hemi 为绑定目标的 provider 组提供此值 |
 | `helperHash` | 必填 | 已安装辅助程序入口的小写 SHA-256 |
 | `launch.bootstrapPath`、`launch.bootstrapHash` | 省略 | 成对提供的远端 PTC 脚本及摘要；仅用于 `node-script` |
 | `requestTimeoutMs` | `30000` | 连接与管理请求的截止时限，范围为 1 至 2,147,483,647 毫秒 |
@@ -59,11 +64,11 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-OpenSSH 主连接承载私有管理 RPC。每条程序流使用独立转发的 Unix 套接字和独立 SSH 通道。程序 stdout 无法伪造管理回复，也不会占用控制流的通道窗口；SSH 传输拥塞仍会影响共享连接。
+OpenSSH 主连接承载私有管理 RPC。使用 `authenticatedControlPath` 时，外部所有者保留主连接；本服务释放自己的 helper 会话和转发资源，不关闭该主连接。每条程序流使用独立转发的 Unix 套接字和独立 SSH 通道。程序 stdout 无法伪造管理回复，也不会占用控制流的通道窗口；SSH 传输拥塞仍会影响共享连接。
 
 每个流预留项都有一个随机 256 位 TLS 预共享密钥，仅由管理 RPC 传递。TLS 认证两端并保护流中的每个字节；密钥绝不作为流前缀发送。套接字目录为私有目录（`0700`），套接字使用 `0600` 权限。替换可写套接字路径无法冒充端点或获知流密钥；攻击者仍可中断服务或转发不透明的 TLS 记录。
 
-连接释放会先等待转发与取消子进程，以及尚在建立的流结束，再删除本地资源。传输丢失会拒绝待处理操作并使连接失效。辅助进程在 SSH EOF、终止信号或心跳到期时启动托管清理。断连客户端无法确认远端结果；操作不会自动重连或重放。
+连接释放会先等待转发与取消子进程，以及尚在建立的流结束，再删除本地资源。传输丢失会拒绝待处理操作、中止 `ctx.ssh.signal` 并使连接失效。辅助进程在 SSH EOF、终止信号或心跳到期时启动托管清理。断连客户端无法确认远端结果；操作不会自动重连或重放。
 
 启动或进程结果失败后，预留项在原生进程范围清空后释放；有界完成缓存保留原始拒绝结果，供后续读取。辅助程序关闭也会等待已在进行的端点与目录清理。
 
@@ -97,7 +102,7 @@ OpenSSH 主连接承载私有管理 RPC。每条程序流使用独立转发的 U
 <a id="known-limitations-and-deferred-work"></a>
 
 - 不提供 Windows 端点、自动配置远端环境、重连或重放。
-- Web 工作区界面的路径仍假定可访问主机文件系统；请使用 headless 或所有消费方都遵守提供方路径语义的自定义组合。
+- 远端预览读取需要限定于 Session 的 [workspaceFiles](../../api/workspace-files/README.zh.md)。仅本地的[文件建议](../../context/file-reference-local/README.zh.md)和原生 Host 应用交接不列举或打开远端路径。
 - TLS 流密钥不防御远端操作系统级进程内存检查或调试。文件效果策略保留所选沙箱后端的限制。
 
 <a id="dev-note"></a>

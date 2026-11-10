@@ -844,6 +844,10 @@ interface SessionLogUploadRequest {
 type SessionLogUploadExclusion = (request: SessionLogUploadRequest) => boolean
 ```
 
+## 浏览器摘要
+
+[Session Controller](../../packages/api/session-controller/README.zh.md) 将 header 中可选的 `executionTarget` 投影到实时及冷态 `SessionSummary` 行。Client 摘要在刷新与重连时保留该执行身份，不能仅凭目录字符串确定会话的文件系统。该投影不添加 Session 事件或持久化字段。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -939,7 +943,7 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
  * @returns OS application names, icons, and default selection; empty when desktop opening is unavailable.
  * @throws RemoteError when the path is invalid, the query is cancelled, or native discovery fails.
  */
-@Remote('workspacePathApplications') async workspacePathApplications( request: { readonly path: string }, signal: AbortSignal, ): Promise<readonly SessionWorkspacePathApplication[]>
+@Remote('workspacePathApplications') async workspacePathApplications( request: Pick<SessionOpenWorkspacePathRequest, 'path' | 'sessionId'>, signal: AbortSignal, ): Promise<readonly SessionWorkspacePathApplication[]>
 
 /**
  * Rename one Session after explicitly resuming it.
@@ -1093,6 +1097,22 @@ Persistence is intentionally not implemented here — the agent lifecycle attach
 
 ```ts cordis-catalog
 /**
+ * Register an execution provider in the caller's fiber, shared by Agent and directory consumers.
+ * @param id - immutable provider identity stored in Session and Workspace metadata.
+ * @param provider - target acquisition implementation.
+ * @returns the exact effect disposer; aborts consumers and awaits lease release before withdrawal completes.
+ */
+registerExecutionProvider(id: ExecutionProviderId, provider: AgentExecutionProvider): () => Promise<void>
+
+/**
+ * Retain the exact execution environment named by durable metadata without creating an Agent.
+ * @param target - validated provider and immutable target identity.
+ * @param signal - operation cancellation; remains part of the returned lease's lifetime.
+ * @returns a lease binding execution services to the consumer's dependency context; never falls back.
+ */
+acquireExecution(target: SessionExecutionTarget, signal: AbortSignal): Promise<AgentExecutionLease>
+
+/**
  * Register one event interpreter for live creation, restore, and fork.
  * Disposing the contribution makes sessions that used it refuse further derivation.
  * @param projection - pure definition owned by the event's plugin.
@@ -1228,7 +1248,7 @@ list(): Session[]
 fork(source: SessionForkSource, boundary?: SessionSeq, childSessionId?: SessionId): Session
 ```
 
-Types: [CreateSessionOptions](persistence.zh.md) · [PrepareSessionOptions](persistence.zh.md) · [SessionId](core.zh.md)
+Types: [AgentExecutionLease](core.zh.md) · [AgentExecutionProvider](core.zh.md) · [CreateSessionOptions](persistence.zh.md) · [ExecutionProviderId](persistence.zh.md) · [PrepareSessionOptions](persistence.zh.md) · [SessionExecutionTarget](persistence.zh.md) · [SessionId](core.zh.md)
 
 Source: [`packages/core/session/src/index.ts`](../../packages/core/session/src/index.ts)
 

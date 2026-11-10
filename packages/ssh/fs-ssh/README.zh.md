@@ -29,6 +29,8 @@ kind: "package-reference"
 
 `resolve()` 在远端主机上规范化路径。`processPath()` 与 `fileUrl()` 在同一个远端命名空间中标识文件，并不授予主机侧访问能力。文件 URL 对字面的百分号、反斜杠和换行进行编码，保留原文件名。`processPathFromHostPath()` 返回 `undefined`，因此需要已安装可执行文件或引导程序的消费方必须显式提供远端产物。
 
+连接绑定显式执行目标时，无 Agent 调用从已验证的远端工作区解析策略。每个变更操作都在 RPC 前以 `SANDBOX_UNSUPPORTED_POLICY` 拒绝非空 `additionalWritableRoots`，包括调用方提供和已批准重试的策略；部署默认 SSH 保留已配置授权。已接受策略在排队 RPC 编码前取得独立快照，之后调用方的修改不会改变授权。
+
 读取保留共享文件系统错误码。五个变更操作都会向辅助进程发送已解析的逐次调用策略；`patchText`、`deleteFile` 和 `moveFile` 使用 `fs.patch`、`fs.delete` 和 `fs.move`，防护和结果与本地提供方一致。传输丢失报告为 I/O 失败；变更可能已经提交，且不会自动重试。
 
 -----

@@ -13,7 +13,7 @@ import type {
 import type {
   SessionPendingInteraction, SessionStatus, SessionStatusSnapshot,
 } from '@deepseek-ai/dsh-client-ui-session/client'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ExecutionProviderId, ExecutionTargetId, SessionId } from '@deepseek-ai/dsh-session/types'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { DirectoryFlowOwnerProps, WorkspaceActionRequest, WorkspaceBrowserProps } from '../src/client/contract/slots.ts'
@@ -151,6 +151,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     insertWorkspaceBefore: vi.fn(async () => {}),
     createWorkspace: vi.fn(async () => workspace('created', [])),
     useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => true, subscribe: () => () => {} }),
+    useAddActions: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => {} }),
     useHostInfo: selector => selector({ home: undefined, isLoopback: true }),
     renderSlot: renderDirectoryFlowOnly,
     renderFactorySlot: renderMenuButton,
@@ -171,6 +172,78 @@ function rerender(b: ReturnType<typeof mount>, overrides: Partial<WorkspaceBrows
 }
 
 describe('WorkspaceBrowser', () => {
+  it('uses provider names for existing rows, captured action targets and search without rewriting rename drafts', async () => {
+    const executionTarget = { provider: 'hemi-ssh' as ExecutionProviderId, id: 'target-one' as ExecutionTargetId }
+    const rows = [
+      { ...workspace('remote', ['remote-session'], 'modyzer'), path: '/home/modyzer', executionTarget, displayTitle: 'modyzer（aimuxr）' },
+      { ...workspace('local', ['local-session'], 'Custom local'), path: '/home/modyzer' },
+    ]
+    const renderFactorySlot = vi.fn(renderMenuButton)
+    const b = mount({
+      useSessions: hook(sessionState([summary('remote-session', 1), summary('local-session', 2)])),
+      useWorkspaces: hook(workspaceState(rows)), renderFactorySlot,
+    })
+    const label = screen.getByText('modyzer（aimuxr）')
+    expect(label.getAttribute('title')).toBe('modyzer（aimuxr）')
+    expect(label.closest('[role="treeitem"]')?.getAttribute('data-execution-target')).toBe('hemi-ssh')
+    expect(screen.getByText('Custom local').closest('[role="treeitem"]')?.hasAttribute('data-execution-target')).toBe(false)
+    const remoteRow = label.closest('[role="treeitem"]')!
+    expect(remoteRow.querySelector('[data-icon="dsw-icon-globe-outline-regular"]')).toBeTruthy()
+    const expanded = remoteRow.getAttribute('aria-expanded')
+    fireEvent.click(remoteRow)
+    expect(remoteRow.getAttribute('aria-expanded')).not.toBe(expanded)
+    expect(remoteRow.querySelector('[data-icon="dsw-icon-globe-outline-regular"]')).toBeTruthy()
+    expect(screen.getByText('Custom local').closest('[role="treeitem"]')?.querySelector('[data-icon*="folder-"]')).toBeTruthy()
+    expect(renderFactorySlot).toHaveBeenCalledWith('contextMenu.button', {
+      target: { kind: 'workspace', value: { workspaceId: wid('remote'), path: '/home/modyzer', executionTarget, displayTitle: 'modyzer（aimuxr）' } },
+      label: '工作区“modyzer（aimuxr）”的操作', className: rowCss.iconButton,
+    })
+    b.openDialog(wid('remote'), 'modyzer（aimuxr）', 'rename')
+    expect(screen.getByLabelText<HTMLInputElement>('工作区名称').value).toBe('modyzer')
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(b.props.renameWorkspace).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
+    fireEvent.change(screen.getByPlaceholderText('搜索会话名称'), { target: { value: 'aimuxr' } })
+    await act(async () => { await Promise.resolve() })
+    const results = screen.getByRole('tree', { name: '搜索结果' })
+    expect(within(results).getAllByRole('treeitem')).toHaveLength(1)
+    expect(within(results).getByText('modyzer（aimuxr）')).toBeTruthy()
+    expect(rows[0]!.title).toBe('modyzer')
+  })
+
+  it('distinguishes same-named directories of one execution connection in the sidebar', () => {
+    mount({ useWorkspaces: hook(workspaceState([
+      { ...workspace('one', [], 'project'), path: '/one/project', displayTitle: 'project（aimuxr）' },
+      { ...workspace('two', [], 'project'), path: '/two/project', displayTitle: 'project（aimuxr）' },
+    ])) })
+    expect(screen.getByText('project（aimuxr） one/project')).toBeTruthy()
+    expect(screen.getByText('project（aimuxr） two/project')).toBeTruthy()
+  })
+
+  it('offers extension actions below Add workspace without changing the directory shortcut', async () => {
+    const browser = mount({
+      useAddActions: hook(true),
+      renderSlot: (name: string, owner: object) => name === 'sidebar.workspaces.add.actions'
+        ? <button role="menuitem" onClick={(owner as { onDismiss: () => void }).onDismiss}>Additional action</button>
+        : name === 'sidebar.workspaces.directoryFlow' && (owner as DirectoryFlowOwnerProps).open
+          ? <div data-testid="directory-flow" />
+          : null,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '添加工作区' }))
+    await screen.findByRole('menuitem', { name: 'Additional action' })
+    expect(screen.queryByTestId('directory-flow')).toBeNull()
+    const entries = screen.getAllByRole('menuitem')
+    expect(entries.map(row => row.textContent)).toEqual(['添加工作区…', 'Additional action'])
+    fireEvent.click(entries[0]!)
+    await screen.findByTestId('directory-flow')
+    expect(screen.queryByRole('menu')).toBeNull()
+    browser.view.unmount()
+    const shortcut = mount({ useAddActions: hook(true) })
+    act(() => { shortcut.controls.add() })
+    await screen.findByTestId('directory-flow')
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
   it.each(['workspace', 'flat', 'ungrouped'] as const)('passes the standard menu factory through the %s list', (mode) => {
     const preferences = createWorkspaceViewStore().create()
     preferences.actions.setGroupBy(mode === 'flat' ? 'flat' : 'workspace')

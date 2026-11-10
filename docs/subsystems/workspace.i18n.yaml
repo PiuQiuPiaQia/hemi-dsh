@@ -6,14 +6,17 @@
   en: 183fd2f466e3279c
   zh: 6e79009b7294c240
 /workspaces/identity:
-  en: d61a7e78bbc1fb56
-  zh: 8397869f70cd5b28
+  en: d74d6b727888c45a
+  zh: d2eecf158c6d46b5
+/workspaces/browser-display-titles:
+  en: bb151a378a4fd54f
+  zh: 31da3499c599def1
 /workspaces/the-workspace-entity:
   en: ce5b65fb4d0b0c7b
   zh: aa332a17810d583a
 /workspaces/the-registry-ctx-workspaceregistry:
-  en: 73b54ccf836b7f46
-  zh: 7ee93ba8bb0a616a
+  en: a30045abcf1b9822
+  zh: e6debd89545f8a59
 /workspaces/default-workspace-initialization:
   en: c4307480e504ba81
   zh: dc8a98e1b447b900
@@ -26,3 +29,6 @@
 /workspaces/consumers:
   en: 6b592294ff18b4d3
   zh: a48bec961b8182a9
+/workspaces/session-file-scope:
+  en: 406afe7b2148b5b3
+  zh: 99e02f6e2038b1e3

@@ -28,6 +28,21 @@
     },
     {
       "path": "../../util/launch-environment"
+    },
+    {
+      "path": "../../client/connection/tsconfig.host.json"
+    },
+    {
+      "path": "../../fs/fs"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-persistence"
+    },
+    {
+      "path": "../../workspace/workspace"
     }
   ]
 }

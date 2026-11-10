@@ -56,7 +56,8 @@ import type { createWorkspaceViewStore } from '../stores.ts'
 declare module '@deepseek-ai/dsh-client-ui-context-menu/client' {
   interface ContextMenuTargetMap {
     /** Registered Workspace header; path and title belong to the clicked row. */
-    workspace: { readonly workspaceId: WorkspaceId; readonly path: string; readonly displayTitle: string }
+    // Hemi fork: native-opening contributions need the row's authoritative execution identity, not a path guess.
+    workspace: { readonly workspaceId: WorkspaceId; readonly path: string; readonly displayTitle: string; readonly executionTarget?: WorkspaceView['executionTarget'] }
   }
 }
 
@@ -135,8 +136,29 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Directory-flow hole under the conversation empty-state picker (declared by the WorkspacePicker entry). */
     'conversation.hero.workspace.directoryFlow': { kind: 'single'; scope: 'root'; owner: DirectoryFlowOwnerProps }
+    // Hemi fork: the conversation Workspace picker exposes the same generic add-action extension as the sidebar.
+    /** Additional MenuItemButton rows after Add workspace in the conversation picker. */
+    'conversation.hero.workspace.add.actions': {
+      kind: 'list'
+      scope: 'root'
+      owner: { onDismiss: () => void; disabled: boolean }
+    }
+    // Hemi fork: connection sources belong in the picker, not the directory-backed Workspace list.
+    /** Connection rows open their own directory interaction; they are not Workspace identities. */
+    'conversation.hero.workspace.connections': {
+      kind: 'list'
+      scope: 'root'
+      owner: { onDismiss: () => void; disabled: boolean; onPicked: (workspaceId: WorkspaceId) => void }
+    }
     /** Directory-flow hole under the sidebar browsing region (declared by the WorkspaceBrowser entry). */
     'sidebar.workspaces.directoryFlow': { kind: 'single'; scope: 'root'; owner: DirectoryFlowOwnerProps }
+    // Hemi fork: generic additions keep server management outside the local Workspace implementation.
+    /** Additional MenuItemButton rows after Add workspace; dismiss before starting an interaction. */
+    'sidebar.workspaces.add.actions': {
+      kind: 'list'
+      scope: 'root'
+      owner: { onDismiss: () => void; disabled: boolean }
+    }
     /**
      * Leading decoration of one Session row, in the 16px cell before the title
      * that the row's own state dot otherwise occupies. A higher-priority state
@@ -244,6 +266,8 @@ export type WorkspaceBrowserInjected = {
   /** Dismiss the settled Workspace dialog. */
   settleWorkspaceAction: () => void
   hooks: DirectoryPickingInjected['hooks'] & {
+    /** Whether a feature contributes another add-menu action. */
+    addActions: HostObservable<boolean>
     workspaceActionRequest: HostObservable<WorkspaceActionRequest | null>
     contextMenuTarget: HostObservable<ContextMenuTarget | null>
     /**
@@ -497,6 +521,7 @@ export type WorkspaceBrowserProps =
   & PropsRenderFactories
   & PropsRenderSlots<
     | 'sidebar.workspaces.directoryFlow'
+    | 'sidebar.workspaces.add.actions'
     | 'sidebar.workspaces.session.row.action'
     | 'sidebar.session.row.trailing'
     | 'sidebar.session.row.leading'
@@ -513,6 +538,11 @@ export type WorkspaceBrowserProps =
  * supplies the implicit index signature required by the registry.
  */
 export type WorkspacePickerInjected = DirectoryPickingInjected & {
+  /** Live occupancy of the conversation picker's additional actions. */
+  hooks: DirectoryPickingInjected['hooks'] & {
+    addActions: HostObservable<boolean>
+    connections: HostObservable<boolean>
+  }
   /** Adopt a picked host directory as a real Workspace before targeting a Session. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
 }
@@ -524,7 +554,7 @@ export type WorkspacePickerInjected = DirectoryPickingInjected & {
  */
 export type WorkspacePickerProps =
   PropsRuntime<'conversation.hero.workspace'>
-  & PropsRenderSlots<'conversation.hero.workspace.directoryFlow'>
+  & PropsRenderSlots<'conversation.hero.workspace.directoryFlow' | 'conversation.hero.workspace.add.actions' | 'conversation.hero.workspace.connections'>
   & Omit<WorkspacePickerInjected, 'hooks'>
   & PropsHooks<WorkspacePickerInjected['hooks']>
   & PropsLocale<'workspace'>

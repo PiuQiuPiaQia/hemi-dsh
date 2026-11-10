@@ -80,10 +80,16 @@ export class SandboxBashExecutor extends LocalBashExecutor {
   /**
    * Stamp a complete per-call policy onto the spec. Tool calls supply the
    * calling session's resolved mode and root; lower-level callers fall back to
-   * the deployment policy.
+   * policy resolved from the provider's explicit environment or the deployment default.
    */
   override resolve(request: ShellExecRequest): ShellExecSpec {
-    return { ...super.resolve(request), sandboxPolicy: request.sandboxPolicy ?? this.ctx.sandboxPolicy.resolve() }
+    // Hemi fork: provider coordinates keep agentless target calls out of the deployment's filesystem namespace.
+    const { executionTarget, workspaceRoot } = this.ctx.sandbox
+    const sandboxPolicy = request.sandboxPolicy ?? this.ctx.sandboxPolicy.resolve({
+      ...executionTarget === undefined ? {} : { executionTarget },
+      ...workspaceRoot === undefined ? {} : { workspaceRoot },
+    })
+    return { ...super.resolve(request), sandboxPolicy }
   }
 
   override async execute(spec: ShellExecSpec): Promise<ShellExecution> {

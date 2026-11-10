@@ -1,0 +1,8 @@
+- menu:
+  - menuitem "默认工作区"
+  - menuitem "hemi-dsh"
+  - group "SSH 连接":
+    - text: SSH 连接
+    - menuitem "生产服务器 deploy@prod.example.com:2222"
+  - menuitem "添加工作区…"
+  - menuitem "添加 SSH"

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hemi SSH サーバー",
+    "description": "Hemi で SSH サーバーの参照と記憶したパスワードを保存して再利用します。"
+  }
+}

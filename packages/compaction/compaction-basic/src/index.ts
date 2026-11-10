@@ -295,7 +295,8 @@ export class BasicCompactionEngine extends CompactionEngine {
     signal: AbortSignal,
   ): Promise<CompactionResult | null> {
     const header = agent.session.requestHeader()
-    if (header === undefined || routedTarget(agent.session) === undefined) return null
+    const target = routedTarget(agent.session)
+    if (header === undefined || target === undefined) return null
     switch (trigger) {
       case 'pressure':
         return this.compactPressure(agent, header, signal, false)
@@ -304,7 +305,26 @@ export class BasicCompactionEngine extends CompactionEngine {
         const measurement = this.ctx.tokenMeter.measure(agent.session)
         const range = selectCompactableRange(agent.session, measurement, 0)
         if (range === null) return null
-        return this.compactRegion(range.start, range.end, agent, signal)
+        try {
+          return await this.compactRegion(range.start, range.end, agent, signal)
+        } catch (error: unknown) {
+          if (!(error instanceof LlmError) || error.code !== CONTEXT_WINDOW_EXCEEDED_CODE) throw error
+          signal.throwIfAborted()
+          const policy = resolveTargetPolicy(this.config, target)
+          // Hemi fork: Smaller summary requests need a new transaction after the failed summary releases its lock.
+          return this.ctx.waterfall(this, 'compaction/overflow-recovery', {
+            agent,
+            request: header,
+            summary: {
+              provider: policy.summarizationProvider || target.provider,
+              model: policy.summarizationModel || target.model,
+              maxTokens: policy.maxTokens,
+              thresholdRatio: policy.thresholdRatio,
+            },
+            ...range,
+            signal,
+          }, () => Promise.reject(error))
+        }
       }
       /* v8 ignore next -- closed-union exhaustiveness guard */
       default:

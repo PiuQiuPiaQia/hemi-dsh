@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hemi SSH 服务器",
+    "description": "在 Hemi 中浏览已保存的 SSH 连接并选择远程文件夹。"
+  }
+}

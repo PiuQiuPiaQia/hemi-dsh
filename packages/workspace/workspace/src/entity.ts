@@ -8,12 +8,12 @@
  * @module @deepseek-ai/dsh-workspace/src/entity
  */
 
-import { stat } from 'node:fs/promises'
-import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionExecutionTarget, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { WorkspaceRecord } from './spec.ts'
 import type { Workspace, WorkspaceId } from './types.ts'
-import { realpathNormalize } from './paths.ts'
+import { sameExecutionTarget } from './execution.ts'
+import { FsError } from '@deepseek-ai/dsh-fs'
 
 /** An insertSessionBefore request named a session or anchor not on the account (storage failures stay plain errors). */
 export class WorkspaceMoveInvalidError extends Error {
@@ -43,9 +43,26 @@ export interface WorkspaceEntityHost {
    * qualified cwd cannot resolve because a path component is missing.
    * @param id - Session already present in this workspace's candidate account.
    * @param path - Workspace's stored canonical directory.
+   * @param executionTarget - Workspace's immutable execution environment.
    * @returns whether the candidate remains a member.
    */
-  candidateMatches(id: SessionId, path: string): boolean
+  candidateMatches(id: SessionId, path: string, executionTarget?: SessionExecutionTarget): boolean
+
+  /**
+   * Resolve an existing directory in its own execution environment.
+   * @param path - directory spelling to validate.
+   * @param executionTarget - explicit execution reference, if recorded.
+   * @returns canonical physical directory.
+   */
+  canonicalDirectory(path: string, executionTarget?: SessionExecutionTarget): Promise<string>
+
+  /**
+   * Check a registered directory without treating a missing provider as a local miss.
+   * @param path - canonical physical directory.
+   * @param executionTarget - explicit execution reference, if recorded.
+   * @returns current directory status; provider failures reject.
+   */
+  directoryStatus(path: string, executionTarget?: SessionExecutionTarget): Promise<'ok' | 'missing-dir'>
 
   /**
    * Read one stored session header for attach validation.
@@ -87,6 +104,11 @@ export class WorkspaceEntity implements Workspace {
     return this.record.path
   }
 
+  // Hemi fork: execution identity remains part of directory ownership through offline reads and live attachment.
+  get executionTarget(): SessionExecutionTarget | undefined {
+    return this.record.executionTarget
+  }
+
   get title(): string {
     return this.record.title
   }
@@ -100,7 +122,7 @@ export class WorkspaceEntity implements Workspace {
   }
 
   get sessionIds(): readonly SessionId[] {
-    return this.record.sessionIds.filter(id => this.host.candidateMatches(id, this.record.path))
+    return this.record.sessionIds.filter(id => this.host.candidateMatches(id, this.record.path, this.record.executionTarget))
   }
 
   async setTitle(title: string): Promise<void> {
@@ -120,20 +142,21 @@ export class WorkspaceEntity implements Workspace {
           + 'its stored header carries no cwd to validate against',
         )
       }
+      if (!sameExecutionTarget(header.executionTarget, this.record.executionTarget)) {
+        throw new Error(`cannot attach session '${sessionId}': its execution target differs from workspace '${this.id}'`)
+      }
       let cwd: string
       try {
-        cwd = await realpathNormalize(header.cwd)
+        cwd = await this.host.canonicalDirectory(header.cwd, header.executionTarget)
       } catch (error) {
+        if (header.executionTarget !== undefined) throw error
+        if (error instanceof FsError && error.code === 'FS_NOT_DIRECTORY') {
+          throw new Error(`cannot attach session '${sessionId}': its cwd '${header.cwd}' is not a directory`, { cause: error })
+        }
         throw new Error(
           `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
           + `its cwd '${header.cwd}' does not resolve, so it cannot be validated`,
           { cause: error },
-        )
-      }
-      if (!(await stat(cwd)).isDirectory()) {
-        throw new Error(
-          `cannot attach session '${sessionId}' to workspace '${this.record.path}': `
-          + `its cwd '${header.cwd}' is not a directory`,
         )
       }
       if (cwd !== this.record.path) {
@@ -178,14 +201,8 @@ export class WorkspaceEntity implements Workspace {
       : record)
   }
 
-  async status(): Promise<'ok' | 'missing-dir'> {
-    try {
-      return (await stat(this.record.path)).isDirectory() ? 'ok' : 'missing-dir'
-    } catch {
-      // Any stat failure (ENOENT, dangling parent, permission loss) means the
-      // directory is not usable right now; the record itself never mutates.
-      return 'missing-dir'
-    }
+  status(): Promise<'ok' | 'missing-dir'> {
+    return this.host.directoryStatus(this.record.path, this.record.executionTarget)
   }
 
   /**
@@ -206,7 +223,7 @@ export class WorkspaceEntity implements Workspace {
       next = await this.host.table().update(this.id, (current) => {
         const changed = fn(current)
         const sessionIds = changed.sessionIds.filter(
-          id => this.host.candidateMatches(id, changed.path),
+          id => this.host.candidateMatches(id, changed.path, changed.executionTarget),
         )
         if (changed === current && sessionIds.length === current.sessionIds.length) {
           throw unchangedSentinel

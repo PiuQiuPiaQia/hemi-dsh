@@ -38,6 +38,8 @@ Load the provider in the same composition as its consumers. It has no config fie
 
 ### Resolving executables
 
+A packaged executable resource uses its lazy `resolveLocalPath` rather than PATH. The provider requires an absolute path and verifies that it is an executable file; a failed locator or unusable resource fails without a PATH fallback.
+
 Absolute executable paths are verified; bare names resolve against the scrubbed PATH with platform-aware executable extensions (`.COM`/`.EXE`/`.BAT`/`.CMD` on Windows). Relative paths containing separators are rejected — provide an absolute path or a bare PATH name — and relative PATH entries resolve from the host process cwd.
 
 Windows ordinary subprocesses start the private Job runner with `windowsHide` and request hidden initial windows for native targets. Standard streams and Job ownership remain independent of window visibility; commands that explicitly create their own windows are outside this guarantee.

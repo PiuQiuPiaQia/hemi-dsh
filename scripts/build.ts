@@ -99,6 +99,13 @@ export function buildGates(
     for (const step of libraryBuildSteps(root, 'all')) {
       gates.push(libraryGate(step, step.id === 'host-src' ? ['native', ...step.needs] : step.needs, env))
     }
+    // Hemi fork: the SSH remote helper artifact set bundles finished Host lib outputs
+    // (packages/ssh/ssh/lib/helper.js and the PTC process bundle). tsdown builds workspace
+    // members concurrently without ordering, so the Hemi-owned builder in
+    // packages/hemi/ssh-servers/build/remote-helper.ts needs this explicit gate after
+    // host-bundle; its payload ships in that package's published files.
+    gates.push(pnpmGate('hemi-remote-helper', 'Hemi SSH remote helper artifacts',
+      ['exec', 'tsx', 'packages/hemi/ssh-servers/build/remote-helper.ts'], ['host-bundle'], env))
     gates.push(pnpmGate('web', 'Web build', ['run', 'build:web'], ['client-bundle'], env))
   }
   if (scope === 'typecheck') {

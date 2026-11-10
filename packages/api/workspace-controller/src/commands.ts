@@ -11,7 +11,7 @@ import {
   WorkspaceUnknownSessionError,
 } from '@deepseek-ai/dsh-workspace'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
-import { workspaceView } from './feed.ts'
+import type { WorkspaceView } from './types.ts'
 import type {
   WorkspaceArchiveSessionRequest,
   WorkspaceArchiveValue,
@@ -34,8 +34,12 @@ import type {
 export class WorkspaceCommands {
   private operationTail = Promise.resolve()
 
-  /** @param ctx - Host context containing the Workspace registry. */
-  constructor(private readonly ctx: Context) {}
+  /**
+   * @param ctx - Host context containing the Workspace registry.
+   * @param project - shared read-only display projection for every unary Workspace echo.
+   */
+  // Hemi fork: mutation echoes use the feed's generic naming projection without altering stored titles.
+  constructor(private readonly ctx: Context, private readonly project: (workspace: Workspace) => WorkspaceView) {}
 
   /**
    * Create or resolve one Workspace over an existing directory.
@@ -45,12 +49,14 @@ export class WorkspaceCommands {
   create(request: WorkspaceCreateRequest): Promise<WorkspaceCreateValue> {
     return this.enqueue(async () => {
       try {
-        const existing = await this.ctx.workspaceRegistry.resolveByPath(request.path)
+        // Hemi fork: resolve and create in the same explicit environment, never by Host path alone.
+        const options = request.executionTarget === undefined ? {} : { executionTarget: request.executionTarget }
+        const existing = await this.ctx.workspaceRegistry.resolveByPath(request.path, options)
         if (existing !== undefined) {
-          return { workspace: workspaceView(existing), created: false }
+          return { workspace: this.project(existing), created: false }
         }
-        const workspace = await this.ctx.workspaceRegistry.create(request.path)
-        return { workspace: workspaceView(workspace), created: true }
+        const workspace = await this.ctx.workspaceRegistry.create(request.path, undefined, options)
+        return { workspace: this.project(workspace), created: true }
       } catch (error) {
         if (remoteErrorOf(error) !== undefined) throw error
         throw new RemoteError(
@@ -86,7 +92,7 @@ export class WorkspaceCommands {
         }
         await workspace.setTitle(title)
       }
-      return { workspace: workspaceView(workspace) }
+      return { workspace: this.project(workspace) }
     })
   }
 
@@ -148,7 +154,7 @@ export class WorkspaceCommands {
         { cause: error },
       )
     }
-    return { workspace: workspaceView(workspace) }
+    return { workspace: this.project(workspace) }
   }
 
   /**

@@ -8,7 +8,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { z as zod } from 'zod'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type {} from '@deepseek-ai/dsh-fs'
+import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
@@ -118,9 +118,15 @@ export class WorkingDirectoryService extends Service {
    * Read the committed directory without filesystem I/O.
    * @param session - Session whose directory is requested.
    * @returns its effective absolute directory.
+   * @throws when an explicit execution target has no recorded initial directory.
    */
   get(session: Session): string {
-    return this.workingDirectoryProjectionHandle.stateOf(session) ?? this.defaultDirectory
+    const recorded = this.workingDirectoryProjectionHandle.stateOf(session)
+    if (recorded !== null) return recorded
+    if (session.header.executionTarget !== undefined) {
+      throw new Error('working-directory: an explicit execution target requires an initial directory')
+    }
+    return this.defaultDirectory
   }
 
   /**
@@ -134,8 +140,9 @@ export class WorkingDirectoryService extends Service {
   ensure(agent: Agent, signal?: AbortSignal): Promise<string> {
     return this.serialize(agent, signal, async (control) => {
       const current = this.get(agent.session)
-      const target = await this.ctx.fs.resolve(current, { signal: control })
-      const info = await this.ctx.fs.stat(target, control)
+      const fs = this.filesystem(agent)
+      const target = await fs.resolve(current, { signal: control })
+      const info = await fs.stat(target, control)
       control.throwIfAborted()
       agent.ctx.fiber.assertActive()
       if (info?.type === 'directory') {
@@ -145,7 +152,7 @@ export class WorkingDirectoryService extends Service {
         return current
       }
       const original = agent.session.header.cwd ?? this.defaultDirectory
-      const restored = await this.directory(original, original, control)
+      const restored = await this.directory(fs, original, original, control)
       this.commit(agent, restored, true, control)
       return restored
     })
@@ -163,7 +170,7 @@ export class WorkingDirectoryService extends Service {
   set(agent: Agent, path: string, signal?: AbortSignal): Promise<string> {
     return this.serialize(agent, signal, async (control) => {
       if (path.length === 0) throw new Error('working-directory: cd must not be empty')
-      const directory = await this.directory(path, this.get(agent.session), control)
+      const directory = await this.directory(this.filesystem(agent), path, this.get(agent.session), control)
       this.commit(agent, directory, false, control)
       return directory
     })
@@ -173,14 +180,21 @@ export class WorkingDirectoryService extends Service {
     return `Current working directory: ${JSON.stringify(this.get(session))}.`
   }
 
-  private async directory(path: string, cwd: string, signal: AbortSignal): Promise<string> {
-    const target = await this.ctx.fs.resolve(path, { cwd, signal })
-    const info = await this.ctx.fs.stat(target, signal)
+  private filesystem(agent: Agent): FileSystem {
+    // Hemi fork: the shared directory projection must validate in the Agent's bound execution world.
+    const fs = agent.ctx.get('fs')
+    if (fs === undefined) throw new Error('working-directory: execution filesystem is unavailable')
+    return fs
+  }
+
+  private async directory(fs: FileSystem, path: string, cwd: string, signal: AbortSignal): Promise<string> {
+    const target = await fs.resolve(path, { cwd, signal })
+    const info = await fs.stat(target, signal)
     signal.throwIfAborted()
     if (info?.type !== 'directory') {
       throw new Error(`working-directory: directory does not exist: ${JSON.stringify(path)}`)
     }
-    return this.ctx.fs.processPath(target)
+    return fs.processPath(target)
   }
 
   private commit(agent: Agent, directory: string, recovered: boolean, signal: AbortSignal): void {
@@ -205,17 +219,25 @@ export class WorkingDirectoryService extends Service {
     }
   }
 
-  private serialize<T>(agent: Agent, signal: AbortSignal | undefined, action: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  private async serialize<T>(agent: Agent, signal: AbortSignal | undefined, action: (signal: AbortSignal) => Promise<T>): Promise<T> {
     const session = agent.session
-    const control = signal === undefined
-      ? this.lifecycle.signal
-      : AbortSignal.any([this.lifecycle.signal, signal])
+    const owner = new AbortController()
+    const control = AbortSignal.any([this.lifecycle.signal, owner.signal, ...signal === undefined ? [] : [signal]])
+    const unfollow = agent.ctx.effect(() => () => {
+      owner.abort(new Error('working-directory: Agent scope disposed'))
+      // The operation caller owns its failure; scope teardown only joins its filesystem use.
+      return operation.then(() => {}, () => {})
+    }, 'working-directory.operation')
     const operation = (this.pending.get(session) ?? Promise.resolve()).then(() => {
       control.throwIfAborted()
       agent.ctx.fiber.assertActive()
       return action(control)
     })
-    const settled = operation.finally(() => this.operations.delete(settled))
+    // oxlint-disable-next-line typescript/no-misused-promises -- Promise.finally awaits scope cleanup before settlement.
+    const settled = operation.finally(async () => {
+      this.operations.delete(settled)
+      await unfollow()
+    })
     this.operations.add(settled)
     this.pending.set(session, settled.then(() => {}, () => {}))
     return settled

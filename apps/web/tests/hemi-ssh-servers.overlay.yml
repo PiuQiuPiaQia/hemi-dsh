@@ -1,0 +1,9 @@
+# Exercise the Desktop-owned server manager over the shipped Web composition.
+- id: hemi-ssh-servers
+  disabled: false
+- id: hemi-ssh-servers-ui
+  disabled: false
+- id: hemi-ssh-workspaces
+  disabled: false
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-browse'

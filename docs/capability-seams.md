@@ -22,6 +22,12 @@ flowchart LR
   pkg_hemi_routing["hemi-routing"]
   svc_hemiRoutingSettings["ctx.hemiRoutingSettings<br/>Hemi role routes"]
   pkg_hemi_routing_ui["hemi-routing-ui"]
+  pkg_hemi_ssh_servers["hemi-ssh-servers"]
+  svc_hemiSshServers["ctx.hemiSshServers<br/>Hemi SSH servers"]
+  pkg_hemi_ssh_servers_ui["hemi-ssh-servers-ui"]
+  svc_hemiSshWorkspaces["ctx.hemiSshWorkspaces<br/>Hemi SSH directories"]
+  pkg_session["session"]
+  pkg_workspace["workspace"]
   pkg_action_cards["action-cards"]
   svc_actionCards["ctx.actionCards<br/>Optional action cards"]
   pkg_creation_recommendations["creation-recommendations"]
@@ -108,7 +114,6 @@ flowchart LR
   svc_tokenMeter["ctx.tokenMeter<br/>Replay token measurement"]
   pkg_compaction_tool_result_pruner["compaction-tool-result-pruner"]
   svc_toolResultPruner["ctx.toolResultPruner<br/>Model-free tool-result pruning"]
-  pkg_session["session"]
   svc_sessions["ctx.sessions<br/>In-memory session store"]
   pkg_agent["agent"]
   pkg_session_persistence["session-persistence"]
@@ -175,7 +180,6 @@ flowchart LR
   pkg_storage_sqlite["storage-sqlite"]
   pkg_storage_domain["storage-domain"]
   svc_storageDomain["ctx.storageDomain<br/>Domain data facility"]
-  pkg_workspace["workspace"]
   svc_messageFeedback["ctx.messageFeedback<br/>Lifecycle-bound message feedback"]
   pkg_command_feedback["command-feedback"]
   svc_sessionFeedback["ctx.sessionFeedback<br/>Session-level feedback recorder"]
@@ -406,6 +410,8 @@ flowchart LR
   pkg_hemi_model_access --> svc_hemiModelAccess
   pkg_hemi_model_settings --> svc_hemiModelSettings
   pkg_hemi_routing --> svc_hemiRoutingSettings
+  pkg_hemi_ssh_servers --> svc_hemiSshServers
+  pkg_hemi_ssh_servers --> svc_hemiSshWorkspaces
   pkg_hmr --> svc_hmr
   pkg_host_directory_picker --> svc_directoryPicker
   pkg_host_directory_picker_browse --> svc_directoryPicker
@@ -552,6 +558,9 @@ flowchart LR
   svc_hemiModelAccess --> pkg_hemi_model_access_ui
   svc_hemiModelSettings --> pkg_hemi_model_settings_ui
   svc_hemiRoutingSettings --> pkg_hemi_routing_ui
+  svc_hemiSshServers --> pkg_hemi_ssh_servers_ui
+  svc_hemiSshWorkspaces --> pkg_session
+  svc_hemiSshWorkspaces --> pkg_workspace
   svc_hmr --> pkg_app_boot
   svc_jobs --> pkg_api_job_controller
   svc_jobs --> pkg_tool_bash
@@ -679,6 +688,8 @@ flowchart LR
 | `ctx.hemiModelAccess` | `service` | [`hemi-model-access`](../packages/hemi/model-access) | - | [`hemi-model-access-ui`](../packages/hemi/model-access-ui) | - | Owns subscription authorization, quota queries and model import. |
 | `ctx.hemiModelSettings` | `service` | [`hemi-model-settings`](../packages/hemi/model-settings) | - | [`hemi-model-settings-ui`](../packages/hemi/model-settings-ui) | - | Owns explicit model connection tests. |
 | `ctx.hemiRoutingSettings` | `service` | [`hemi-routing`](../packages/hemi/routing) | - | [`hemi-routing-ui`](../packages/hemi/routing-ui) | - | Owns saved main and role routes and per-Session automatic mode. |
+| `ctx.hemiSshServers` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`hemi-ssh-servers-ui`](../packages/hemi/ssh-servers-ui) | - | Owns saved server references without establishing connections. |
+| `ctx.hemiSshWorkspaces` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`session`](../packages/core/session), [`workspace`](../packages/workspace/workspace) | - | Owns explicit helper deployments and immutable SSH execution targets for Session and directory consumers. |
 | `ctx.actionCards` | `service` | [`action-cards`](../packages/experimental/action-cards) | - | [`creation-recommendations`](../packages/experimental/creation-recommendations), [`client-ui-action-cards`](../packages/experimental/client-ui-action-cards) | - | Owns the card tool, card state, user actions and status notices; card kinds register their actions and handlers. |
 | `ctx.pluginRecommendations` | `service` | [`plugin-recommendations`](../packages/experimental/plugin-recommendations) | - | [`client-ui-plugin-recommendations`](../packages/experimental/client-ui-plugin-recommendations) | - | Reads the current catalog text of an official plugin card and enables the plugin through the profile plugin manager after a click. |
 | `ctx.headlessStartup` | `core` | [`headless`](../packages/bundle/headless) | - | [`headless`](../packages/bundle/headless) | - | Supplies parsed task and run options to the headless runner and its sandbox-policy configuration. |

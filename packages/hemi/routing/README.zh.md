@@ -45,6 +45,8 @@ Web/桌面 bundle 在 `presets/hemi-roles.patch.yml` 声明四个原生角色预
 
 四个角色预设仅供子智能体使用。Hemi 在主会话模式菜单和默认模式设置中隐藏它们，标准模式仍通过原生子智能体工具按角色委派。
 
+标准预设中的 `@deepseek-ai/dsh-hemi-routing/overflow-compaction` 处理会话请求和自动摘要均超出上下文窗口的情况。它按摘要模型的估算预算缩小选区，保留完整的工具调用和结果，并用会话模型的窗口检查剩余上下文。默认最多追加四次摘要请求，可通过 `maxAttempts` 调整。每段成功的摘要保存为原生检查点，会话重试由压缩引擎负责。
+
 <a id="understand-the-implementation"></a>
 ## 实现说明
 

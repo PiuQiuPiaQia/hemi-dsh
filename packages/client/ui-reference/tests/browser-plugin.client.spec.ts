@@ -403,6 +403,14 @@ describe('candidates', () => {
     await expect(source.candidates(session, request('bad'))).resolves.toEqual([])
   })
 
+  it('reports unsupported filesystem suggestions instead of presenting an empty directory', async () => {
+    const failure = new RemoteError('file-reference/unsupported-environment', 'Enter the path directly.', {})
+    const files = vi.fn(async () => ({ ok: false as const, error: failure }))
+    const sessions = vi.fn(async () => ({ ok: true as const, value: [] }))
+    const { source } = await bench(files, sessions)
+    await expect(source.candidates(session, request('remote'))).rejects.toBe(failure)
+  })
+
   it('labels a session without a cwd and still dates it', async () => {
     const files = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
     const sessions = vi.fn(() => Promise.resolve({

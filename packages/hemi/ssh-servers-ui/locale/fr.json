@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Serveurs SSH de Hemi",
+    "description": "Parcourt les connexions SSH enregistrées et choisit des dossiers distants dans Hemi."
+  }
+}

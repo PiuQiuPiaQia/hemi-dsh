@@ -2,17 +2,18 @@ import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { ToolCallId, createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { appendFile, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { appendFile, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionLogOffset, SessionSeq, Session, SessionId, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionExecutionTarget } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tool-testkit'
-import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry, { type Agent, type AgentExecutionLease } from '@deepseek-ai/dsh-agent'
 import { SessionAlreadyExistsError, type SessionHandle } from '@deepseek-ai/dsh-session-persistence'
 
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -24,6 +25,10 @@ declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     'tool-bash': { kind: 'tool-bash' } & ContextFormed
   }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context { executionProbe: { readonly world: string } }
 }
 
 const dirs: string[] = []
@@ -124,6 +129,164 @@ function throwUnknown(value: unknown): never {
 }
 
 describe('the session-persistence Agent Note: AgentLoop factory create/resume', () => {
+  it('binds execution services from the Core base and releases them after Agent-scope consumers', async () => {
+    const adapter = new MockAdapter([])
+    const { ctx } = await persistentHarness(adapter)
+    try {
+      const realm = Symbol('remote-instance')
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('test-provider'),
+        id: brandString<SessionExecutionTarget['id']>('target-1'),
+      }
+      ctx.isolate('executionProbe', realm).provide('executionProbe', { world: 'remote' })
+      const order: string[] = []
+      ctx.agents.registerExecutionProvider(executionTarget.provider, {
+        acquire: async () => ({
+          realm, signal: new AbortController().signal,
+          bind: base => base.isolate('executionProbe', realm),
+          close: () => { order.push('lease'); return Promise.resolve() },
+        }),
+      })
+      const handle = await ctx.agents.create({
+        sessionId: SessionId('bound-execution'), meta: { cwd: '/project', executionTarget },
+        setup: (agentCtx, agent) => {
+          expect(agentCtx.get('executionProbe')).toEqual({ world: 'remote' })
+          expect(agent.execution?.realm).toBe(realm)
+          expect(agent.execution?.base).not.toBe(agentCtx)
+          expect(agent.execution?.base.get('executionProbe')).toEqual({ world: 'remote' })
+          agentCtx.effect(() => () => { order.push('scope') })
+        },
+      })
+      expect(ctx.get('executionProbe')).toBeUndefined()
+      await handle.dispose()
+      expect(order).toEqual(['scope', 'lease'])
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('stops a published Agent when its execution instance is lost', async () => {
+    const adapter = new MockAdapter([])
+    const { ctx } = await persistentHarness(adapter)
+    try {
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('test-provider'),
+        id: brandString<SessionExecutionTarget['id']>('target-1'),
+      }
+      const lost = new AbortController()
+      const closed = Promise.withResolvers<undefined>()
+      const lease: AgentExecutionLease = {
+        realm: Symbol('lost-instance'), signal: lost.signal, bind: base => base,
+        close: () => { closed.resolve(undefined); return Promise.resolve() },
+      }
+      ctx.agents.registerExecutionProvider(executionTarget.provider, { acquire: async () => lease })
+      const handle = await ctx.agents.create({ sessionId: SessionId('lost-execution'), meta: { executionTarget } })
+      lost.abort(new Error('connection lost'))
+      await closed.promise
+      await handle.dispose()
+      expect(ctx.agents.get(SessionId('lost-execution'))).toBeUndefined()
+      expect(adapter.requests).toEqual([])
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('reacquires the recorded execution instance before repairing and resuming a Session', async () => {
+    const { ctx } = await persistentHarness(new MockAdapter([]))
+    try {
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('test-provider'),
+        id: brandString<SessionExecutionTarget['id']>('target-1'),
+      }
+      const realm = Symbol('persisted-instance')
+      const acquire = vi.fn(async (): Promise<AgentExecutionLease> => ({
+        realm, signal: new AbortController().signal, bind: base => base.isolate('executionProbe', realm), close: async () => {},
+      }))
+      ctx.isolate('executionProbe', realm).provide('executionProbe', { world: 'restored-remote' })
+      ctx.agents.registerExecutionProvider(executionTarget.provider, { acquire })
+      const sessionId = SessionId('resumed-execution')
+      const first = await ctx.agents.create({ sessionId, meta: { cwd: '/project', executionTarget } })
+      first.agent.session.append('turn/start', { turn: 1 })
+      await ctx.sessionPersistence.flush()
+      await first.dispose()
+      const resumed = await ctx.agents.resume({ resumeSessionId: sessionId })
+      expect(resumed.agent.session.header.executionTarget).toEqual(executionTarget)
+      expect(resumed.agent.ctx.get('executionProbe')).toEqual({ world: 'restored-remote' })
+      expect(acquire).toHaveBeenCalledTimes(2)
+      expect((await readStoredEvents(ctx, sessionId)).some(event => event.type === 'turn/end')).toBe(true)
+      await resumed.dispose()
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('releases a late execution acquisition after cancelling unpublished Agent setup', async () => {
+    const { ctx } = await persistentHarness(new MockAdapter([]))
+    try {
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('test-provider'),
+        id: brandString<SessionExecutionTarget['id']>('target-1'),
+      }
+      const entered = Promise.withResolvers<undefined>()
+      const reply = Promise.withResolvers<AgentExecutionLease>()
+      const closed = Promise.withResolvers<undefined>()
+      ctx.agents.registerExecutionProvider(executionTarget.provider, {
+        acquire: () => { entered.resolve(undefined); return reply.promise },
+      })
+      const abort = new AbortController()
+      const sessionId = SessionId('cancelled-execution')
+      const pending = ctx.agents.create({ sessionId, meta: { cwd: '/project', executionTarget }, signal: abort.signal })
+      await entered.promise
+      abort.abort(new Error('cancelled remote setup'))
+      await expect(pending).rejects.toThrow('cancelled remote setup')
+      expect(ctx.agents.get(sessionId)).toBeUndefined()
+      expect(ctx.sessions.get(sessionId)).toBeUndefined()
+      reply.resolve({ realm: Symbol('late-instance'), signal: new AbortController().signal, bind: base => base,
+        close: () => { closed.resolve(undefined); return Promise.resolve() } })
+      await closed.promise
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('refuses an unavailable execution target before a fresh Agent or writer is published', async () => {
+    const adapter = new MockAdapter([])
+    const { ctx } = await persistentHarness(adapter)
+    try {
+      const create = vi.spyOn(ctx.sessionPersistence, 'create')
+      const setup = vi.fn()
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('missing-provider'),
+        id: brandString<SessionExecutionTarget['id']>('target-1'),
+      }
+      await expect(ctx.agents.create({
+        sessionId: SessionId('unavailable-target'), meta: { cwd: '/project', executionTarget }, setup,
+      })).rejects.toThrow('execution target is unavailable')
+      expect(create).not.toHaveBeenCalled()
+      expect(setup).not.toHaveBeenCalled()
+      expect(ctx.agents.get(SessionId('unavailable-target'))).toBeUndefined()
+      expect(ctx.sessions.get(SessionId('unavailable-target'))).toBeUndefined()
+      expect(adapter.requests).toEqual([])
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('refuses an unavailable stored target before repairing its interrupted turn', async () => {
+    const adapter = new MockAdapter([])
+    const { ctx } = await persistentHarness(adapter)
+    try {
+      const sessionId = SessionId('unavailable-stored-target')
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('missing-provider'),
+        id: brandString<SessionExecutionTarget['id']>('target-1'),
+      }
+      const session = ctx.sessions.prepare(sessionId, { meta: { cwd: '/project', executionTarget } })
+      const writer = await ctx.sessionPersistence.create(session.header)
+      await writer.append([{ type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } }])
+      await writer.close()
+      const location = (await ctx.sessionPersistence.stat(sessionId))?.location
+      expect(location).toBeDefined()
+      if (location === undefined) throw new Error('fixture did not materialize')
+      const before = await readFile(location.path)
+      await expect(ctx.agents.resume({ resumeSessionId: sessionId })).rejects.toThrow('execution target is unavailable')
+      expect(await readFile(location.path)).toEqual(before)
+      expect(ctx.agents.get(sessionId)).toBeUndefined()
+      expect(ctx.sessions.get(sessionId)).toBeUndefined()
+      expect(adapter.requests).toEqual([])
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('normalizes a non-Error resume publication failure for rollback and releases the write handle', async () => {
     const sessionId = SessionId('unknown-resume-failure-s')
     const root = await persistSession(sessionId)

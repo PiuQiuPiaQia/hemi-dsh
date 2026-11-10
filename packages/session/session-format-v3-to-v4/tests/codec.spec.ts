@@ -19,6 +19,17 @@ function restore(events: readonly SessionFormatEvent[], sourceHeader = header) {
 }
 
 describe('V4 framing and restoration', () => {
+  it('retains execution identity in native V4 without widening historical V2 headers', () => {
+    const metadata = { ...header, cwd: '/project', executionTarget: { provider: 'ssh', id: 'folder-1' } }
+    const physical = releasedV4SessionFormatCodec.encodeHeader(metadata, 0)
+    expect(physical).toEqual({ type: 'session', ...metadata })
+    expect(releasedV4SessionFormatCodec.decodeHeader(physical)).toEqual(metadata)
+    expect(releasedV4SessionFormatCodec.createDecoder(physical, 'strict').header).toEqual(metadata)
+    expect(() => releasedV2SessionFormatCodec.decodeHeader({ ...physical, version: 2 })).toThrow()
+    expect(() => { assertReleasedV4Header({ ...metadata, executionTarget: { provider: 'ssh', id: 'x', host: 'other' } }) })
+      .toThrow('executionTarget')
+  })
+
   it('reuses released V2 physical framing and round trips native V4 rows', () => {
     const physical = releasedV4SessionFormatCodec.encodeHeader(header, 0)
     expect(physical).toEqual({ type: 'session', ...header })

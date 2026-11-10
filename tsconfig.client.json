@@ -67,6 +67,7 @@
     { "path": "./packages/hemi/model-access-ui" },
     { "path": "./packages/hemi/backup-ui" },
     { "path": "./packages/hemi/memory-ui" },
+    { "path": "./packages/hemi/ssh-servers-ui" },
     { "path": "./packages/session/message-quotes" },
     { "path": "./packages/experimental/client-ui-cot-translation/tsconfig.client.json" },
     { "path": "./packages/client/product-analytics/tsconfig.client.json" },

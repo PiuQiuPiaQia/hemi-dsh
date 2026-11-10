@@ -11,6 +11,8 @@ import { OpenTargetButton, type OpenTargetReporter } from './OpenTargetButton.ts
 export interface OpenInAppActionInjected extends OpenTargetReporter {
   hooks: {
     openInAppApps: ObservableSnapshot<readonly string[] | null>
+    /** Whether the captured Session uses the deployment filesystem rather than an explicit execution target. */
+    openInAppLocalPaths: ObservableSnapshot<boolean>
     openInAppChoice: ObservableSnapshot<string>
     openInAppLaunch: ObservableSnapshot<OpenInAppLaunchState>
     shortcuts: ObservableSnapshot<readonly ShortcutCatalogEntry[]>
@@ -33,6 +35,7 @@ export type OpenInAppActionProps =
  */
 export function OpenInAppAction(props: OpenInAppActionProps): React.JSX.Element | null {
   const { absolutePath, useOpenInAppApps, useOpenInAppChoice, t } = props
+  const native = props.useOpenInAppLocalPaths(value => value)
   const available = useOpenInAppApps(apps => apps)
   const choice = useOpenInAppChoice(id => id)
   const operation = props.useOpenInAppLaunch(value => value)
@@ -42,7 +45,7 @@ export function OpenInAppAction(props: OpenInAppActionProps): React.JSX.Element 
     return key === undefined ? [] : [{ id, name: t(key), icon: props.iconUrl(id) }]
   })
   const preferred = apps.find(app => app.id === choice) ?? apps[0]
-  if (preferred === undefined) return null
+  if (!native || preferred === undefined) return null
   return (
     <OpenTargetButton
       key={absolutePath} kind="directory" applications={apps} defaultId={preferred.id} failed={false} t={t}

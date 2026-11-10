@@ -19,6 +19,7 @@ import type { IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty'
 import { createLazyRequire } from '@deepseek-ai/dsh-lazy-require'
 import { SubprocessRuntime, SubprocessExecutableNotFoundError } from '@deepseek-ai/dsh-subprocess'
 import type {
+  SubprocessExecutable,
   SubprocessHandle,
   SubprocessSpawnSpec,
   SubprocessTerminalHandle,
@@ -153,20 +154,26 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
   }
 
   async resolveExecutable(
-    command: string,
+    command: SubprocessExecutable,
     env?: Readonly<Record<string, string>>,
     signal?: AbortSignal,
   ): Promise<string> {
-    if (command.length === 0) throw new Error('subprocess-local: executable must be non-empty')
+    // Hemi fork: packaged program locations are owned by their consumer and evaluated only on this machine.
     signal?.throwIfAborted()
+    const resolvedCommand = typeof command === 'string' ? command : await command.resolveLocalPath()
+    signal?.throwIfAborted()
+    if (typeof command !== 'string' && !isAbsolute(resolvedCommand)) {
+      throw new SubprocessExecutableNotFoundError('Packaged executable resource must resolve to an absolute local path')
+    }
+    if (resolvedCommand.length === 0) throw new Error('subprocess-local: executable must be non-empty')
     const environment = childEnv(env)
-    const absolute = isAbsolute(command)
-    if (!absolute && (command.includes('/') || (process.platform === 'win32' && command.includes('\\')))) {
+    const absolute = isAbsolute(resolvedCommand)
+    if (!absolute && (resolvedCommand.includes('/') || (process.platform === 'win32' && resolvedCommand.includes('\\')))) {
       throw new Error(
-        `subprocess-local: command ${JSON.stringify(command)} is a relative path; use an absolute path or a bare PATH name`,
+        `subprocess-local: command ${JSON.stringify(resolvedCommand)} is a relative path; use an absolute path or a bare PATH name`,
       )
     }
-    const candidates = absolute ? [command] : this.executableCandidates(command, environment)
+    const candidates = absolute ? [resolvedCommand] : this.executableCandidates(resolvedCommand, environment)
     for (const candidate of candidates) {
       signal?.throwIfAborted()
       try {
@@ -181,8 +188,8 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     }
     signal?.throwIfAborted()
     throw new SubprocessExecutableNotFoundError(absolute
-      ? `subprocess-local: command ${JSON.stringify(command)} is not an executable file`
-      : `subprocess-local: command ${JSON.stringify(command)} was not found on PATH`)
+      ? `subprocess-local: command ${JSON.stringify(resolvedCommand)} is not an executable file`
+      : `subprocess-local: command ${JSON.stringify(resolvedCommand)} was not found on PATH`)
   }
 
   private executableCandidates(command: string, env: NodeJS.ProcessEnv): string[] {

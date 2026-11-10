@@ -60,7 +60,7 @@ export function registerFileMenus(ctx: Context, actions: FileActions, t: (key: F
       const available = absolutePath !== undefined
       const mediaType = mime.getType(path) ?? ''
       const source: FileActionSource = {
-        url: fileMediaUrl(document.baseURI, absolutePath ?? path) ?? path,
+        url: fileMediaUrl(document.baseURI, absolutePath ?? path, sessionId) ?? path,
         name: path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1),
         mediaType,
         read: read(sessionId, path, mediaType, 'Original file unavailable'),

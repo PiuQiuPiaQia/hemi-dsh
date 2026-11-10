@@ -25,6 +25,7 @@ interface Bench {
 
 function bench(over: {
   apps?: readonly string[] | null
+  native?: boolean
   choice?: string
   absolutePath?: string
   shortcuts?: readonly ShortcutCatalogEntry[]
@@ -43,6 +44,7 @@ function bench(over: {
   const props: OpenInAppActionProps = {
     absolutePath: over.absolutePath ?? '/w',
     useOpenInAppApps: bindSnapshotSelector(apps),
+    useOpenInAppLocalPaths: bindSnapshotSelector(createSnapshotStore(over.native ?? true)),
     useOpenInAppChoice: bindSnapshotSelector(choice),
     useOpenInAppLaunch: bindSnapshotSelector(controller.operation),
     useShortcuts: bindSnapshotSelector(createSnapshotStore(over.shortcuts ?? [])),
@@ -56,6 +58,11 @@ function bench(over: {
 }
 
 describe('OpenInAppAction visibility', () => {
+  it('hides native applications for a nonlocal execution directory even when the Host has Finder', () => {
+    const b = bench({ apps: ['finder', 'cursor'], native: false, absolutePath: '/home/project' })
+    expect(render(<OpenInAppAction {...b.props} />).container.innerHTML).toBe('')
+    expect(b.launch).not.toHaveBeenCalled()
+  })
   it('advertises the configured workspace accelerator', () => {
     render(<OpenInAppAction {...bench({ apps: ['finder'], absolutePath: '/w', shortcuts: [{
       id: 'workspace.openLocal' as ShortcutCommandId, label: 'Open', aliases: [], binding: null,

@@ -1,6 +1,6 @@
 /** Authorized source identity and cancellation survive Host rendering. */
 import { Context } from '@deepseek-ai/cordis'
-import { SessionId } from '@deepseek-ai/dsh-session/types'
+import SessionStore, { isSessionExecutionTarget, SessionId } from '@deepseek-ai/dsh-session'
 import type { WorkspaceFiles } from '@deepseek-ai/dsh-api-workspace-files'
 import type { FileSystem, FsInfo, FsTarget } from '@deepseek-ai/dsh-fs'
 import { OfficeToPdfError, OfficeToPdfKey, type OfficeToPdfResult } from '../src/index.ts'
@@ -8,7 +8,7 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import OfficeToPdf from '../src/index.ts'
 
-const scope = { sessionId: SessionId('document-test'), workspaceRoot: '/workspace' }
+const scope = { sessionId: SessionId('document-test'), workspaceRoot: '/workspace', executionTarget: undefined }
 const source = { absolutePath: '/workspace/report.DOCX', version: 'source-v1', bytes: 4 }
 const rawSource = { ...source, data: new Uint8Array([80, 75, 3, 4]) }
 const wireSource = { ...source, offset: 0, eof: true, data: rawSource.data }
@@ -53,6 +53,41 @@ it.each(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'])('converts authorized %s b
   expect(render.mock.calls[0]?.[0]).toMatchObject({ extension, priority: 'foreground', source: { version: source.version, bytes: 4 } })
   expect(result).toEqual({ ...wireSource, data: pdf, bytes: pdf.length, missingFonts: ['Missing Serif'], generation })
   expect(ctx.get('agents')).toBeUndefined()
+})
+
+it('reads the deferred Office source in its Session environment, not the same-spelled Host file', async () => {
+  const label = Symbol('Office filesystem')
+  const remote = ctx.isolate('fs', label)
+  const reference = { provider: 'fixture', id: 'remote-office' }
+  if (!isSessionExecutionTarget(reference)) throw new Error('invalid target')
+  const closed = vi.fn(async () => {})
+  const remoteBytes = new Uint8Array([80, 75, 9, 9])
+  const remoteRead = vi.fn<FileSystem['readBytes']>().mockResolvedValue(remoteBytes)
+  remote.provide('fs', { resolve: async () => target, stat: async () => sourceInfo,
+    processPath: () => source.absolutePath, readBytes: remoteRead } as never)
+  await ctx.plugin(SessionStore)
+  ctx.sessions.registerExecutionProvider(reference.provider, {
+    acquire: async (_id, signal) => ({ realm: Symbol('office'), signal, bind: base => base.isolate('fs', label), close: closed }),
+  })
+  render.mockImplementation(async (request, signal) => {
+    expect((await request.source.read(signal!, 4)).bytes).toBe(remoteBytes)
+    return { pdf, missingFonts: [], generation, cacheKey }
+  })
+  try {
+    await ctx.officeToPdf.render({ ...scope, executionTarget: reference }, 'report.docx', 'foreground', new AbortController().signal)
+    expect(remoteRead).toHaveBeenCalledOnce()
+    expect(read).not.toHaveBeenCalled()
+    expect(closed).toHaveBeenCalledOnce()
+  } finally { await remote.fiber.dispose() }
+})
+
+it('refuses a deferred source whose target is offline instead of reading the Host copy', async () => {
+  const reference = { provider: 'missing', id: 'remote-office' }
+  if (!isSessionExecutionTarget(reference)) throw new Error('invalid target')
+  await ctx.plugin(SessionStore)
+  await expect(ctx.officeToPdf.render({ ...scope, executionTarget: reference }, 'report.docx', 'foreground', new AbortController().signal))
+    .rejects.toMatchObject({ code: 'EXECUTION_TARGET_UNAVAILABLE' })
+  expect(read).not.toHaveBeenCalled()
 })
 
 it('preserves authorization failures without starting conversion', async () => {

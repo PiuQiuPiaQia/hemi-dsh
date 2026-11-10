@@ -39,17 +39,18 @@ export interface MenuState {
     readonly source: string
     /** False when candidate section rows own all visible group labeling. */
     readonly showGroupTitle?: boolean
-    readonly status: 'pending' | 'ready'
+    readonly status: 'pending' | 'ready' | 'failed'
     readonly items: readonly InputTriggerCandidate[]
   }[]
   readonly highlight: { readonly source: string; readonly index: number } | null
 }
 
-/** Menu reduction events. Source failure = silent group removal (log only; no error UI tier). */
+/** Menu reduction events. A failed source remains visible without selectable stale items. */
 export type MenuEvent =
   | { readonly type: 'hit'; readonly hit: TriggerHit | null }
   | { readonly type: 'source-settled'; readonly generation: number; readonly source: string; readonly items?: readonly InputTriggerCandidate[] }
   | { readonly type: 'source-failed'; readonly generation: number; readonly source: string }
+  | { readonly type: 'source-removed'; readonly generation: number; readonly source: string }
   | { readonly type: 'move'; readonly dir: 1 | -1 }
   | { readonly type: 'hover'; readonly source: string; readonly index: number }
   | { readonly type: 'close' }

@@ -151,6 +151,9 @@
    whatever text remains — full text, ellipsized text, or none. */
 .workspace {
   display: inline-flex;
+  /* Hemi fork: long execution-provider labels yield space to the adjacent mode control. */
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
   gap: 4px;
   max-width: min(100%, 360px);

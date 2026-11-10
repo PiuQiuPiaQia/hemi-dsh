@@ -11,7 +11,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Button, IconFolderCloseRegular, IconPlusOutlineRegular, Menu, Modal, type MenuEntry,
+  Button, focusWithoutRing, IconFolderCloseRegular, IconGlobeOutlineRegular, IconPlusOutlineRegular, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   WorkspaceId, WorkspaceSnapshot, WorkspaceView,
@@ -40,6 +40,10 @@ export interface WorkspacePickFlowProps {
   useDirectoryFlow: SnapshotSelectorHook<boolean>
   /** Render this surface's directory-flow hole with the owner conversation (the entry's narrowed renderSlot). */
   renderDirectoryFlow: (owner: DirectoryFlowOwnerProps) => ReactNode
+  /** Framework renderer and live occupancy for the conversation picker's additional actions. */
+  additionalActions?: { available: boolean; renderSlot: WorkspacePickerProps['renderSlot'] }
+  /** Connection sources choose a directory before publishing a Workspace selection. */
+  additionalConnections?: { available: boolean; renderSlot: WorkspacePickerProps['renderSlot'] }
   /** A real Workspace was picked or created. */
   onPick: (workspaceId: WorkspaceId) => void
   /** Close the popover (outside click / Escape / post-pick). */
@@ -67,6 +71,8 @@ export function WorkspacePickFlow({
   createWorkspace,
   useDirectoryFlow,
   renderDirectoryFlow,
+  additionalActions,
+  additionalConnections,
   onPick,
   onClose,
   addOnly = false,
@@ -107,7 +113,8 @@ export function WorkspacePickFlow({
     : []
   // With workspaces listed, the add action pins below the scroll region
   // (divider + always visible); otherwise it IS the menu.
-  const pinAdd = !addOnly && workspaces.length > 0
+  const connectionsAvailable = !addOnly && additionalConnections?.available === true
+  const pinAdd = !addOnly && (workspaces.length > 0 || connectionsAvailable)
   // The resolved name, not `t`, is the memo dependency: the bound seat keeps
   // its identity across a language switch.
   const defaultWorkspaceName = t('workspace.defaultName')
@@ -115,34 +122,44 @@ export function WorkspacePickFlow({
     if (!pinAdd) return []
     const rows = workspaces.map(workspace => ({
       id: workspace.workspaceId,
-      title: workspaceDisplayTitle(workspace.title, defaultWorkspaceName),
+      // Hemi fork: provider labels stay display-only; Workspace admission and identity are unchanged.
+      title: workspace.displayTitle ?? workspaceDisplayTitle(workspace.title, defaultWorkspaceName),
+      providerTitle: workspace.displayTitle !== undefined,
+      remote: workspace.executionTarget !== undefined,
       path: workspace.path,
     }))
     const suffixes = distinguishingPathSuffixes(rows)
     return rows.map(row => ({ ...row, suffix: suffixes.get(row.id) }))
   }, [pinAdd, workspaces, defaultWorkspaceName])
   const items: MenuEntry[] = pinAdd
-    ? listed.map(({ id, title, path, suffix }) => ({
+    ? listed.map(({ id, title, path, suffix, providerTitle, remote }) => ({
       id,
       // The title gives way first, so the suffix that tells the rows apart
       // stays visible; the native tooltip carries the full path.
       label: suffix === undefined
-        ? title
+        ? providerTitle ? <span className={css.providerTitle} title={title}>{title}</span> : title
         : (
           <span className={css.disambiguated} title={path}>
-            <span className={css.title}>{title}</span>
+            <span className={providerTitle ? css.providerTitle : css.title} title={title}>{title}</span>
             {' '}
             <span className={css.pathSuffix}>{suffix}</span>
           </span>
         ),
-      icon: <IconFolderCloseRegular size={16} />,
+      // Hemi fork: icon identity follows the execution reference, not the directory spelling or display name.
+      icon: remote ? <IconGlobeOutlineRegular size={16} /> : <IconFolderCloseRegular size={16} />,
       disabled: flowBusy,
     }))
     : addEntries
   // Nothing listed and nothing to add with (a composition that mounts this
   // package without any directory-picker): an empty popover would claim a
   // choice that does not exist, so the anchor gesture shows nothing at all.
-  const menuIsEmpty = items.length === 0
+  // Hemi fork: contributed actions remain usable without local Workspaces or a directory picker.
+  const additionalActionsAvailable = additionalActions?.available === true || connectionsAvailable
+  // Withdrawing a choice must not turn an open menu gesture into a directory request.
+  const [offeredAdditionalActions, setOfferedAdditionalActions] = useState(open && additionalActionsAvailable)
+  if (!open && offeredAdditionalActions) setOfferedAdditionalActions(false)
+  else if (open && additionalActionsAvailable && !offeredAdditionalActions) setOfferedAdditionalActions(true)
+  const menuIsEmpty = items.length === 0 && !additionalActionsAvailable
 
   const closeModal = (): void => {
     setErrorOpen(false)
@@ -176,7 +193,7 @@ export function WorkspacePickFlow({
   // loading status instead of jumping into a flow the arriving list would have
   // made unnecessary; the add-only surface lists nothing and never waits.
   const listSettled = addOnly || workspaceSnapshot.phase === 'ready'
-  const addIsTheOnlyEntry = !pinAdd && listSettled && addEntries.length === 1
+  const addIsTheOnlyEntry = !pinAdd && listSettled && addEntries.length === 1 && !additionalActionsAvailable && !offeredAdditionalActions
   // `flowBusy` gates this exactly as it disables the equivalent menu entry: a
   // pick still being adopted owns the surface until it settles.
   useEffect(() => {
@@ -207,13 +224,28 @@ export function WorkspacePickFlow({
     onPick(id as WorkspaceId)
   }
 
+  const dismissAdditionalAction = (): void => {
+    onClose()
+    // The next dialog captures its return target before the menu's queued focus restoration.
+    if (anchorRef?.current != null) focusWithoutRing(anchorRef.current, { preventScroll: true })
+  }
+  const extraConnections = connectionsAvailable
+    ? additionalConnections.renderSlot('conversation.hero.workspace.connections', {
+      onDismiss: dismissAdditionalAction, disabled: flowBusy, onPicked: onPick,
+    })
+    : null
+  const extraActions = additionalActions?.available
+    ? additionalActions.renderSlot('conversation.hero.workspace.add.actions', { onDismiss: dismissAdditionalAction, disabled: flowBusy })
+    : null
+
   return (
     <>
       <Menu
         open={open && !addIsTheOnlyEntry && !menuIsEmpty}
         anchor={null}
         items={items}
-        {...pinAdd ? { footer: addEntries } : {}}
+        {...pinAdd ? { children: extraConnections, footer: addEntries, footerChildren: extraActions }
+          : { children: <>{extraConnections}{extraActions}</> }}
         selectedId={selectedId}
         onSelect={handleSelect}
         onClose={onClose}
@@ -258,9 +290,13 @@ export function WorkspacePicker({
   onClose,
   createWorkspace,
   useDirectoryFlow,
+  useAddActions,
+  useConnections,
   renderSlot,
   t,
 }: WorkspacePickerProps) {
+  const additionalActionsAvailable = useAddActions(occupied => occupied)
+  const connectionsAvailable = useConnections(occupied => occupied)
   return (
     <WorkspacePickFlow
       t={t}
@@ -270,6 +306,8 @@ export function WorkspacePicker({
       createWorkspace={createWorkspace}
       useDirectoryFlow={useDirectoryFlow}
       renderDirectoryFlow={owner => renderSlot('conversation.hero.workspace.directoryFlow', owner)}
+      additionalActions={{ available: additionalActionsAvailable, renderSlot }}
+      additionalConnections={{ available: connectionsAvailable, renderSlot }}
       selectedId={selectedId}
       onPick={onPick}
       onClose={onClose}

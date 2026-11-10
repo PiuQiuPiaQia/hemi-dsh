@@ -111,11 +111,11 @@ export function serializeSessionLog(
   header: SessionHeader,
   events: readonly SessionEvent[],
 ): string {
-  // Match the current v2 physical header. The inherited cut is already
+  // Match the current physical header. The inherited cut is already
   // represented by the tagged session/end-seed event in `events`;
   // `delegationDepth` is required on disk, so an omitted top-level depth is 0.
   /* jscpd:ignore-start -- deliberately mirrors the JSONL backend's
-     `toHeaderLine`: the exported text is the canonical v2 physical header
+     `toHeaderLine`: the exported text is the canonical physical header
      line, and this backend-agnostic package must not depend on one backend
      implementation. */
   const lines = [JSON.stringify({
@@ -129,6 +129,8 @@ export function serializeSessionLog(
     ...header.origin !== undefined ? { origin: header.origin } : {},
     delegationDepth: header.delegationDepth ?? 0,
     ...header.agentPreset !== undefined ? { agentPreset: header.agentPreset } : {},
+    // Hemi fork: an exported remote Session must not become locally executable on import.
+    ...header.executionTarget !== undefined ? { executionTarget: header.executionTarget } : {},
   })]
   /* jscpd:ignore-end */
   for (const event of events) lines.push(JSON.stringify(event))

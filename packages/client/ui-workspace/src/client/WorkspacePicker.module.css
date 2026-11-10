@@ -29,6 +29,7 @@
 }
 
 .title,
+.providerTitle,
 .pathSuffix {
   min-width: 0;
   overflow: hidden;
@@ -38,4 +39,27 @@
 .pathSuffix {
   flex: none;
   max-width: 75%;
+}
+
+/* Hemi fork: provider names remain fully readable without hover when the picker is opened on touch. */
+.providerTitle {
+  display: block;
+}
+
+@media (hover: none) {
+  .providerTitle {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .disambiguated:has(.providerTitle) {
+    flex-wrap: wrap;
+  }
+
+  .disambiguated:has(.providerTitle) .pathSuffix {
+    flex-basis: 100%;
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }

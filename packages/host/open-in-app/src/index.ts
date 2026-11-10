@@ -24,6 +24,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isAbsolute } from 'node:path'
 import { stat } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
+import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace'
+import { DirectoryPathRefusal, withDirectoryPath } from './directory.ts'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import { launchedThroughSsh, launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
@@ -36,7 +40,7 @@ import {
 import { extractAppIcon, type OpenInAppIcon } from './icons.ts'
 import { internals } from './internals.ts'
 import {
-  OPEN_IN_APP_APPS_PATH, OPEN_IN_APP_ICON_PREFIX_PATH, OPEN_IN_APP_OPEN_PATH,
+  OPEN_IN_APP_APPS_PATH, OPEN_IN_APP_ICON_PREFIX_PATH, OPEN_IN_APP_OPEN_PATH, type OpenInAppOpenPayload,
 } from './shared.ts'
 
 export type * from './shared.ts'
@@ -76,13 +80,11 @@ export const Config: z<Config> = z.object({
 })
 
 /** Trust surface consumed here; the browser-side connection package owns the full type. */
-interface OpenInAppConnection {
-  requestRejection(request: { readonly headers: IncomingMessage['headers'] }): 401 | 403 | undefined
-}
+type OpenInAppConnection = Pick<HostConnectionHandle, 'admit'>
 
 /** The composition's connection service (typed locally: its package is browser-side). */
 function connectionOf(ctx: Context): OpenInAppConnection {
-  return Reflect.get(ctx, 'connection') as OpenInAppConnection
+  return ctx.connection
 }
 
 /** Open-route request bodies are tiny JSON objects; anything larger is hostile. */
@@ -121,7 +123,7 @@ async function readBoundedBody(req: IncomingMessage): Promise<string | null> {
 }
 
 /** Validate one open-route body at the wire: JSON object with string app/path. */
-function parseOpenBody(text: string): { app: string; path: string } | null {
+function parseOpenBody(text: string): OpenInAppOpenPayload | null {
   let body: unknown
   try {
     body = JSON.parse(text)
@@ -130,8 +132,13 @@ function parseOpenBody(text: string): { app: string; path: string } | null {
     return null
   }
   if (typeof body !== 'object' || body === null) return null
-  const { app, path } = body as { app?: unknown; path?: unknown }
-  return typeof app === 'string' && typeof path === 'string' ? { app, path } : null
+  const { app, path, sessionId, workspaceId } = body as { app?: unknown; path?: unknown; sessionId?: unknown; workspaceId?: unknown }
+  if (typeof app !== 'string' || typeof path !== 'string'
+    || (sessionId !== undefined && (typeof sessionId !== 'string' || sessionId.length === 0))
+    || (workspaceId !== undefined && (typeof workspaceId !== 'string' || workspaceId.length === 0))
+    || (sessionId !== undefined && workspaceId !== undefined)) return null
+  return { app, path, ...sessionId === undefined ? {} : { sessionId: sessionId as SessionId },
+    ...workspaceId === undefined ? {} : { workspaceId: workspaceId as WorkspaceId } }
 }
 
 /** Register the apps, icon, and open routes behind the connection trust fence. */
@@ -183,9 +190,10 @@ export function apply(ctx: Context, config: Config): void {
   }
   /** Answer an untrusted/unauthenticated request; true when it was rejected. */
   const rejected = (req: IncomingMessage, res: ServerResponse): boolean => {
-    const rejection = connectionOf(ctx).requestRejection(req)
-    if (rejection === undefined) return false
-    res.statusCode = rejection
+    const admission = connectionOf(ctx).admit(req)
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- Deployments extend PrincipalMap with non-owner kinds.
+    if (!('rejection' in admission) && admission.peer.principal.kind === 'owner') return false
+    res.statusCode = 'rejection' in admission ? admission.rejection : 403
     res.end()
     return true
   }
@@ -281,31 +289,34 @@ export function apply(ctx: Context, config: Config): void {
         sendJson(res, 400, { code: 'bad-request', message: 'path must be an absolute directory path' })
         return
       }
-      let directory: boolean
+      const lifetime = new AbortController()
+      const cancel = (): void => { if (!res.writableEnded) lifetime.abort(new Error('Native open request disconnected')) }
+      res.once('close', cancel)
+      if (res.destroyed) cancel()
       try {
-        directory = (await stat(parsed.path)).isDirectory()
-      } catch {
-        // Swallows ENOENT/EACCES: both mean there is no directory to open.
-        directory = false
-      }
-      if (!directory) {
-        sendJson(res, 404, { code: 'not-found', message: `directory does not exist: ${parsed.path}` })
-        return
-      }
-      let outcome = await launchResolved(resolved, parsed.path, config.launchWatchMs, catalogInternals())
-      if (outcome === 'missing') {
-        // The verified launcher is gone (uninstalled since resolution):
-        // refresh this one entry and retry once with the fresh launcher.
-        const fresh = await refreshResolution(app)
-        outcome = fresh === undefined
-          ? 'failed'
-          : await launchResolved(fresh, parsed.path, config.launchWatchMs, catalogInternals())
-      }
-      if (outcome === 'launched') {
-        sendJson(res, 200, { ok: true })
-      } else {
-        sendJson(res, 502, { code: 'launch-failed', message: `failed to launch ${app.id}` })
-      }
+        await withDirectoryPath(ctx, parsed, lifetime.signal, async (path, signal) => {
+          let directory: boolean
+          try { directory = (await stat(path)).isDirectory() }
+          catch (_error: unknown) { directory = false }
+          if (!directory) {
+            sendJson(res, 404, { code: 'not-found', message: `directory does not exist: ${path}` })
+            return
+          }
+          signal.throwIfAborted()
+          let outcome = await launchResolved(resolved, path, config.launchWatchMs, catalogInternals())
+          if (outcome === 'missing') {
+            const fresh = await refreshResolution(app)
+            signal.throwIfAborted()
+            outcome = fresh === undefined ? 'failed' : await launchResolved(fresh, path, config.launchWatchMs, catalogInternals())
+          }
+          if (outcome === 'launched') sendJson(res, 200, { ok: true })
+          else sendJson(res, 502, { code: 'launch-failed', message: `failed to launch ${app.id}` })
+        })
+      } catch (error: unknown) {
+        if (lifetime.signal.aborted) return
+        if (!(error instanceof DirectoryPathRefusal)) throw error
+        sendJson(res, error.status, { code: error.code, message: error.message })
+      } finally { res.off('close', cancel) }
     },
   }), `open-in-app: POST ${OPEN_IN_APP_OPEN_PATH}`)
 }

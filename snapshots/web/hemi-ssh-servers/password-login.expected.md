@@ -1,0 +1,12 @@
+- dialog "SSH 登录":
+  - heading "SSH 登录" [level=2]
+  - button "关闭"
+  - paragraph: {{ssh-address}}
+  - paragraph: "{{ssh-login}}'s password:"
+  - textbox "SSH 验证内容"
+  - group "记住密码":
+    - paragraph: 明文保存在本机 DSH 凭据库，仅当前用户可读写
+    - checkbox "记住密码"
+    - text: 记住密码
+  - button "取消"
+  - button "继续"

@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-context-menu/client'
  * file defaults and application lists come from the serving Host desktop.
  */
 
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -21,6 +22,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote'
 import { OPEN_IN_APP_ICON_PREFIX_ROUTE } from '@deepseek-ai/dsh-host-open-in-app/shared'
 import { OpenInAppController } from './controller.ts'
+import { nativePathSource, sessionHasNativePaths } from './native-paths.ts'
 import { registerSessionOpenWith } from './session-open-with.ts'
 import { OpenInAppAction, type OpenInAppActionInjected } from './OpenInAppAction.tsx'
 import { OpenInAppPathController } from './open-path.ts'
@@ -78,7 +80,8 @@ export function apply(ctx: ClientContext): void {
     const session = Object.values(ctx.sessions.list.getSnapshot().byId)
       .find(row => (row.retainedBy.mainView ?? 0) > 0)
     const appId = controller.currentApp()
-    return session?.cwd && appId !== undefined ? { appId, path: session.cwd } : undefined
+    return session?.cwd && appId !== undefined && sessionHasNativePaths(ctx.sessions.list.getSnapshot(), session.id)
+      ? { appId, path: session.cwd, sessionId: session.id } : undefined
   }
   ctx.effect(() => ctx.shortcuts.register({
     id: 'workspace.openLocal' as ShortcutCommandId, label: () => t('open.tooltip'), aliases: ['open workspace locally', 'open in app'],
@@ -95,18 +98,20 @@ export function apply(ctx: ClientContext): void {
       const selected = target()
       if (selected === undefined) return { status: 'blocked', reason: t('shortcut.unavailable') }
       return { status: 'handled', run: () => {
-        void controller.launch(selected.appId, selected.path).then(announcement.report)
+        void controller.launch(selected.appId, selected.path, { sessionId: selected.sessionId }).then(announcement.report)
       } }
     },
   }), 'open-in-app: workspace command')
-  const directoryInjected = (): OpenInAppActionInjected => ({
+  const directoryInjected = (sessionId: SessionId): OpenInAppActionInjected => ({
     hooks: {
       openInAppApps: controller.apps,
+      // Hemi fork: display native controls only for this captured Session's default filesystem.
+      openInAppLocalPaths: nativePathSource(ctx.sessions.list, sessionId),
       openInAppChoice: controller.choice,
       openInAppLaunch: controller.operation,
       shortcuts: ctx.shortcuts.catalog,
     },
-    launch: (appId, path) => controller.launch(appId, path),
+    launch: (appId, path) => controller.launch(appId, path, { sessionId }),
     report: announcement.report,
     choose: (appId) => { controller.choose(appId) },
     iconUrl: appId => `${OPEN_IN_APP_ICON_PREFIX_ROUTE}/${appId}`,
@@ -115,12 +120,11 @@ export function apply(ctx: ClientContext): void {
     name: 'sidebar.right.tab.files.actions',
     id: 'open-in-app', locale: NS, inject: directoryInjected,
   }, OpenInAppAction))
-  const applications: OpenPathInjected['applications'] = (path, signal) => paths.applications(path, signal)
-  const pathInjected = (): OpenPathInjected => ({
-    hooks: { openInAppDesktop: paths.desktop },
+  const pathInjected = (sessionId: SessionId): OpenPathInjected => ({
+    hooks: { openInAppDesktop: paths.desktop, openInAppLocalPaths: nativePathSource(ctx.sessions.list, sessionId) },
     loadDesktop: () => paths.load(),
-    openPath: (path, action, application) => paths.openPath(path, action, application),
-    applications,
+    openPath: (path, action, application) => paths.openPath(path, action, application, sessionId),
+    applications: (path, signal) => paths.applications(path, signal, sessionId),
     report: announcement.report,
   })
   ctx.slots.inject('sidebar.right.tab.document.actions', () => ctx.slots.register({

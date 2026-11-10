@@ -139,6 +139,7 @@ export function MenuItemButton({ onSelect, ...props }: MenuItemButtonProps) {
  * @param props.minWidthFromAnchor - in portal mode, keep the menu at least as wide as its anchor, bounded by viewport margins.
  * @param props.footer - rows pinned below the scrolling items area, separated
  * by a hairline; contextual menus reuse an explicit leading separator. These rows stay visible while the items above scroll.
+ * @param props.footerChildren - component rows pinned after the data footer rows, with the same keyboard navigation.
  * @param props.children - component rows rendered after `items` in the same
  * list, each a `role="menuitem"` button such as {@link MenuItemButton}; they
  * share the keyboard walk, the submenu exclusivity, and the post-selection
@@ -153,7 +154,7 @@ export function MenuItemButton({ onSelect, ...props }: MenuItemButtonProps) {
  * document.body outside the owner's DOM subtree.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items = [], children, submenuBackLabel, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, selection = 'check', anchorRef, anchorPoint, minWidthFromAnchor = false, footer, className, listClassName, contextual = false, exiting, returnFocus, isExternalTrigger }: {
+export function Menu({ open, anchor, items = [], children, submenuBackLabel, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, selection = 'check', anchorRef, anchorPoint, minWidthFromAnchor = false, footer, footerChildren, className, listClassName, contextual = false, exiting, returnFocus, isExternalTrigger }: {
   open: boolean
   /** Pointer-positioned popup: cursor clearance, grouped icons, and context gestures. */
   contextual?: boolean
@@ -170,6 +171,8 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
   submenuBackLabel?: string | undefined
   children?: ReactNode
   footer?: readonly MenuEntry[]
+  /** Hemi fork: component contributions share the pinned footer without moving native actions into the scroller. */
+  footerChildren?: ReactNode
   selectedId?: string | undefined
   selectedIds?: readonly string[] | undefined
   onSelect?: (id: string) => void
@@ -335,6 +338,9 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
       if (rootRef.current?.contains(e.target) === true || anchorRef?.current?.contains(e.target) === true) return
       if (isExternalTrigger?.(e.target) === true) return
       if (listRef.current?.contains(e.target) === true || submenuEvents.current.contains(e.target)) return
+      // Hemi fork: a press inside a menu stacked above this one belongs to that menu;
+      // closing here would unmount the surface the press is targeting.
+      if (e.target instanceof Element && e.target.closest('[role="menu"]') !== null) return
       onClose()
     }
     const onKeyDown = (e: KeyboardEvent) => {
@@ -347,6 +353,8 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
       const anchored = focused === returnFocus?.() || anchorRef?.current?.contains(focused) === true
         || rootRef.current?.contains(focused) === true || insideList
       if (e.key === 'Escape' && !e.shiftKey) {
+        // Hemi fork: a focused menu surface owns Escape; a menu stacked below it stays open.
+        if (!insideList && focused instanceof Element && focused.closest('[role="menu"]') !== null) return
         e.preventDefault()
         if (e.repeat) return
         if (submenuEvents.current.returnToParent()) return
@@ -521,9 +529,10 @@ export function Menu({ open, anchor, items = [], children, submenuBackLabel, sel
         {items.map(entry => renderEntry(entry, itemColumns))}
         {children}
       </div>
-      {footer !== undefined && footer.length > 0 && (
+      {((footer !== undefined && footer.length > 0) || footerChildren != null) && (
         <div className={css.footer} role="presentation">
-          {footer.map(entry => renderEntry(entry, footerColumns))}
+          {footer?.map(entry => renderEntry(entry, footerColumns))}
+          {footerChildren}
         </div>
       )}
     </MenuSurface>

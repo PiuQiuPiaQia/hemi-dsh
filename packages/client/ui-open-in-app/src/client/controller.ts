@@ -16,6 +16,7 @@ export interface OpenInAppLaunchState {
 }
 
 type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>
+type LaunchScope = Pick<OpenInAppOpenPayload, 'sessionId' | 'workspaceId'>
 
 /**
  * Owns the once-per-page availability read, the persisted last choice, and
@@ -71,16 +72,17 @@ export class OpenInAppController {
   /**
    * Launch one installed app on a workspace directory.
    * @param appId - catalog id from the availability list.
-   * @param path - the session's absolute workspace directory.
+   * @param path - the selected environment's absolute workspace directory.
+   * @param scope - authorizing Session or Workspace; omission explicitly names a Host directory.
    * Concurrent gestures are ignored until the current Host request settles.
    * @returns the acknowledged handoff, or `{ kind: 'skipped' }` while another
    * launch holds the operation, or a named failure when the Host refuses or
    * cannot be reached. Host and transport failures resolve without rejecting.
    */
-  async launch(appId: string, path: string): Promise<OpenInAppOutcome> {
+  async launch(appId: string, path: string, scope: LaunchScope = {}): Promise<OpenInAppOutcome> {
     if (this.operation.getSnapshot().phase === 'busy') return { kind: 'skipped' }
     this.operation.set({ phase: 'busy', path })
-    const body: OpenInAppOpenPayload = { app: appId, path }
+    const body: OpenInAppOpenPayload = { app: appId, path, ...scope }
     try {
       const response = await this.fetcher(OPEN_IN_APP_OPEN_ROUTE, {
         method: 'POST',

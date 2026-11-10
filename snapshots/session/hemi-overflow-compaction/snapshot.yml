@@ -1,0 +1,12 @@
+version: 1
+scenario: hemi-overflow-compaction
+profile: headless
+composition: hemi-overflow-compaction
+recording: authored
+platform: posix
+header:
+  class: hemi-overflow-compaction
+  pin: true
+  systemPromptSource: compaction-recovery
+  toolSchemasSource: compaction-recovery
+  changes: 1

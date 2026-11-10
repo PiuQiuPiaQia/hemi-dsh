@@ -13,6 +13,9 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { FsError, type FileSystem } from '@deepseek-ai/dsh-fs'
 import mime from 'mime-types'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import { withSessionFileSystem } from './file-system.ts'
 
 const BASE_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
@@ -23,7 +26,7 @@ const NO_STORE = { ...BASE_HEADERS, 'Cache-Control': 'private, no-store' }
 // A versioned URL names one file version, so its response never changes.
 const VERSIONED = { ...BASE_HEADERS, 'Cache-Control': 'private, max-age=31536000, immutable' }
 
-async function serveFile(request: Request, fs: FileSystem, maxBytes: number): Promise<Response> {
+async function serveFile(request: Request, fs: FileSystem, maxBytes: number, signal = request.signal): Promise<Response> {
   const fail = (status: number, text: string): Response =>
     new Response(request.method === 'HEAD' ? null : text, { status, headers: NO_STORE })
   const params = new URL(request.url).searchParams
@@ -31,14 +34,17 @@ async function serveFile(request: Request, fs: FileSystem, maxBytes: number): Pr
   if (path === null || path.length === 0) return fail(400, 'missing path')
   if (path.includes('\0') || !isAbsolute(path)) return fail(400, 'absolute path required')
   try {
-    const target = await fs.resolve(path, { signal: request.signal })
-    const info = await fs.stat(target, request.signal)
+    const target = await fs.resolve(path, { signal: signal })
+    const info = await fs.stat(target, signal)
     if (info === undefined) return fail(404, 'not found')
     if (info.type !== 'file') return fail(403, 'not a regular file')
     if (info.size !== undefined && info.size > maxBytes) return fail(413, 'file exceeds byte limit')
     if (params.get('v') !== info.version) {
       // Relative to the request URL, so deployment prefixes and the Desktop scheme are kept.
-      const location = `?${new URLSearchParams({ path, v: info.version }).toString()}`
+      const versioned = new URLSearchParams({ path, v: info.version })
+      const sessionId = params.get('sessionId')
+      if (sessionId !== null) versioned.set('sessionId', sessionId)
+      const location = `?${versioned.toString()}`
       return new Response(null, { status: 302, headers: { ...NO_STORE, Location: location } })
     }
     const headers: Record<string, string> = {
@@ -49,7 +55,7 @@ async function serveFile(request: Request, fs: FileSystem, maxBytes: number): Pr
       if (info.size !== undefined) headers['Content-Length'] = String(info.size)
       return new Response(null, { headers })
     }
-    const bytes = await fs.readBytes(target, request.signal, maxBytes)
+    const bytes = await fs.readBytes(target, signal, maxBytes)
     headers['Content-Length'] = String(bytes.byteLength)
     return new Response(bytes.slice(), { headers })
   } catch (error: unknown) {
@@ -78,7 +84,22 @@ export const SessionMediaReferences = {
       path: '/api/file',
       methods: ['GET', 'HEAD'],
       requestBody: 'buffered',
-      fetch: request => serveFile(request, ctx.fs, maxBytes),
+      fetch: async (request) => {
+        const sessionId = new URL(request.url).searchParams.get('sessionId')
+        if (sessionId === null) return serveFile(request, ctx.fs, maxBytes)
+        const fail = (status: number, code: string): Response => new Response(request.method === 'HEAD' ? null : code, { status, headers: NO_STORE })
+        if (sessionId.length === 0) return fail(400, 'sessionId is required')
+        try {
+          // Hemi fork: Session media never resolves an execution-world path on the deployment Host.
+          return await withSessionFileSystem(ctx, SessionId(sessionId), request.signal,
+            (fs, _header, signal) => serveFile(request, fs, maxBytes, signal))
+        } catch (error: unknown) {
+          if (request.signal.aborted) return fail(499, 'FS_ABORTED')
+          if (error instanceof RemoteError) return error.code === 'session/not-found'
+            ? fail(404, 'session/not-found') : fail(503, 'session/execution-unavailable')
+          throw error
+        }
+      },
     }), 'session-controller: /api/file')
   },
 }

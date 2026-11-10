@@ -6,7 +6,8 @@ import type { SessionReference } from '../src/client/contract/sessions.ts'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { LlmAttemptId } from '@deepseek-ai/dsh-llm'
 import { RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
-import { SESSION_FORMAT_VERSION, SessionSeq } from '@deepseek-ai/dsh-session/types'
+import { SESSION_FORMAT_VERSION, SessionSeq, type SessionExecutionTarget } from '@deepseek-ai/dsh-session/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { ok, streamHandle, type RemoteMock } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { ClientSessions, SessionCreateError, SessionForkError } from '../src/client/sessions/service.ts'
@@ -55,6 +56,7 @@ const it = createClientTest({ roster: API_ROSTER }).extend<{ bench: BenchFactory
 type FeedRow = {
   id: string
   cwd?: string
+  executionTarget?: SessionExecutionTarget
   parentId?: string
   origin?: 'subagent'
   running?: boolean
@@ -67,6 +69,7 @@ async function feedList(b: Bench, rows: FeedRow[]): Promise<void> {
     items: rows.map(r => ({ agentAvailable: true,
       sessionId: sid(r.id), updatedAt: 1, running: r.running ?? false, blank: r.blank ?? false,
       ...(r.cwd !== undefined ? { cwd: r.cwd } : {}),
+      ...(r.executionTarget === undefined ? {} : { executionTarget: r.executionTarget }),
       ...(r.parentId !== undefined ? { parentSessionId: sid(r.parentId) } : {}),
       ...(r.origin !== undefined ? { origin: r.origin } : {}),
       ...(r.projections === undefined
@@ -120,6 +123,41 @@ describe('list store projection', () => {
       displayTitle: 's2', parentId: 's1', origin: 'subagent', running: true,
     })
     expect(state.byId[sid('s2')]?.title).toBeUndefined()
+  }, COLD_BOOT_TIMEOUT_MS)
+
+  it('projects execution-target metadata through placeholders and refreshes without inferring it from cwd', async ({ bench }) => {
+    const b = bench()
+    const executionTarget = (host: string): SessionExecutionTarget => ({
+      provider: brandString<SessionExecutionTarget['provider']>('ssh'),
+      id: brandString<SessionExecutionTarget['id']>(host),
+    })
+    await feedList(b, [
+      { id: 's1', cwd: '/shared' },
+      { id: 's2', cwd: '/shared', executionTarget: executionTarget('host-a') },
+    ])
+    const state = b.svc.list.getSnapshot()
+    expect(state.byId[sid('s1')]).not.toHaveProperty('executionTarget')
+    expect(state.byId[sid('s2')]?.executionTarget).toEqual(executionTarget('host-a'))
+
+    // The local create placeholder knows no environment; the Host summary fills it once.
+    b.mock.remote.session.create.mockResolvedValue(ok({ sessionId: sid('s3') }))
+    await b.svc.create({ cwd: '/shared' })
+    expect(b.svc.list.getSnapshot().byId[sid('s3')]).not.toHaveProperty('executionTarget')
+    b.svc.handleSessionAdded({ agentAvailable: true, sessionId: sid('s3'), updatedAt: 2, running: false, blank: true,
+      cwd: '/shared', executionTarget: executionTarget('host-b') })
+    await Promise.resolve() // manager notifier flush
+    expect(b.svc.list.getSnapshot().byId[sid('s3')]?.executionTarget).toEqual(executionTarget('host-b'))
+
+    // A refresh serving fresh wire objects keeps every recorded environment by value.
+    await feedList(b, [
+      { id: 's1', cwd: '/shared' },
+      { id: 's2', cwd: '/shared', executionTarget: executionTarget('host-a') },
+      { id: 's3', cwd: '/shared', executionTarget: executionTarget('host-b') },
+    ])
+    const refreshed = b.svc.list.getSnapshot()
+    expect(refreshed.byId[sid('s1')]).not.toHaveProperty('executionTarget')
+    expect(refreshed.byId[sid('s2')]?.executionTarget).toEqual(executionTarget('host-a'))
+    expect(refreshed.byId[sid('s3')]?.executionTarget).toEqual(executionTarget('host-b'))
   }, COLD_BOOT_TIMEOUT_MS)
 
   it('reprojects a blank session from the generic agent-preset projection', async ({ bench }) => {

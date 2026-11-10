@@ -1207,9 +1207,6 @@
   "packages/fs/fs-local/tests/filesystem.spec.ts": {
     "002ddc98af9352c0e97f381118ea7815cd7721433ec527db75e09b42b37b3313": 1
   },
-  "packages/fs/tool-fs-search/tests/rg-path.spec.ts": {
-    "9a3ae4595e0dcb70aaa3ea1b4c6dbfb8e31820b0605a5c8c2ba4528e756e6708": 1
-  },
   "packages/fs/tool-fs-search/tests/tools.spec.ts": {
     "65e768f1bc0841d5bdf891ff943ab2ea92e6b2acc2c448e325819c7d46c982c0": 1
   },
@@ -1645,7 +1642,6 @@
   },
   "packages/shell/shell-env/tests/shell-env.spec.ts": {
     "014c444306e31df9dc3346c26a12100e5f0653fd49275d8b07079cb3b8909628": 1,
-    "5d098ecf1fa4d0ea3cf3889de5cdedfca2c219051ba3925c1b4d9ec25b8eaea3": 1,
     "c77441f56443f3297573e49d7beb18437b69e5041fc5f4f9ec056e30d0d34adf": 1
   },
   "packages/shell/tool-bash-persistent/tests/loader-composition.spec.ts": {

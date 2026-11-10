@@ -74,7 +74,7 @@ Events provide extension points in three domains.
 
 Subagent Activations own runtime tree membership.
 
-AgentLoop rolls back failed initialization and awaits serial `agent/created` before queued work; unload retains resources through teardown ([ordering](../packages/core/agent-loop/README.md#understand-the-implementation)).
+Registered execution providers bind their services onto the loop's dependency context and retain them through Agent-scope teardown. AgentLoop rejects unavailable explicit execution targets before activation or semantic crash repair, rolls back failed initialization, and awaits serial `agent/created` before queued work; unload retains resources through teardown ([ordering](../packages/core/agent-loop/README.md#understand-the-implementation)).
 
 [Event producers and consumers](event-producer-consumer.md).
 

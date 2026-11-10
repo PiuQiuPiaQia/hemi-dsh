@@ -80,6 +80,10 @@ interface SandboxPolicyRequest {
   session?: Session
   /** Explicit approved mode override, which outranks session policy. */
   mode?: SandboxMode
+  /** Explicit environment for agentless calls; global extra roots belong only to the deployment default. */
+  executionTarget?: SessionExecutionTarget
+  /** Verified execution-world workspace for agentless calls; never inferred from Host paths. */
+  workspaceRoot?: string
 }
 ```
 

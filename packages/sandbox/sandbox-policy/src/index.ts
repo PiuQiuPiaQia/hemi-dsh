@@ -27,7 +27,8 @@ import { z as zod } from 'zod'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
-import type { Session } from '@deepseek-ai/dsh-session'
+import type { Session, SessionExecutionTarget } from '@deepseek-ai/dsh-session'
+import { SandboxUnsupportedPolicyError } from '@deepseek-ai/dsh-sandbox'
 import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -95,14 +96,15 @@ export interface Config {
   /** File-sandbox mode a session starts from (default: `read-only`). */
   mode?: SandboxMode
   /**
-   * Absolute fallback root for agentless calls and sessions without a cwd (default:
-   * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * Absolute deployment-default fallback for agentless calls and sessions without a cwd
+   * (default: `process.cwd()`). Explicit targets must supply an execution-world root.
    */
   workspaceRoot?: string
   /**
    * Extra physical absolute directories that `workspace-write` may also write under
    * (default: none). The supervisor names them explicitly; there is no
-   * automatic repository or gitfile discovery. Entries are execution-world
+   * automatic repository or gitfile discovery. Explicit execution targets do not inherit
+   * these deployment grants. Entries are execution-world
    * paths: this service validates absoluteness and detaches the list, while
    * the enforcing host rejects missing, non-directory, or symlinked paths. They grant nothing under
    * `read-only`.
@@ -116,6 +118,10 @@ export interface SandboxPolicyRequest {
   session?: Session
   /** Explicit approved mode override, which outranks session policy. */
   mode?: SandboxMode
+  /** Explicit environment for agentless calls; global extra roots belong only to the deployment default. */
+  executionTarget?: SessionExecutionTarget
+  /** Verified execution-world workspace for agentless calls; never inferred from Host paths. */
+  workspaceRoot?: string
 }
 
 /** The sandbox-mode projection's state schema (state equals the public shape). */
@@ -196,10 +202,17 @@ export class SandboxPolicyService extends Service {
    */
   resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy {
     const { session } = request
+    // Hemi fork: policy grants do not transfer between the deployment default and an explicit execution target.
+    const target = request.executionTarget ?? session?.header.executionTarget
+    const root = session?.header.cwd ?? request.workspaceRoot
+    if (target !== undefined && root === undefined) {
+      throw new SandboxUnsupportedPolicyError('An explicit execution target requires its execution-world workspace root; refusing the deployment fallback')
+    }
     return {
       mode: request.mode ?? (session === undefined ? undefined : this.overrideOf(session)) ?? this.defaultMode,
-      workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
-      ...this.additionalWritableRoots === undefined ? {} : { additionalWritableRoots: this.additionalWritableRoots },
+      workspaceRoot: resolveWorkspaceRoot(root ?? this.workspaceRoot),
+      ...target !== undefined || this.additionalWritableRoots === undefined ? {}
+        : { additionalWritableRoots: this.additionalWritableRoots },
       ...session === undefined ? {} : { sessionId: session.id },
     }
   }

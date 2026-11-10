@@ -1,0 +1,35 @@
+{
+  "headers": [
+    {
+      "id": "sdk-target-parent",
+      "isSeeded": false,
+      "executionTarget": {
+        "provider": "unavailable-sdk-fixture",
+        "id": "saved-remote-directory"
+      }
+    },
+    {
+      "id": "sdk-target-fork",
+      "isSeeded": true,
+      "executionTarget": {
+        "provider": "unavailable-sdk-fixture",
+        "id": "saved-remote-directory"
+      }
+    }
+  ],
+  "refusals": [
+    {
+      "sessionId": "sdk-target-parent",
+      "code": -32603,
+      "message": "execution target is unavailable: unavailable-sdk-fixture/saved-remote-directory (provider-unavailable)"
+    },
+    {
+      "sessionId": "sdk-target-fork",
+      "code": -32603,
+      "message": "execution target is unavailable: unavailable-sdk-fixture/saved-remote-directory (provider-unavailable)"
+    }
+  ],
+  "agentsCreated": 0,
+  "logsUnchanged": true,
+  "hostMarkerUnchanged": true
+}

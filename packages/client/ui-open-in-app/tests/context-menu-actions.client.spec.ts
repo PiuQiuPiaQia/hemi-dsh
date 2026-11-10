@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionExecutionTarget } from '@deepseek-ai/dsh-session/types'
 import { MenuRegistry } from '@deepseek-ai/dsh-client-ui-context-menu/src/client/registry.ts'
 import type { ContextMenus, ContextMenuTarget } from '@deepseek-ai/dsh-client-ui-context-menu/client'
 import type { FileActionSource, FileSaveResult } from '@deepseek-ai/dsh-client-ui-file-actions/client'
@@ -15,6 +16,7 @@ import { registerContextMenus } from '../src/client/context-menus.tsx'
 import type { OpenInAppToastSource } from '../src/client/open-toast.tsx'
 
 const sessionId = SessionId('menu-actions')
+const remoteTarget = { provider: 'fixture-remote', id: 'captured-remote' } as SessionExecutionTarget
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 async function boot() {
@@ -41,7 +43,9 @@ async function boot() {
     .mockResolvedValue({ status: 'saved', path: '/downloads/file.svg' })
   const copyImage = vi.fn<(source: FileActionSource) => Promise<void>>().mockResolvedValue()
   const fileActions = { save, copyImage, canSaveAs: true }
-  const sessions = createSnapshotStore({ byId: { [sessionId]: { cwd: '/workspace' } } })
+  const sessions = createSnapshotStore<{ byId: Record<string, { cwd: string; executionTarget?: SessionExecutionTarget }> }>({
+    byId: { [sessionId]: { cwd: '/workspace' } },
+  })
   const sidebar = { openResourceIn: vi.fn(), openTabIn: vi.fn() }
   const browserTab = vi.fn(() => ({}))
   const directoryFetch = vi.fn(async () => new Response(JSON.stringify({ apps: ['vscode', 'finder'] })))
@@ -98,10 +102,10 @@ it('routes file actions through an explicit host, the line, native association a
     { destination: 'float', params: { line: 24 } })
   const opened = await h.choose(file, 'open-in-app.file/open')
   expect(opened?.icon).toEqual({ key: 'open-in-app.application', src: 'data:image/png;base64,a' })
-  expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/file.svg', application: 'preview' })
+  expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/file.svg', application: 'preview', sessionId })
   await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'opened' }) })
   await h.choose(file, 'open-in-app.file/reveal')
-  expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/file.svg', action: 'reveal' })
+  expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/file.svg', action: 'reveal', sessionId })
   await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'revealed' }) })
   await h.choose(file, 'file-actions.file/copyImage')
   await vi.waitFor(() => { expect(h.notify).toHaveBeenCalledWith('menu.copied', true) })
@@ -111,7 +115,7 @@ it('routes file actions through an explicit host, the line, native association a
   await expect(source.read!(new AbortController().signal)).rejects.toThrow('Original file unavailable')
   await h.choose(file, 'file-actions.file/saveAs')
   await vi.waitFor(() => { expect(h.notify).toHaveBeenCalledWith('menu.saved', true, expect.objectContaining({ label: 'menu.reveal' })) })
-  const simple = { kind: 'file', value: { sessionId: SessionId('absent'), path: '/file.unknown' } } as const
+  const simple = { kind: 'file', value: { sessionId, path: '/file.unknown' } } as const
   h.remote.session.workspacePathApplications.mockResolvedValueOnce({ ok: true, value: [] })
   const menu = await h.resolve(simple)
   expect(menu.source.getSnapshot().find(item => item.id.endsWith('/open'))?.disabled).toBe(true)
@@ -119,11 +123,11 @@ it('routes file actions through an explicit host, the line, native association a
   expect(menu.source.getSnapshot().filter(item => item.id.startsWith('file-actions.')).map(item => item.id))
     .toEqual(['file-actions.file/saveAs'])
   menu.select('open-in-app.file/sidebar')
-  expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(SessionId('absent'), expect.any(String), { destination: 'sidebar' })
+  expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(sessionId, expect.any(String), { destination: 'sidebar' })
   h.remote.session.workspacePathApplications.mockResolvedValueOnce({ ok: true, value: [] })
   const floating = await h.resolve(simple)
   floating.select('open-in-app.file/float')
-  expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(SessionId('absent'), expect.any(String), { destination: 'float' })
+  expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(sessionId, expect.any(String), { destination: 'float' })
 })
 
 it('keeps copy-path available on failed metadata and reports native action failures', async () => {
@@ -190,14 +194,14 @@ it('uses original image reads and keeps menu reveal on the original after saving
   h.remote.workspaceFiles.readBytes.mockResolvedValueOnce({ ok: false } as never)
   await expect(source.read!(new AbortController().signal)).rejects.toThrow('Original image unavailable')
   await h.choose(local, 'open-in-app.image/reveal')
-  expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/file.svg', action: 'reveal' })
+  expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/file.svg', action: 'reveal', sessionId })
   await h.choose(local, 'file-actions.image/saveAs')
   const menu = await h.resolve(local)
   expect(menu.source.getSnapshot().filter(item => item.id.endsWith('/reveal'))).toMatchObject([
     { id: 'open-in-app.image/reveal', disabled: false },
   ])
   menu.select('open-in-app.image/reveal')
-  await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace/file.svg', action: 'reveal' }) })
+  await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace/file.svg', action: 'reveal', sessionId }) })
   const unknown = { kind: 'image', value: { sessionId, path: 'file.unknown', url: 'data:image/png;base64,eA==' } } as const
   await h.choose(unknown, 'file-actions.image/saveAs')
   expect((await h.fileActions.save.mock.calls.at(-1)![0].read!(new AbortController().signal)).type).toBe('')
@@ -244,7 +248,7 @@ it('offers only folder reveal and path copy, retaining the captured directory', 
   expect(h.remote.workspaceFiles.stat).not.toHaveBeenCalled()
   h.sessions.set({ byId: { [sessionId]: { cwd: '/changed' } } })
   menu.select('open-in-app.directory/reveal')
-  await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/src', action: 'reveal' }) })
+  await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/src', action: 'reveal', sessionId }) })
   h.sessions.set({ byId: { [sessionId]: { cwd: '/workspace' } } })
   await h.choose(target, 'open-in-app.directory/copyPath')
   expect(h.writeText).toHaveBeenLastCalledWith('/workspace/src')
@@ -260,11 +264,49 @@ it('opens the captured Workspace through the directory app catalog and reports l
   const h = await boot()
   const target: ContextMenuTarget = { kind: 'workspace', value: { workspaceId: 'workspace' as never, path: '/workspace', displayTitle: 'Workspace' } }
   await h.choose(target, 'open-in-app.workspace/reveal')
-  expect(h.directoryFetch).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ app: 'finder', path: '/workspace' }) }))
+  expect(h.directoryFetch).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ app: 'finder', path: '/workspace', workspaceId: 'workspace' }) }))
   await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'opened' }) })
   h.directoryFetch.mockResolvedValueOnce(new Response('', { status: 500 }))
   await h.choose(target, 'open-in-app.workspace/reveal')
   await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'failed', failure: 'revealError' }) })
   h.directories.apps.set([])
   expect((await h.resolve(target)).source.getSnapshot()[0]?.disabled).toBe(true)
+})
+
+it('omits native applications for remote workspaces without probing the directory catalog', async () => {
+  const h = await boot()
+  const target: ContextMenuTarget = { kind: 'workspace', value: {
+    workspaceId: 'remote-workspace' as never, path: '/workspace', displayTitle: 'Workspace（Remote）', executionTarget: remoteTarget,
+  } }
+  expect((await h.resolve(target)).source.getSnapshot()).toEqual([])
+  expect(h.directoryFetch).not.toHaveBeenCalled()
+  expect(h.remote.session.openWorkspacePath).not.toHaveBeenCalled()
+})
+
+it('keeps remote preview, original-byte save and raw path copy without exposing Finder or native associations', async () => {
+  const h = await boot()
+  h.sessions.set({ byId: { [sessionId]: { cwd: '/workspace', executionTarget: remoteTarget } } })
+  const file = { kind: 'file', value: { sessionId, path: 'file.svg' } } as const
+  const rows = (await h.resolve(file)).source.getSnapshot()
+  expect(rows.some(row => row.id === 'open-in-app.file/reveal' || row.id === 'open-in-app.file/open')).toBe(false)
+  expect(rows.find(row => row.id === 'open-in-app.file/copyPath')?.label).toBe('menu.copyRemotePath')
+  expect(rows.find(row => row.id === 'open-in-app.file/sidebar')?.disabled).toBe(false)
+  expect(rows.find(row => row.id === 'file-actions.file/saveAs')?.disabled).toBe(false)
+  expect(h.remote.session.workspacePathApplications).not.toHaveBeenCalled()
+  await h.choose(file, 'open-in-app.file/copyPath')
+  expect(h.writeText).toHaveBeenLastCalledWith('/workspace/file.svg')
+  await h.choose(file, 'open-in-app.file/sidebar')
+  expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(sessionId, expect.stringContaining('file.svg'), { destination: 'sidebar' })
+  await h.choose(file, 'file-actions.file/saveAs')
+  const saved = h.fileActions.save.mock.calls.at(-1)![0]
+  expect(await (await saved.read!(new AbortController().signal)).text()).toBe('<svg/>')
+  const directory = { kind: 'directory', value: { sessionId, path: 'src' } } as const
+  const directoryRows = (await h.resolve(directory)).source.getSnapshot()
+  expect(directoryRows.map(row => row.id)).toEqual(['open-in-app.directory/copyPath'])
+  expect(directoryRows[0]?.label).toBe('menu.copyRemotePath')
+  await h.choose(directory, 'open-in-app.directory/copyPath')
+  expect(h.writeText).toHaveBeenLastCalledWith('/workspace/src')
+  const image = (await h.resolve({ kind: 'image', value: { sessionId, path: 'file.svg', url: 'https://fixture/image.svg' } })).source.getSnapshot()
+  expect(image.some(row => row.id === 'open-in-app.image/reveal')).toBe(false)
+  expect(h.remote.session.openWorkspacePath).not.toHaveBeenCalled()
 })

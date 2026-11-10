@@ -10,7 +10,8 @@ import { join, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { SESSION_FORMAT_VERSION, Session, SessionId, type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
 import SandboxPolicyService, { SANDBOX_MODES, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
@@ -83,6 +84,34 @@ describe('SandboxPolicyService', () => {
     expect(policy.additionalWritableRoots).toEqual(['/projects/shared/.git', '/projects/shared/../shared/worktrees'])
     expect(Object.isFrozen(policy.additionalWritableRoots)).toBe(true)
     expect(Object.isFrozen(ctx.sandboxPolicy.additionalWritableRoots)).toBe(true)
+  })
+
+  it.each(['read-only', 'workspace-write'] as const)('does not move deployment writable roots into an explicit target under %s', async (mode) => {
+    const ctx = await mounted({ mode, workspaceRoot: '/host/work', additionalWritableRoots: ['/shared'] })
+    try {
+      const id = SessionId('targeted')
+      const remote = Session.create(id, undefined, { version: SESSION_FORMAT_VERSION, id, createdAt: 0, isSeeded: false,
+        cwd: '/remote/work', executionTarget: {
+          provider: brandString<SessionExecutionTarget['provider']>('fixture'), id: brandString<SessionExecutionTarget['id']>('remote'),
+        } })
+      const policy = ctx.sandboxPolicy.resolve({ session: remote })
+      expect(policy.workspaceRoot).toBe('/remote/work')
+      expect({ ...policy, mode: 'workspace-write' }.additionalWritableRoots).toBeUndefined()
+      expect(ctx.sandboxPolicy.resolve().additionalWritableRoots).toEqual(['/shared'])
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it('requires an execution-world root for agentless targets and never falls back to the deployment directory', async () => {
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/host/work', additionalWritableRoots: ['/shared'] })
+    try {
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('fixture'), id: brandString<SessionExecutionTarget['id']>('remote'),
+      }
+      expect(() => ctx.sandboxPolicy.resolve({ executionTarget })).toThrow(/requires its execution-world workspace root/)
+      expect(ctx.sandboxPolicy.resolve({ executionTarget, workspaceRoot: '/remote/work' })).toEqual({
+        mode: 'workspace-write', workspaceRoot: '/remote/work',
+      })
+    } finally { await ctx.fiber.dispose() }
   })
 
   it('rejects a relative additional writable root at load', async () => {

@@ -27,7 +27,7 @@ Agents and host UIs can complete `@file` mentions with ranked paths from each ag
 
 Changing the Session's working directory discards the previous directory's search index; the next completion searches the new directory.
 
-Mount this provider when `@file` completion should discover the Harness host's own filesystem — the namespace the shipped `read` tool operates on. Each agent's workspace is indexed from its Session's current working directory.
+Mount this provider when `@file` completion should discover the Harness host's own filesystem — not an explicit Session execution target. Each default-environment Agent workspace is indexed from its Session's current working directory.
 
 ### Enabling the provider
 
@@ -124,7 +124,7 @@ The stable sentence joins the system-prompt prefix. Mounting or removing this pr
 
 These limits define when the provider is a poor fit. They are current package constraints.
 
-- **Host-local namespace** — the provider scans the Harness host filesystem, so remote or virtual `read` implementations require a provider whose namespace matches the tool.
+- **Host-local namespace** — an explicit Session target receives `FileReferenceEnvironmentUnsupportedError` before cwd resolution or Host enumeration. Enter paths directly instead of selecting suggestions; remote or virtual completion requires a matching provider.
 - **Bounded advisory index** — very large workspaces may omit paths after `maxEntries`, and excluded or unreadable directories do not appear. The default exclusions name only build outputs no ecosystem also uses for sources; `lib` is deliberately absent, so a workspace that builds into it adds that name through `excludedDirectories`.
 - **One invalidation of staleness** — a bare query answered right after a tool result reflects the tree as of the previous traversal; the following query sees the rebuild.
 - **No ignore-file semantics** — `.gitignore` and other project ignore files do not influence discovery; only configured directory basenames are excluded.

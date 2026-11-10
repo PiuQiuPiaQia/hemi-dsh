@@ -821,7 +821,7 @@ export class SubagentManager {
         // Only fresh creation appends the descriptor and delegated policy after
         // the inherited marker; a cold resume replays those persisted events.
         if (inputs.composition.agentPreset !== undefined) {
-          await applyChildComposition(childCtx, create?.parent, inputs.composition)
+          await applyChildComposition(childCtx, create?.parent, inputs.composition, child.execution)
         }
         if (create !== undefined) {
           if (inputs.composition.agentPreset !== undefined) {
@@ -833,7 +833,9 @@ export class SubagentManager {
           if (workingDirectory === undefined) throw new Error('local subagents require the working-directory service')
           await workingDirectory.set(child, create.cwd, inputs.signal)
         }
-        if (inputs.composition.agentPreset === undefined) await applyChildComposition(childCtx, create?.parent, inputs.composition)
+        if (inputs.composition.agentPreset === undefined) {
+          await applyChildComposition(childCtx, create?.parent, inputs.composition, child.execution)
+        }
         if (inputs.outputSchema !== undefined) {
           structured = attachStructuredRuntime(childCtx, inputs.outputSchema, () =>
             child.inbox.nextStep.length === 0

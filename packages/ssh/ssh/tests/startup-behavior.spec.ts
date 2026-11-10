@@ -1,5 +1,5 @@
 /** SSH startup identity and request lifetimes over the actual administrative protocol. */
-import { EventEmitter } from 'node:events'
+import { EventEmitter, once } from 'node:events'
 import { Duplex, PassThrough } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -133,13 +133,54 @@ function setup(options: {
 
 describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
   it.each([
-    { host: '-option' }, { host: 'alias; command' }, { launch: { kind: 'node-script', node: 'relative' } }, { helperHash: 'bad' },
+    { host: '-option' }, { host: 'alias; command' }, { host: '2001:db8::not-an-address' },
+    { port: 0 }, { port: 65536 }, { port: 22.5 }, { username: '-override' }, { username: 'user\ncommand' },
+    { username: 'root', host: 'other@host' }, { identityFile: '/key\ncommand' }, { identityFile: '' }, { launch: { kind: 'node-script', node: 'relative' } }, { helperHash: 'bad' },
     { launch: { kind: 'node-script', node: '/remote/node', bootstrapPath: '/remote/bootstrap.js' } }, { launch: { kind: 'node-script', node: '/remote/node', bootstrapHash: 'b'.repeat(64) } },
     { requestTimeoutMs: 0 }, { requestTimeoutMs: 2_147_483_648 },
     { maxFrameBytes: 64 * 1024 * 1024 + 1 }, { maxPending: 129 }, { leaseMs: 2999 },
   ] satisfies Partial<Config>[])('rejects invalid deployment configuration before SSH starts: %j', (invalid) => {
     expect(() => setup({ config: invalid })).toThrow()
     expect(transport.spawn).not.toHaveBeenCalled()
+  })
+
+  it.each(['server-alias', 'example.test', '127.0.0.1', '2001:db8::1', '[::1]'])(
+    'uses explicit login fields as argv values for the master and every control channel: %s', async (host) => {
+      const identityFile = "/keys/private' key"
+      const test = setup({ config: { host, username: 'ops@company', port: 2200, identityFile } })
+      await test.service.ready
+      const argv = transport.spawn.mock.calls[0]?.[1] as string[]
+      expect(argv.slice(-8, -2)).toEqual(['-l', 'ops@company', '-p', '2200', '-i', identityFile])
+      expect(argv.at(-2)).toBe(host)
+      expect(argv.at(-1)).not.toContain(identityFile)
+      const stream = await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
+      const rawClosed = once(test.raw, 'close')
+      stream.destroy()
+      await rawClosed
+      await test.service.dispose()
+      const controls = transport.exec.mock.calls.map(call => call[1] as string[])
+      expect(controls.some(args => args.includes('forward'))).toBe(true)
+      expect(controls.some(args => args.includes('cancel'))).toBe(true)
+      for (const args of controls) {
+        expect(args.slice(2, 8)).toEqual(['-l', 'ops@company', '-p', '2200', '-i', identityFile])
+        expect(args.at(-1)).toBe(host)
+      }
+    },
+  )
+
+  it('retains existing OpenSSH alias selection when explicit login fields are omitted', async () => {
+    const test = setup({ config: { host: 'legacy-user@server-alias' } })
+    await test.service.ready
+    const argv = transport.spawn.mock.calls[0]?.[1] as string[]
+    expect(argv.at(-2)).toBe('legacy-user@server-alias')
+    expect(argv).not.toContain('-l')
+    expect(argv).not.toContain('-p')
+    expect(argv).not.toContain('-i')
+    expect(test.service.signal.aborted).toBe(false)
+    const lost = once(test.service.signal, 'abort')
+    test.child.kill()
+    await lost
+    expect(test.service.signal.aborted).toBe(true)
   })
 
   it('rejects a non-POSIX client before starting SSH', () => {
@@ -347,4 +388,40 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     await test.service.dispose()
     expect(transport.remove).toHaveBeenLastCalledWith('/virtual/ssh-startup', { recursive: true, force: true })
   })
+  it('borrows an authenticated master without enabling fresh transport or terminating its owner', async () => {
+    const test = setup({ config: { authenticatedControlPath: '/managed/authentication-master' } })
+    await test.service.ready
+    const argv = transport.spawn.mock.calls[0]?.[1] as string[]
+    expect(argv).not.toContain('-M')
+    expect(argv).toContain('/managed/authentication-master')
+    expect(argv).toContain('ControlMaster=no')
+    expect(argv).toContain('ProxyCommand=false')
+    await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
+    await test.service.dispose()
+    const commands = transport.exec.mock.calls.map(call => call[1] as string[])
+    expect(commands.some(args => args.includes('cancel'))).toBe(true)
+    expect(commands.every(args => !args.includes('exit'))).toBe(true)
+  })
+
+  it('releases a shared-master forwarding reservation when cancellation arrives before its command closes', async () => {
+    const test = setup({ config: { authenticatedControlPath: '/managed/authentication-master' } })
+    await test.service.ready
+    const entered = Promise.withResolvers<undefined>()
+    const command = new Child()
+    transport.exec.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: (error: Error | null) => void) => {
+      queueMicrotask(() => { callback(null); entered.resolve(undefined) })
+      return command
+    })
+    const caller = new AbortController()
+    const pending = test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) }, caller.signal)
+    const rejected = expect(pending).rejects.toThrow('cancelled after allocation')
+    await entered.promise
+    caller.abort(new Error('cancelled after allocation'))
+    command.kill()
+    await rejected
+    expect(transport.connect).not.toHaveBeenCalled()
+    expect(transport.exec.mock.calls.some(call => (call[1] as string[]).includes('cancel'))).toBe(true)
+    await test.service.dispose()
+  })
+
 })

@@ -14,7 +14,9 @@ type Props = Pick<WorkspaceBrowserProps, 'renameWorkspace' | 'deleteWorkspace' |
 export function WorkspaceDialogs({ request, workspaces, renameWorkspace, deleteWorkspace, settleWorkspaceAction, t }: Props) {
   const composingRef = useRef(false)
   const renameTarget = request.action === 'rename' ? request : null
-  const [renameDraft, setRenameDraft] = useState(request.displayTitle)
+  // Hemi fork: provider decoration is read-only; editing starts from the undecorated stored title.
+  const target = workspaces.find(workspace => workspace.workspaceId === request.workspaceId)
+  const [renameDraft, setRenameDraft] = useState(target?.displayTitle === undefined ? request.displayTitle : request.storedTitle)
   const [renaming, setRenaming] = useState(false)
   const [renameError, setRenameError] = useState<string | null>(null)
   const renameTrimmed = renameDraft.trim()

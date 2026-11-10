@@ -15,7 +15,7 @@ import clsx from 'clsx'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   HoverCard, IconArchiveOutlineRegular,
-  IconFolderCloseRegular, IconFolderOpenRegular,
+  IconFolderCloseRegular, IconFolderOpenRegular, IconGlobeOutlineRegular,
   IconNewChatOutlineRegular, IconPinFillRegular,
   IconTriangleRightFillRegular, IconUnarchiveOutlineRegular, relativeTime, StateDot, Tooltip, useRowDragPreview,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -289,11 +289,15 @@ function ProjectRow({
   const menuOpen = useContextMenuTarget(target => target?.kind === 'workspace' && target.value.workspaceId === row.workspaceId)
   const dragPreview = useRowDragPreview(css.dragPreview as string, DRAG_PREVIEW_PROPERTIES)
   const workspaceMenuTarget = row.workspaceId !== undefined && row.cwd !== undefined
-    ? { workspaceId: row.workspaceId, path: row.cwd } : undefined
+    ? { workspaceId: row.workspaceId, path: row.cwd,
+      // Hemi fork: actions retain the authoritative environment even when paths have identical spellings.
+      ...row.executionTarget === undefined ? {} : { executionTarget: row.executionTarget },
+    } : undefined
   const ownRow = (
     <div
       className={clsx(css.projectRow, menuOpen && css.menuOpen)}
       data-row-key={`workspace:${group.key}`}
+      data-execution-target={row.executionTarget?.provider}
       role="treeitem"
       aria-expanded={row.expanded}
       onClick={onToggle}
@@ -310,13 +314,15 @@ function ProjectRow({
       onDragEnd={() => { if (dragPreview.clear()) drag?.end() }}
     >
       <span className={clsx(css.slot, css.folder, active && css.folderActive)}>
-        {row.expanded ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />}
+        {/* Hemi fork: an explicit execution environment stays visually distinct in either expansion state. */}
+        {row.executionTarget !== undefined ? <IconGlobeOutlineRegular size={16} />
+          : row.expanded ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />}
       </span>
       <span className={clsx(css.slot, css.chevron)}>
         <IconTriangleRightFillRegular className={clsx(css.arrow, row.expanded && css.arrowOpen)} />
       </span>
       <span className={css.projectText}>
-        <span className={css.title}>{label}</span>
+        <span className={css.title} title={label}>{label}</span>
       </span>
       <span className={css.rowActions}>
         {workspaceMenuTarget !== undefined && (

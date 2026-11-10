@@ -10,7 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, Session, SessionId, type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { ShellEnvRegistry } from '@deepseek-ai/dsh-shell-env'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
@@ -19,7 +20,7 @@ const testToolSignal = new AbortController().signal
 
 afterEach(() => vi.unstubAllEnvs())
 
-function execution(sessionId?: string): ToolExecution {
+function execution(sessionId?: string, executionTarget?: SessionExecutionTarget): ToolExecution {
   return {
     signal: testToolSignal,
     token: Symbol('bash-env-test') as ToolExecution['token'],
@@ -31,10 +32,11 @@ function execution(sessionId?: string): ToolExecution {
       ? {}
       : {
         agent: {
-          session: {
-            header: { version: SESSION_FORMAT_VERSION, id: sessionId, createdAt: 0, isSeeded: false },
-          },
-        } as unknown as Agent,
+          session: Session.create(SessionId(sessionId), undefined, {
+            version: SESSION_FORMAT_VERSION, id: SessionId(sessionId), createdAt: 0, isSeeded: false,
+            ...executionTarget === undefined ? {} : { executionTarget },
+          }),
+        } as Agent,
       }),
   }
 }
@@ -68,6 +70,22 @@ describe('ShellEnvRegistry', () => {
       variables: { DSH_PROFILE: { description: 'Reserved key.' } },
       resolve: () => ({}),
     })).toThrow(/reserved key "DSH_PROFILE"/)
+  })
+
+  it('omits deployment-local directory facts for an explicit execution target without guessing replacements', () => {
+    const ctx = new Context()
+    ctx.provide('profileContext', {
+      name: 'web', dir: '/host/profiles/web', patchPath: '/host/profiles/web/cordis.patch.yml', installAnchor: '/host/package.json',
+      cwd: '/host/work', home: '/host/home', startedBundles: [], overlays: [], telemetryDisabledEnv: undefined,
+    })
+    const registry = new ShellEnvRegistry(ctx, { dshHome: '/host/home' })
+    const target: SessionExecutionTarget = {
+      provider: brandString<SessionExecutionTarget['provider']>('fixture'), id: brandString<SessionExecutionTarget['id']>('remote'),
+    }
+    expect(registry.collect(execution('remote-session', target))).toEqual({
+      DSH_PROFILE: 'web', DSH_SESSION_ID: 'remote-session', DSH_SHELL: '1',
+    })
+    expect(registry.collect(execution('native-session'))).toMatchObject({ DSH_HOME: '/host/home', DSH_PROFILE_DIR: '/host/profiles/web' })
   })
 
   it('resolves DSH_HOME from the ambient override or the user-home default', () => {

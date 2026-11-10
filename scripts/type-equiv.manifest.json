@@ -198,6 +198,21 @@
     },
     {
       "doc": "docs/subsystems/core.md",
+      "symbol": "AgentExecutionContext",
+      "source": "packages/core/session/src/execution-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/core.md",
+      "symbol": "AgentExecutionLease",
+      "source": "packages/core/session/src/execution-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/core.md",
+      "symbol": "AgentExecutionProvider",
+      "source": "packages/core/session/src/execution-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/core.md",
       "symbol": "Agent",
       "source": "packages/core/agent/src/types.ts",
       "augmentations": [
@@ -569,6 +584,21 @@
       "doc": "docs/subsystems/persistence.md",
       "symbol": "SessionHandle",
       "source": "packages/session/session-persistence/src/handle.ts"
+    },
+    {
+      "doc": "docs/subsystems/persistence.md",
+      "symbol": "ExecutionProviderId",
+      "source": "packages/core/session/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/persistence.md",
+      "symbol": "ExecutionTargetId",
+      "source": "packages/core/session/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/persistence.md",
+      "symbol": "SessionExecutionTarget",
+      "source": "packages/core/session/src/types.ts"
     },
     {
       "doc": "docs/subsystems/persistence.md",
@@ -1743,6 +1773,11 @@
     },
     {
       "doc": "docs/subsystems/subprocess.md",
+      "symbol": "SubprocessExecutable",
+      "source": "packages/subprocess/subprocess/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/subprocess.md",
       "symbol": "SubprocessSpawnSpec",
       "source": "packages/subprocess/subprocess/src/types.ts"
     },
@@ -1909,6 +1944,11 @@
     {
       "doc": "docs/subsystems/workspace.md",
       "symbol": "Workspace",
+      "source": "packages/workspace/workspace/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceDirectoryOptions",
       "source": "packages/workspace/workspace/src/types.ts"
     },
     {
@@ -2781,6 +2821,41 @@
       "doc": "docs/subsystems/forge.md",
       "symbol": "ForgeReviewResult",
       "source": "packages/experimental/forge/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/hemi.md",
+      "symbol": "SshAuthenticationChallengeId",
+      "source": "packages/hemi/ssh-servers/src/authentication-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/hemi.md",
+      "symbol": "SshAuthenticationPromptKind",
+      "source": "packages/hemi/ssh-servers/src/authentication-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/hemi.md",
+      "symbol": "SshAuthenticationChallenge",
+      "source": "packages/hemi/ssh-servers/src/authentication-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/hemi.md",
+      "symbol": "SshWorkspaceRevision",
+      "source": "packages/hemi/ssh-servers/src/workspace-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/hemi.md",
+      "symbol": "SshRemoteFolders",
+      "source": "packages/hemi/ssh-servers/src/workspace-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/hemi.md",
+      "symbol": "SshRemoteDirectory",
+      "source": "packages/hemi/ssh-servers/src/workspace-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/workspace.md",
+      "symbol": "WorkspaceFileScope",
+      "source": "packages/api/workspace-files/src/index.ts"
     }
   ]
 }

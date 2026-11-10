@@ -306,6 +306,21 @@ describe('Menu', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  it('leaves Escape to a different focused popup without closing the underlying picker', () => {
+    const closePicker = vi.fn(), closePopup = vi.fn()
+    render(<>
+      <Menu open anchor={<button type="button">picker</button>} items={[{ id: 'connection', label: 'connection' }]}
+        onClose={closePicker} />
+      <Menu open portal anchor={<button type="button">actions</button>} items={[{ id: 'edit', label: 'edit' }]}
+        onClose={closePopup} />
+    </>)
+    const edit = screen.getByRole('menuitem', { name: 'edit' })
+    edit.focus()
+    fireEvent.keyDown(edit, { key: 'Escape' })
+    expect(closePicker).not.toHaveBeenCalled()
+    expect(closePopup).toHaveBeenCalledOnce()
+  })
+
   it('inside pointerdown does not close', () => {
     const onClose = vi.fn()
     render(

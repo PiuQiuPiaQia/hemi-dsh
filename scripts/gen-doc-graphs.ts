@@ -118,6 +118,10 @@ const SERVICE_ROLES: ServiceRole[] = [
     consumers: ['hemi-model-settings-ui'], note: 'Owns explicit model connection tests.' },
   { key: 'hemiRoutingSettings', pkg: 'hemi-routing', title: 'Hemi role routes', mode: 'service',
     consumers: ['hemi-routing-ui'], note: 'Owns saved main and role routes and per-Session automatic mode.' },
+  { key: 'hemiSshServers', pkg: 'hemi-ssh-servers', title: 'Hemi SSH servers', mode: 'service',
+    consumers: ['hemi-ssh-servers-ui'], note: 'Owns saved server references without establishing connections.' },
+  { key: 'hemiSshWorkspaces', pkg: 'hemi-ssh-servers', title: 'Hemi SSH directories', mode: 'service',
+    consumers: ['session', 'workspace'], note: 'Owns explicit helper deployments and immutable SSH execution targets for Session and directory consumers.' },
   {
     key: 'actionCards',
     pkg: 'action-cards',

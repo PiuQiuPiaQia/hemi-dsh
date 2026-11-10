@@ -151,6 +151,8 @@
     "@deepseek-ai/dsh-hemi-backup-ui": "workspace:*",
     "@deepseek-ai/dsh-hemi-memory": "workspace:*",
     "@deepseek-ai/dsh-hemi-memory-ui": "workspace:*",
+    "@deepseek-ai/dsh-hemi-ssh-servers": "workspace:*",
+    "@deepseek-ai/dsh-hemi-ssh-servers-ui": "workspace:*",
     "@deepseek-ai/dsh-hemi-model-settings": "workspace:*",
     "@deepseek-ai/dsh-hemi-model-access": "workspace:*",
     "@deepseek-ai/dsh-hemi-model-access-ui": "workspace:*",

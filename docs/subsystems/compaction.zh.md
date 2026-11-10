@@ -255,6 +255,32 @@ Source: [`packages/compaction/compaction-tool-result-pruner/src/index.ts`](../..
 
 ### `compaction/*` events
 
+<a id="compactionoverflow-recovery--waterfall"></a>
+
+#### `compaction/overflow-recovery` — waterfall
+
+Recover a summary that exceeded its window during automatic overflow recovery. The failed compaction is closed before dispatch to the engine's isolation group. The engine owns request retries.
+
+```ts cordis-catalog
+/**
+ * Recover a summary that exceeded its window during automatic overflow recovery.
+ * The failed compaction is closed before dispatch to the engine's isolation group. The engine owns request retries.
+ * @param payload.agent - the active agent whose history can be compacted.
+ * @param payload.request - the effective conversation request envelope.
+ * @param payload.summary - the summary route, output reservation, and pressure threshold fraction.
+ * @param payload.start - first surface seq of the failed selection.
+ * @param payload.end - last surface seq of the failed selection.
+ * @param payload.signal - cancellation for the active turn.
+ * @param next - delegate when no smaller compaction can be attempted.
+ * @mode waterfall
+ */
+'compaction/overflow-recovery'( this: CompactionEngine, payload: { agent: CompactionAgentContext; request: EpochHeader; start: SessionSeq; end: SessionSeq; signal: AbortSignal } & { summary: { provider: string; model: string; maxTokens: number; thresholdRatio: number } }, next: () => Promise<CompactionResult | null>, ): Promise<CompactionResult | null>
+```
+
+Types: [EpochHeader](session.zh.md) · [SessionSeq](session.zh.md)
+
+Source: [`packages/compaction/compaction/src/index.ts`](../../packages/compaction/compaction/src/index.ts)
+
 <a id="compactionsummary-error--waterfall"></a>
 
 #### `compaction/summary-error` — waterfall

@@ -17,7 +17,8 @@ import { createUserMessage, MessageId } from '@deepseek-ai/dsh-llm'
 import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import { createInboxStub, mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
 import type { Agent, Inbox } from '@deepseek-ai/dsh-agent'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionExecutionTarget, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import AttachmentStore from '@deepseek-ai/dsh-attachment'
 import type { SessionPromptRequest, SessionRequestId } from '../src/types.ts'
 import {
@@ -121,6 +122,34 @@ describe('sessions.list cold merge', () => {
       } finally {
         observe.mockRestore()
       }
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('carries a cold header execution target and omits the key for default-environment rows', async () => {
+    const ctx = new Context()
+    try {
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(SessionProjectionRegistry)
+      await ctx.plugin(AgentRegistry)
+      const executionTarget: SessionExecutionTarget = {
+        provider: brandString<SessionExecutionTarget['provider']>('ssh'),
+        id: brandString<SessionExecutionTarget['id']>('remote-box'),
+      }
+      const targeted = header('cold-targeted', 100, { executionTarget })
+      const local = header('cold-local', 150)
+      const list = vi.fn(async () => [statSnapshot(targeted), statSnapshot(local)])
+      ctx.provide('sessionPersistence', { list, stat: vi.fn(), open: vi.fn() } as never)
+      const remote = await createSessionTestRemote(ctx, {
+        defaultModelSelection: () => ({ provider: 'p', model: 'm' }),
+        cwd: '/tmp',
+      })
+      const response = await remote.list(request({}))
+      if (!response.ok) throw new Error('list failed')
+      const byId = new Map(response.value.items.map(item => [item.sessionId, item]))
+      expect(byId.get(targeted.id)?.executionTarget).toEqual(executionTarget)
+      expect(byId.get(local.id)).not.toHaveProperty('executionTarget')
     } finally {
       await ctx.fiber.dispose()
     }

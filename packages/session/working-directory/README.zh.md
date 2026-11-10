@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用此包
 
-与 `fs`、`sessionProjections` 和 `systemPrompt` 一起挂载。`defaultDirectory` 为没有原始目录的 Session 指定绝对回退目录；省略时使用启动目录。参见[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-working-directory)。
+与 `fs`、`sessionProjections` 和 `systemPrompt` 一起挂载。`defaultDirectory` 为采用部署默认执行环境且没有原始目录的 Session 指定绝对回退目录；省略时使用启动目录。显式执行目标必须记录初始目录。参见[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-working-directory)。
 
 ```yaml
 - name: '@deepseek-ai/dsh-working-directory'
@@ -39,7 +39,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-Session 投影拥有当前目录，并通过 Session observation 暴露它，因此冷态读取方无需激活 Agent 即可使用；header 继续标识原始项目。每个 Session 的变更串行执行，通过文件系统 provider 验证，并检查取消状态与 Agent 生命周期，提交事件后排入用户上下文通知。若提交后通知入队失败，操作仍返回已提交的目录并记录警告；下一次请求或恢复仍会收到必需的目录上下文。提示词组装在发布必需的上下文条目前验证当前目录。已有进程与沙箱授权继续由各自的服务拥有。[服务实现](src/index.ts) 定义 API。
+Session 投影拥有当前目录，并通过 Session observation 暴露它，因此冷态读取方无需激活 Agent 即可使用；header 继续标识原始项目。每个 Session 的变更串行执行，通过 Agent 上下文中的文件系统 provider 验证，不回退到 Host provider，并检查取消状态与 Agent 生命周期，提交事件后排入用户上下文通知。若提交后通知入队失败，操作仍返回已提交的目录并记录警告；下一次请求或恢复仍会收到必需的目录上下文。提示词组装在发布必需的上下文条目前验证当前目录。Agent scope 释放会取消并等待已接纳的目录 I/O，然后才关闭执行资源。已有进程与沙箱授权继续由各自的服务拥有。[服务实现](src/index.ts) 定义 API。
 
 不发布 `./invariant` 伴生模块，因为服务从 Session 投影读取唯一的目录状态，并在使用时检查文件系统有效性。
 

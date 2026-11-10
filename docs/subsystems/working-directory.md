@@ -33,6 +33,7 @@ One owner for each Session's effective directory and its model-visible changes.
  * Read the committed directory without filesystem I/O.
  * @param session - Session whose directory is requested.
  * @returns its effective absolute directory.
+ * @throws when an explicit execution target has no recorded initial directory.
  */
 get(session: Session): string
 

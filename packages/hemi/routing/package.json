@@ -40,6 +40,10 @@
       "types": "./lib/types/usage.d.ts",
       "default": "./lib/usage.js"
     },
+    "./overflow-compaction": {
+      "types": "./lib/types/overflow-compaction.d.ts",
+      "default": "./lib/overflow-compaction.js"
+    },
     "./locale/*.json": "./locale/*.json"
   },
   "files": [
@@ -48,6 +52,7 @@
     "lib/client.js",
     "lib/settings.js",
     "lib/usage.js",
+    "lib/overflow-compaction.js",
     "lib/types/**/*.d.ts",
     "lib/typert.host.js",
     "lib/typert.host.d.ts",
@@ -69,7 +74,8 @@
     "@deepseek-ai/schemastery": "workspace:~",
     "@deepseek-ai/dsh-session-projection": "workspace:*",
     "@deepseek-ai/dsh-llm-retry": "workspace:*",
-    "@deepseek-ai/dsh-compaction": "workspace:*"
+    "@deepseek-ai/dsh-compaction": "workspace:*",
+    "@deepseek-ai/dsh-token-meter": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:~",
@@ -80,6 +86,7 @@
     "@deepseek-ai/dsh-agent-loop-testkit": "workspace:*",
     "@deepseek-ai/dsh-app-boot": "workspace:*",
     "@deepseek-ai/dsh-config-editor": "workspace:*",
+    "@deepseek-ai/dsh-compaction-basic": "workspace:*",
     "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:*",
     "@deepseek-ai/dsh-settings": "workspace:*",
     "@deepseek-ai/dsh-subagent": "workspace:*",

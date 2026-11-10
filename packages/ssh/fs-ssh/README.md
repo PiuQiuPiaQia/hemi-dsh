@@ -29,6 +29,8 @@ Mount this provider with [`dsh-ssh`](../ssh/README.md) and `sandboxPolicy`; use 
 
 `resolve()` canonicalizes paths on the remote host. `processPath()` and `fileUrl()` name files in that same remote namespace; they do not grant host-side access. File URLs encode literal percent signs, backslashes and newlines without changing the filename. `processPathFromHostPath()` returns `undefined`, so consumers requiring an installed executable or bootstrap must supply a remote artifact explicitly.
 
+A connection bound to an explicit execution target resolves agentless policy from its verified remote workspace. Each mutation rejects nonempty `additionalWritableRoots` with `SANDBOX_UNSUPPORTED_POLICY` before RPC, including caller-supplied and approved-retry policies; deployment-default SSH retains its configured grants. The admitted policy is detached before queued RPC encoding, so later caller mutations cannot change the grant.
+
 Reads preserve the shared filesystem error codes. All five mutations send the resolved per-call policy to the helper; `patchText`, `deleteFile`, and `moveFile` use `fs.patch`, `fs.delete`, and `fs.move`, with guards and results matching the local provider. Lost transport reports an I/O failure; a mutation may already have committed and is not retried automatically.
 
 -----

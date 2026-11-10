@@ -13,6 +13,7 @@ const artifactGraph = {
   'desktop-bundle': ['host-bundle'],
   'client-src': ['desktop-bundle'],
   'client-bundle': ['client-src'],
+  'hemi-remote-helper': ['host-bundle'],
   'web': ['client-bundle'],
 }
 
@@ -87,6 +88,13 @@ describe('repository build steps', () => {
 
   it('finishes Host and Desktop readers before Client compilation rewrites shared outputs', () => {
     expect(graph(buildGates(root, 'artifacts'))).toEqual(artifactGraph)
+  })
+
+  it('builds the Hemi SSH remote helper artifacts only from finished Host bundles', () => {
+    const gate = buildGates(root, 'artifacts').find(gate => gate.id === 'hemi-remote-helper')
+    expect(gate?.needs).toEqual(['host-bundle'])
+    expect(gate?.displayCommand).toContain('packages/hemi/ssh-servers/build/remote-helper.ts')
+    expect(buildGates(root, 'typecheck').some(gate => gate.id === 'hemi-remote-helper')).toBe(false)
   })
 
   it('checks both aggregate programs without artifact predecessors', () => {

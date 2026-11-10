@@ -425,7 +425,7 @@ export class InputTriggerController {
   sourceRemoved(source: InputTriggerSource): void {
     const state = this.menu.getSnapshot()
     if (state.open && state.hit !== null && state.hit.trigger === source.trigger) {
-      this.reduce({ type: 'source-failed', generation: state.generation, source: source.name })
+      this.reduce({ type: 'source-removed', generation: state.generation, source: source.name })
     }
     this.lexiconOffs.get(source)?.()
     this.lexiconOffs.delete(source)
@@ -624,9 +624,8 @@ export class InputTriggerController {
       try {
         published = src.header(projection, { query: hit.query, quoted: hit.quoted, drilled: this.drilled })
       } catch (error) {
-        // A faulty source drops silently with a console record (the
-        // candidate-fetch failure policy); a header is decoration and must
-        // not take down the menu that carries the candidates.
+        // Header failures omit only navigation decoration; candidate results
+        // retain their independent loading and failure state.
         console.error(`[ui-input-trigger] source "${src.name}" header failed:`, error)
         continue
       }

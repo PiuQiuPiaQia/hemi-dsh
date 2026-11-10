@@ -19,7 +19,7 @@ import { WorkspaceFiles, type Config, type WorkspaceFileScope } from '../src/ind
 
 /** Build the header-derived scope that direct service calls receive after Typert lookup. */
 function fileScope(workspaceRoot: string): WorkspaceFileScope {
-  return { sessionId: SessionId('s-test'), workspaceRoot }
+  return { sessionId: SessionId('s-test'), workspaceRoot, executionTarget: undefined }
 }
 
 export const signal = (): AbortSignal => new AbortController().signal

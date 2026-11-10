@@ -4,6 +4,9 @@ import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import Storage from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import { RemoteError, type PeerId, type Principal, type RemoteInvocation } from '@deepseek-ai/dsh-typert-protocol'
@@ -116,6 +119,99 @@ async function nextFrame(
 }
 
 describe('WorkspaceController commands', () => {
+  it('projects display-only titles for existing Workspaces, unary echoes and live provider lifetimes', async () => {
+    const { ctx, controller, root } = await harness()
+    const created = await controller.create({ path: stageDir(root, 'existing') })
+    const workspaceId = created.workspace.workspaceId
+    const authoritative = ctx.workspaceRegistry.get(workspaceId)!
+    const setTitle = vi.spyOn(authoritative, 'setTitle')
+    const abort = new AbortController()
+    const iterator = controller.follow(abort.signal)[Symbol.asyncIterator]()
+    expect(await nextFrame(iterator)).toMatchObject({ type: 'baseline', value: { items: [{ title: 'existing' }] } })
+    let name = 'Environment one'
+    let invalidate = (): void => {}
+    const unsubscribe = vi.fn()
+    const fiber = await ctx.plugin((owner: Context) => {
+      owner.effect(() => controller.registerDisplayTitle({
+        resolve: workspace => workspace.workspaceId === workspaceId ? `${workspace.title}（${name}）` : undefined,
+        subscribe: (listener) => { invalidate = listener; return unsubscribe },
+      }))
+    })
+    expect(await nextFrame(iterator)).toMatchObject({
+      type: 'upsert', workspace: { title: 'existing', displayTitle: 'existing（Environment one）', updatedAt: created.workspace.updatedAt },
+    })
+    expect(setTitle).not.toHaveBeenCalled()
+    expect((await controller.create({ path: created.workspace.path })).workspace).toMatchObject({
+      title: 'existing', displayTitle: 'existing（Environment one）',
+    })
+    expect((await controller.create({ path: stageDir(root, 'native') })).workspace.displayTitle).toBeUndefined()
+    const creationFrames = [await nextFrame(iterator), await nextFrame(iterator), await nextFrame(iterator)]
+    expect(creationFrames.some(frame => frame.type === 'upsert' && frame.workspace.title === 'native')).toBe(true)
+    expect(creationFrames.at(-1)).toMatchObject({ type: 'order' })
+    name = 'Environment two'
+    invalidate()
+    const refreshed = [await nextFrame(iterator), await nextFrame(iterator)]
+    expect(refreshed).toContainEqual({ type: 'upsert', workspace: { ...created.workspace, displayTitle: 'existing（Environment two）' } })
+    const renamed = await controller.rename({ workspaceId, title: 'Custom' })
+    expect(renamed.workspace).toMatchObject({ title: 'Custom', displayTitle: 'Custom（Environment two）' })
+    const renameFrames = [await nextFrame(iterator), await nextFrame(iterator)]
+    expect(renameFrames).toContainEqual({ type: 'upsert', workspace: renamed.workspace })
+    await fiber.dispose()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    const removed = [await nextFrame(iterator), await nextFrame(iterator)]
+    expect(removed).toContainEqual({ type: 'upsert', workspace: { ...renamed.workspace, displayTitle: undefined } })
+    expect(authoritative.title).toBe('Custom')
+    abort.abort()
+    await iterator.return?.()
+  })
+
+  it('keeps the final follow title committed when a provider invalidates inside the Workspace domain event', async () => {
+    const { ctx, controller, root } = await harness()
+    const path = stageDir(root, 'remote-project')
+    const realm = Symbol('remote-title-filesystem')
+    await ctx.isolate('fs', realm).plugin(LocalFileSystem, { cwd: path })
+    const executionTarget = {
+      provider: brandString<ExecutionProviderId>('fixture'), id: brandString<ExecutionTargetId>('title-target'),
+    }
+    ctx.sessions.registerExecutionProvider(executionTarget.provider, { acquire: async () => ({
+      realm, signal: new AbortController().signal, bind: context => context.isolate('fs', realm), close: async () => {},
+    }) })
+    const created = await controller.create({ path, executionTarget })
+    ctx.effect(() => controller.registerDisplayTitle({
+      resolve: workspace => workspace.executionTarget === undefined ? undefined : `${workspace.title}（Remote）`,
+      subscribe: listener => ctx.on('domain/changed', (change) => { if (change.domain === 'workspace') listener() }),
+    }))
+    const abort = new AbortController()
+    const iterator = controller.follow(abort.signal)[Symbol.asyncIterator]()
+    expect(await nextFrame(iterator)).toMatchObject({ type: 'baseline' })
+    await controller.rename({ workspaceId: created.workspace.workspaceId, title: 'Committed custom title' })
+    const frames = [await nextFrame(iterator), await nextFrame(iterator)]
+    expect(frames.at(-1)).toMatchObject({ type: 'upsert', workspace: {
+      title: 'Committed custom title', displayTitle: 'Committed custom title（Remote）',
+    } })
+    abort.abort()
+    await iterator.return?.()
+  })
+
+  it('creates and projects an explicit execution Workspace without merging its default-world path', async () => {
+    const { ctx, controller, root } = await harness()
+    const path = stageDir(root, 'shared-spelling')
+    const label = Symbol('remote-filesystem')
+    await ctx.isolate('fs', label).plugin(LocalFileSystem, { cwd: path })
+    const executionTarget = {
+      provider: brandString<ExecutionProviderId>('fixture'), id: brandString<ExecutionTargetId>('directory-1'),
+    }
+    ctx.sessions.registerExecutionProvider(executionTarget.provider, { acquire: async () => ({
+      realm: label, signal: new AbortController().signal, bind: context => context.isolate('fs', label), close: async () => {},
+    }) })
+    const native = await controller.create({ path })
+    const remote = await controller.create({ path, executionTarget })
+    expect(remote.created).toBe(true)
+    expect(remote.workspace.workspaceId).not.toBe(native.workspace.workspaceId)
+    expect(remote.workspace.executionTarget).toEqual(executionTarget)
+    expect((await controller.create({ path, executionTarget })).created).toBe(false)
+  })
+
   it('serializes concurrent path adoption and preserves an existing title', async () => {
     const { controller, root } = await harness()
     const path = stageDir(root, 'alpha')

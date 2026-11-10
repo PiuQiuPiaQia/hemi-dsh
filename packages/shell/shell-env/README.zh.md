@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 每次 shell 调用都会收到什么
 
-每次调用都会收到 `DSH_HOME`（Harness 主目录的绝对路径）、`DSH_SHELL=1`，agent 调用还会收到 `DSH_SESSION_ID`（调用方会话的 id）。启动器提供了 profile 上下文时，每次调用还会收到 `DSH_PROFILE`（profile 名）与 `DSH_PROFILE_DIR`（其绝对目录；其 `node_modules` 只存放 profile 自行安装的包，harness 自带的组合包从 dsh 安装目录解析）；不带 profile 启动的组合则两者都没有。
+每次调用都会收到 `DSH_SHELL=1`；agent 调用还会收到 `DSH_SESSION_ID`，启动器提供 profile 时再加入 `DSH_PROFILE`。部署默认环境中的执行会收到 `DSH_HOME`（Harness 主目录绝对路径），存在 profile 时还收到 `DSH_PROFILE_DIR`（其绝对目录；其 `node_modules` 只存放 profile 自行安装的包，Harness 自带组合包从 dsh 安装目录解析）。Session 带显式执行目标时省略这两个目录变量；注册表不猜测替代路径。
 
 ### 添加你自己的环境事实
 

@@ -83,6 +83,15 @@
     - id: hemi-backup
       name: '@deepseek-ai/dsh-hemi-backup'
 
+    # Hemi fork: Desktop server references are owned by an independent plugin, not local Workspaces.
+    - id: hemi-ssh-servers
+      name: '@deepseek-ai/dsh-hemi-ssh-servers'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
+    - id: hemi-ssh-workspaces
+      name: '@deepseek-ai/dsh-hemi-ssh-servers/workspaces'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
     - id: hemi-memory-settings
       name: '@deepseek-ai/dsh-hemi-memory/settings'
 
@@ -406,6 +415,11 @@
     # Hemi fork addition: settings section for data backup and restore.
     - id: hemi-backup-ui
       name: '@deepseek-ai/dsh-hemi-backup-ui'
+
+    # Hemi fork: contribute SSH management through the generic Workspace extension slots.
+    - id: hemi-ssh-servers-ui
+      name: '@deepseek-ai/dsh-hemi-ssh-servers-ui'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     - id: hemi-memory-ui
       name: '@deepseek-ai/dsh-hemi-memory-ui'

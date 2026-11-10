@@ -2,7 +2,74 @@
 
 [English](hemi.md) | 中文
 
-[Hemi 插件](../../packages/hemi/README.zh.md)提供跨会话记忆、备份、模型接入与角色路由。Electron 适配归 [customizations](../../packages/hemi/customizations/README.zh.md) 所有；原生子智能体负责等待、取消及结果交付。
+[Hemi 插件](../../packages/hemi/README.zh.md)提供跨会话记忆、备份、模型接入、角色路由与 SSH 服务器登记。Electron 适配归 [customizations](../../packages/hemi/customizations/README.zh.md) 所有；原生子智能体负责等待、取消及结果交付。
+
+<a id="ssh-authentication"></a>
+## SSH 认证
+
+`hemiSshWorkspaces.followAuthentication` 先返回初始快照，再合并发布待处理的原生 OpenSSH askpass challenge 快照，不包含响应。每个使用 `Branded` 类型标记的 challenge id 属于一个 Host 认证管理器和一次原生调用，只能使用一次，不是已保存服务器 id，也不是持久数据。`kind` 是 OpenSSH 的展示提示，不用于判断密码或主机信任。Host 为符合条件的已保存端点密码提示设置 `canRemember`；Client 不根据 `kind` 或 `prompt` 自行推断。`prompt` 必须按文本渲染。
+
+```ts type-equiv
+/** One single-use prompt owned by one authentication manager and one native askpass invocation. */
+type SshAuthenticationChallengeId = Branded<'HemiSshAuthenticationChallengeId'>
+```
+
+```ts type-equiv
+/** Native askpass presentation hint, not a password or host-trust classification. */
+type SshAuthenticationPromptKind = 'input' | 'confirm' | 'notification'
+```
+
+```ts type-equiv
+/** One pending native prompt. Its endpoint identifies the requested connection, including configured jump hosts. */
+interface SshAuthenticationChallenge {
+  readonly id: SshAuthenticationChallengeId
+  readonly endpoint: Pick<SshEndpointArgs, 'host' | 'port' | 'username' | 'identityFile'>
+  /** Exact bounded text supplied by OpenSSH; render as text, never HTML or terminal escapes. */
+  readonly prompt: string
+  /** Only SSH_ASKPASS_PROMPT=confirm/none select confirm/notification; every other prompt is input. */
+  readonly kind: SshAuthenticationPromptKind
+  /**
+   * Whether the owning UI may offer to remember this prompt's answer for the exact endpoint.
+   * True only for the target endpoint's own native OpenSSH password prompt while a credential store is active
+   * and a saved server still matches the endpoint; every other prompt stays manual and unremembered.
+   */
+  readonly canRemember: boolean
+}
+```
+
+`answerAuthentication(id, answer, signal)` 消费一个有效 challenge，但不保存响应：字符串用于回答 OpenSSH，`null` 用于取消该次认证。`answerAuthenticationAndRemember(id, answer, remember, signal)` 仅在 `canRemember` 为 true 时接受明确的密码保存选择；取消操作不保存。所选密码仅在认证成功后通过 Host 凭据提供者提交。已失效或其他实例的 id 返回 `hemi-ssh/authentication-expired`。无效响应返回 `hemi-ssh/invalid-input`，不消费 challenge。提交前已取消的请求不产生效果。响应不进入 challenge 快照或诊断。
+
+结束 challenge 订阅不会取消认证。就绪前取消最后一个等待中的操作会终止其认证进程；已就绪主连接仍归 Host 实例所有，直到连接丢失或服务卸载。取消登录不会启动所请求的目录或执行操作，但已确认的首次主机信任可能保留在 OpenSSH 已知主机文件中。[SSH 服务器服务](../../packages/hemi/ssh-servers/README.zh.md#use-this-package)说明端点复用、认证时限和信任要求。
+
+## SSH 目录选择
+
+`browseServer` 验证编辑器端点；`browseSavedFolders` 在连接前核对已保存端点的版本。两者都通过只读 SSH 命令返回物理目录位置，不需要远端 Node，也不写入远端；空路径解析远端主目录。`prepareServerFolder` 准备随包提供的执行运行时，验证物理目录，并为普通工作区准入记录不可变的端点及部署快照。运行时前提由[服务](../../packages/hemi/ssh-servers/README.zh.md#use-this-package)说明。
+
+明确部署的操作还会核对 `runtimeRevision`。版本变化时，在联系替换端点之前拒绝。编辑或删除已保存连接不会重写已有执行目标快照。
+
+```ts type-equiv
+/** Saved endpoint and deployment revisions expected by one directory interaction. */
+interface SshWorkspaceRevision {
+  readonly serverRevision: string
+  readonly runtimeRevision: string
+}
+```
+
+```ts type-equiv
+/** Read-only remote directory view; an empty requested path means the remote login directory. */
+interface SshRemoteDirectory {
+  readonly path: string
+  readonly parentPath: string
+  readonly directories: readonly { readonly name: string; readonly path: string }[]
+}
+```
+
+```ts type-equiv
+/** Directory names and physical location returned by the remote filesystem, never the Host picker. */
+interface SshRemoteFolders extends SshRemoteDirectory {
+  readonly revision: SshWorkspaceRevision
+}
+```
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -437,4 +504,189 @@ prepareTurn(root: Agent): void
 Types: [Agent](core.zh.md) · [SessionId](core.zh.md)
 
 Source: [`packages/hemi/routing/src/settings.ts`](../../packages/hemi/routing/src/settings.ts)
+
+<a id="ctxhemisshservers--hemisshservers"></a>
+
+### `ctx.hemiSshServers` — `HemiSshServers`
+
+Durable CRUD under the Gateway's global-resource access policy.
+
+```ts cordis-catalog
+/**
+ * Read the saved directory without contacting its hosts.
+ * @param signal - Caller cancellation before the synchronous read.
+ * @returns Saved server references in creation order.
+ */
+@Remote list(signal: AbortSignal): readonly SshServer[]
+
+/**
+ * Save a new server reference without modifying OpenSSH configuration.
+ * @param input - Explicit server fields; no secrets or connection options.
+ * @param signal - Cancellation before writing begins; an admitted durable write is not rolled back.
+ * @returns The durable record and its initial revision.
+ */
+@Remote create(input: SshServerInput, signal: AbortSignal): Promise<SshServer>
+
+/**
+ * Replace a server only while its revision still matches the editor's copy.
+ * @param id - Saved server identity.
+ * @param revision - Revision loaded with that record.
+ * @param input - Replacement fields.
+ * @param signal - Cancellation before writing begins; an admitted durable write is not rolled back.
+ * @returns The durable record with a new revision.
+ * @throws RemoteError `hemi-ssh/credential-cleanup-failed` if the endpoint change is saved but its old password could not be cleared.
+ */
+@Remote update(id: SshServerId, revision: string, input: SshServerInput, signal: AbortSignal): Promise<SshServer>
+
+/**
+ * Remove a reference and its password when no saved connection shares that endpoint; SSH configuration and remote files stay untouched.
+ * @param id - Saved server identity.
+ * @param revision - Revision being removed; a changed record is refused.
+ * @param signal - Cancellation before writing begins; an admitted durable write is not rolled back.
+ * @returns Resolution after the removal is durable.
+ * @throws RemoteError `hemi-ssh/credential-cleanup-failed` if the reference is removed but its password could not be cleared.
+ */
+@Remote removeServer(id: SshServerId, revision: string, signal: AbortSignal): Promise<void>
+
+/**
+ * Supply Host-only password operations to the authentication owner; no secret is part of the Remote API.
+ * @returns operations bound to this directory's queue and optional credential provider.
+ */
+authenticationPasswords(): SshAuthenticationPasswordMemory
+
+/**
+ * Commit one password OpenSSH already accepted for an exact saved endpoint, on this service's write queue.
+ * Host-side only; the value goes to the credential seam and never crosses to a Client.
+ * The queued commit re-checks that a saved server still owns the endpoint, so a parallel removal cannot leave a rewritten orphan.
+ * @param endpoint - exact endpoint fields the password authenticated.
+ * @param nativeUser - login name the native password prompt printed.
+ * @param password - the accepted value; never included in any failure.
+ * @returns after the durable grant write.
+ * @throws RemoteError `hemi-ssh/remember-failed` when no store is active, the write fails, or no saved server owns the endpoint.
+ */
+rememberPassword(endpoint: SshPasswordEndpoint, nativeUser: string, password: string): Promise<void>
+
+/**
+ * Drop a remembered password while the record still holds one specific rejected value, on this service's write queue.
+ * A concurrently stored replacement value survives.
+ * @param endpoint - exact endpoint fields.
+ * @param password - the value a later native prompt proved wrong.
+ */
+forgetPassword(endpoint: SshPasswordEndpoint, password: string): Promise<void>
+```
+
+Source: [`packages/hemi/ssh-servers/src/index.ts`](../../packages/hemi/ssh-servers/src/index.ts)
+
+<a id="ctxhemisshworkspaces--hemisshworkspaces"></a>
+
+### `ctx.hemiSshWorkspaces` — `HemiSshWorkspaces`
+
+Explicit deployments and verified remote directories under the Gateway's global-resource policy.
+
+```ts cordis-catalog
+/**
+ * Follow native OpenSSH login prompts without including responses or stored passwords.
+ * @param signal - calling UI lifetime; service unload ends this stream.
+ * @returns current authentication challenges, including the initial snapshot.
+ */
+@Remote({ mode: 'stream' }) async *followAuthentication(signal: AbortSignal): AsyncIterable<readonly SshAuthenticationChallenge[]>
+
+/**
+ * Answer exactly one active login prompt without saving or logging its response.
+ * @param id - active challenge identity received from the authentication stream.
+ * @param answer - native response, or null to cancel; never a connection setting.
+ * @param signal - caller cancellation before the response is accepted.
+ */
+@Remote // oxlint-disable-next-line typescript/require-await -- Preserve Promise rejection semantics for synchronous native prompt acceptance. async answerAuthentication(id: SshAuthenticationChallengeId, answer: string | null, signal: AbortSignal): Promise<void>
+
+/**
+ * Answer one native prompt with an explicit password-saving choice; successful authentication commits the opted-in password.
+ * @param id - active challenge identity; only a challenge marked canRemember accepts a non-cancelled opt-in.
+ * @param answer - native response, or null to cancel without saving.
+ * @param remember - true saves the accepted password through DSH credentials; false keeps the response transient.
+ * @param signal - caller cancellation before the response is accepted.
+ * @returns after accepting the response, not a password-save receipt; a store failure rejects the awaiting connection operation.
+ */
+@Remote // oxlint-disable-next-line typescript/require-await -- Preserve Promise rejection semantics for synchronous prompt acceptance. async answerAuthenticationAndRemember( id: SshAuthenticationChallengeId, answer: string | null, remember: boolean, signal: AbortSignal, ): Promise<void>
+
+/**
+ * Read the explicit helper deployment without contacting the remote machine.
+ * @param serverId - saved connection whose deployment to read.
+ * @param signal - caller cancellation before reading.
+ * @returns the saved deployment, or undefined until configured.
+ */
+@Remote getRuntime(serverId: SshServerId, signal: AbortSignal): SshSavedRuntime | undefined
+
+/**
+ * Save an explicit installed helper; this operation installs nothing and reads no key.
+ * @param serverId - saved connection to configure.
+ * @param revision - last observed deployment revision; omitted for initial configuration.
+ * @param deployment - absolute remote artifact coordinates and verified digests.
+ * @param signal - cancellation before the durable write starts.
+ * @returns the durable deployment and its replacement revision.
+ */
+@Remote configureRuntime( serverId: SshServerId, revision: string | undefined, deployment: SshRuntimeDeployment, signal: AbortSignal, ): Promise<SshSavedRuntime>
+
+/**
+ * Prepare and verify the automatic helper runtime for one saved connection without user artifact input.
+ * Re-verifying an unchanged saved deployment keeps its revision, so concurrent editors never invalidate each other.
+ * @param serverId - saved connection to make ready.
+ * @param serverRevision - endpoint revision loaded with that record.
+ * @param signal - cancellation of probing, streaming and the verification connection.
+ * @returns the durable deployment the connection is verified against.
+ */
+@Remote connectServer(serverId: SshServerId, serverRevision: string, signal: AbortSignal): Promise<SshSavedRuntime>
+
+/**
+ * Browse a not-yet-saved endpoint read-only over plain OpenSSH; no helper, remote runtime or remote write is involved.
+ * @param input - editor connection fields; validated exactly like saving.
+ * @param path - existing absolute remote directory, or empty for the remote login directory.
+ * @param signal - cancellation of the one-shot OpenSSH command.
+ * @returns remote directory names and physical location.
+ */
+@Remote browseServer(input: SshServerInput, path: string, signal: AbortSignal): Promise<SshRemoteDirectory>
+
+/**
+ * List directories of a saved connection read-only over plain OpenSSH.
+ * @param serverId - saved connection to browse.
+ * @param path - existing absolute remote directory, or empty for the remote login directory.
+ * @param revision - endpoint and deployment revisions captured before browsing; checked before SSH starts.
+ * @param signal - cancellation of the one-shot OpenSSH command.
+ * @returns remote directory names and physical location.
+ */
+@Remote browseFolders(serverId: SshServerId, path: string, revision: SshWorkspaceRevision, signal: AbortSignal): Promise<SshRemoteFolders>
+
+/**
+ * Browse a saved connection read-only without requiring any prepared runtime; directory choice needs no remote Node.
+ * @param serverId - saved connection to browse.
+ * @param path - existing absolute remote directory, or empty for the remote login directory.
+ * @param serverRevision - endpoint revision loaded with the record; a changed endpoint refuses before SSH starts.
+ * @param signal - cancellation of the one-shot OpenSSH command.
+ * @returns remote directory names and physical location.
+ */
+@Remote browseSavedFolders(serverId: SshServerId, path: string, serverRevision: string, signal: AbortSignal): Promise<SshRemoteDirectory>
+
+/**
+ * Open one directory of a saved connection end to end: prepare the runtime, then retain the immutable target.
+ * The runtime requirement surfaces here, not during directory selection.
+ * @param serverId - saved connection to open.
+ * @param path - chosen absolute remote directory, or empty for the remote login directory.
+ * @param serverRevision - endpoint revision loaded with the record; re-checked at both steps.
+ * @param signal - cancellation of runtime preparation, verification and target persistence.
+ * @returns a real directory and target, not a synthetic Workspace id.
+ */
+@Remote prepareServerFolder( serverId: SshServerId, path: string, serverRevision: string, signal: AbortSignal, ): Promise<SshDirectorySelection>
+
+/**
+ * Validate a physical folder and retain its immutable target reference for Workspace creation.
+ * @param serverId - saved connection to open.
+ * @param path - existing absolute remote directory, or empty for the remote login directory.
+ * @param revision - successful browse revisions; mismatch refuses before contacting a replacement endpoint.
+ * @param signal - cancellation before target persistence begins; an admitted write remains durable.
+ * @returns a real directory and target, not a synthetic Workspace id.
+ */
+@Remote prepareFolder(serverId: SshServerId, path: string, revision: SshWorkspaceRevision, signal: AbortSignal): Promise<SshDirectorySelection>
+```
+
+Source: [`packages/hemi/ssh-servers/src/workspaces.ts`](../../packages/hemi/ssh-servers/src/workspaces.ts)
 <!-- END GENERATED cordis-surface -->

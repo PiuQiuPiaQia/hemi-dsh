@@ -8,7 +8,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { Session, SessionSeq } from '@deepseek-ai/dsh-session'
+import type { EpochHeader, Session, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
 import type { CompactionResult } from './types.ts'
 import type { CompactionCheckpointSource } from './checkpoint.ts'
@@ -105,6 +105,25 @@ declare module '@deepseek-ai/cordis' {
      * @mode waterfall
      */
     'compaction/summary-error'(payload: { session: Session; sourceEventSeqs: readonly SessionSeq[]; error: unknown; signal?: AbortSignal }, next: () => boolean): boolean
+    // Hemi fork: The async recovery starts a separate transaction after the failed summary closes.
+    /**
+     * Recover a summary that exceeded its window during automatic overflow recovery.
+     * The failed compaction is closed before dispatch to the engine's isolation group. The engine owns request retries.
+     * @param payload.agent - the active agent whose history can be compacted.
+     * @param payload.request - the effective conversation request envelope.
+     * @param payload.summary - the summary route, output reservation, and pressure threshold fraction.
+     * @param payload.start - first surface seq of the failed selection.
+     * @param payload.end - last surface seq of the failed selection.
+     * @param payload.signal - cancellation for the active turn.
+     * @param next - delegate when no smaller compaction can be attempted.
+     * @mode waterfall
+     */
+    'compaction/overflow-recovery'(
+      this: CompactionEngine,
+      payload: { agent: CompactionAgentContext; request: EpochHeader; start: SessionSeq; end: SessionSeq; signal: AbortSignal }
+        & { summary: { provider: string; model: string; maxTokens: number; thresholdRatio: number } },
+      next: () => Promise<CompactionResult | null>,
+    ): Promise<CompactionResult | null>
   }
 }
 

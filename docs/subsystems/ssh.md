@@ -14,7 +14,9 @@ Filesystem identities, executable lookup, process cwd, sandbox workspace roots a
 
 Administrative RPC uses the helper’s SSH exec streams. Ordinary stdin, stdout, stderr, terminal output and optional fd 7 control traffic use separately authenticated forwarded Unix sockets. Each forwarded stream has its own SSH channel window; paused program output does not share the control or administrative window. All channels still share connection bandwidth and transport failure.
 
-Deployment authentication, installed artifact verification and per-stream TLS authentication belong to [`dsh-ssh`](../../packages/ssh/ssh/README.md). The helper executes filesystem and process requests with trusted local providers on the remote machine. SSH is a transport; the selected remote sandbox provider enforces file effects.
+[`dsh-ssh`](../../packages/ssh/ssh/README.md) uses noninteractive OpenSSH with strict host-key checking, or borrows an endpoint-bound authenticated master through `authenticatedControlPath`. The borrower never persists or terminates that master and never creates fresh transport if its socket is unavailable. Interactive login belongs to the owning application; [Hemi SSH authentication](hemi.md#ssh-authentication) supplies it separately.
+
+Installed artifact verification and per-stream TLS authentication belong to `dsh-ssh`. The helper executes filesystem and process requests with trusted local providers on the remote machine. SSH is a transport; the selected remote sandbox provider enforces file effects.
 
 ## Process lifetime and cancellation
 
@@ -50,14 +52,24 @@ type HelperLaunch = {
 ```ts type-equiv
 /** Deployment-owned SSH identity and installed helper; no model argument selects these values. */
 interface Config {
-  /** OpenSSH host alias, including its existing user, key and known-host configuration. */
+  /** OpenSSH alias, DNS name or IP address; legacy user@host remains supported. */
   host: string
+  /** Explicit login; omission retains the alias or legacy host's user selection. */
+  username?: string
+  /** Explicit TCP port; omission retains OpenSSH configuration. */
+  port?: number
+  /** Local identity-file path; omission retains OpenSSH credential selection. No key contents are read by this service. */
+  identityFile?: string
+  /** Hemi fork: borrowed OpenSSH control socket already authenticated to this exact endpoint; its owner retains and closes the master. */
+  authenticatedControlPath?: string
   /** Explicit script or self-contained executable invocation. */
   launch: HelperLaunch
   /** Absolute path to the installed, bundled helper entry. */
   helper: string
   /** SHA-256 of that bundled helper; mismatches refuse the connection. */
   helperHash: string
+  /** Explicit non-default environment; absent when SSH is the deployment-default provider. */
+  executionTarget?: SessionExecutionTarget
   /** Absolute remote default workspace. */
   workspace: string
   /** Connection and administrative-request deadline, at most 2,147,483,647 milliseconds. */
@@ -80,6 +92,12 @@ declare class SshConnection extends Service {
   constructor(ctx: Context, config: Config);
   /** Hold plugin readiness until the remote identity and helper digest are verified. */
   async [Service.init](): Promise<void>;
+  /** Aborts on transport loss or owner shutdown; consumers must stop before releasing this execution instance. */
+  get signal(): AbortSignal;
+  /** Explicit execution environment; its deployment-default writable roots must not be inherited. */
+  get executionTarget(): SessionExecutionTarget | undefined;
+  /** Physical remote workspace verified during readiness; never the Host fallback path. */
+  get workspaceRoot(): string;
   /** Verified remote PTC launch configuration; script deployments require a verified bootstrap. */
   get ptcLaunch(): { kind: 'embedded'; executable: string } | { kind: 'node-script'; executable: string; bootstrapPath: string };
   /**

@@ -72,7 +72,12 @@ class NodeExecution {
    * @returns Resolved inputs with the selected file policy.
    */
   resolve(request: PtcRunRequest): PtcRunSpec {
-    const sandboxPolicy = request.sandboxPolicy ?? this.ctx.sandboxPolicy.resolve()
+    // Hemi fork: a target-bound runtime uses the provider's verified workspace for agentless calls.
+    const { executionTarget, workspaceRoot } = this.ctx.sandbox
+    const sandboxPolicy = request.sandboxPolicy ?? this.ctx.sandboxPolicy.resolve({
+      ...executionTarget === undefined ? {} : { executionTarget },
+      ...workspaceRoot === undefined ? {} : { workspaceRoot },
+    })
     const cwd = request.cwd ?? sandboxPolicy.workspaceRoot
     if (!isAbsolute(cwd)) throw new Error(`${this.mode.retainsState ? 'persistent PTC' : 'ptc-runtime-node'}: cwd must be absolute`)
     return { ...request, sandboxPolicy, cwd, timeoutMs: request.timeoutMs === null ? null : clampTimeout(request.timeoutMs, this.config.timeoutMs, this.config.maxTimeoutMs, this.mode.retainsState ? 'persistent PTC timeoutMs' : 'ptc-runtime-node: timeoutMs') }

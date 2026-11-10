@@ -144,6 +144,8 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
               {group.showGroupTitle === false || group.items.some(item => item.section !== undefined)
                 ? null
                 : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
+              {/* Hemi fork: a failed source is unavailable, not an empty successful lookup. */}
+              {group.status === 'failed' && <p role="status" className={css.itemDescription} data-source={group.source}>{t('failed')}</p>}
               {group.status === 'pending' && group.items.length === 0
                 ? (
                   <div role="status" aria-label={t('loading')} data-source={group.source}>

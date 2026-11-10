@@ -1,0 +1,4 @@
+- menu:
+  - menuitem "编辑"
+  - separator
+  - menuitem "删除"

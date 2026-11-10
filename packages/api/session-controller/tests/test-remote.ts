@@ -70,7 +70,7 @@ import type {
 /** Direct test face for the generated `ctx.remote.session` unary methods these tests exercise. */
 export interface TestSessionRemote {
   workspacePathApplications(
-    request: { readonly path: string }, signal?: AbortSignal,
+    request: Pick<SessionOpenWorkspacePathRequest, 'path' | 'sessionId'>, signal?: AbortSignal,
   ): Promise<RemoteResult<readonly SessionWorkspacePathApplication[]>>
   canOpenWorkspacePath(): Promise<RemoteResult<boolean>>
   list(request: SessionListRequest, signal?: AbortSignal): Promise<RemoteResult<SessionListValue>>

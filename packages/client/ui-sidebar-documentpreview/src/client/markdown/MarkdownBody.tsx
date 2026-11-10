@@ -7,6 +7,7 @@ import type { DocumentPreviewProps } from '../document/contract.ts'
 import { splitFrontmatter } from './frontmatter.ts'
 import type { FrontmatterFieldsProps } from './frontmatter-fields.tsx'
 import { markdownImageUrl } from './path-images.ts'
+import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import type {} from './locales.ts'
 import css from './MarkdownBody.module.css'
 
@@ -33,9 +34,11 @@ export type MarkdownBodyProps = DocumentPreviewProps & PropsLocale<'documentMark
  */
 export function MarkdownBody({ content, resourceAddress, useResource, t }: MarkdownBodyProps): ReactNode {
   const absolutePath = useResource<'file'>(resourceAddress).value?.absolutePath
+  const file = parseFileAddress(resourceAddress)
+  const sessionId = file?.scope === 'session' ? file.sessionId : undefined
   const pathImages = useMemo<MarkdownPathImages>(() => ({
-    resolve: value => markdownImageUrl(document.baseURI, absolutePath, value),
-  }), [absolutePath])
+    resolve: value => sessionId === undefined ? undefined : markdownImageUrl(document.baseURI, absolutePath, value, sessionId),
+  }), [absolutePath, sessionId])
   const copyLabel = t('code.copy')
   const copiedLabel = t('code.copied')
   const footnotes = t('footnotes')

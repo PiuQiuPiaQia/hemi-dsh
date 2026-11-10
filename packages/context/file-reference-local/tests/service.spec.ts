@@ -9,11 +9,11 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { isSessionExecutionTarget, SessionId, type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry from '@deepseek-ai/dsh-tools'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tool-testkit'
-import { FILE_REFERENCE_PROMPT } from '@deepseek-ai/dsh-file-reference'
+import { FILE_REFERENCE_PROMPT, FileReferenceEnvironmentUnsupportedError } from '@deepseek-ai/dsh-file-reference'
 import LocalFileReferenceService, { WorkspaceFileSearch } from '../src/index.ts'
 
 const roots: string[] = []
@@ -40,11 +40,13 @@ async function stubAgent(
   ctx: Context,
   id = 'file-reference-agent',
   includeCwd = true,
+  executionTarget?: SessionExecutionTarget,
 ): Promise<{ agent: Agent; dispose: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-file-reference-service-'))
   roots.push(root)
   await writeFile(join(root, 'README.md'), 'readme')
-  const session = ctx.sessions.create(SessionId(id), { meta: includeCwd ? { cwd: root } : {} })
+  const session = ctx.sessions.create(SessionId(id), { meta: { ...includeCwd ? { cwd: root } : {},
+    ...executionTarget === undefined ? {} : { executionTarget } } })
   const agent = {
     id: session.id,
     options: {},
@@ -64,6 +66,22 @@ async function stubAgent(
 }
 
 describe('LocalFileReferenceService', () => {
+  it('refuses a target Session before resolving or indexing the same-spelled Host directory', async () => {
+    const ctx = await harness()
+    try {
+      const target = { provider: 'fixture', id: 'remote' }
+      if (!isSessionExecutionTarget(target)) throw new Error('invalid target')
+      const { agent } = await stubAgent(ctx, 'remote-reference', true, target)
+      await ctx.plugin(LocalFileReferenceService)
+      const ensure = vi.spyOn(ctx.workingDirectory, 'ensure')
+      const list = vi.spyOn(WorkspaceFileSearch.prototype, 'list')
+      await expect(ctx.fileReferences.list(agent, 'README', new AbortController().signal))
+        .rejects.toBeInstanceOf(FileReferenceEnvironmentUnsupportedError)
+      expect(ensure).not.toHaveBeenCalled()
+      expect(list).not.toHaveBeenCalled()
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('defers guidance until optional prompt and tool services become available', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

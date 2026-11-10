@@ -3,7 +3,7 @@ import { expect, it, onTestFinished, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { MenuRegistry } from '@deepseek-ai/dsh-client-ui-context-menu/src/client/registry.ts'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
-import { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId, type SessionExecutionTarget } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { OpenInAppController } from '../src/client/controller.ts'
 import { registerSessionOpenWith } from '../src/client/session-open-with.ts'
@@ -77,7 +77,7 @@ it.each(['session', 'sessionHeader'] as const)('launches the captured %s directo
   const menu = b.resolve(kind), observing = b.resolve(kind === 'session' ? 'sessionHeader' : 'session')
   const action = menu.source.getSnapshot()[0]!.children![1]!
   menu.select(action.id)
-  expect(b.fetcher).toHaveBeenCalledExactlyOnceWith('open-in-app/open', expect.objectContaining({ body: JSON.stringify({ app: 'cursor', path: '/captured' }) }))
+  expect(b.fetcher).toHaveBeenCalledExactlyOnceWith('open-in-app/open', expect.objectContaining({ body: JSON.stringify({ app: 'cursor', path: '/captured', sessionId: b.sessionId }) }))
   expect(b.choose).not.toHaveBeenCalled()
   expect(observing.source.getSnapshot()[0]).toMatchObject({ disabled: true })
   expect(observing.source.getSnapshot()[0]?.children?.every(row => row.disabled)).toBe(true)
@@ -103,6 +103,23 @@ it.each([{ kind: 'failed', failure: 'openError' }, { kind: 'skipped' }] as const
   expect(b.choose).not.toHaveBeenCalled()
   expect(b.controller.choice.getSnapshot()).toBe('')
   expect(b.failed).not.toHaveBeenCalled()
+})
+
+it('omits native application submenus for an explicit execution target even at the same path as a local session', async () => {
+  const b = bench()
+  await b.fiber.await()
+  const executionTarget = { provider: 'fixture-remote', id: 'target' } as SessionExecutionTarget
+  b.list.set({ ...b.list.getSnapshot(), byId: {
+    [b.sessionId]: { ...b.row, executionTarget },
+  } })
+  for (const kind of ['session', 'sessionHeader'] as const) {
+    const menu = b.resolve(kind)
+    expect(menu.source.getSnapshot()).toEqual([])
+    menu.dispose()
+  }
+  expect(b.fetcher).not.toHaveBeenCalled()
+  b.list.set({ ...b.list.getSnapshot(), byId: { [b.sessionId]: b.row } })
+  expect(b.resolve().source.getSnapshot()).toHaveLength(1)
 })
 
 it('withdraws both registrations and their observers on unload and reinstalls without duplicates', async () => {

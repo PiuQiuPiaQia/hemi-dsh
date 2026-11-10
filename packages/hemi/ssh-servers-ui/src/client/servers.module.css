@@ -1,0 +1,400 @@
+.section {
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  border-inline: var(--dsh-sidebar-paint-inset) solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--dsw-radius-md);
+  padding-inline: calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset)) 4px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: var(--dsh-sidebar-label-gap);
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--dsw-radius-sm);
+}
+
+.rowIcon {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  height: 20px;
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowCopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowName,
+.endpoint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowName {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.endpoint,
+.ssh {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.ssh {
+  flex: none;
+  margin-inline-start: 4px;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.row[data-menu-open] {
+  background-color: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rowMain:disabled,
+.menuButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+
+  .menuButton:hover {
+    background-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.directoryField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.directoryInput,
+.directoryActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.directoryInput > :first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.directoryInput > button {
+  flex: none;
+}
+
+.directoryBrowser,
+.folderBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.directoryBrowser .folderList {
+  max-height: min(240px, 30dvh);
+}
+
+.directoryActions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.folderDialog {
+  width: min(480px, 100%);
+  max-height: 100%;
+  overflow-wrap: anywhere;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.folderLocation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.folderLocation > button,
+.folderLocation > [role='status'] {
+  flex: none;
+}
+
+.currentPath {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.folderList {
+  list-style: none;
+  max-height: min(320px, 40dvh);
+  overflow-y: auto;
+  padding: 0;
+  padding-inline-end: 8px;
+  margin: 0;
+}
+
+.folderRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  text-align: start;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.folderRow span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folderRow svg {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.folderRow:disabled {
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .folderRow:not(:disabled):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.emptyFolders {
+  margin: 4px 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.folderSkeleton .skeleton {
+  min-height: 28px;
+  padding-inline: 4px;
+  gap: 8px;
+}
+
+.dialog {
+  width: min(420px, 100%);
+  max-height: 100%;
+}
+
+.dialogContent {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dialog > :last-child,
+.folderDialog > :last-child {
+  flex-shrink: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.optional,
+.help {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+}
+
+.input:has(input[aria-invalid='true']) {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.help,
+.problem {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fieldError,
+.problem {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.removeButton:not(:disabled) {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.readError {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 8px var(--dsh-sidebar-row-padding);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.readError button {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dsw-alias-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--dsh-sidebar-label-gap);
+  min-height: 48px;
+  padding-inline: var(--dsh-sidebar-row-padding);
+}
+
+.skeleton span {
+  height: 16px;
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-bg-skeleton);
+}
+
+.skeleton span:first-child {
+  width: 16px;
+  flex: none;
+}
+
+.skeleton span:last-child {
+  width: 65%;
+}
+
+@media (pointer: coarse) {
+  .input input {
+    font-size: 16px;
+  }
+
+  .input,
+  .folderRow,
+  .folderSkeleton .skeleton,
+  .folderLocation > button,
+  .directoryInput > button,
+  .directoryActions > button,
+  .folderDialog > :last-child > button {
+    min-height: 44px;
+  }
+
+  .menuButton {
+    min-height: 44px;
+    width: 36px;
+  }
+
+  .readError button {
+    min-height: 36px;
+  }
+}
+
+.diagnostic {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

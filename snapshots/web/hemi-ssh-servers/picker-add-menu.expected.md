@@ -1,0 +1,5 @@
+- menu:
+  - menuitem "默认工作区"
+  - menuitem "hemi-dsh"
+  - menuitem "添加工作区…"
+  - menuitem "添加 SSH"

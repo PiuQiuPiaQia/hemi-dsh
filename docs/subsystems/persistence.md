@@ -136,9 +136,29 @@ interface SessionLocation {
 
 ## `SessionHeader` — metadata beside the log
 
-Per-session metadata travels **separately** from the event log: the header carries format version, cwd, and the `isSeeded` lineage bit, while body-bearing storage values carry the exact inherited cut beside it. Neither belongs to `SessionEventMap` or reaches `deriveMessages()`. The logical header is attached through `session.header`; the Session exposes its cut as `inheritedEventCount`.
+Per-session metadata travels **separately** from the event log: the header carries format version, cwd, and the `isSeeded` lineage bit, while body-bearing storage values carry the exact inherited cut beside it. Neither belongs to `SessionEventMap` or reaches `deriveMessages()`. The logical header is attached through `session.header`; the Session exposes its cut as `inheritedEventCount`. An optional `executionTarget` fixes the provider and environment independently of directory spelling or Agent preset; absence retains the deployment's default execution providers. A runtime refuses an unavailable explicit target instead of interpreting that directory on the Host.
 
 Source: [`packages/core/session/src/types.ts`](../../packages/core/session/src/types.ts)
+
+```ts type-equiv
+/** Identifies the provider that resolves an execution environment. */
+type ExecutionProviderId = Branded<'ExecutionProviderId'>
+```
+
+```ts type-equiv
+/** Identifies one immutable environment within its provider. */
+type ExecutionTargetId = Branded<'ExecutionTargetId'>
+```
+
+```ts type-equiv
+/** Durable execution identity; absence retains the deployment's default execution environment. */
+type SessionExecutionTarget = {
+  /** Provider that owns this environment. */
+  readonly provider: ExecutionProviderId
+  /** Provider-owned immutable target record; never retargeted in place. */
+  readonly id: ExecutionTargetId
+}
+```
 
 ```ts type-equiv
 /**
@@ -185,6 +205,8 @@ interface SessionHeader {
    * would replay history the model can no longer act on.
    */
   readonly agentPreset?: string
+  /** Explicit execution environment; an unavailable reference must never fall back to the Host. */
+  readonly executionTarget?: SessionExecutionTarget
 }
 ```
 
@@ -194,7 +216,7 @@ A backend refuses a log it cannot faithfully interpret with `SessionFormatUnsupp
 
 ## `CreateSessionOptions` — seeding and metadata
 
-Creating a `Session` through the store takes a `seed` (initial replay or fork history), an optional exact `inheritedEventCount`, and `meta` (the storage-level fields the store folds into a `SessionHeader`). The store fills in `version`/`id` and defaults `createdAt`; the caller may supply the validated absolute `cwd`, `parentSession` lineage, `isSeeded` lineage bit, optional coarse `origin`, `delegationDepth`, `agentPreset`, and an existing `createdAt`. A seeded creation requires an explicit seed equal to its inherited prefix and an exact cut; the constructor appends the child-owned tagged end-seed marker at that cut before setup adds child-owned events. `origin: 'subagent'` lets product navigation hide duplicate child rows; it does not prove that a descriptor is valid or that the child can resume.
+Creating a `Session` through the store takes a `seed` (initial replay or fork history), an optional exact `inheritedEventCount`, and `meta` (the storage-level fields the store folds into a `SessionHeader`). The store fills in `version`/`id` and defaults `createdAt`; the caller may supply the validated absolute `cwd`, `parentSession` lineage, `isSeeded` lineage bit, optional coarse `origin`, `delegationDepth`, `agentPreset`, `executionTarget`, and an existing `createdAt`. A seeded creation requires an explicit seed equal to its inherited prefix and an exact cut; the constructor appends the child-owned tagged end-seed marker at that cut before setup adds child-owned events. `origin: 'subagent'` lets product navigation hide duplicate child rows; it does not prove that a descriptor is valid or that the child can resume.
 
 ```ts type-equiv
 /**
@@ -223,6 +245,8 @@ interface CreateSessionOptions {
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
+    /** Immutable execution environment resolved before Agent activation. */
+    readonly executionTarget?: SessionExecutionTarget
   }
 }
 ```

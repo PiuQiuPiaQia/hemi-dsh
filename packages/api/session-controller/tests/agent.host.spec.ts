@@ -1,5 +1,5 @@
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -7,7 +7,8 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionHeader } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId, SessionExecutionTarget, SessionHeader } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { SessionAlreadyOwnedError } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
@@ -232,6 +233,35 @@ describe('ApiSession Agent lookup and recovery', () => {
 })
 
 describe('ApiSession creation', () => {
+  it('passes the explicit target to creation without creating its remote path on the Host', async () => {
+    const { ctx, agents } = await harness()
+    const root = mkdtempSync(join(tmpdir(), 'dsh-targeted-session-'))
+    tempDirs.push(root)
+    const cwd = join(root, 'remote-path-must-not-be-created')
+    const executionTarget: SessionExecutionTarget = {
+      provider: brandString<ExecutionProviderId>('fixture'), id: brandString<ExecutionTargetId>('remote-directory'),
+    }
+    const create = vi.spyOn(ctx.agents, 'create').mockImplementation(async options => ({
+      agent: unpublishedAgent(ctx, { ...header(String(options.sessionId), cwd), executionTarget }), dispose: async () => {},
+    }))
+    await agents.createSession({ cwd, executionTarget, reusable: () => true })
+    expect(create.mock.calls[0]?.[0].meta?.executionTarget).toEqual(executionTarget)
+    expect(existsSync(cwd)).toBe(false)
+  })
+
+  it('refuses reuse across execution targets even when both headers name the same path', async () => {
+    const { ctx, agents } = await harness()
+    const provider = brandString<ExecutionProviderId>('fixture')
+    const first = { provider, id: brandString<ExecutionTargetId>('first') }
+    const second = { provider, id: brandString<ExecutionTargetId>('second') }
+    const existing = agent(ctx, { ...header('target-conflict'), executionTarget: first })
+    vi.spyOn(ctx.agents, 'get').mockReturnValue(existing)
+    const create = vi.spyOn(ctx.agents, 'create')
+    await expect(agents.createSession({ sessionId: existing.id, cwd: '/workspace', executionTarget: second, reusable: () => true }))
+      .rejects.toMatchObject({ code: 'session/conflict' })
+    expect(create).not.toHaveBeenCalled()
+  })
+
   it('rejects a resume that subagent routing adopts before publication', async () => {
     const child = await harness()
     const childMeta = header('resume-child-race')

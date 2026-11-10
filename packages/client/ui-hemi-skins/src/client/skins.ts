@@ -1,13 +1,7 @@
 /**
- * Hemi character skins, ported from the Hemi desktop assistant's
- * `skins.config.json` palette table. Each skin maps to one DSH
- * alias-token theme over the light base palette plus a durable
- * `overrideTokens` layer (per light/dark mode) so the skin applies
- * regardless of the built-in theme preference; the built-in settings
- * schema only accepts light/dark/system, so a registered third-party
- * preference would be reverted by the next settings adopt. Background
- * art, portraits, idle animation, and lettering arrive with the asset
- * pipeline port.
+ * Hemi skins over the native light/dark themes. Classic keeps neutral surfaces;
+ * character skins apply the ported `skins.config.json` palettes. Durable token
+ * overrides preserve skin selection across built-in theme preference changes.
  */
 import type { ThemeDefinition, ThemeTokenOverrides } from '@deepseek-ai/dsh-client-ui-theme/client'
 
@@ -76,14 +70,39 @@ function skin(input: SkinInput): HemiSkin {
   return { id, name, lettering, definition, overrides }
 }
 
+const CLASSIC_OVERRIDES: ThemeTokenOverrides = {
+  '--dsw-alias-brand-primary': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+  '--dsw-focus-ring-color': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+  '--dsw-alias-state-business-primary': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+  '--dsw-alias-state-business-tertiary': { light: 'var(--dsw-static-neutral-bluish-100)', dark: 'var(--dsw-static-neutral-bluish-800)' },
+  '--dsw-specific-sidebar-nav-item-active-accent': { light: 'var(--dsw-alias-state-business-tertiary)', dark: 'var(--dsw-alias-state-business-tertiary)' },
+  '--dsw-specific-bubble': { light: 'var(--dsw-static-neutral-bluish-60)', dark: 'var(--dsw-static-neutral-bluish-850)' },
+  '--dsw-specific-bubble-highlight': { light: 'var(--dsw-static-neutral-bluish-200)', dark: 'var(--dsw-static-neutral-bluish-750)' },
+  '--dsw-alias-button-info-fill': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+  '--dsw-alias-button-info-hover': { light: 'var(--dsw-alias-button-primary-hover)', dark: 'var(--dsw-alias-button-primary-hover)' },
+  '--dsh-composer-primary-foreground': { light: 'var(--dsw-alias-label-primary-foreground)', dark: 'var(--dsw-alias-label-primary-foreground)' },
+}
+
+const CLASSIC: HemiSkin = {
+  id: 'classic',
+  name: '经典',
+  definition: {
+    id: 'hemi-classic',
+    colorScheme: 'light',
+    tokens: Object.fromEntries(Object.entries(CLASSIC_OVERRIDES).map(([token, value]) => [token, value.light])),
+  },
+  overrides: CLASSIC_OVERRIDES,
+  lettering: null,
+}
+
 const CAFE_BLUE = skin({
   id: 'cafe-blue', name: '晴海蓝', rail: '#edf2fb', accent: '#385f9f', hover: '#587fc1', line: '#dce4f0',
   deep: '#10141f', deepLine: '#253f70', lettering: { headline: 'Smile', subline: 'DeepSeek', color: '#7893b6' },
 })
 
-/** All ported Hemi skins in config order (classic first, then the five character skins). */
+/** Classic monochrome first, followed by the five ported character skins. */
 export const HEMI_SKINS: readonly HemiSkin[] = [
-  skin({ id: 'classic', name: '经典', rail: '#f6f6f5', accent: '#566e5d', hover: '#74907b', line: '#e9e9e7', deep: '#1b211d', deepLine: '#2c362f', lettering: null }),
+  CLASSIC,
   CAFE_BLUE,
   skin({ id: 'cafe-purple', name: '月见紫', rail: '#f4effa', accent: '#70509c', hover: '#8965b0', line: '#e4dceb', deep: '#161021', deepLine: '#2e2350', lettering: { headline: 'Sister', subline: 'GPT', color: '#a08ab9' } }),
   skin({ id: 'cafe-orange', name: '焦糖橙', rail: '#f8efe7', accent: '#a6502e', hover: '#b76841', line: '#e8dbce', deep: '#1d1410', deepLine: '#4a2a18', lettering: { headline: 'Suspended', subline: 'Claude', color: '#b78b6d' } }),
@@ -91,8 +110,8 @@ export const HEMI_SKINS: readonly HemiSkin[] = [
   skin({ id: 'cafe-red', name: '围巾红', rail: '#f9efed', accent: '#a63034', hover: '#bb565a', line: '#eadbd8', deep: '#1c1010', deepLine: '#4a1d1f', lettering: { headline: 'Stupid', subline: 'Doubao', color: '#b58583' } }),
 ]
 
-/** Skin applied through the durable override layer until a skin picker row ships (v1 default). */
-export const HEMI_DEFAULT_SKIN: HemiSkin = CAFE_BLUE
+/** Monochrome skin used when the saved selection is absent or unavailable. */
+export const HEMI_DEFAULT_SKIN: HemiSkin = CLASSIC
 
 /** Id of {@linkcode HEMI_DEFAULT_SKIN}. */
 export const HEMI_DEFAULT_SKIN_ID: string = HEMI_DEFAULT_SKIN.id

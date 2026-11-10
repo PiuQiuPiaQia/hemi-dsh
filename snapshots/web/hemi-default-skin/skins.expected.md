@@ -1,0 +1,20 @@
+- dialog "设置":
+  - text: 设置
+  - navigation:
+    - button "通用设置"
+    - button "模型"
+    - button "内置插件"
+    - button "Agent 预设"
+    - button "皮肤"
+    - button "记忆"
+    - button "备份"
+  - button "打开配置文件"
+  - button "关闭"
+  - region "皮肤":
+    - heading "皮肤" [level=2]
+    - button "经典" [pressed]
+    - button "晴海蓝"
+    - button "月见紫"
+    - button "焦糖橙"
+    - button "蜜糖金"
+    - button "围巾红"

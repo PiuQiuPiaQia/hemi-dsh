@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
+import SessionStore, { isSessionExecutionTarget, SESSION_FORMAT_VERSION, SessionId, type SessionHeader } from '@deepseek-ai/dsh-session'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { describe, expect, it, vi } from 'vitest'
 import WorkspaceFiles from '../src/index.ts'
@@ -24,6 +24,28 @@ function header(id: SessionId, cwd?: string): SessionHeader {
 }
 
 describe('Workspace Files Session scope lookup', () => {
+  it('retains live and cold target identity and refuses a target header without a workspace', async () => {
+    const ctx = new Context()
+    const target = { provider: 'fixture', id: 'remote-directory' }
+    if (!isSessionExecutionTarget(target)) throw new Error('invalid target')
+    const cold = SessionId('cold-target'), live = SessionId('live-target'), invalid = SessionId('missing-target-root')
+    ctx.provide('fs', {} as never)
+    ctx.provide('sandboxPolicy', { workspaceRoot: '/Host/fallback' } as never)
+    ctx.provide('sessionPersistence', { stat: async (id: SessionId) => ({
+      header: { ...header(id, id === invalid ? undefined : '/remote/work'), executionTarget: target },
+    }) } as never)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(TypertRegistry)
+    await ctx.plugin(WorkspaceFiles, CAPS)
+    try {
+      ctx.sessions.create(live, { meta: { cwd: '/remote/live', executionTarget: target } })
+      const lookup = ctx.typert.lookups.get('workspaceFileScope')!
+      await expect(lookup.resolve(live)).resolves.toEqual({ sessionId: live, workspaceRoot: '/remote/live', executionTarget: target })
+      await expect(lookup.resolve(cold)).resolves.toEqual({ sessionId: cold, workspaceRoot: '/remote/work', executionTarget: target })
+      await expect(lookup.resolve(invalid)).rejects.toMatchObject({ code: 'gateway/bad-request' })
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('uses live or stored headers without an Agent and leaves with its plugin', async () => {
     const liveId = SessionId('live-subagent')
     const coldId = SessionId('cold-subagent')
@@ -39,7 +61,7 @@ describe('Workspace Files Session scope lookup', () => {
     })
     const ctx = new Context()
     ctx.provide('fs', {} as never)
-    ctx.provide('sandboxPolicy', { workspaceRoot: fallbackRoot } as never)
+    ctx.provide('sandboxPolicy', { workspaceRoot: fallbackRoot, executionTarget: undefined } as never)
     ctx.provide('sessionPersistence', { stat } as never)
     const sessions = await ctx.plugin(SessionStore)
     const typert = await ctx.plugin(TypertRegistry)
@@ -59,9 +81,9 @@ describe('Workspace Files Session scope lookup', () => {
       })
       if (lookup === undefined) throw new Error('workspaceFileScope lookup did not register')
 
-      await expect(lookup.resolve(liveId)).resolves.toEqual({ sessionId: liveId, workspaceRoot: liveRoot })
+      await expect(lookup.resolve(liveId)).resolves.toEqual({ sessionId: liveId, workspaceRoot: liveRoot, executionTarget: undefined })
       expect(stat).not.toHaveBeenCalled()
-      await expect(lookup.resolve(coldId)).resolves.toEqual({ sessionId: coldId, workspaceRoot: coldRoot })
+      await expect(lookup.resolve(coldId)).resolves.toEqual({ sessionId: coldId, workspaceRoot: coldRoot, executionTarget: undefined })
       await expect(lookup.resolve(fallbackId)).resolves.toEqual({ sessionId: fallbackId, workspaceRoot: fallbackRoot })
       await expect(lookup.resolve(missingId)).resolves.toBeUndefined()
       expect(stat.mock.calls.map(([id]) => id)).toEqual([coldId, fallbackId, missingId])

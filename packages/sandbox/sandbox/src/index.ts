@@ -7,7 +7,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionExecutionTarget, SessionId } from '@deepseek-ai/dsh-session'
 
 export {
   ESCALATION_TARGETS,
@@ -176,6 +176,13 @@ export abstract class SandboxProvider extends Service {
   constructor(ctx: Context) {
     super(ctx, 'sandbox')
   }
+
+  // Hemi fork: agentless consumers resolve policy in the provider's explicit environment, not the deployment Host.
+  /** Explicit non-default execution environment; absence retains deployment policy resolution. */
+  get executionTarget(): SessionExecutionTarget | undefined { return undefined }
+
+  /** Verified fallback workspace for that environment; default providers use deployment policy. */
+  get workspaceRoot(): string | undefined { return undefined }
 
   /**
    * Wrap `argv` so it executes confined under `policy` on this host; the

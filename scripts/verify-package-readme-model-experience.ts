@@ -49,6 +49,9 @@ const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
  * blocks. A package moves on or off this list with its context behavior.
  */
 const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
+  // Hemi fork: server references and their editor do not enter model requests or change execution targets.
+  'packages/hemi/ssh-servers': { kind: 'none', reason: 'The Host stores server references without registering tools, prompts or Session events.' },
+  'packages/hemi/ssh-servers-ui': { kind: 'none', reason: 'The Client edits server references without connecting or changing a Session execution target.' },
   'packages/client/ui-context-menu': { kind: 'none', reason: 'Client menu presentation and contributed callbacks add no model input.' },
   'packages/client/ui-file-actions': { kind: 'none', reason: 'Explicit user file saves and clipboard operations add no model input.' },
   'packages/client/ui-entry-customization': { kind: 'none', reason: 'Controls browser launchers and prepares a reviewable Creator draft without submitting model input.' },

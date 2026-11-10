@@ -33,8 +33,25 @@ it.each([null, 'removed-skin'])('marks the active default when the saved skin is
   if (stored !== null) localStorage.setItem('hemi-skin', stored)
   const runtime = {} as PropsRuntime<'settings.section'>
   render(<SkinSection {...runtime} setSkin={vi.fn()} t={key => en[key as SkinKey] ?? key} />)
-  expect(screen.getByRole('button', { name: HEMI_DEFAULT_SKIN.name }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByRole('button', { name: '经典' }).getAttribute('aria-pressed')).toBe('true')
   expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1)
+})
+
+it('uses native light and dark neutral colors for the default classic skin', () => {
+  expect(HEMI_DEFAULT_SKIN.id).toBe('classic')
+  expect(HEMI_DEFAULT_SKIN.lettering).toBeNull()
+  expect(HEMI_DEFAULT_SKIN.overrides).toEqual({
+    '--dsw-alias-brand-primary': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+    '--dsw-focus-ring-color': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+    '--dsw-alias-state-business-primary': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+    '--dsw-alias-state-business-tertiary': { light: 'var(--dsw-static-neutral-bluish-100)', dark: 'var(--dsw-static-neutral-bluish-800)' },
+    '--dsw-specific-sidebar-nav-item-active-accent': { light: 'var(--dsw-alias-state-business-tertiary)', dark: 'var(--dsw-alias-state-business-tertiary)' },
+    '--dsw-specific-bubble': { light: 'var(--dsw-static-neutral-bluish-60)', dark: 'var(--dsw-static-neutral-bluish-850)' },
+    '--dsw-specific-bubble-highlight': { light: 'var(--dsw-static-neutral-bluish-200)', dark: 'var(--dsw-static-neutral-bluish-750)' },
+    '--dsw-alias-button-info-fill': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
+    '--dsw-alias-button-info-hover': { light: 'var(--dsw-alias-button-primary-hover)', dark: 'var(--dsw-alias-button-primary-hover)' },
+    '--dsh-composer-primary-foreground': { light: 'var(--dsw-alias-label-primary-foreground)', dark: 'var(--dsw-alias-label-primary-foreground)' },
+  })
 })
 
 it('retains the saved selection and applies a different skin on click', () => {

@@ -9,7 +9,9 @@ import type { StorageBackend } from '@deepseek-ai/dsh-storage'
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import type { DomainChanged } from '@deepseek-ai/dsh-storage-domain'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionHeader } from '@deepseek-ai/dsh-session'
+import type { ExecutionProviderId, ExecutionTargetId, SessionExecutionTarget, SessionHeader } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
@@ -190,6 +192,99 @@ async function makeDir(name: string): Promise<string> {
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) await rm(dir, { recursive: true, force: true })
   base = undefined as never
+})
+
+async function executionTargets(ctx: Context, cwd: string) {
+  const provider = brandString<ExecutionProviderId>('workspace-fixture')
+  const labels = new Map<ExecutionTargetId, symbol>()
+  const references: SessionExecutionTarget[] = []
+  for (const name of ['first-world', 'second-world']) {
+    const label = Symbol(name)
+    const id = brandString<ExecutionTargetId>(name)
+    labels.set(id, label)
+    references.push({ provider, id })
+    await ctx.isolate('fs', label).plugin(LocalFileSystem, { cwd })
+  }
+  const acquire = vi.fn(async (id: ExecutionTargetId) => {
+    const label = labels.get(id)
+    if (label === undefined) throw new Error('fixture target is missing')
+    return { realm: label, signal: new AbortController().signal,
+      bind: (context: Context) => context.isolate('fs', label), close: async () => {} }
+  })
+  const withdraw = ctx.sessions.registerExecutionProvider(provider, { acquire })
+  return { first: references[0]!, second: references[1]!, acquire, withdraw }
+}
+
+describe('execution-aware Workspace directories', () => {
+  it('keeps the same physical path separate across default and two explicit execution worlds', async () => {
+    const path = await makeDir('worlds')
+    const f = await harness({ sessionStore: true })
+    onTestFinished(() => f.ctx.fiber.dispose())
+    const targets = await executionTargets(f.ctx, path)
+    const local = await f.registry.create(path)
+    const canonical = vi.spyOn(workspacePaths, 'realpathNormalize')
+    try {
+      canonical.mockClear()
+      const first = await f.registry.create(path, undefined, { executionTarget: targets.first })
+      const second = await f.registry.create(path, undefined, { executionTarget: targets.second })
+      expect(new Set([local.id, first.id, second.id]).size).toBe(3)
+      expect(first.path).toBe(path)
+      expect(first.executionTarget).toEqual(targets.first)
+      expect((await f.registry.create(path, undefined, { executionTarget: targets.first })).id).toBe(first.id)
+      expect((await f.registry.resolveByPath(path, { executionTarget: targets.second }))?.id).toBe(second.id)
+      expect(canonical).not.toHaveBeenCalled()
+      expect(f.pool.versions.get('workspace')).toBe(3)
+    } finally { canonical.mockRestore() }
+  })
+
+  it('admits only Sessions with a matching target and restores their membership offline', async () => {
+    const path = await makeDir('remote-membership')
+    const f = await harness({ sessionStore: true })
+    onTestFinished(() => f.ctx.fiber.dispose())
+    const targets = await executionTargets(f.ctx, path)
+    const workspace = await f.registry.create(path, undefined, { executionTarget: targets.first })
+    const session = f.ctx.sessions.create(SessionId('matching-world'), { meta: { cwd: path, executionTarget: targets.first } })
+    const other = f.ctx.sessions.create(SessionId('other-world'), { meta: { cwd: path, executionTarget: targets.second } })
+    await expect(workspace.attachSession(other.id)).rejects.toThrow('execution target differs')
+    await workspace.attachSession(session.id)
+    f.setSessions([session.header, other.header])
+    await f.fiber.dispose()
+    await targets.withdraw()
+    const canonical = vi.spyOn(workspacePaths, 'realpathNormalize')
+    const acquire = vi.spyOn(f.ctx.sessions, 'acquireExecution')
+    try {
+      await f.ctx.plugin(WorkspaceRegistry)
+      const restored = f.ctx.workspaceRegistry.get(workspace.id)
+      expect(restored?.executionTarget).toEqual(targets.first)
+      expect(restored?.sessionIds).toEqual([session.id])
+      expect(acquire).not.toHaveBeenCalled()
+      expect(canonical).not.toHaveBeenCalled()
+      await expect(restored?.status()).rejects.toMatchObject({ code: 'EXECUTION_TARGET_UNAVAILABLE' })
+    } finally { canonical.mockRestore(); acquire.mockRestore() }
+  })
+
+  it('does not create remote registrations from unverified cold headers', async () => {
+    const path = await makeDir('cold-header-only')
+    const executionTarget: SessionExecutionTarget = {
+      provider: brandString<ExecutionProviderId>('offline-provider'), id: brandString<ExecutionTargetId>('offline-target'),
+    }
+    const f = await harness({ sessions: [{ ...header('offline-remote', path), executionTarget }] })
+    onTestFinished(() => f.ctx.fiber.dispose())
+    expect(f.registry.list()).toEqual([])
+    await expect(f.registry.create(path, undefined, { executionTarget })).rejects.toMatchObject({ code: 'EXECUTION_TARGET_UNAVAILABLE' })
+    expect(f.registry.list()).toEqual([])
+  })
+
+  it('loads a native version-two document and stamps version three only on write', async () => {
+    const path = await makeDir('old-media')
+    const pool = storedPool([['old-workspace', record(path, [])]], { initialized: true, workspaceIds: [WorkspaceId('old-workspace')] })
+    const f = await harness({ pool })
+    onTestFinished(() => f.ctx.fiber.dispose())
+    expect(f.registry.list().map(item => item.path)).toEqual([path])
+    expect(pool.versions.get('workspace')).toBe(2)
+    await f.registry.get(WorkspaceId('old-workspace'))!.setTitle('renamed')
+    expect(pool.versions.get('workspace')).toBe(3)
+  })
 })
 
 describe('WorkspaceRegistry lifecycle and bootstrap', () => {

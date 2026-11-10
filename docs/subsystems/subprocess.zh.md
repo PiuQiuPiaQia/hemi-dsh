@@ -240,6 +240,23 @@ interface SubprocessOutcome {
 }
 ```
 
+## 可执行文件查找
+
+`resolveExecutable` 接收执行环境中的路径或命令名。随包资源保留本地资源定位函数；远端 provider 只使用逻辑命令，不发送或调用该定位函数。查找失败时停止调用，不回退到另一执行环境。
+
+```ts type-equiv
+/** Executable lookup input; a packaged local resource is evaluated only by a same-machine provider. */
+type SubprocessExecutable = string | {
+  /** Logical command resolved on PATH by providers in a different execution environment. */
+  readonly command: string
+  /**
+   * Locate the consumer-owned packaged executable on the Harness machine.
+   * @returns its absolute local path; rejection must not fall back to PATH.
+   */
+  readonly resolveLocalPath: () => Promise<string>
+}
+```
+
 ## 终端进程原语
 
 `spawnTerminal(spec)` 是非管道进程原语。提供方分配控制终端，并负责 UTF-8 文本传输、前台进程组检查与信号发送，以及一项须等待的 TERM→KILL 操作；该操作会使提供方仍可观察到的每个会话成员完全停稳，提供方则会记录执行基底特有的可观察性限制。PTY 后端仍负责提示符检测、就绪推断、scrollback、沙箱策略和持久会话所有权；普通 `spawn()` 无法重建控制终端语义。
@@ -284,12 +301,15 @@ Implementations must honor these semantics:
  * plus explicit environment overrides. Relative paths containing separators
  * are rejected: the resolution base is undefined, so providers fail loud
  * instead of guessing.
- * @param command - absolute executable path or bare PATH name.
+ * A packaged resource supplies a lazy same-machine locator: local providers use and verify
+ * it, while other execution environments resolve only its logical command on their PATH.
+ * The locator never enters a spawn spec, remote request, or persisted data.
+ * @param command - absolute path, bare PATH name, or consumer-owned packaged executable resource.
  * @param env - explicit environment entries used for lookup.
  * @param signal - aborts remote or local lookup.
  * @returns a canonical executable path.
  */
-abstract resolveExecutable( command: string, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>
+abstract resolveExecutable( command: SubprocessExecutable, env?: Readonly<Record<string, string>>, signal?: AbortSignal, ): Promise<string>
 
 /**
  * Inspect shell-selection facts in the provider's execution environment.

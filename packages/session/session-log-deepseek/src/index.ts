@@ -83,6 +83,10 @@ function wireHeader(session: Session): DeepSeekSessionLogWireHeader {
     ...header.origin === undefined ? {} : { origin: header.origin },
     ...header.delegationDepth === undefined ? {} : { delegationDepth: header.delegationDepth },
     ...header.agentPreset === undefined ? {} : { agentPreset: header.agentPreset },
+    // Hemi fork: cloud log transport preserves the same execution identity as local export.
+    ...header.executionTarget === undefined ? {} : { executionTarget: {
+      provider: String(header.executionTarget.provider), id: String(header.executionTarget.id),
+    } },
   }
 }
 

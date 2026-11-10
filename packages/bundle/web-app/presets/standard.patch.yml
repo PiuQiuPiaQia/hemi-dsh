@@ -80,6 +80,9 @@
             config:
               - id: compaction-basic
                 name: '@deepseek-ai/dsh-compaction-basic'
+              # Hemi fork: opt the standard preset into segmented overflow recovery.
+              - id: hemi-overflow-compaction
+                name: '@deepseek-ai/dsh-hemi-routing/overflow-compaction'
               - id: command-compact
                 name: '@deepseek-ai/dsh-command-compact'
               - id: tool-result-pruner
