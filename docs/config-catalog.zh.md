@@ -3650,7 +3650,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-ssh`
 
 - `refs`: [`SessionExecutionTarget`](subsystems/persistence.zh.md)
-- `source`: [`packages/ssh/ssh/src/index.ts:35`](../packages/ssh/ssh/src/index.ts)
+- `source`: [`packages/ssh/ssh/src/index.ts:34`](../packages/ssh/ssh/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned SSH identity and installed helper; no model argument selects these values. */

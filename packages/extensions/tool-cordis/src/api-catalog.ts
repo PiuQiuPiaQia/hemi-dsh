@@ -4056,14 +4056,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the validated remote result.',
       },
       {
-        signature: 'async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket>',
-        description: 'Forward one authenticated stream through an independent SSH channel.',
-        parameters: [{ name: 'endpoint', description: 'private coordinates issued by this connection\'s helper.' }, { name: 'signal', description: 'cancellation of allocation and the resulting socket.' }],
-        returns: 'a paused socket; attach a consumer before resuming it.',
+        signature: 'async connectStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex>',
+        description: 'Attach one process stream inside the authenticated helper channel.',
+        parameters: [{ name: 'id', description: 'reservation issued by this connection\'s helper.' }, { name: 'signal', description: 'cancellation of attachment and stream use.' }],
+        returns: 'a paused duplex; attach a consumer before resuming it.',
       },
       {
         signature: 'dispose(): Promise<void>',
-        description: 'Tear down the helper\'s remote managed ranges before releasing the SSH master when reachable.',
+        description: 'Request remote managed cleanup before ending the SSH exec session.',
         parameters: [],
       },
     ],
@@ -9917,8 +9917,8 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SshServerInput {\n    readonly name: string;\n    readonly host: string;\n    readonly port: number;\n    readonly username: string;\n    readonly identityFile: string;\n    readonly directory?: string | undefined;\n}',
   },
   {
-    name: 'SshStreamEndpoint',
-    declaration: 'export type SshStreamEndpoint = z.infer<typeof streamEndpointSchema>;',
+    name: 'SshStreamId',
+    declaration: 'export type SshStreamId = Branded<\'SshStreamId\'>;',
   },
   {
     name: 'SshWorkspaceRevision',

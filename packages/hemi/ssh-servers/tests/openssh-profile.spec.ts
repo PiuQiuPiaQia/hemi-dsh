@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { text } from 'node:stream/consumers'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
@@ -92,7 +93,7 @@ async function exercise(agent: Agent, cwd: string, expected: string): Promise<vo
   expect(bash.stdout.text.trim()).toBe(`${cwd}\n${expected}`)
 }
 
-// OpenSSH multiplexing, Unix stream forwarding and sshd require a POSIX host with an installed server.
+// The fixture requires a POSIX OpenSSH server and disables port and socket forwarding.
 it.skipIf(process.platform === 'win32' || !existsSync('/usr/sbin/sshd'))(
   'opens two saved SSH directory Workspaces and cold-resumes their actual execution target through a shipped profile',
   async () => {
@@ -119,7 +120,7 @@ it.skipIf(process.platform === 'win32' || !existsSync('/usr/sbin/sshd'))(
         username: ssh.username, identityFile: ssh.identityFile }, new AbortController().signal)
       const deployment: SshRuntimeDeployment = {
         helper, helperHash: createHash('sha256').update(await readFile(helper)).digest('hex'),
-        launch: { kind: 'node-script', node: process.execPath, bootstrapPath: bootstrap,
+        launch: { kind: 'node-script', node: process.env.DSH_SSH_TEST_NODE ?? process.execPath, bootstrapPath: bootstrap,
           bootstrapHash: createHash('sha256').update(await readFile(bootstrap)).digest('hex') },
       }
       const signal = new AbortController().signal
@@ -153,6 +154,18 @@ it.skipIf(process.platform === 'win32' || !existsSync('/usr/sbin/sshd'))(
       expect(resumed.agent.session.header.executionTarget).toEqual(target)
       expect(resumed.agent.session.header.cwd).toBe(one)
       await exercise(resumed.agent, one, 'directory-one')
+      const subprocess = resumed.agent.ctx.get('subprocess')!
+      const terminal = await subprocess.spawnTerminal({
+        argv: ['/bin/sh', '-c', 'read line; printf "reply:%s\\n" "$line"'],
+        cwd: one, terminalType: 'dumb', rows: 24, cols: 80, graceMs: 1000,
+      })
+      try {
+        const output = text(terminal.output)
+        await terminal.write('terminal-input\n')
+        const [done, printed] = await Promise.all([terminal.done, output])
+        expect(done).toEqual({ exitCode: 0, signal: null })
+        expect(printed).toContain('reply:terminal-input')
+      } finally { await terminal.terminate() }
       await resumed.dispose()
     } catch (error: unknown) {
       throw new Error(`Real OpenSSH profile acceptance failed. sshd diagnostics:\n${ssh.diagnostics()}`, { cause: error })

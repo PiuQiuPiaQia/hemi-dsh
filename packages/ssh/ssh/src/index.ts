@@ -1,9 +1,8 @@
-/** OpenSSH connection owner for one version-matched POSIX helper and its independent forwarded streams. */
+/** OpenSSH connection owner for one version-matched POSIX helper and its process streams. */
 
-import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { join } from 'node:path'
-import { createConnection, isIP, type Socket } from 'node:net'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { isIP } from 'node:net'
+import type { Duplex } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import schema from '@deepseek-ai/schemastery'
 import { z } from 'zod'
@@ -11,8 +10,8 @@ import { assertNever } from '@deepseek-ai/dsh-util-values'
 // Hemi fork: an explicit target marks a non-default execution environment, never a Host-path policy namespace.
 import { isSessionExecutionTarget, type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
 import { SshRpcPeer, SSH_PROTOCOL_VERSION } from './protocol.ts'
-import { helloSchema, type SshStreamEndpoint } from './schemas.ts'
-import { authenticateStream } from './stream-security.ts'
+import { helloSchema } from './schemas.ts'
+import type { SshStreamId } from './streams.ts'
 
 type Hello = z.infer<typeof helloSchema>
 
@@ -99,15 +98,11 @@ export class SshConnection extends Service {
   private rpc: SshRpcPeer | undefined
   private child: ChildProcessWithoutNullStreams | undefined
   private childClosed: Promise<void> | undefined
-  private directory: string | undefined
   private heartbeat: NodeJS.Timeout | undefined
   private closed = false
   private readonly lifetime = new AbortController()
-  private readonly operations = new Set<Promise<unknown>>()
   private disposal: Promise<void> | undefined
   private failure: Error | undefined
-  private sockets = new Set<Socket>()
-  private nextSocket = 0
   private readonly config: ResolvedConfig
   private remote: Hello | undefined
 
@@ -189,66 +184,23 @@ export class SshConnection extends Service {
   }
 
   /**
-   * Forward one authenticated stream through an independent SSH channel.
-   * @param endpoint - private coordinates issued by this connection's helper.
-   * @param signal - cancellation of allocation and the resulting socket.
-   * @returns a paused socket; attach a consumer before resuming it.
+   * Attach one process stream inside the authenticated helper channel.
+   * @param id - reservation issued by this connection's helper.
+   * @param signal - cancellation of attachment and stream use.
+   * @returns a paused duplex; attach a consumer before resuming it.
    */
-  async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket> {
-    return this.track(this.establishStream(endpoint, signal))
-  }
-
-  private async establishStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket> {
-    const hello = await this.ready
+  async connectStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex> {
     this.assertOpen()
-    signal = signal === undefined ? this.lifetime.signal : AbortSignal.any([signal, this.lifetime.signal])
-    const remote = endpoint.path
-    if (!remote.startsWith(`${hello.root}/`) || /[:\r\n\0]/u.test(remote)) throw new Error('SSH helper returned an invalid stream path')
-    signal.throwIfAborted()
-    const local = join(this.directory as string, `s${this.nextSocket++}`)
-    const forward = `${local}:${remote}`
-    const cancelForward = async (): Promise<void> => {
-      // An unavailable master already removed its forwarding listeners.
-      // Hemi fork: a retained external master outlives this consumer and still owns the forwarding until cancellation.
-      if (!this.closed || this.config.authenticatedControlPath !== undefined) {
-        await this.controlCommand(['-O', 'cancel', '-L', forward], undefined, true).catch(() => {})
-      }
-      await rm(local, { force: true })
-    }
-    try {
-      await this.controlCommand(['-O', 'forward', '-o', 'ExitOnForwardFailure=yes', '-L', forward], signal)
-      signal.throwIfAborted()
-    } catch (error) { await cancelForward(); throw error }
-    const socket = createConnection({ path: local, allowHalfOpen: true })
-    this.sockets.add(socket)
-    socket.once('close', () => {
-      this.sockets.delete(socket)
-      void this.track(cancelForward()).catch(() => {})
-    })
-    await new Promise<void>((resolve, reject) => {
-      const cleanup = (): void => {
-        signal.removeEventListener('abort', aborted)
-        socket.off('connect', connected)
-        socket.off('error', failed)
-        socket.off('close', closed)
-      }
-      const connected = (): void => { cleanup(); resolve() }
-      const failed = (error: Error): void => { cleanup(); reject(error) }
-      const closed = (): void => { failed(new Error('SSH connection closed before stream establishment')) }
-      const aborted = (): void => { socket.destroy(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason))) }
-      socket.once('connect', connected)
-      socket.once('error', failed)
-      socket.once('close', closed)
-      signal.addEventListener('abort', aborted, { once: true })
-    })
-    const authenticated = await authenticateStream(socket, endpoint.capability, this.config.requestTimeoutMs, signal)
-    this.sockets.add(authenticated)
-    authenticated.on('error', () => { authenticated.destroy() })
-    authenticated.once('close', () => { this.sockets.delete(authenticated) })
-    return authenticated
+    await this.ready
+    this.assertOpen()
+    const deadline = new AbortController()
+    const timer = setTimeout(() => { deadline.abort(new Error('SSH process stream attachment timed out')) }, this.config.requestTimeoutMs)
+    const lifetime = signal === undefined ? deadline.signal : AbortSignal.any([signal, deadline.signal])
+    try { return await (this.rpc as SshRpcPeer).openStream(id, lifetime) }
+    finally { clearTimeout(timer) }
   }
 
-  /** Tear down the helper's remote managed ranges before releasing the SSH master when reachable. */
+  /** Request remote managed cleanup before ending the SSH exec session. */
   dispose(): Promise<void> {
     this.disposal ??= this.disposeOnce()
     return this.disposal
@@ -263,22 +215,11 @@ export class SshConnection extends Service {
       if (this.failure === undefined) await this.rpc?.request('close', {}, z.null(), AbortSignal.timeout(this.config.requestTimeoutMs))
     } finally {
       this.rpc?.close()
-      // TLS wrappers release their reads before their underlying sockets close.
-      const socketClosures = [...this.sockets].reverse().map(socket => new Promise<void>((resolve) => {
-        if (socket.closed) resolve()
-        else { socket.once('close', () => { resolve() }); socket.destroy() }
-      }))
       this.child?.kill('SIGTERM')
       const force = setTimeout(() => { this.child?.kill('SIGKILL') }, this.config.requestTimeoutMs)
       try { await this.childClosed } finally { clearTimeout(force) }
-      await Promise.all(socketClosures)
-      while (this.operations.size > 0) await Promise.allSettled([...this.operations])
-      if (this.directory !== undefined) await rm(this.directory, { recursive: true, force: true })
     }
   }
-
-  // Hemi fork: interactive authentication owns a shared master; helper groups only borrow its endpoint-bound socket.
-  private controlPath(): string { return this.config.authenticatedControlPath ?? join(this.directory as string, 'master') }
 
   private identityArguments(): string[] {
     // Hemi fork: saved login fields remain argv values, never shell syntax or rewritten SSH configuration.
@@ -294,49 +235,16 @@ export class SshConnection extends Service {
     if (this.failure !== undefined) throw this.failure
   }
 
-  private track<T>(operation: Promise<T>): Promise<T> {
-    this.operations.add(operation)
-    void operation.finally(() => { this.operations.delete(operation) }).catch(() => {})
-    return operation
-  }
-
-  private async controlCommand(args: string[], signal?: AbortSignal, cleanup = false): Promise<void> {
-    const signals = [AbortSignal.timeout(this.config.requestTimeoutMs)]
-    if (!cleanup) signals.push(this.lifetime.signal)
-    if (signal !== undefined) signals.push(signal)
-    const combined = AbortSignal.any(signals)
-    combined.throwIfAborted()
-    const result = Promise.withResolvers<undefined>()
-    const command = execFile('ssh', ['-S', this.controlPath(), ...this.identityArguments(), ...args, this.config.host], {
-      signal: combined, maxBuffer: 64 * 1024,
-    }, (error) => { if (error === null) result.resolve(undefined); else result.reject(error) })
-    const closed = new Promise<void>((resolve) => { command.once('close', () => { resolve() }) })
-    let force: NodeJS.Timeout | undefined
-    const escalate = (): void => {
-      force = setTimeout(() => { command.kill('SIGKILL') }, this.config.requestTimeoutMs)
-      force.unref()
-    }
-    combined.addEventListener('abort', escalate, { once: true })
-    try { await result.promise }
-    finally {
-      await closed
-      combined.removeEventListener('abort', escalate)
-      if (force !== undefined) clearTimeout(force)
-    }
-  }
-
   private fail(error: Error): void {
     if (this.failure !== undefined) return
     this.failure = error
     this.lifetime.abort(error)
     if (this.heartbeat !== undefined) clearInterval(this.heartbeat)
     this.rpc?.close(error)
-    for (const socket of [...this.sockets].reverse()) socket.destroy(error)
     this.child?.kill('SIGTERM')
   }
 
   private async start(): Promise<Hello> {
-    this.directory = await mkdtemp('/tmp/dsh-ssh-')
     if (this.closed) throw new Error('SSH connection closed before startup')
     const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
     const launch = this.config.launch
@@ -355,9 +263,12 @@ export class SshConnection extends Service {
       /* v8 ignore next -- Config parsing admits only these two launch kinds. */
       default: return assertNever(launch)
     }
+    // Hemi fork: a borrowed master must already authenticate this endpoint. Refuse a replacement connection.
+    const master = this.config.authenticatedControlPath
     const child = spawn('ssh', [
-      '-T', ...this.config.authenticatedControlPath === undefined ? ['-M'] : ['-o', 'ControlMaster=no', '-o', 'ProxyCommand=false'],
-      '-S', this.controlPath(), '-o', 'ControlPersist=no', '-o', 'BatchMode=yes',
+      '-T', '-o', 'ControlMaster=no', '-S', master ?? 'none',
+      ...master === undefined ? [] : ['-o', 'ProxyCommand=false'],
+      '-o', 'ControlPersist=no', '-o', 'BatchMode=yes',
       '-o', 'StrictHostKeyChecking=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3', ...this.identityArguments(), this.config.host, command,
     ], { stdio: ['pipe', 'pipe', 'pipe'] })

@@ -1,22 +1,16 @@
 /** Authenticated transport faults and competing native-range finalization. */
 import { once } from 'node:events'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
-import { createConnection, type Socket } from 'node:net'
-import { PassThrough } from 'node:stream'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { PassThrough, type Duplex } from 'node:stream'
 import { setImmediate } from 'node:timers/promises'
-import { createServer, type Server, type TLSSocket } from 'node:tls'
 import { Context } from '@deepseek-ai/cordis'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import { LocalSubprocessRuntime } from '@deepseek-ai/dsh-subprocess-local'
 import type { SubprocessHandle, SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { RemoteProcesses } from '../src/helper-processes.ts'
-import { authenticateStream } from '../src/stream-security.ts'
-
-vi.mock('node:tls', async (original) => {
-  const actual = await original<typeof import('node:tls')>()
-  return { ...actual, createServer: vi.fn(actual.createServer) }
-})
+import type { SshStreamId } from '../src/streams.ts'
+import { createStreamPeers } from './fixtures/helper.ts'
 
 function nativeProcess() {
   const completion = Promise.withResolvers<SubprocessOutcome>()
@@ -39,11 +33,16 @@ function nativeProcess() {
 async function harness(child: ReturnType<typeof nativeProcess>, control: boolean) {
   const root = await mkdtemp('/tmp/dsh-ssh-finalize-')
   const ctx = new Context()
-  const owner = new RemoteProcesses(ctx, root, 1, 5000)
-  const sockets: Socket[] = []
+  const peers = createStreamPeers()
+  const reservations = new Map<SshStreamId, Duplex>()
+  const owner = new RemoteProcesses(ctx, () => {
+    const reservation = peers.helper.reserveStream()
+    reservations.set(reservation.id, reservation.stream)
+    return reservation
+  }, 1, 5000)
   onTestFinished(async () => {
     child.finish()
-    for (const socket of [...sockets].reverse()) socket.destroy()
+    peers.close()
     try { await owner.close() }
     finally {
       await ctx.fiber.dispose()
@@ -58,31 +57,18 @@ async function harness(child: ReturnType<typeof nativeProcess>, control: boolean
     argv: ['fixture-native-process'], cwd: root, graceMs: 100,
     stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', ...(control ? { control: 'pipe' } : {}) },
   })
-  const serving: Record<string, TLSSocket> = {}
-  for (const [name, endpoint] of Object.entries(prepared.streams)) {
-    let server: Server | undefined
-    for (const result of vi.mocked(createServer).mock.results) {
-      if (result.type === 'return' && result.value.address() === endpoint.path) { server = result.value; break }
-    }
-    if (server === undefined) throw new Error('Fixture endpoint listener was not created')
-    const listener = server
-    const authenticated = new Promise<TLSSocket>((resolve) => { listener.once('secureConnection', resolve) })
-    const raw = createConnection({ path: endpoint.path, allowHalfOpen: true })
-    sockets.push(raw)
-    raw.on('error', () => {})
-    await once(raw, 'connect')
-    const socket = await authenticateStream(raw, endpoint.capability, 5000)
-    sockets.push(socket)
-    socket.on('error', () => {})
-    serving[name] = await authenticated
-    if (name !== 'control') { socket.end(); socket.resume() }
+  const serving: Record<string, Duplex> = {}
+  for (const [name, id] of Object.entries(prepared.streams)) {
+    serving[name] = reservations.get(id)!
+    const stream = await peers.client.openStream(id)
+    if (name !== 'control') { stream.end(); stream.resume() }
   }
   await owner.start(prepared.id)
-  return { root, owner, id: prepared.id, serving }
+  return { owner, id: prepared.id, serving }
 }
 
 describe.skipIf(process.platform === 'win32')('SSH helper finalization ownership', () => {
-  it('destroys the native control endpoint when its authenticated TLS transport fails', async () => {
+  it('destroys the native control endpoint when its logical SSH stream fails', async () => {
     const child = nativeProcess()
     const test = await harness(child, true)
     const control = test.serving.control!
@@ -116,11 +102,11 @@ describe.skipIf(process.platform === 'win32')('SSH helper finalization ownership
     await test.owner.close()
     expect(child.terminate).toHaveBeenCalledOnce()
     expect(child.waitForExit).toHaveBeenCalledTimes(2)
-    expect(await readdir(test.root)).toEqual([])
+    expect(Object.values(test.serving).every(stream => stream.closed)).toBe(true)
     releaseObservation.resolve(undefined)
     await setImmediate()
     await expect(test.owner.done(test.id)).rejects.toThrow('Unknown or expired SSH process handle')
-    expect(await readdir(test.root)).toEqual([])
+    expect(Object.values(test.serving).every(stream => stream.closed)).toBe(true)
   })
 
   it('leaves completion owned by a release that is still observing the native range', async () => {

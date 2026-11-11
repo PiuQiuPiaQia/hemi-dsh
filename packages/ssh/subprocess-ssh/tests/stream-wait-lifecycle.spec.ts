@@ -42,8 +42,8 @@ async function setup(options: { pause?: Stage; failStart?: Error; failWait?: Err
       if (method === 'process.prepare') {
         await stage('prepare', signal)
         value = { id, streams: {
-          stdout: { path: '/tmp/stdout', capability: 'a'.repeat(64) },
-          stderr: { path: '/tmp/stderr', capability: 'b'.repeat(64) },
+          stdout: '00000000-0000-4000-8000-000000000001',
+          stderr: '00000000-0000-4000-8000-000000000002',
         } }
       } else if (method === 'process.start') {
         await stage('start', signal)
@@ -62,12 +62,12 @@ async function setup(options: { pause?: Stage; failStart?: Error; failWait?: Err
       } else throw new Error(`Unexpected request ${method}`)
       return schema.parse(value)
     },
-    connectStream: async (endpoint: { path: string }, signal?: AbortSignal) => {
+    connectStream: async (endpoint: string, signal?: AbortSignal) => {
       await stage('connect', signal)
       const [host, remote] = duplexPair({ allowHalfOpen: true })
       host.on('error', () => {})
       remote.on('error', () => {})
-      peers.set(endpoint.path, { host, remote })
+      peers.set(endpoint, { host, remote })
       return host
     },
     dispose: () => Promise.resolve(),
@@ -82,7 +82,7 @@ async function setup(options: { pause?: Stage; failStart?: Error; failWait?: Err
     if (options.failTerminate === undefined) expect(errors).toEqual([])
   })
   const peer = (name: string) => {
-    const entry = peers.get(`/tmp/${name}`)
+    const entry = peers.get(name === 'stdout' ? '00000000-0000-4000-8000-000000000001' : '00000000-0000-4000-8000-000000000002')
     if (entry === undefined) throw new Error('transport was not allocated')
     return entry
   }

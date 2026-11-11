@@ -86,7 +86,7 @@ export async function createOpenSshFixture(options: { env?: Record<string, strin
       'StrictModes no', 'UsePAM no', 'UseDNS no', 'PasswordAuthentication no',
       'KbdInteractiveAuthentication no', 'PermitRootLogin no', 'PubkeyAuthentication yes',
       'PermitUserRC no', 'PermitUserEnvironment no', 'AllowAgentForwarding no',
-      'AllowStreamLocalForwarding yes', 'LogLevel ERROR',
+      'AllowStreamLocalForwarding no', 'AllowTcpForwarding no', 'LogLevel ERROR',
       `SetEnv ${Object.entries(sessionEnv).map(([key, value]) => `${key}=${value}`).join(' ')}`,
     ].join('\n') + '\n', { mode: 0o600 })
     await run('/usr/sbin/sshd', ['-t', '-f', config])

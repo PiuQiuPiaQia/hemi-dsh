@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { FS_ERROR_CODES } from '@deepseek-ai/dsh-fs'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import { SSH_PROTOCOL_VERSION } from './protocol.ts'
+import { sshStreamIdSchema } from './streams.ts'
+
+export type { SshStreamId } from './streams.ts'
 
 /** Identity of one prepared or running process in its owning SSH helper. */
 export type SshProcessId = Branded<'SshProcessId'>
@@ -83,19 +86,15 @@ export const spawnSchema = z.object({
     shellActivity: z.boolean().optional(),
   }).strict().optional(),
 }).strict().refine(value => (value.stdio === undefined) !== (value.terminal === undefined), 'select ordinary or terminal execution')
-/** Connection handshake binds sockets and workspace to one helper process. */
+/** Connection handshake binds the workspace and helper identity to one SSH exec channel. */
 export const helloSchema = z.object({
   protocol: z.literal(SSH_PROTOCOL_VERSION), hash: z.string().regex(/^[0-9a-f]{64}$/),
   kind: z.enum(['node-script', 'executable']), platform: z.enum(['linux', 'darwin']),
-  nodeVersion: z.string(), executable: remotePath, root: remotePath, workspace: remotePath,
+  nodeVersion: z.string(), executable: remotePath, workspace: remotePath,
   bootstrapHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 }).strict()
-/** A prepared process publishes its sockets before target code may execute. */
-export const streamEndpointSchema = z.object({ path: remotePath, capability: z.string().regex(/^[0-9a-f]{64}$/) }).strict()
-/** A stream capability reaches only the authenticated SSH client and its helper. */
-export type SshStreamEndpoint = z.infer<typeof streamEndpointSchema>
-/** Prepared process and its independently authenticated stream endpoints. */
-export const preparedSchema = z.object({ id: processIdSchema, streams: z.partialRecord(z.enum(['stdin', 'stdout', 'stderr', 'control', 'terminal']), streamEndpointSchema) }).strict()
+/** A prepared process and its stream reservations on the same connection. */
+export const preparedSchema = z.object({ id: processIdSchema, streams: z.partialRecord(z.enum(['stdin', 'stdout', 'stderr', 'control', 'terminal']), sshStreamIdSchema) }).strict()
 /** Direct process exit facts. */
 export const outcomeSchema = z.object({ exitCode: z.number().int().nullable(), signal: z.string().nullable() }).strict()
 /** A bounded raw tail positioned in whole-stream byte coordinates. */

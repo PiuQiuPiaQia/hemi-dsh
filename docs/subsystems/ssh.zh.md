@@ -12,11 +12,11 @@
 
 ## 传输与信任
 
-管理 RPC 使用辅助进程的 SSH exec 流。普通 stdin、stdout、stderr、终端输出及可选 fd 7 控制流使用分别认证的转发 Unix 套接字。每条转发流拥有独立 SSH 通道窗口；暂停的程序输出不与控制或管理消息共用窗口。所有通道仍共享连接带宽及传输失败。
+管理 RPC 和子进程流共享 helper 的已认证 SSH exec 通道。每条子进程流拥有独立接收窗口。发送方可以在大小有上限的二进制帧之间发送管理帧。各流共享 SSH 连接带宽及传输故障。
 
 [`dsh-ssh`](../../packages/ssh/ssh/README.zh.md) 使用严格检查主机密钥的非交互 OpenSSH，或通过 `authenticatedControlPath` 借用绑定到端点的已认证主连接。借用方不持久化或终止该主连接；套接字不可用时，也不新建连接。交互登录由所属应用负责；[Hemi SSH 认证](hemi.zh.md#ssh-authentication)单独提供该功能。
 
-已安装产物验证及逐流 TLS 认证属于 `dsh-ssh`。辅助进程使用远端机器上的可信本地提供方执行文件系统与进程请求。SSH 是传输方式；文件效果限制由所选远端沙箱提供方执行。
+已安装产物验证和连接内的流预留由 `dsh-ssh` 负责。helper 使用远端机器上的可信本地提供方执行文件系统与进程请求。所选远端沙箱提供方负责文件效果限制。
 
 ## 进程生命周期与取消
 
@@ -111,13 +111,13 @@ declare class SshConnection extends Service {
      */
   async request<T>(method: string, params: unknown, result: z.ZodType<T>, signal?: AbortSignal, wait: boolean = false): Promise<T>;
   /**
-     * Forward one authenticated stream through an independent SSH channel.
-     * @param endpoint - private coordinates issued by this connection's helper.
-     * @param signal - cancellation of allocation and the resulting socket.
-     * @returns a paused socket; attach a consumer before resuming it.
+     * Attach one process stream inside the authenticated helper channel.
+     * @param id - reservation issued by this connection's helper.
+     * @param signal - cancellation of attachment and stream use.
+     * @returns a paused duplex; attach a consumer before resuming it.
      */
-  async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket>;
-  /** Tear down the helper's remote managed ranges before releasing the SSH master when reachable. */
+  async connectStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex>;
+  /** Request remote managed cleanup before ending the SSH exec session. */
   dispose(): Promise<void>;
 }
 ```
@@ -149,14 +149,14 @@ One non-reconnecting SSH session; loss invalidates all active operations.
 async request<T>(method: string, params: unknown, result: z.ZodType<T>, signal?: AbortSignal, wait: boolean = false): Promise<T>
 
 /**
- * Forward one authenticated stream through an independent SSH channel.
- * @param endpoint - private coordinates issued by this connection's helper.
- * @param signal - cancellation of allocation and the resulting socket.
- * @returns a paused socket; attach a consumer before resuming it.
+ * Attach one process stream inside the authenticated helper channel.
+ * @param id - reservation issued by this connection's helper.
+ * @param signal - cancellation of attachment and stream use.
+ * @returns a paused duplex; attach a consumer before resuming it.
  */
-async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket>
+async connectStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex>
 
-/** Tear down the helper's remote managed ranges before releasing the SSH master when reachable. */
+/** Request remote managed cleanup before ending the SSH exec session. */
 dispose(): Promise<void>
 ```
 

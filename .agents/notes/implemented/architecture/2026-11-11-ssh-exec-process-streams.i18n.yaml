@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-11-ssh-exec-process-streams.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-11-ssh-exec-process-streams.md
+/agent-note-process-streams-inside-the-ssh-exec-channel:
+  en: ad8eed86721d2535
+  zh: 8712550fa302b324
+/agent-note-process-streams-inside-the-ssh-exec-channel/problem:
+  en: 40657f16e2206f37
+  zh: 456c3028f89be65c
+/agent-note-process-streams-inside-the-ssh-exec-channel/decision:
+  en: 36bf4fecde1e8528
+  zh: c4d5b1570e3e4370
+/agent-note-process-streams-inside-the-ssh-exec-channel/alternatives-considered:
+  en: 7d78d182d7bc225a
+  zh: cbe26a84a6ecab68
+/agent-note-process-streams-inside-the-ssh-exec-channel/consequences:
+  en: c89727ad64655439
+  zh: da2ec0534eb0d060

@@ -12,11 +12,11 @@ Filesystem identities, executable lookup, process cwd, sandbox workspace roots a
 
 ## Transport and trust
 
-Administrative RPC uses the helper’s SSH exec streams. Ordinary stdin, stdout, stderr, terminal output and optional fd 7 control traffic use separately authenticated forwarded Unix sockets. Each forwarded stream has its own SSH channel window; paused program output does not share the control or administrative window. All channels still share connection bandwidth and transport failure.
+Administrative RPC and process streams share the helper’s authenticated SSH exec channel. Each process stream has an independent receive window. The sender can interleave administrative frames with bounded binary frames. The streams share SSH connection bandwidth and transport failure.
 
 [`dsh-ssh`](../../packages/ssh/ssh/README.md) uses noninteractive OpenSSH with strict host-key checking, or borrows an endpoint-bound authenticated master through `authenticatedControlPath`. The borrower never persists or terminates that master and never creates fresh transport if its socket is unavailable. Interactive login belongs to the owning application; [Hemi SSH authentication](hemi.md#ssh-authentication) supplies it separately.
 
-Installed artifact verification and per-stream TLS authentication belong to `dsh-ssh`. The helper executes filesystem and process requests with trusted local providers on the remote machine. SSH is a transport; the selected remote sandbox provider enforces file effects.
+Installed artifact verification and connection-scoped stream reservations belong to `dsh-ssh`. The helper executes filesystem and process requests with trusted local providers on the remote machine. The selected remote sandbox provider enforces file effects.
 
 ## Process lifetime and cancellation
 
@@ -111,13 +111,13 @@ declare class SshConnection extends Service {
      */
   async request<T>(method: string, params: unknown, result: z.ZodType<T>, signal?: AbortSignal, wait: boolean = false): Promise<T>;
   /**
-     * Forward one authenticated stream through an independent SSH channel.
-     * @param endpoint - private coordinates issued by this connection's helper.
-     * @param signal - cancellation of allocation and the resulting socket.
-     * @returns a paused socket; attach a consumer before resuming it.
+     * Attach one process stream inside the authenticated helper channel.
+     * @param id - reservation issued by this connection's helper.
+     * @param signal - cancellation of attachment and stream use.
+     * @returns a paused duplex; attach a consumer before resuming it.
      */
-  async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket>;
-  /** Tear down the helper's remote managed ranges before releasing the SSH master when reachable. */
+  async connectStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex>;
+  /** Request remote managed cleanup before ending the SSH exec session. */
   dispose(): Promise<void>;
 }
 ```
@@ -149,14 +149,14 @@ One non-reconnecting SSH session; loss invalidates all active operations.
 async request<T>(method: string, params: unknown, result: z.ZodType<T>, signal?: AbortSignal, wait: boolean = false): Promise<T>
 
 /**
- * Forward one authenticated stream through an independent SSH channel.
- * @param endpoint - private coordinates issued by this connection's helper.
- * @param signal - cancellation of allocation and the resulting socket.
- * @returns a paused socket; attach a consumer before resuming it.
+ * Attach one process stream inside the authenticated helper channel.
+ * @param id - reservation issued by this connection's helper.
+ * @param signal - cancellation of attachment and stream use.
+ * @returns a paused duplex; attach a consumer before resuming it.
  */
-async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket>
+async connectStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex>
 
-/** Tear down the helper's remote managed ranges before releasing the SSH master when reachable. */
+/** Request remote managed cleanup before ending the SSH exec session. */
 dispose(): Promise<void>
 ```
 

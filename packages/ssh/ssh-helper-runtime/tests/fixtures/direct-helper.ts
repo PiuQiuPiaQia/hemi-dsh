@@ -1,13 +1,11 @@
-/** Test-only transport to a real helper executable, retaining authenticated local stream sockets. */
+/** Test-only transport to a real helper executable, using the same framed process streams. */
 import { spawn } from 'node:child_process'
-import { createConnection, type Socket } from 'node:net'
-import { once } from 'node:events'
 import assert from 'node:assert/strict'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { z } from 'zod'
 import { SshRpcPeer, SSH_PROTOCOL_VERSION } from '../../../ssh/src/protocol.ts'
-import { helloSchema, type SshStreamEndpoint } from '../../../ssh/src/schemas.ts'
-import { authenticateStream } from '../../../ssh/src/stream-security.ts'
+import { helloSchema } from '../../../ssh/src/schemas.ts'
+import type { SshStreamId } from '../../../ssh/src/streams.ts'
 
 interface Config { executable: string; helperHash: string; workspace: string; home: string; path: string }
 
@@ -17,7 +15,6 @@ export default class DirectHelper extends Service {
   private readonly rpc: SshRpcPeer
   private readonly child: ReturnType<typeof spawn>
   private readonly exited: Promise<void>
-  private readonly sockets = new Set<Socket>()
   private closing: Promise<void> | undefined
   private diagnostic = ''
   private readonly deadline: NodeJS.Timeout
@@ -59,19 +56,8 @@ export default class DirectHelper extends Service {
     return this.rpc.request(method, params, schema, signal ?? AbortSignal.timeout(30_000))
   }
 
-  async connectStream(endpoint: SshStreamEndpoint): Promise<Socket> {
-    const socket = createConnection({ path: endpoint.path, allowHalfOpen: true })
-    this.own(socket)
-    await once(socket, 'connect')
-    const secure = await authenticateStream(socket, endpoint.capability, 10_000)
-    this.own(secure)
-    return secure
-  }
-
-  private own(socket: Socket): void {
-    this.sockets.add(socket)
-    socket.on('error', () => { socket.destroy() })
-    socket.once('close', () => { this.sockets.delete(socket) })
+  connectStream(id: SshStreamId) {
+    return this.rpc.openStream(id, AbortSignal.timeout(10_000))
   }
 
   dispose(): Promise<void> { this.closing ??= this.close(); return this.closing }
@@ -83,13 +69,8 @@ export default class DirectHelper extends Service {
       this.child.stdin?.end()
     } finally {
       this.rpc.close()
-      const sockets = [...this.sockets].reverse().map(async (socket) => {
-        const closed = socket.closed ? Promise.resolve() : once(socket, 'close').catch(() => {})
-        socket.destroy()
-        await closed
-      })
       this.child.stdin?.destroy()
-      try { await this.exited; await Promise.all(sockets) }
+      try { await this.exited }
       finally { clearTimeout(this.deadline) }
     }
   }

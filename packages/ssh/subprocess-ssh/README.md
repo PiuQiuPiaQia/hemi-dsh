@@ -45,7 +45,7 @@ Terminal shell facts and executable verification come from the remote helper. Lo
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The helper reserves and authenticates all required streams before launch. Stdout, stderr, stdin and fd 7 use separate SSH channels. Collected output publishes a final bounded raw-tail snapshot with whole-stream byte offsets, so network lag cannot change the completed observation. Optional spill files use the local provider’s private retained-output directory on the remote host.
+The helper reserves the required streams on the authenticated SSH connection and requires the client to attach them before launch. Stdout, stderr, stdin and fd 7 each have their own receive window. Collected output publishes a final bounded raw-tail snapshot with whole-stream byte offsets, so network lag cannot change the completed observation. Optional spill files use the local provider’s private retained-output directory on the remote host.
 
 Remote execution delegates to [`subprocess-local`](../../subprocess/subprocess-local/README.md). Native process ownership and platform fallbacks therefore have the same meaning as local execution on that remote OS. SSH carries requests and observations; it does not itself confine the payload.
 
@@ -75,7 +75,7 @@ This provider contributes no request-prefix content. Its consumers own model-vis
 <a id="known-limitations-and-deferred-work"></a>
 
 - Completed spill files survive connection disposal and remain available until external temporary-file cleanup.
-- Callers must consume or close raw output streams. Destroying public stdout or stderr closes its matching transport, including when destruction precedes remote allocation. Independent channels allow control progress when stdout is paused, but do not remove per-stream backpressure or shared-network congestion.
+- Callers must consume or close raw output streams. Destroying public stdout or stderr closes its matching transport, including when destruction precedes remote allocation. Independent receive windows let control traffic advance when stdout is paused. Streams share SSH connection bandwidth.
 - Loss of the SSH connection leaves remote termination unconfirmed from the client; lease cleanup is a remote action, not a successful client acknowledgement.
 
 <a id="dev-note"></a>

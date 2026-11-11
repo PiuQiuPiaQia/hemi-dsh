@@ -1,35 +1,15 @@
 /** SSH startup identity and request lifetimes over the actual administrative protocol. */
 import { EventEmitter, once } from 'node:events'
-import { Duplex, PassThrough } from 'node:stream'
+import { PassThrough } from 'node:stream'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { z } from 'zod'
-import { SshRpcPeer } from '../src/protocol.ts'
+import { SshRpcPeer, SSH_PROTOCOL_VERSION } from '../src/protocol.ts'
 import { SshConnection } from '../src/index.ts'
 import type { Config } from '../src/index.ts'
 
-const transport = vi.hoisted(() => ({ spawn: vi.fn(), exec: vi.fn(), connect: vi.fn(), tls: vi.fn(), directory: vi.fn(), remove: vi.fn() }))
-vi.mock('node:child_process', async original => ({ ...await original<typeof import('node:child_process')>(), spawn: transport.spawn, execFile: transport.exec }))
-vi.mock('node:net', async original => ({ ...await original<typeof import('node:net')>(), createConnection: transport.connect }))
-vi.mock('node:tls', async original => ({ ...await original<typeof import('node:tls')>(), connect: transport.tls }))
-vi.mock('node:fs/promises', () => ({ mkdtemp: transport.directory, rm: transport.remove }))
-
-class Stream extends Duplex {
-  finishDestroy: ((error: Error | null) => void) | undefined
-  holdDestroy = false
-  override _read(): void {}
-  override _write(_bytes: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void { callback() }
-  override _destroy(error: Error | null, callback: (error: Error | null) => void): void {
-    if (this.holdDestroy) this.finishDestroy = callback
-    else callback(error)
-  }
-  releaseDestroy(): void {
-    const callback = this.finishDestroy
-    this.finishDestroy = undefined
-    callback?.(null)
-  }
-  disableRenegotiation(): void {}
-}
+const transport = vi.hoisted(() => ({ spawn: vi.fn() }))
+vi.mock('node:child_process', async original => ({ ...await original<typeof import('node:child_process')>(), spawn: transport.spawn }))
 
 class Child extends EventEmitter {
   readonly stdin = new PassThrough()
@@ -56,23 +36,18 @@ const config: Config = {
   requestTimeoutMs: 1000, maxFrameBytes: 4096, maxPending: 8, leaseMs: 30_000,
 }
 const hello = {
-  protocol: 3, hash: 'a'.repeat(64), platform: 'linux', nodeVersion: 'v24.19.0',
-  kind: 'node-script', executable: '/canonical/node', root: '/tmp/remote-helper', workspace: '/canonical/workspace',
+  protocol: SSH_PROTOCOL_VERSION, hash: 'a'.repeat(64), platform: 'linux', nodeVersion: 'v24.19.0',
+  kind: 'node-script', executable: '/canonical/node', workspace: '/canonical/workspace',
 }
 
 function setup(options: {
   config?: Partial<Config>
   hello?: Record<string, unknown>
   holdHello?: boolean
-  holdConnect?: boolean
-  forwardFailure?: Error
   heartbeatFailure?: Error
-  directoryFailure?: Error
 } = {}) {
   const ctx = new Context()
   const child = new Child()
-  const raw = new Stream()
-  const secure = new Stream()
   const releaseHello = Promise.withResolvers<undefined>()
   const helloEntered = Promise.withResolvers<undefined>()
   const requestEntered = Promise.withResolvers<AbortSignal>()
@@ -91,43 +66,22 @@ function setup(options: {
     if (method === 'heartbeat' || method === 'close') return null
     throw new Error(`unexpected helper request ${method}`)
   })
-  transport.directory.mockResolvedValue('/virtual/ssh-startup')
-  if (options.directoryFailure !== undefined) transport.directory.mockRejectedValueOnce(options.directoryFailure)
-  transport.remove.mockResolvedValue(undefined)
   transport.spawn.mockReturnValue(child)
-  transport.exec.mockImplementation((_file: string, args: string[], _options: unknown, callback: (error: Error | null) => void) => {
-    const command = new Child()
-    queueMicrotask(() => { callback(args.includes('forward') ? options.forwardFailure ?? null : null); command.kill() })
-    return command
-  })
-  transport.connect.mockImplementation(() => {
-    if (!options.holdConnect) queueMicrotask(() => { raw.emit('connect') })
-    return raw
-  })
-  transport.tls.mockImplementation(() => {
-    raw.on('error', (error) => { secure.destroy(error) })
-    raw.once('close', () => { secure.destroy() })
-    secure.once('close', () => { raw.destroy() })
-    queueMicrotask(() => { secure.emit('secureConnect') })
-    return secure
-  })
   // oxlint-disable-next-line eslint/prefer-const -- Failed construction still runs the pre-registered fixture cleanup.
   let service: SshConnection | undefined
   onTestFinished(async () => {
     releaseHello.resolve(undefined)
     released.resolve(null)
-    raw.releaseDestroy()
-    secure.releaseDestroy()
     try { await service?.dispose() }
     finally {
-      raw.destroy(); secure.destroy(); helper.close(); child.stderr.destroy(); child.kill()
+      helper.close(); child.stderr.destroy(); child.kill()
       await ctx.fiber.dispose()
       vi.restoreAllMocks()
       for (const mock of Object.values(transport)) mock.mockReset()
     }
   })
   service = new SshConnection(ctx, { ...config, ...options.config })
-  return { service, child, helper, raw, secure, calls, requestEntered: requestEntered.promise,
+  return { service, child, helper, calls, requestEntered: requestEntered.promise,
     helloEntered: helloEntered.promise, releaseHello: () => { releaseHello.resolve(undefined) }, release: () => { released.resolve(null) } }
 }
 
@@ -145,7 +99,7 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
   })
 
   it.each(['server-alias', 'example.test', '127.0.0.1', '2001:db8::1', '[::1]'])(
-    'uses explicit login fields as argv values for the master and every control channel: %s', async (host) => {
+    'uses explicit login fields as argv values for the helper: %s', async (host) => {
       const identityFile = "/keys/private' key"
       const test = setup({ config: { host, username: 'ops@company', port: 2200, identityFile } })
       await test.service.ready
@@ -153,18 +107,11 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
       expect(argv.slice(-8, -2)).toEqual(['-l', 'ops@company', '-p', '2200', '-i', identityFile])
       expect(argv.at(-2)).toBe(host)
       expect(argv.at(-1)).not.toContain(identityFile)
-      const stream = await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
-      const rawClosed = once(test.raw, 'close')
+      const stream = await test.service.connectStream(test.helper.reserveStream().id)
+      expect(stream.readableFlowing).toBe(false)
       stream.destroy()
-      await rawClosed
       await test.service.dispose()
-      const controls = transport.exec.mock.calls.map(call => call[1] as string[])
-      expect(controls.some(args => args.includes('forward'))).toBe(true)
-      expect(controls.some(args => args.includes('cancel'))).toBe(true)
-      for (const args of controls) {
-        expect(args.slice(2, 8)).toEqual(['-l', 'ops@company', '-p', '2200', '-i', identityFile])
-        expect(args.at(-1)).toBe(host)
-      }
+      expect(transport.spawn).toHaveBeenCalledTimes(1)
     },
   )
 
@@ -201,7 +148,7 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     expect(argv).toContain('StrictHostKeyChecking=yes')
     expect(argv).toContain('ForwardAgent=no')
     expect(argv.at(-1)).toBe("'/remote/node' '--disable-sigusr1' '/remote/helper'\\''s file.js'")
-    expect(test.calls[0]?.params).toEqual({ protocol: 3, workspace: '/remote/workspace', leaseMs: 30_000, bootstrapPath: '/remote/process.js' })
+    expect(test.calls[0]?.params).toEqual({ protocol: SSH_PROTOCOL_VERSION, workspace: '/remote/workspace', leaseMs: 30_000, bootstrapPath: '/remote/process.js' })
   })
 
   it('permits filesystem-only deployments and refuses an unconfigured PTC bootstrap getter', async () => {
@@ -220,7 +167,7 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     expect(test.service.ptcLaunch).toEqual({ kind: 'embedded', executable: '/canonical/dsh-ssh-helper' })
     const argv = transport.spawn.mock.calls[0]?.[1] as string[]
     expect(argv.at(-1)).toBe("NODE_OPTIONS='--disable-sigusr1' '/remote/helper with spaces'")
-    expect(test.calls[0]?.params).toEqual({ protocol: 3, workspace: '/remote/workspace', leaseMs: 30_000 })
+    expect(test.calls[0]?.params).toEqual({ protocol: SSH_PROTOCOL_VERSION, workspace: '/remote/workspace', leaseMs: 30_000 })
   })
 
   it.each([
@@ -233,15 +180,6 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     await expect(test.service.ready).rejects.toThrow(error)
     expect(() => test.service.ptcLaunch).toThrow('not ready')
     await expect(test.service.request('echo', {}, z.unknown())).rejects.toThrow()
-  })
-
-  it('joins disposal requested before directory allocation publishes a child', async () => {
-    const test = setup()
-    const rejected = expect(test.service.ready).rejects.toThrow('closed before startup')
-    const disposal = test.service.dispose()
-    await Promise.all([rejected, disposal])
-    expect(transport.spawn).not.toHaveBeenCalled()
-    expect(transport.remove).toHaveBeenCalledWith('/virtual/ssh-startup', { recursive: true, force: true })
   })
 
   it('preserves the first SSH process error and closes later requests', async () => {
@@ -274,51 +212,6 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     } finally { timeout.mockRestore() }
   })
 
-  it('returns authenticated paused streams and rejects paths outside the helper root', async () => {
-    const test = setup()
-    await test.service.ready
-    for (const path of ['/tmp/other/control', '/tmp/remote-helper/control:extra', '/tmp/remote-helper/control\n']) {
-      await expect(test.service.connectStream({ path, capability: 'b'.repeat(64) })).rejects.toThrow('invalid stream path')
-    }
-    expect(transport.exec).not.toHaveBeenCalled()
-    const socket = await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
-    expect(socket).toBe(test.secure)
-    expect(socket.readableFlowing).toBe(false)
-    socket.destroy(new Error('data channel closed'))
-    await expect.poll(() => transport.exec.mock.calls.length).toBe(2)
-    expect(transport.exec.mock.calls[1]?.[1]).toContain('cancel')
-  })
-
-  it('cancels a failed forwarding reservation before surfacing its error', async () => {
-    const failure = new Error('forwarding refused')
-    const test = setup({ forwardFailure: failure })
-    await test.service.ready
-    await expect(test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })).rejects.toBe(failure)
-    expect(transport.exec.mock.calls[1]?.[1]).toContain('cancel')
-    expect(transport.connect).not.toHaveBeenCalled()
-  })
-
-  it('keeps caller cancellation attached while a forwarded socket is connecting', async () => {
-    const test = setup({ holdConnect: true })
-    await test.service.ready
-    const controller = new AbortController()
-    const pending = test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) }, controller.signal)
-    const rejected = expect(pending).rejects.toThrow('caller stopped')
-    await expect.poll(() => transport.connect.mock.calls.length).toBe(1)
-    controller.abort('caller stopped')
-    await rejected
-    expect(test.raw.destroyed).toBe(true)
-  })
-
-  it('reports directory creation failure without starting a helper process', async () => {
-    const failure = new Error('temporary directory unavailable')
-    const test = setup({ directoryFailure: failure })
-    await expect(test.service.ready).rejects.toBe(failure)
-    await test.service.dispose()
-    expect(transport.spawn).not.toHaveBeenCalled()
-    expect(transport.remove).not.toHaveBeenCalled()
-  })
-
   it('invalidates requests when a heartbeat reports a failed helper', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     const test = setup({ heartbeatFailure: new Error('helper unhealthy') })
@@ -349,45 +242,6 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     }
   })
 
-  it('joins authenticated sockets whose native close callbacks are delayed', async () => {
-    const test = setup()
-    await test.service.ready
-    await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
-    test.raw.holdDestroy = true
-    test.secure.holdDestroy = true
-    let disposed = false
-    const disposal = test.service.dispose().then(() => { disposed = true })
-    await test.child.terminating.promise
-    expect(disposed).toBe(false)
-    expect(test.raw.finishDestroy).toBeTypeOf('function')
-    expect(test.secure.finishDestroy).toBeTypeOf('function')
-    test.secure.releaseDestroy()
-    test.raw.releaseDestroy()
-    await disposal
-    expect(test.raw.closed).toBe(true)
-    expect(test.secure.closed).toBe(true)
-  })
-
-  it('closes authenticated sockets when the SSH process fails', async () => {
-    const test = setup()
-    await test.service.ready
-    await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
-    test.child.emit('error', new Error('transport lost'))
-    await test.service.dispose()
-    expect(test.raw.destroyed).toBe(true)
-    expect(test.secure.destroyed).toBe(true)
-  })
-
-  it('contains a failed local forwarding-path removal and still disposes the connection', async () => {
-    const test = setup()
-    await test.service.ready
-    const socket = await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
-    transport.remove.mockRejectedValueOnce(new Error('forwarding path already removed'))
-    socket.destroy()
-    await expect.poll(() => transport.remove.mock.calls.length).toBe(1)
-    await test.service.dispose()
-    expect(transport.remove).toHaveBeenLastCalledWith('/virtual/ssh-startup', { recursive: true, force: true })
-  })
   it('borrows an authenticated master without enabling fresh transport or terminating its owner', async () => {
     const test = setup({ config: { authenticatedControlPath: '/managed/authentication-master' } })
     await test.service.ready
@@ -396,32 +250,9 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     expect(argv).toContain('/managed/authentication-master')
     expect(argv).toContain('ControlMaster=no')
     expect(argv).toContain('ProxyCommand=false')
-    await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
+    const stream = await test.service.connectStream(test.helper.reserveStream().id)
     await test.service.dispose()
-    const commands = transport.exec.mock.calls.map(call => call[1] as string[])
-    expect(commands.some(args => args.includes('cancel'))).toBe(true)
-    expect(commands.every(args => !args.includes('exit'))).toBe(true)
+    expect(stream.destroyed).toBe(true)
+    expect(transport.spawn).toHaveBeenCalledTimes(1)
   })
-
-  it('releases a shared-master forwarding reservation when cancellation arrives before its command closes', async () => {
-    const test = setup({ config: { authenticatedControlPath: '/managed/authentication-master' } })
-    await test.service.ready
-    const entered = Promise.withResolvers<undefined>()
-    const command = new Child()
-    transport.exec.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: (error: Error | null) => void) => {
-      queueMicrotask(() => { callback(null); entered.resolve(undefined) })
-      return command
-    })
-    const caller = new AbortController()
-    const pending = test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) }, caller.signal)
-    const rejected = expect(pending).rejects.toThrow('cancelled after allocation')
-    await entered.promise
-    caller.abort(new Error('cancelled after allocation'))
-    command.kill()
-    await rejected
-    expect(transport.connect).not.toHaveBeenCalled()
-    expect(transport.exec.mock.calls.some(call => (call[1] as string[]).includes('cancel'))).toBe(true)
-    await test.service.dispose()
-  })
-
 })

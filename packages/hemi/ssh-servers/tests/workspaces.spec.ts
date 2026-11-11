@@ -21,7 +21,7 @@ import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { SshFileSystem } from '@deepseek-ai/dsh-fs-ssh'
 import { SshSubprocessRuntime } from '@deepseek-ai/dsh-subprocess-ssh'
 import { SandboxBashExecutor } from '@deepseek-ai/dsh-bash-sandbox'
-import { SshRpcPeer } from '@deepseek-ai/dsh-ssh/protocol'
+import { SshRpcPeer, SSH_PROTOCOL_VERSION } from '@deepseek-ai/dsh-ssh/protocol'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ExecutionTargetId } from '@deepseek-ai/dsh-session'
@@ -109,10 +109,10 @@ async function setup(options: {
     if (remote.includes('command -v node')) { callback(null, options.probe?.() ?? 'H/remote-home\nN/usr/bin/node\nVv24.19.0\nC/remote-home/.cache/hemi-ssh'); return }
     callback(Object.assign(new Error('ssh: connection refused'), { code: 255 }), '')
   })
-  transport.spawn.mockImplementation((_command: string, args: string[]) => {
+  transport.spawn.mockImplementation((_command: string, args: string[], spawnOptions: { stdio: string[] }) => {
     const child = new Child()
     children.push(child)
-    if (!args.includes('-M')) {
+    if (spawnOptions.stdio[1] === 'ignore') {
       // A one-shot remote shell command: consume the streamed bytes and succeed.
       const command = args.at(-1) ?? ''
       shellCommands.push(command)
@@ -133,8 +133,8 @@ async function setup(options: {
           await options.hello?.()
           const kind = (args.at(-1) ?? '').startsWith('NODE_OPTIONS') ? 'executable' : 'node-script'
           return {
-            protocol: 3, hash: options.helperHash?.() ?? deployment.helperHash, kind, platform: 'linux', nodeVersion: 'v24.19.0',
-            executable: deployment.helper, root: '/tmp/remote-helper', workspace: hello.workspace,
+            protocol: SSH_PROTOCOL_VERSION, hash: options.helperHash?.() ?? deployment.helperHash, kind, platform: 'linux', nodeVersion: 'v24.19.0',
+            executable: deployment.helper, workspace: hello.workspace,
             ...(hello.bootstrapPath === undefined ? {} : { bootstrapHash: options.bootstrapHash?.() ?? 'b'.repeat(64) }),
           }
         }
@@ -799,6 +799,38 @@ it('prepareServerFolder connects the runtime automatically and opens the chosen 
   expect(selected).toMatchObject({ path: '/remote/project', title: 'project' })
   const lease = await f.ctx.sessions.acquireExecution(selected.executionTarget, signal)
   try { expect(lease.bind(f.ctx).get('fs')).toBeInstanceOf(SshFileSystem) } finally { await lease.close() }
+})
+
+it('refreshes a managed helper when resuming an existing target with older bundled artifacts', async () => {
+  const artifacts = await artifactFixture()
+  onTestFinished(async () => { vi.unstubAllEnvs(); await rm(artifacts.dir, { recursive: true, force: true }) })
+  vi.stubEnv('DSH_HEMI_SSH_HELPER_DIR', artifacts.dir)
+  const oldDirectory = '/remote-home/.cache/hemi-ssh/helper-0.2.2-rc.1-0123456789abcdef/runtime/helper'
+  const oldDeployment: SshRuntimeDeployment = {
+    helper: `${oldDirectory}/helper.js`, helperHash: 'a'.repeat(64),
+    launch: { kind: 'node-script', node: '/usr/bin/node', bootstrapPath: `${oldDirectory}/ptc-process.js`, bootstrapHash: 'b'.repeat(64) },
+  }
+  let upgraded = false
+  const f = await setup({
+    helperHash: () => upgraded ? artifacts.helperHash : oldDeployment.helperHash,
+    bootstrapHash: () => upgraded ? artifacts.bootstrapHash : 'b'.repeat(64),
+  })
+  await f.ctx.hemiSshWorkspaces.configureRuntime(f.server.id, undefined, oldDeployment, signal)
+  const selected = await f.ctx.hemiSshWorkspaces.prepareFolder(f.server.id, '/remote/project', f.currentRevision(), signal)
+  upgraded = true
+
+  const [first, second] = await Promise.all([
+    f.ctx.sessions.acquireExecution(selected.executionTarget, signal),
+    f.ctx.sessions.acquireExecution(selected.executionTarget, signal),
+  ])
+  try {
+    expect(first.realm).toBe(second.realm)
+    expect(first.bind(f.ctx).get('ssh')?.executionTarget).toEqual(selected.executionTarget)
+    expect(first.bind(f.ctx).get('ssh')?.workspaceRoot).toBe('/remote/project')
+    expect(f.shellCommands.filter(command => command.includes('umask 077'))).toHaveLength(3)
+    expect(f.launchCommands.at(-1)).toContain(`helper-${artifacts.version}-${artifacts.contentId}/runtime/helper/helper.js`)
+    expect(f.ctx.hemiSshWorkspaces.getRuntime(f.server.id, signal)?.deployment).toEqual(oldDeployment)
+  } finally { await Promise.all([first.close(), second.close()]) }
 })
 
 it('prepareFolder refuses a workspace containing the deployed runtime', async () => {

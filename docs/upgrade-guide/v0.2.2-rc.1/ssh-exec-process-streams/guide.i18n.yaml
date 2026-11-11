@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/ssh-exec-process-streams/guide.md
+/:
+  en: cd3d7f668c5e3311
+  zh: fa39407b6c82c41e
+/upgrade-ssh-clients-and-helpers-to-protocol-4:
+  en: 26e2f12c9de8ab40
+  zh: b4f457fc7c7d7dcc
+/upgrade-ssh-clients-and-helpers-to-protocol-4/change:
+  en: 5f0fba45876b53c3
+  zh: 52efd3502c87807d
+/upgrade-ssh-clients-and-helpers-to-protocol-4/migration:
+  en: c47a60bfd406fe84
+  zh: aebc923ee6e60fbe

@@ -31,7 +31,7 @@ The helper validates additional writable roots on the wire; its enforcing provid
 
 ### Deployment prerequisites
 
-Both endpoints require Linux or macOS. The local `ssh` command must support connection multiplexing and Unix-socket forwarding; the server must permit that forwarding. Configure the alias, credentials and known-host entry before startup, or supply an endpoint-bound authenticated master through `authenticatedControlPath`: the service enables `BatchMode`, requires strict host-key checking, disables agent forwarding and adds no interactive authentication flow.
+Both endpoints require Linux or macOS. The server must allow a non-PTY SSH exec session. A borrowed OpenSSH master also requires local connection multiplexing. Configure the alias, credentials and known-host entry before startup, or supply an endpoint-bound authenticated master through `authenticatedControlPath`: the service enables `BatchMode`, requires strict host-key checking, disables agent forwarding and adds no interactive authentication flow.
 
 Install an [SSH helper executable archive](../ssh-helper-runtime/README.md), or the built helper script with its matching Node dependencies. Keep the runtime outside the workspace and writable temporary roots. They must also remain outside a backend’s replaced temporary tree, such as bwrap’s private `/tmp`; the workspace may still be under `/tmp`. Digest verification detects an unexpected installed artifact after helper startup; it does not make writable deployment files safe to execute or authenticate a malicious SSH host.
 
@@ -64,13 +64,11 @@ The helper dispatches `fs.patch`, `fs.delete`, and `fs.move` through its sandbox
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The OpenSSH master carries private administrative RPC. With `authenticatedControlPath`, the external owner retains the master; this service releases its helper session and forwarding resources without closing that master. Each program stream uses a separate forwarded Unix socket and an independent SSH channel. Program stdout cannot forge administrative replies or occupy the control stream’s channel window. SSH transport congestion still affects the shared connection.
+The helper’s authenticated SSH exec channel carries private administrative RPC and framed process streams. The helper reserves each stream on that connection before accepting launch. Program bytes stay inside binary frames, and each stream has an independent receive window. Administrative frames can queue between bounded process data frames. With `authenticatedControlPath`, the external owner retains the master.
 
-Each stream reservation has a random 256-bit TLS pre-shared key carried only by administrative RPC. TLS authenticates both endpoints and protects every stream byte; the key is never sent as a stream preface. Socket directories are private (`0700`) and sockets use `0600`. Replacing a writable socket path cannot impersonate an endpoint or reveal the stream key; an attacker can still interrupt service or relay opaque TLS records.
+Connection disposal requests remote cleanup and joins the SSH exec child. Transport loss rejects pending operations, aborts `ctx.ssh.signal` and invalidates the connection. The helper starts managed cleanup on SSH EOF, termination signals or heartbeat expiry. A disconnected client cannot confirm the remote outcome; operations are never reconnected or replayed automatically.
 
-Connection disposal joins forwarding and cancellation subprocesses and partially established streams before removing local resources. Transport loss rejects pending operations, aborts `ctx.ssh.signal` and invalidates the connection. The helper starts managed cleanup on SSH EOF, termination signals or heartbeat expiry. A disconnected client cannot confirm the remote outcome; operations are never reconnected or replayed automatically.
-
-Failed startup and process results release their reservations after native quiescence; the bounded completion cache preserves the original rejection for later result reads. Helper shutdown also joins endpoint and directory cleanup already in progress.
+Failed startup and process results release their reservations after native quiescence; the bounded completion cache preserves the original rejection for later result reads. Helper shutdown also joins stream cleanup already in progress.
 
 For terminals opting into shell activity observation, root exit retains the reservation and its remaining work. Activity RPC continues to reach the provider; explicit termination awaits quiescence before releasing endpoints and recording the completed result. Helper connection disposal and lease expiry retain their existing termination authority.
 
@@ -103,7 +101,7 @@ This provider contributes no request-prefix content. Its consumers own model-vis
 
 - No Windows endpoint, automatic provisioning, reconnect or replay is supplied.
 - Remote preview reads require Session-scoped [workspaceFiles](../../api/workspace-files/README.md). Local-only [file suggestions](../../context/file-reference-local/README.md) and native Host application handoffs do not enumerate or open remote paths.
-- TLS stream keys do not protect against remote OS process-memory inspection or debugging. File-effect policy retains the selected sandbox backend’s limits.
+- The remote OS and helper process are trusted. File-effect policy retains the selected sandbox backend’s limits.
 
 <a id="dev-note"></a>
 ### Dev Note

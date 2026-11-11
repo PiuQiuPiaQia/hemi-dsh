@@ -18,8 +18,8 @@ import { SshExecutionPool } from './execution-pool.ts'
 import { containsPath, listRemoteDirectories, resolveRemoteHome, type SshEndpointArgs } from './browse.ts'
 import { rememberFailureReasonOf } from './remembered-passwords.ts'
 import { provisionRemoteNode } from './node-provision.ts'
-import { loadHelperArtifacts } from './runtime-artifacts.ts'
-import { prepareRemoteRuntime } from './runtime-bootstrap.ts'
+import { loadHelperArtifacts, type SshHelperArtifacts } from './runtime-artifacts.ts'
+import { isCurrentManagedHelper, managedHelperDirectory, prepareRemoteRuntime } from './runtime-bootstrap.ts'
 import { serverInputSchema } from './spec.ts'
 import { runtimeDeploymentSchema, sshWorkspacesSpec } from './workspace-spec.ts'
 import type { SshExecutionTargetRecord } from './workspace-spec.ts'
@@ -64,6 +64,8 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
   private readonly lifecycle = new AbortController()
   private readonly operations = new Set<Promise<unknown>>()
   private readonly connecting = new Map<SshServerId, Promise<SshSavedRuntime>>()
+  private readonly managedDeployments = new Map<string, Promise<SshRuntimeDeployment>>()
+  private bundledArtifacts: Promise<SshHelperArtifacts> | undefined
   private writes: Promise<void> = Promise.resolve()
   private unregister: (() => Promise<void>) | undefined
   private readonly runtime: { owner: Context; pool: SshExecutionPool }
@@ -84,7 +86,7 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
     ctx.effect(() => async () => {
       this.lifecycle.abort(new Error('SSH workspace service is closing'))
       const results = await Promise.allSettled([
-        this.unregister?.(), this.writes, ...this.operations,
+        this.unregister?.(), this.writes, ...this.operations, ...this.managedDeployments.values(),
       ])
       const failures: unknown[] = []
       for (const result of results) if (result.status === 'rejected') failures.push(result.reason)
@@ -117,7 +119,7 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
       acquire: (id, signal) => {
         const target = this.directory().global.get().targets.find(row => row.id === id)
         if (target === undefined) throw new RemoteError('hemi-ssh/target-unavailable', 'Restore the saved SSH execution target', { targetId: id })
-        return this.runtime.pool.acquire(target, signal)
+        return this.run(signal, control => this.acquireTarget(target, control))
       },
     })
   }
@@ -396,11 +398,7 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
         return saved
       }
     }
-    const prepared = await prepareRemoteRuntime(endpoint, await loadHelperArtifacts(), signal, cacheDir =>
-      provisionRemoteNode(endpoint, cacheDir, signal, {
-        timeoutMs: this.provisionTimeoutMs,
-        onWarn: (message) => { this.runtime.owner.logger.warn(message) },
-      }))
+    const prepared = await this.prepareDeployment(endpoint, await this.artifacts(), signal)
     await this.verifyDeployment(server, prepared.deployment, prepared.probe.home, signal)
       .catch((error: unknown) => this.connectionFailure(error, server.id, 'connect', signal))
     return this.enqueue(async () => {
@@ -420,6 +418,52 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
       })
       return savedRuntime
     })
+  }
+
+  private artifacts(): Promise<SshHelperArtifacts> {
+    return this.bundledArtifacts ??= loadHelperArtifacts().catch((error: unknown) => {
+      this.bundledArtifacts = undefined
+      throw error
+    })
+  }
+
+  private prepareDeployment(endpoint: SshEndpointArgs, artifacts: SshHelperArtifacts, signal: AbortSignal) {
+    return prepareRemoteRuntime(endpoint, artifacts, signal, cacheDir =>
+      provisionRemoteNode(endpoint, cacheDir, signal, {
+        timeoutMs: this.provisionTimeoutMs,
+        onWarn: (message) => { this.runtime.owner.logger.warn(message) },
+      }))
+  }
+
+  private async acquireTarget(target: SshExecutionTargetRecord, signal: AbortSignal): Promise<AgentExecutionLease> {
+    const directory = managedHelperDirectory(target.deployment)
+    if (directory === undefined) return this.runtime.pool.acquire(target, signal)
+    const artifacts = await this.join(this.artifacts(), signal)
+    if (isCurrentManagedHelper(directory, artifacts)) return this.runtime.pool.acquire(target, signal)
+
+    const { server, path } = target
+    const key = JSON.stringify([server.id, server.revision])
+    let upgrade = this.managedDeployments.get(key)
+    if (upgrade === undefined) {
+      const current = this.runtime.owner.hemiSshServers.list(signal).find(row => row.id === server.id)
+      const saved = current?.revision === server.revision
+        ? this.directory().global.get().runtimes.find(row => row.serverId === server.id)
+        : undefined
+      const savedDirectory = saved === undefined ? undefined : managedHelperDirectory(saved.deployment)
+      if (saved !== undefined && savedDirectory !== undefined && isCurrentManagedHelper(savedDirectory, artifacts)) {
+        upgrade = Promise.resolve(saved.deployment)
+      } else {
+        const control = this.lifecycle.signal
+        upgrade = this.authenticate(this.endpointOf(server), control)
+          .then(endpoint => this.prepareDeployment(endpoint, artifacts, control))
+          .then(({ deployment }) => deployment)
+          .catch((error: unknown) => { this.managedDeployments.delete(key); throw error })
+      }
+      this.managedDeployments.set(key, upgrade)
+    }
+    const deployment = await this.join(upgrade, signal)
+    this.refuseRuntimeInsideWorkspace(server.id, deployment, path)
+    return this.runtime.pool.acquire({ ...target, deployment }, signal)
   }
 
   /** Refuse a workspace whose directory physically contains the deployed runtime files. */
@@ -455,6 +499,7 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
 
   /** Await an in-flight connection another caller started; this caller's cancellation does not abort it. */
   private async join<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+    signal.throwIfAborted()
     const cancelled = Promise.withResolvers<never>()
     const abort = (): void => { cancelled.reject(signal.reason) }
     signal.addEventListener('abort', abort, { once: true })

@@ -1,14 +1,20 @@
-/** Real helper and authenticated stream endpoints over an in-memory administrative transport. */
+/** Real helper and logical process streams over an in-memory transport. */
 import { PassThrough } from 'node:stream'
-import { createConnection, type Socket } from 'node:net'
-import { once } from 'node:events'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { runSshHelper } from '../../src/helper.ts'
-import { SshRpcPeer } from '../../src/protocol.ts'
-import { helloSchema, type SshStreamEndpoint } from '../../src/schemas.ts'
-import { authenticateStream } from '../../src/stream-security.ts'
+import { SshRpcPeer, SSH_PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { helloSchema } from '../../src/schemas.ts'
+import type { SshStreamId } from '../../src/streams.ts'
+
+export function createStreamPeers(handler?: ConstructorParameters<typeof SshRpcPeer>[4]) {
+  const input = new PassThrough()
+  const output = new PassThrough()
+  const helper = new SshRpcPeer(input, output, 64 * 1024 * 1024, 128, handler)
+  const client = new SshRpcPeer(output, input, 64 * 1024 * 1024, 128)
+  return { helper, client, close: () => { client.close(); helper.close() } }
+}
 
 export async function createHelperHarness(handshake = true, leaseMs = 30_000, kind: 'node-script' | 'executable' = 'node-script') {
   const root = await realpath(await mkdtemp('/tmp/dsh-ssh-rpc-'))
@@ -18,29 +24,17 @@ export async function createHelperHarness(handshake = true, leaseMs = 30_000, ki
   const serving = runSshHelper({ input, output, kind, entryPath: fileURLToPath(new URL('../../src/helper-entry.ts', import.meta.url)), signal: controller.signal })
   void serving.catch(() => {})
   const client = new SshRpcPeer(output, input, 64 * 1024 * 1024, 128)
-  const sockets = new Set<Socket>()
-  const hello = () => client.request('hello', { protocol: 3, workspace: root, leaseMs }, helloSchema)
+  const hello = () => client.request('hello', { protocol: SSH_PROTOCOL_VERSION, workspace: root, leaseMs }, helloSchema)
   let closing: Promise<void> | undefined
   const close = () => {
     closing ??= (async () => {
-      for (const socket of [...sockets].reverse()) socket.destroy()
       client.close()
       controller.abort()
       try { await serving } finally { await rm(root, { recursive: true, force: true }) }
     })()
     return closing
   }
-  const connectStream = async (endpoint: SshStreamEndpoint, signal?: AbortSignal) => {
-    const raw = createConnection({ path: endpoint.path, allowHalfOpen: true, ...(signal === undefined ? {} : { signal }) })
-    sockets.add(raw)
-    raw.once('close', () => { sockets.delete(raw) })
-    await once(raw, 'connect')
-    const secured = await authenticateStream(raw, endpoint.capability, 5000)
-    sockets.add(secured)
-    secured.on('error', () => {})
-    secured.once('close', () => { sockets.delete(secured) })
-    return secured
-  }
+  const connectStream = (id: SshStreamId, signal?: AbortSignal) => client.openStream(id, signal)
   let facts: z.infer<typeof helloSchema> | undefined
   try { if (handshake) facts = await hello() } catch (error) { await close(); throw error }
   const connection = {

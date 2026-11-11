@@ -8,6 +8,13 @@ import { SshRpcPeer } from '../../ssh/src/protocol.ts'
 import { outputSnapshotFrameLimit } from '../../ssh/src/schemas.ts'
 import { SshSubprocessRuntime } from '../src/index.ts'
 
+const streamIds = {
+  stdout: '00000000-0000-4000-8000-000000000001',
+  stderr: '00000000-0000-4000-8000-000000000002',
+  stdin: '00000000-0000-4000-8000-000000000003',
+  control: '00000000-0000-4000-8000-000000000004',
+}
+
 const id = 'fd897b7b-1b7e-4cd0-9b8d-06b354062d91'
 const spec: SubprocessSpawnSpec = {
   argv: ['/usr/bin/node', '-e', ''], cwd: '/workspace', graceMs: 5,
@@ -44,9 +51,9 @@ async function setup(options: { pause?: 'prepare' | 'connect' | 'start'; failPre
         if (options.failPrepare !== undefined) throw options.failPrepare
         preparedSpec = params as SubprocessSpawnSpec
         await waitStage('prepare')
-        const names = ['stdout', 'stderr', ...(preparedSpec.stdio.stdin === 'pipe' ? ['stdin'] : []),
-          ...(preparedSpec.stdio.control === 'pipe' ? ['control'] : [])]
-        value = { id, streams: Object.fromEntries(names.map(name => [name, { path: `/tmp/test-${name}`, capability: 'a'.repeat(64) }])) }
+        const names: Array<keyof typeof streamIds> = ['stdout', 'stderr', ...(preparedSpec.stdio.stdin === 'pipe' ? ['stdin' as const] : []),
+          ...(preparedSpec.stdio.control === 'pipe' ? ['control' as const] : [])]
+        value = { id, streams: Object.fromEntries(names.map(name => [name, streamIds[name]])) }
       } else if (method === 'process.start') {
         started.resolve(undefined)
         await waitStage('start')
@@ -61,10 +68,11 @@ async function setup(options: { pause?: 'prepare' | 'connect' | 'start'; failPre
       else throw new Error(`Unexpected SSH operation ${method}`)
       return schema.parse(value)
     },
-    connectStream: async (endpoint: { path: string }, signal?: AbortSignal): Promise<Duplex> => {
+    connectStream: async (endpoint: string, signal?: AbortSignal): Promise<Duplex> => {
       await waitStage('connect')
       signal?.throwIfAborted()
-      const name = endpoint.path.slice('/tmp/test-'.length)
+      const name = Object.entries(streamIds).find(([, id]) => id === endpoint)?.[0]
+      if (name === undefined) throw new Error('unknown process stream')
       const [host, remote] = duplexPair({ allowHalfOpen: true })
       host.on('error', () => {})
       remote.on('error', () => {})

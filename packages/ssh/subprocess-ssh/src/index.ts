@@ -1,12 +1,11 @@
-/** Remote subprocess and PTY handles with independent SSH streams and helper-owned process lifetimes. */
+/** Remote subprocess and PTY handles with flow-controlled streams and helper-owned process lifetimes. */
 import { Duplex, PassThrough, type Readable, type Writable } from 'node:stream'
-import type { Socket } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import { SubprocessRuntime, SubprocessExecutableNotFoundError } from '@deepseek-ai/dsh-subprocess'
 import type { SubprocessExecutable, SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputMode, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalEnvironment, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { OutputCollector } from '@deepseek-ai/dsh-subprocess-local/output'
 import type { SshConnection } from '@deepseek-ai/dsh-ssh'
-import { doneSchema, foregroundSchema, terminalActivitySchema, outputSnapshotFrameLimit, outputSnapshotSchema, preparedSchema, remotePath, streamEndpointSchema } from '@deepseek-ai/dsh-ssh/schemas'
+import { doneSchema, foregroundSchema, terminalActivitySchema, outputSnapshotFrameLimit, outputSnapshotSchema, preparedSchema, remotePath } from '@deepseek-ai/dsh-ssh/schemas'
 import type { SshProcessId } from '@deepseek-ai/dsh-ssh/schemas'
 import { SshRpcPeer, RemoteOperationError } from '@deepseek-ai/dsh-ssh/protocol'
 import { z } from 'zod'
@@ -34,7 +33,7 @@ class RemoteProcess implements SubprocessHandle {
   private readonly controller = new AbortController()
   private readonly started: Promise<void>
   private id: SshProcessId | undefined
-  private sockets: Socket[] = []
+  private readonly sockets: Duplex[] = []
   private quiescent = false
   private committed = false
   private termination: Promise<void> | undefined
@@ -118,9 +117,11 @@ class RemoteProcess implements SubprocessHandle {
     )
     this.id = prepared.id
     try {
-      const sockets = await Promise.all(Object.entries(prepared.streams).map(async ([name, path]) =>
-        [name, await this.ssh.connectStream(path, this.controller.signal)] as const))
-      this.sockets = sockets.map(([, socket]) => socket)
+      const sockets = await Promise.all(Object.entries(prepared.streams).map(async ([name, streamId]) => {
+        const socket = await this.ssh.connectStream(streamId, this.controller.signal)
+        this.sockets.push(socket)
+        return [name, socket] as const
+      }))
       for (const [name, socket] of sockets) {
         if (name === 'stdout' || name === 'stderr') {
           const mode = this.spec.stdio[name]
@@ -301,10 +302,11 @@ export class SshSubprocessRuntime extends SubprocessRuntime {
       terminal: { rows: spec.rows, cols: spec.cols, terminalType: spec.terminalType, shellActivity: spec.shellActivity },
     }, preparedSchema, signal)
     const id = prepared.id
-    let socket: Socket | undefined
+    let socket: Duplex | undefined
     try {
       signal.throwIfAborted()
-      socket = await ssh.connectStream(streamEndpointSchema.parse(prepared.streams.terminal), signal)
+      if (prepared.streams.terminal === undefined) throw new Error('SSH helper did not reserve terminal output')
+      socket = await ssh.connectStream(prepared.streams.terminal, signal)
       signal.throwIfAborted()
       socket.end()
       const output = new PassThrough()

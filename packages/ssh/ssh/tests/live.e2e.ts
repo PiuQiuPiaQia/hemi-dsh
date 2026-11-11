@@ -64,30 +64,23 @@ async function removeOwned(test: Awaited<ReturnType<typeof setup>>) {
 }
 
 describe.skipIf(!enabled)('POSIX SSH runtime acceptance', () => {
-  it('refuses same-user sandboxed connectors before granting a process stream', async () => {
+  it('refuses to attach another helper connection’s process stream', async () => {
     const test = await setup()
     try {
       const prepared = await test.ctx.ssh.request('process.prepare', {
         argv: [test.hello.executable, '-e', 'process.stdout.write("legitimate-target")'], cwd: test.root, graceMs: 500,
         stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', control: 'pipe' },
       }, preparedSchema)
-      const endpoint = prepared.streams.control!
-      const attack = "let connected=false,secure=false;const s=require('node:tls').connect({path:process.argv[1],ciphers:'PSK-AES256-GCM-SHA384',minVersion:'TLSv1.2',maxVersion:'TLSv1.2',pskCallback:()=>({identity:'dsh-stream',psk:Buffer.alloc(32)}),checkServerIdentity:()=>undefined});s.on('connect',()=>{connected=true});s.on('secureConnect',()=>{secure=true});s.on('error',()=>{});s.on('close',()=>process.stdout.write(JSON.stringify({connected,secure})));"
-      const attacker = test.ctx.subprocess.spawn({
-        argv: (await test.ctx.sandbox.confine([test.hello.executable, '-e', attack, endpoint.path], {
-          mode: 'read-only', workspaceRoot: test.root,
-        })).argv,
-        cwd: test.root, stdio: { stdin: 'ignore', stdout: { maxBytes: 4096 }, stderr: { maxBytes: 4096 } }, graceMs: 500,
-      })
-      const observed = await processResult(attacker)
-      expect(observed.exitCode).toBe(0)
-      expect(JSON.parse(observed.stdout as string)).toEqual({ connected: true, secure: false })
+      const observer = await setup()
+      try {
+        await expect(observer.ctx.ssh.connectStream(prepared.streams.control!)).rejects.toThrow('reset')
+      } finally { await removeOwned(observer) }
       const sockets = await Promise.all(Object.entries(prepared.streams).map(async ([name, value]) =>
         [name, await test.ctx.ssh.connectStream(value)] as const))
       const output: Buffer[] = []
       for (const [name, socket] of sockets) {
         socket.end()
-        socket.on('data', (chunk) => { if (name === 'stdout') output.push(Buffer.from(chunk)) })
+        socket.on('data', (chunk: Buffer) => { if (name === 'stdout') output.push(chunk) })
         socket.resume()
       }
       await test.ctx.ssh.request('process.start', { id: prepared.id }, z.object({}).strict())

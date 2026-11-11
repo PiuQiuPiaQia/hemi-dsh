@@ -23,7 +23,7 @@ describe('SSH terminal allocation lifecycle', () => {
         calls.push(method)
         if (method === 'process.prepare') {
           await gate('prepare')
-          return { id, streams: { terminal: { path: '/tmp/terminal', capability: '0'.repeat(64) } } }
+          return { id, streams: { terminal: '00000000-0000-4000-8000-000000000005' } }
         }
         if (method === 'process.start') { await gate('start'); return { pid: 123 } }
         if (method === 'process.done') return finished.promise

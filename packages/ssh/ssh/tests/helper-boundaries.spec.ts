@@ -1,6 +1,6 @@
 /** Helper leases, stream ownership and request validation over the administrative wire. */
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -12,7 +12,7 @@ import { createHelperHarness } from './fixtures/helper.ts'
 import { runSshHelper } from '../src/helper.ts'
 import { RemoteProcesses } from '../src/helper-processes.ts'
 import { helloSchema, preparedSchema, targetSchema, writeResultSchema } from '../src/schemas.ts'
-import { SSH_MAX_TEXT_STREAMS } from '../src/protocol.ts'
+import { SSH_MAX_TEXT_STREAMS, SSH_PROTOCOL_VERSION } from '../src/protocol.ts'
 
 const entryPath = fileURLToPath(new URL('../src/helper-entry.ts', import.meta.url))
 const nextSchema = z.object({ done: z.boolean(), value: z.string() })
@@ -49,13 +49,13 @@ describe.skipIf(process.platform === 'win32')('SSH helper wire and lifecycle bou
     const test = await createHelperHarness(false)
     try {
       for (const params of [
-        { protocol: 2, workspace: test.root, leaseMs: 3000 },
-        { protocol: 3, workspace: 'relative', leaseMs: 3000 },
-        { protocol: 3, workspace: test.root, leaseMs: 2999 },
+        { protocol: SSH_PROTOCOL_VERSION - 1, workspace: test.root, leaseMs: 3000 },
+        { protocol: SSH_PROTOCOL_VERSION, workspace: 'relative', leaseMs: 3000 },
+        { protocol: SSH_PROTOCOL_VERSION, workspace: test.root, leaseMs: 2999 },
       ]) await expect(test.client.request('hello', params, helloSchema)).rejects.toThrow()
       const bootstrapPath = `${test.root}/bootstrap.js`
       await writeFile(bootstrapPath, 'export const identity = "test"\n')
-      const facts = await test.client.request('hello', { protocol: 3, workspace: test.root, leaseMs: 3000, bootstrapPath }, helloSchema)
+      const facts = await test.client.request('hello', { protocol: SSH_PROTOCOL_VERSION, workspace: test.root, leaseMs: 3000, bootstrapPath }, helloSchema)
       expect(facts.bootstrapHash).toBe(createHash('sha256').update(await readFile(bootstrapPath)).digest('hex'))
     } finally { await test.close() }
   })
@@ -63,13 +63,13 @@ describe.skipIf(process.platform === 'win32')('SSH helper wire and lifecycle bou
   it('refuses an external bootstrap for an executable helper', async () => {
     const test = await createHelperHarness(false, 30_000, 'executable')
     try {
-      await expect(test.client.request('hello', { protocol: 3, workspace: test.root, leaseMs: 3000, bootstrapPath: '/external/process.js' }, helloSchema))
+      await expect(test.client.request('hello', { protocol: SSH_PROTOCOL_VERSION, workspace: test.root, leaseMs: 3000, bootstrapPath: '/external/process.js' }, helloSchema))
         .rejects.toThrow('embedded PTC bootstrap')
       expect((await test.hello()).kind).toBe('executable')
     } finally { await test.close() }
   })
 
-  it('expires the client lease and joins open text streams and reserved sockets', async () => {
+  it('expires the client lease and joins open text streams and reserved process streams', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     let test: Awaited<ReturnType<typeof createHelperHarness>> | undefined
     try {
@@ -81,13 +81,11 @@ describe.skipIf(process.platform === 'win32')('SSH helper wire and lifecycle bou
         argv: ['true'], cwd: test.root, graceMs: 100,
         stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
       }, preparedSchema)
-      const endpoint = reservation.streams.stdout
-      expect(endpoint).toBeDefined()
+      const stream = await test.connectStream(reservation.streams.stdout!)
       await test.client.request('heartbeat', {}, z.null())
       await vi.advanceTimersByTimeAsync(3000)
       await test.serving
-      await expect(stat(test.facts!.root)).rejects.toMatchObject({ code: 'ENOENT' })
-      await expect(stat(endpoint!.path)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(stream.destroyed).toBe(true)
       await expect(test.client.request('heartbeat', {}, z.null())).rejects.toThrow('connection lost')
     } finally {
       try { await test?.close() }
@@ -218,7 +216,6 @@ describe.skipIf(process.platform === 'win32')('SSH helper wire and lifecycle bou
       const rejected = expect(test.serving).rejects.toBe(failure)
       test.controller.abort()
       await rejected
-      await expect(stat(test.facts!.root)).rejects.toMatchObject({ code: 'ENOENT' })
     } finally { close.mockRestore(); await expect(test.close()).rejects.toBe(failure) }
   })
 

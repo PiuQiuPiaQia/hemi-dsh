@@ -2,12 +2,13 @@
 
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import type { Readable, Writable } from 'node:stream'
+import type { Duplex, Readable, Writable } from 'node:stream'
 import { z } from 'zod'
 import type { Branded } from '@deepseek-ai/dsh-brand'
+import { SSH_STREAM_DATA_LIMIT, SSH_STREAM_DATA_TAG, sshStreamFrameSchema, SshStreamMux, type SshStreamId, type SshStreamReservation } from './streams.ts'
 
 /** Wire version shared by the client package, the installed helper and its embedded PTC worker. */
-export const SSH_PROTOCOL_VERSION = 3
+export const SSH_PROTOCOL_VERSION = 4
 
 /** Maximum prepared or running process handles owned by one helper. */
 export const SSH_MAX_PROCESS_HANDLES = 128
@@ -38,6 +39,7 @@ const frameSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('result'), id: requestIdSchema, value: z.unknown() }).strict(),
   z.object({ type: z.literal('error'), id: requestIdSchema, error: errorSchema }).strict(),
   z.object({ type: z.literal('cancel'), id: requestIdSchema }).strict(),
+  sshStreamFrameSchema,
 ])
 type Frame = z.infer<typeof frameSchema>
 type RequestHandler = (method: string, params: unknown, signal: AbortSignal) => Promise<unknown>
@@ -65,6 +67,11 @@ export class SshRpcPeer extends EventEmitter {
   private writeTail = Promise.resolve()
   private queuedBytes = 0
   private failure: Error | undefined
+  // Hemi fork: process streams use the authenticated exec channel on every supported Host runtime.
+  private readonly streams = new SshStreamMux(SSH_MAX_PROCESS_HANDLES * 4, async (frame) => {
+    try { await this.send(frame) }
+    catch (error) { this.close(operationError(error)); throw error }
+  }, payload => this.enqueue(payload, true))
 
   constructor(
     private readonly input: Readable,
@@ -79,6 +86,20 @@ export class SshRpcPeer extends EventEmitter {
     output.on('close', () => { this.close() })
     void this.readFrames().catch((error: unknown) => { this.close(operationError(error)) })
   }
+
+  /**
+   * Reserve a helper-side process stream before publishing its identifier.
+   * @returns the reservation and its attachment promise.
+   */
+  reserveStream(): SshStreamReservation { return this.streams.reserve() }
+
+  /**
+   * Attach to a reservation on the same authenticated peer.
+   * @param id - the published stream reservation.
+   * @param signal - cancellation of attachment and stream use.
+   * @returns the paused logical stream after the helper acknowledges attachment.
+   */
+  openStream(id: SshStreamId, signal?: AbortSignal): Promise<Duplex> { return this.streams.open(id, signal) }
 
   /**
    * Send one request and validate its response before exposing it to the caller.
@@ -122,6 +143,7 @@ export class SshRpcPeer extends EventEmitter {
   close(error = new Error('SSH connection lost; remote operation outcome and cleanup are unknown')): void {
     if (this.failure !== undefined) return
     this.failure = error
+    this.streams.close(error)
     for (const pending of this.pending.values()) pending.reject(error)
     this.pending.clear()
     for (const { controller } of this.active.values()) controller.abort(error)
@@ -132,15 +154,18 @@ export class SshRpcPeer extends EventEmitter {
   }
 
   private async send(frame: Frame): Promise<void> {
-    if (this.failure !== undefined) return Promise.reject(this.failure)
-    const body = Buffer.from(JSON.stringify(frame))
-    if (body.length > this.maxFrameBytes || this.queuedBytes + body.length + 4 > this.maxFrameBytes * 2) {
+    return this.enqueue(Buffer.from(JSON.stringify(frame)), false)
+  }
+
+  private async enqueue(body: Buffer, binary: boolean): Promise<void> {
+    if (this.failure !== undefined) throw this.failure
+    if (!binary && (body.length > this.maxFrameBytes || this.queuedBytes + body.length + 4 > this.maxFrameBytes * 2)) {
       return Promise.reject(new Error('SSH helper frame or write queue limit exceeded'))
     }
     const header = Buffer.alloc(4)
-    header.writeUInt32BE(body.length)
+    header.writeUInt32BE(body.length + (binary ? SSH_STREAM_DATA_TAG : 0))
     const bytes = Buffer.concat([header, body])
-    this.queuedBytes += bytes.length
+    if (!binary) this.queuedBytes += bytes.length
     const write = this.writeTail.then(async () => {
       if (this.failure !== undefined) throw this.failure
       if (!this.output.write(bytes)) await new Promise<void>((resolve, reject) => {
@@ -156,7 +181,7 @@ export class SshRpcPeer extends EventEmitter {
       })
     })
     this.writeTail = write.catch((error: unknown) => { this.close(operationError(error)) })
-    return write.finally(() => { this.queuedBytes -= bytes.length })
+    return write.finally(() => { if (!binary) this.queuedBytes -= bytes.length })
   }
 
   private async readFrames(): Promise<void> {
@@ -164,6 +189,7 @@ export class SshRpcPeer extends EventEmitter {
     let headerBytes = 0
     let payload: Buffer | undefined
     let payloadBytes = 0
+    let binary = false
     for await (const raw of this.input) {
       const chunk: Buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as Uint8Array)
       let offset = 0
@@ -174,8 +200,10 @@ export class SshRpcPeer extends EventEmitter {
           headerBytes += count
           offset += count
           if (headerBytes < 4) continue
-          const size = header.readUInt32BE(0)
-          if (size === 0 || size > this.maxFrameBytes) throw new Error('SSH helper sent an invalid frame length')
+          const word = header.readUInt32BE(0)
+          binary = word >= SSH_STREAM_DATA_TAG
+          const size = binary ? word - SSH_STREAM_DATA_TAG : word
+          if (size === 0 || size > (binary ? SSH_STREAM_DATA_LIMIT : this.maxFrameBytes)) throw new Error('SSH helper sent an invalid frame length')
           payload = Buffer.alloc(size)
           payloadBytes = 0
         }
@@ -184,10 +212,10 @@ export class SshRpcPeer extends EventEmitter {
         payloadBytes += count
         offset += count
         if (payloadBytes === payload.length) {
-          const frame = frameSchema.parse(JSON.parse(payload.toString('utf8')))
+          if (binary) this.streams.receiveData(payload)
+          else this.receive(frameSchema.parse(JSON.parse(payload.toString('utf8'))))
           payload = undefined
           headerBytes = 0
-          this.receive(frame)
         }
       }
     }
@@ -195,6 +223,11 @@ export class SshRpcPeer extends EventEmitter {
   }
 
   private receive(frame: Frame): void {
+    if (frame.type === 'stream.open' || frame.type === 'stream.ready' || frame.type === 'stream.credit' ||
+      frame.type === 'stream.end' || frame.type === 'stream.reset') {
+      this.streams.receive(frame)
+      return
+    }
     if (frame.type === 'result' || frame.type === 'error') {
       const pending = this.pending.get(frame.id)
       if (pending === undefined) return // A cancelled request can still complete remotely.

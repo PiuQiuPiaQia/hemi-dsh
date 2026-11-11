@@ -1,7 +1,6 @@
 /** Private POSIX SSH helper; filesystem and process effects use the installed local providers. */
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
 import type { Readable, Writable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -58,8 +57,7 @@ export async function runSshHelper(transport: HelperTransport): Promise<void> {
   transport.signal.throwIfAborted()
   const runtime = await services()
   const { ctx } = runtime
-  const root = await mkdtemp('/tmp/dsh-ssh-')
-  const processes = new RemoteProcesses(ctx, root, SSH_MAX_PROCESS_HANDLES, 30_000)
+  const processes = new RemoteProcesses(ctx, () => peer.reserveStream(), SSH_MAX_PROCESS_HANDLES, 30_000)
   const lifetime = new AbortController()
   const iterators = new Map<SshTextStreamId, { iterator: AsyncIterator<string>; controller: AbortController }>()
   let lease: NodeJS.Timeout | undefined
@@ -75,10 +73,7 @@ export async function runSshHelper(transport: HelperTransport): Promise<void> {
       await Promise.allSettled([...iterators.values()].map(async record => record.iterator.return?.()))
       iterators.clear()
       try { await processes.close() }
-      finally {
-        try { await runtime.close() }
-        finally { await rm(root, { recursive: true, force: true }) }
-      }
+      finally { await runtime.close() }
     })()
     return cleanup
   }
@@ -98,7 +93,7 @@ export async function runSshHelper(transport: HelperTransport): Promise<void> {
     }
   }
   const asTarget = (raw: unknown): FsTarget => targetSchema.parse(raw) as FsTarget
-  const peer = new SshRpcPeer(transport.input, transport.output, MAX_FRAME_BYTES, 128, async (method, raw, requestSignal) => {
+  const peer: SshRpcPeer = new SshRpcPeer(transport.input, transport.output, MAX_FRAME_BYTES, 128, async (method, raw, requestSignal) => {
     const signal = AbortSignal.any([requestSignal, lifetime.signal])
     if (method === 'hello') {
       if (initialized) throw new Error('SSH helper handshake already completed')
@@ -113,7 +108,7 @@ export async function runSshHelper(transport: HelperTransport): Promise<void> {
       touchLease()
       return {
         protocol: SSH_PROTOCOL_VERSION, hash: createHash('sha256').update(readFileSync(transport.entryPath)).digest('hex'),
-        kind: transport.kind, platform: process.platform, nodeVersion: process.version, executable: process.execPath, root, workspace,
+        kind: transport.kind, platform: process.platform, nodeVersion: process.version, executable: process.execPath, workspace,
         ...(input.bootstrapPath === undefined ? {} : { bootstrapHash: createHash('sha256').update(readFileSync(input.bootstrapPath)).digest('hex') }),
       }
     }

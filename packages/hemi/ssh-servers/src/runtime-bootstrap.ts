@@ -13,6 +13,32 @@ const CACHE_REFUSAL_EXIT = 70
 /** Fixed fallback locations probed when the remote PATH has no Node executable. */
 const NODE_FALLBACK_PATHS = ['/usr/local/bin/node', '/opt/homebrew/bin/node', '/usr/bin/node', '/opt/local/bin/node'] as const
 
+function helperDirectoryName(artifacts: SshHelperArtifacts): string {
+  return `helper-${artifacts.version}-${artifacts.contentId}`
+}
+
+/**
+ * Identify a deployment created by Hemi's content-addressed cache, including protocol 3 deployments.
+ * @param deployment - saved execution target's helper and bootstrap.
+ * @returns the artifact directory name for a managed pair, if present.
+ */
+export function managedHelperDirectory(deployment: SshRuntimeDeployment): string | undefined {
+  const match = /\/(helper-[A-Za-z0-9][A-Za-z0-9._+-]*-[0-9a-f]{16})\/runtime\/helper\/helper\.js$/u.exec(deployment.helper)
+  if (match === null || deployment.launch.kind !== 'node-script' ||
+    deployment.launch.bootstrapPath !== posix.join(posix.dirname(deployment.helper), 'ptc-process.js')) return undefined
+  return match[1]
+}
+
+/**
+ * Check whether a managed deployment already points at the helper shipped by this Host.
+ * @param directory - the saved managed artifact directory name.
+ * @param artifacts - the bundled, digest-verified artifact set.
+ * @returns whether the current artifact identity is already deployed for the target.
+ */
+export function isCurrentManagedHelper(directory: string, artifacts: SshHelperArtifacts): boolean {
+  return directory === helperDirectoryName(artifacts)
+}
+
 /** One probe of the remote machine's usable capabilities for helper execution. */
 export interface SshRemoteProbe {
   /** Absolute remote login directory reported by the remote shell. */
@@ -113,7 +139,7 @@ export async function probeRemoteRuntime(endpoint: SshEndpointArgs, signal: Abor
 export async function streamHelperArtifacts(
   endpoint: SshEndpointArgs, artifacts: SshHelperArtifacts, cacheDir: string, signal: AbortSignal,
 ): Promise<string> {
-  const versionDir = `${cacheDir.replace(/\/+$/, '')}/helper-${artifacts.version}-${artifacts.contentId}`
+  const versionDir = `${cacheDir.replace(/\/+$/, '')}/${helperDirectoryName(artifacts)}`
   for (const file of artifacts.files) {
     const relative = posix.normalize(file.path)
     if (relative.startsWith('/') || relative.startsWith('..') || relative.includes('\\')) {

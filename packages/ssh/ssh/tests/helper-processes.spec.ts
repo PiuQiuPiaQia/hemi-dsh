@@ -1,21 +1,15 @@
 /** Process reservations retain native cleanup ownership across stream and allocation failures. */
 import { once } from 'node:events'
-import { chmod, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
-import { createConnection, type Socket } from 'node:net'
-import { PassThrough } from 'node:stream'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { PassThrough, type Duplex } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
 import { describe, expect, it, vi } from 'vitest'
 import { RemoteProcesses } from '../src/helper-processes.ts'
-import type { SshProcessId, SshStreamEndpoint } from '../src/schemas.ts'
-import { authenticateStream } from '../src/stream-security.ts'
+import type { SshProcessId } from '../src/schemas.ts'
+import { createStreamPeers } from './fixtures/helper.ts'
 import { SshRpcPeer } from '../src/protocol.ts'
 import { outputSnapshotSchema } from '../src/schemas.ts'
-
-vi.mock('node:fs/promises', async (original) => {
-  const actual = await original<typeof import('node:fs/promises')>()
-  return { ...actual, chmod: vi.fn(actual.chmod), rm: vi.fn(actual.rm) }
-})
 
 const outcome = { exitCode: 0, signal: null }
 const ordinaryRequest = { argv: ['target'], cwd: '/tmp', graceMs: 20, stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' } }
@@ -29,29 +23,26 @@ async function harness() {
   const spawnTerminal = vi.fn<(spec: unknown) => Promise<SubprocessTerminalHandle>>()
   ctx.provide('fs', { resolve, processPath: () => root } as never)
   ctx.provide('subprocess', { spawn, spawnTerminal } as never)
-  const owner = new RemoteProcesses(ctx, root, 1, 5000)
-  const sockets = new Set<Socket>()
-  const connect = async (endpoint: SshStreamEndpoint) => {
-    const raw = createConnection({ path: endpoint.path, allowHalfOpen: true })
-    sockets.add(raw)
-    raw.on('error', () => {})
-    await once(raw, 'connect')
-    const socket = await authenticateStream(raw, endpoint.capability, 5000)
-    sockets.add(socket)
-    socket.on('error', () => {})
-    return socket
-  }
+  const peers = createStreamPeers()
+  const reservedStreams: Duplex[] = []
+  const reserve = vi.fn(() => {
+    const reservation = peers.helper.reserveStream()
+    reservedStreams.push(reservation.stream)
+    return reservation
+  })
+  const owner = new RemoteProcesses(ctx, reserve, 1, 5000)
   const prepare = async (request: unknown) => {
     const prepared = await owner.prepare(request)
-    const entries = await Promise.all(Object.entries(prepared.streams).map(async ([name, endpoint]) => [name, await connect(endpoint)]))
-    const channels = Object.fromEntries(entries) as Record<string, Socket>
+    const entries = await Promise.all(Object.entries(prepared.streams).map(async ([name, endpoint]) =>
+      [name, await peers.client.openStream(endpoint)]))
+    const channels = Object.fromEntries(entries) as Record<string, Duplex>
     return { id: prepared.id, channels }
   }
   const close = async () => {
-    for (const socket of [...sockets].reverse()) socket.destroy()
+    peers.close()
     try { await owner.close() } finally { await rm(root, { recursive: true, force: true }) }
   }
-  return { root, owner, resolve, spawn, spawnTerminal, prepare, close }
+  return { owner, reserve, reservedStreams, resolve, spawn, spawnTerminal, prepare, close }
 }
 
 function ordinary(control = false) {
@@ -110,7 +101,7 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
         expect(child.signalForeground).toHaveBeenCalledWith('SIGINT')
         expect(await test.owner.wait(run.id)).toBe(true)
         await expect(test.owner.done(run.id)).resolves.toEqual({ outcome, spills: {}, collected: {} })
-        await vi.waitFor(async () => { expect(await readdir(test.root)).toEqual([]) })
+        await vi.waitFor(() => { expect(Object.values(run.channels).every(stream => stream.closed)).toBe(true) })
         expect(await test.owner.done(run.id)).toEqual({ outcome, spills: {}, collected: {} })
         expect(await test.owner.wait(run.id)).toBe(true)
         await test.owner.terminate(run.id)
@@ -179,33 +170,23 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
       await test.owner.terminate(run.id)
       expect(child.terminate).toHaveBeenCalled()
       expect(child.waitForExit).toHaveBeenCalled()
-      await vi.waitFor(async () => { expect(await readdir(test.root)).toEqual([]) })
+      await vi.waitFor(() => { expect(Object.values(run.channels).every(stream => stream.closed)).toBe(true) })
       await expect(test.owner.done(run.id)).rejects.toThrow('did not establish fd 7')
       const next = await test.owner.prepare(ordinaryRequest)
       await test.owner.terminate(next.id)
     } finally { await test.close() }
   })
 
-  it('closes an unpublished listener when filesystem permissions cannot be established', async () => {
+  it('releases partial stream reservations when allocation fails', async () => {
     const test = await harness()
     try {
-      vi.mocked(chmod).mockRejectedValueOnce(Object.assign(new Error('listener chmod denied'), { code: 'EACCES' }))
-      await expect(test.owner.prepare(ordinaryRequest)).rejects.toThrow('listener chmod denied')
-      expect(await readdir(test.root)).toEqual([])
+      const first = test.reserve.getMockImplementation()!()
+      test.reserve.mockReturnValueOnce(first).mockImplementationOnce(() => { throw new Error('stream capacity reached') })
+      await expect(test.owner.prepare(ordinaryRequest)).rejects.toThrow('stream capacity reached')
+      expect(first.stream.closed).toBe(true)
       const run = await test.prepare(ordinaryRequest)
       await test.owner.terminate(run.id)
-      expect(await readdir(test.root)).toEqual([])
     } finally { await test.close() }
-  })
-
-  it('rolls back a listener path that exceeds the operating system socket limit', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-long-')
-    const longRoot = `${root}/${'x'.repeat(140)}`
-    await mkdir(longRoot)
-    const owner = new RemoteProcesses(new Context(), longRoot, 1, 5000)
-    try {
-      await expect(owner.prepare(ordinaryRequest)).rejects.toThrow()
-    } finally { await owner.close(); await rm(root, { recursive: true, force: true }) }
   })
 
   it('continues collecting while a live snapshot waits for acknowledgement', async () => {
@@ -232,7 +213,7 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
       child.finish()
       expect(await test.owner.done(run.id)).toMatchObject({ collected: { stdout: { totalBytes: 11, tail: Buffer.from('firstsecond').toString('base64') } } })
       release.resolve(undefined)
-      await vi.waitFor(async () => { expect(await readdir(test.root)).toEqual([]) })
+      await vi.waitFor(() => { expect(Object.values(run.channels).every(stream => stream.closed)).toBe(true) })
     } finally { release.resolve(undefined); peer?.close(); await test.close() }
   })
 
@@ -283,7 +264,9 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
     try {
       const unused = await test.owner.prepare(ordinaryRequest)
       await vi.advanceTimersByTimeAsync(5000)
-      await vi.waitFor(async () => { expect(await readdir(test.root)).toEqual([]) })
+      await vi.waitFor(() => {
+        expect(test.reservedStreams.every(stream => stream.closed)).toBe(true)
+      })
       await expect(test.owner.start(unused.id)).rejects.toThrow('Unknown or expired')
       const run = await test.prepare(ordinaryRequest)
       const started = test.owner.start(run.id)
@@ -307,7 +290,7 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
       await done
       await test.owner.terminate(run.id)
       expect(child.terminate).toHaveBeenCalled()
-      await vi.waitFor(async () => { expect(await readdir(test.root)).toEqual([]) })
+      await vi.waitFor(() => { expect(Object.values(run.channels).every(stream => stream.closed)).toBe(true) })
       await expect(test.owner.done(run.id)).rejects.toThrow('terminal driver disconnected')
       const next = await test.owner.prepare(terminalRequest)
       await test.owner.terminate(next.id)
@@ -359,18 +342,6 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
     } finally { await test.close() }
   })
 
-  it('observes an expired reservation cleanup error without an unhandled rejection', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const test = await harness()
-    try {
-      const run = await test.owner.prepare(ordinaryRequest)
-      vi.mocked(rm).mockClear().mockRejectedValueOnce(new Error('temporary directory became unavailable'))
-      await vi.advanceTimersByTimeAsync(5000)
-      await vi.waitFor(() => { expect(rm).toHaveBeenCalledOnce() })
-      await expect(test.owner.start(run.id)).rejects.toThrow('Unknown or expired')
-    } finally { await test.close(); vi.useRealTimers() }
-  })
-
   it.each(['control', 'socket'] as const)('destroys the other control endpoint after a %s failure', async (failed) => {
     const test = await harness()
     const child = ordinary(true)
@@ -407,6 +378,6 @@ it.skipIf(process.platform === 'win32')('keeps opted-in terminal reservations af
     expect(await test.owner.terminal(run.id, 'activity')).toEqual({ state: 'unknown', revision: 0 })
     await test.owner.terminate(run.id)
     expect(child.terminate).toHaveBeenCalledOnce()
-    await expect.poll(async () => await readdir(test.root)).toEqual([])
+    await expect.poll(() => run.channels.terminal!.closed).toBe(true)
   } finally { await test.close() }
 })

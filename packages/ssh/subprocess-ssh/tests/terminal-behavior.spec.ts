@@ -35,7 +35,7 @@ async function setup(options: {
       calls.push({ method, params, ...(longRunning === undefined ? {} : { longRunning }) })
       let value: unknown
       if (method === 'process.prepare') {
-        value = { id, streams: options.missingEndpoint ? {} : { terminal: { path: '/tmp/terminal', capability: 'a'.repeat(64) } } }
+        value = { id, streams: options.missingEndpoint ? {} : { terminal: '00000000-0000-4000-8000-000000000005' } }
       } else if (method === 'process.start') value = { pid: 321 }
       else if (method === 'process.done') value = await finished.promise
       else if (method === 'process.terminate') {
@@ -165,7 +165,7 @@ describe('SSH terminal behavior', () => {
 
   it('rejects a terminal reservation without its required stream and confirms cleanup', async () => {
     const test = await setup({ missingEndpoint: true })
-    await expect(test.runtime.spawnTerminal(spec)).rejects.toBeInstanceOf(z.ZodError)
+    await expect(test.runtime.spawnTerminal(spec)).rejects.toThrow('did not reserve terminal output')
     expect(test.connection.connectStream).not.toHaveBeenCalled()
     expect(test.calls.map(call => call.method)).toEqual(['process.prepare', 'process.terminate'])
   })
