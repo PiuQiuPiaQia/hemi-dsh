@@ -62,6 +62,8 @@ The workflow and release CLI select all three targets by default: `mac-arm64` fo
 
 All selected targets use the same frozen source commit and version. Every selected package must complete before publication; missing targets stop the release rather than publishing a subset. Packaging never publishes. A single publisher checks completion records, clean-source identity, signing mode, the pinned Mac certificate, update URL, size and SHA-512. It creates `hemi-desktop-<channel>-v<version>`, generates release notes, resumes a matching draft and verifies GitHub's reported asset SHA-256/size. It publishes the Release before advancing all selected feeds in one non-forced Git commit. Keep the `Hemi Desktop package:` marker line when editing notes so retries can identify the package.
 
+Routine releases finish when the GitHub Actions workflow publishes the Release and advances the selected feeds. Run local downloads and installation checks on request or when investigating a specific issue.
+
 For downloaded artifacts, `pnpm --dir apps/desktop run github:release preview --signing-mode community --artifacts <directory> --version <version> --channel <channel> --targets <targets> --repository <owner/repo> --commit <source-sha>` writes a local `release-plan.json` without network access. The directory contains one subdirectory per target. `publish` accepts the same selection and requires `GH_TOKEN`; Actions supplies its scoped token only to publication. Select `--signing-mode official` for ordinary DSH-signed records. The publisher rejects mixed modes and changed Mac certificate pins.
 
 <a id="feeds-and-compatibility"></a>
@@ -72,7 +74,7 @@ The embedded URL is `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/f
 
 Clients read feeds without tokens or REST polling. A Release's prerelease flag does not select the client channel. DSH's higher-version-only rule, download approval, task-stop checks and installation confirmation remain active. A channel becomes available after its first publication. Changing repository, branch, application ID or certificate requires compatibility qualification; original Hemi data migration is outside this workflow.
 
-Raw GitHub caching can delay visibility. Release operators qualify feed and binary access from supported user networks; an API-confirmed branch commit does not establish public CDN availability.
+Raw GitHub caching can delay visibility. When investigating delayed delivery, check feed and installer access from an affected network.
 
 <a id="failures-and-recovery"></a>
 
@@ -92,4 +94,4 @@ Unit tests cover both signing modes, owned credential cleanup, refusal paths, pa
 
 On macOS with Node 24 and installed workspace dependencies, `python3 apps/desktop/tests/fixtures/hemi-community-signing.py --native` creates only temporary certificates, keychains and Electron apps, signs changed builds through the production signer and checks actual Squirrel.Mac acceptance. It does not read the saved Hemi private key, add certificate trust or update an installed application. Run without concurrent keychain-list mutations.
 
-The isolated qualification establishes certificate continuity and native update preparation. Release operators still qualify actual hosted-runner builds, GitHub permissions, first-open security behavior, final installation/restart, user-data retention and real Computer Use permission continuity. No production Release is created by local tests.
+The isolated test checks certificate continuity and native update preparation. Use an installed app for targeted checks of first-open security behavior, installation and restart, user-data retention, or Computer Use permissions.

@@ -62,6 +62,8 @@ Windows 社区包没有 Authenticode 发布者签名。打包保留发布产物�
 
 所有选中目标使用相同的固定源码提交和版本。每个选中目标须完成打包后才能发布；缺少目标时停止发布，不自动缩减目标集合。打包阶段不发布。单一发布器校验完成记录、干净源码身份、签名模式、固定 Mac 证书、更新 URL、大小和 SHA-512。它创建 `hemi-desktop-<channel>-v<version>`，生成发布说明，恢复匹配草稿，并校验 GitHub 返回的附件 SHA-256／大小。先公开 Release，再以一次非强制 Git 提交推进所有选中清单。编辑说明时保留 `Hemi Desktop package:` 标记行，以便重试识别安装包。
 
+GitHub Actions 公开 Release 并推进选中目标的清单后，常规发版即告完成。仅在用户要求或排查具体问题时，在本机下载并检查安装。
+
 下载的产物可通过 `pnpm --dir apps/desktop run github:release preview --signing-mode community --artifacts <directory> --version <version> --channel <channel> --targets <targets> --repository <owner/repo> --commit <source-sha>` 写入本地 `release-plan.json`，不访问网络。目录中每个目标各有一个子目录。`publish` 接受相同选择并要求 `GH_TOKEN`；Actions 仅在发布时提供受限令牌。常规 DSH 签名记录使用 `--signing-mode official`。发布器拒绝混合模式和变更的 Mac 证书指纹。
 
 <a id="feeds-and-compatibility"></a>
@@ -72,7 +74,7 @@ Windows 社区包没有 Authenticode 发布者签名。打包保留发布产物�
 
 客户端读取清单不需要令牌或 REST 轮询。Release 的预发布标记不决定客户端渠道。DSH 的仅升级到更高版本规则、下载批准、任务停止检查和安装确认继续生效。渠道在首次发布后可用。更改仓库、分支、应用 ID 或证书需要兼容性验收；原 Hemi 数据迁移不属于本流程。
 
-Raw GitHub 缓存可能延迟可见性。发布操作者须在支持的用户网络中验收清单和文件访问；API 确认分支提交不代表公开 CDN 已可用。
+Raw GitHub 缓存可能延迟可见性。排查更新分发延迟时，从受影响的网络检查清单和安装包能否访问。
 
 <a id="failures-and-recovery"></a>
 
@@ -92,4 +94,4 @@ HTTP 操作有截止时间，不自动重试。上传失败或结果不明时不
 
 macOS 安装 Node 24 和工作区依赖后，`python3 apps/desktop/tests/fixtures/hemi-community-signing.py --native` 只创建临时证书、钥匙串和 Electron 应用，通过产品签名器签署不同构建，再检查真实 Squirrel.Mac 是否接受更新。它不读取保存的 Hemi 私钥、不添加证书信任，也不更新已安装应用。运行期间不要并发修改钥匙串搜索列表。
 
-隔离验证证明证书连续性和原生更新准备。发布操作者仍须验收真实托管 runner 构建、GitHub 权限、首次打开安全行为、最终安装／重启、用户数据保留及真实 Computer Use 权限连续性。本地测试不创建生产 Release。
+隔离测试检查证书连续性和原生更新准备。针对首次打开的安全行为、安装与重启、用户数据保留或 Computer Use 权限排查时，使用已安装的应用检查。
