@@ -310,7 +310,7 @@ export default class HemiModelAccess extends TypertRemoteService {
   }
 
   /**
-   * Remove only a saved subscription grant. Model profiles may also serve API-key connections.
+   * Remove a saved subscription grant and the models selected through it.
    * @param provider - Configured subscription provider ID.
    */
   @Remote
@@ -322,10 +322,37 @@ export default class HemiModelAccess extends TypertRemoteService {
     this.disconnecting = true
     try {
       if ((await this.ctx.credentials.describeRecord(key)).kind === 'grant') await this.ctx.credentials.deleteRecord(key)
+      await this.forgetModels(provider)
       if (this.active?.state.provider === provider) delete this.active
     } finally {
       this.disconnecting = false
     }
+  }
+
+  /**
+   * Drop the models a disconnected subscription selected, so its provider
+   * offers none until the account is connected again. A route an API key
+   * authenticates is an API connection the subscription never wrote, so its
+   * models stay.
+   * @param provider - Subscription provider ID whose selections to drop.
+   */
+  private async forgetModels(provider: string): Promise<void> {
+    if (provider === BIGMODEL_PROVIDER) {
+      const section = this.ctx.settings.describe().find(item => item.ns === 'hemi-model-access')
+      if (section === undefined) return
+      if (this.config.subscriptionModels.get()[provider] === undefined) return
+      await this.ctx.settings.mutate('hemi-model-access',
+        [{ op: 'unset', path: ['subscriptionModels', provider] }], section.revision)
+      this.refreshBigModel?.()
+      return
+    }
+    const section = this.ctx.settings.describe().find(item => item.ns === 'llm-pi-ai')
+    if (section === undefined) return
+    const profile = asObject(asObject(section.value)?.providers)?.[provider]
+    if (profile === undefined) return
+    // A key on this route is an API connection the subscription never wrote.
+    if (typeof asObject(profile)?.apiKeyEnv === 'string') return
+    await this.ctx.settings.mutate('llm-pi-ai', [{ op: 'unset', path: ['providers', provider] }], section.revision)
   }
 
   /**
