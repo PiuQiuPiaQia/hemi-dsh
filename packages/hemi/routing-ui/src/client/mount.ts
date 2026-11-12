@@ -22,7 +22,7 @@ import { mountModelPicker } from './model-picker/mount.ts'
 import { ModelMenuMode } from './model-picker/menu-mode.ts'
 import { RoutingEffortSelect, type RoutingEffortInjected } from './RoutingEffortSelect.tsx'
 import { HemiTurnUsage, type TurnUsageInjected } from './usage/UsagePanel.tsx'
-import { HemiSessionUsage } from './usage/SessionUsage.tsx'
+import { HemiSessionUsage, type SessionUsageInjected } from './usage/SessionUsage.tsx'
 import { loadConversationUsage } from './usage/conversation-usage.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -69,19 +69,22 @@ function registerRouting(ctx: Context): void {
   ctx.slots.inject('conversation.chat.turnUsage', () => ctx.slots.register({
     name: 'conversation.chat.turnUsage', locale: NS, inject: () => turnUsage,
   }, HemiTurnUsage))
-  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-    name: 'conversation.composer.dock', id: 'usage', order: 1, priority: -1, locale: NS,
-    inject: sessionId => ({
-      loadUsage: signal => loadConversationUsage(sessionId, async (id, readSignal) => {
-        const result = await ctx.remote.session.projections({ sessionId: id }, readSignal)
-        if (!result.ok) throw new Error(result.error.message)
-        if (result.value?.kind !== 'sequenced' || result.value.values.hemiModelUsage === undefined) {
-          throw new Error('Recorded model usage is unavailable')
-        }
-        return { usage: result.value.values.hemiModelUsage, children: result.value.values.subagentCatalog ?? [] }
-      }, signal),
-    }),
-  }, HemiSessionUsage))
+  ctx.inject(['modelDirectories'], (scope) => {
+    scope.slots.inject('conversation.composer.dock', () => scope.slots.register({
+      name: 'conversation.composer.dock', id: 'usage', order: 1, priority: -1, locale: NS,
+      inject: (sessionId): SessionUsageInjected => ({
+        hooks: { modelDirectory: scope.modelDirectories.directoryFor(sessionId).store },
+        loadUsage: signal => loadConversationUsage(sessionId, async (id, readSignal) => {
+          const result = await scope.remote.session.projections({ sessionId: id }, readSignal)
+          if (!result.ok) throw new Error(result.error.message)
+          if (result.value?.kind !== 'sequenced' || result.value.values.hemiModelUsage === undefined) {
+            throw new Error('Recorded model usage is unavailable')
+          }
+          return { usage: result.value.values.hemiModelUsage, children: result.value.values.subagentCatalog ?? [] }
+        }, signal),
+      }),
+    }, HemiSessionUsage))
+  })
   const form = ctx.configForms.get<RoutingConfig>(ROUTING_NS)
   const editor = createRoutingEditor(form, async () => {
     const response = await ctx.remote.session.modelCatalog()

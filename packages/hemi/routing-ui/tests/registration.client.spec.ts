@@ -16,6 +16,8 @@ import { RoutingModeToggle, type RoutingModeInjected } from '../src/client/Routi
 import { RoutingModelLabel, type RoutingLabelInjected } from '../src/client/RoutingModelLabel.tsx'
 import { RoutingSettingsEntry, type RoutingSettingsEntryInjected } from '../src/client/RoutingSettingsEntry.tsx'
 import type { RoutingConfig } from '../src/client/types.ts'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { HemiSessionUsage, type SessionUsageInjected } from '../src/client/usage/SessionUsage.tsx'
 
 /** Fake wire descriptors exercised through the real Client Remote mount. */
 const modeDescriptor: InvocationDescriptor = {
@@ -45,6 +47,9 @@ async function bench() {
   form.publish({ status: 'ready', writable: true, revision: 1, value: { main: null, roles: {} } })
   const get = vi.fn(() => form.scope)
   ctx.provide('configForms', { get } as never)
+  const directory = createSnapshotStore({ groups: [], failures: [] })
+  const directoryFor = vi.fn(() => ({ store: directory }))
+  ctx.provide('modelDirectories', { directoryFor } as never)
   const modelCatalog = vi.fn(async () => ({
     ok: true as const,
     value: { default: { provider: 'p', model: 'm' }, groups: [], failures: [], routableProviders: [] },
@@ -76,6 +81,7 @@ async function bench() {
   const declare = () => ctx.slots.register({ name: 'root', children: {
     'shell.overlay': { kind: 'list', scope: 'root' },
     'settings.models.footer': { kind: 'list', scope: 'root' },
+    'conversation.composer.dock': { kind: 'list', scope: 'session' },
     'conversation.input.model.options': { kind: 'list', scope: 'session' },
     'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
   } } as never, () => null)
@@ -83,7 +89,7 @@ async function bench() {
   const fiber = ctx.plugin({ inject: ['slots', 'locale', 'configForms', 'remote', 'remote.session'], apply: scope => mountRouting(scope, routingContribution) })
   await fiber.await()
   expect(ctx.get('remote.hemiRoutingSettings')).toBeDefined()
-  return { ctx, fiber, form, get, modelCatalog, setEnabled, collapse, declare }
+  return { ctx, fiber, form, get, modelCatalog, setEnabled, collapse, declare, directory, directoryFor }
 }
 
 it('registers native model-menu and label contributions plus one shared settings editor', async () => {
@@ -115,7 +121,13 @@ it('registers native model-menu and label contributions plus one shared settings
   const labelFace = labelValue as RoutingLabelInjected
   expect(labelFace.hooks.routingSettings).toBe(b.form.scope)
   expect(labelFace.resolveText({ en: 'Official', zh: '官方' })).toBe('Official')
+  const usage = b.ctx.slots.entries('conversation.composer.dock').find(entry => entry.component === HemiSessionUsage)!
+  const usageValue: object = usage.inject!(SessionId('first') as never)
+  const usageFace = usageValue as SessionUsageInjected
+  expect(usageFace.hooks.modelDirectory).toBe(b.directory)
+  expect(b.directoryFor).toHaveBeenLastCalledWith('first')
   await b.fiber.dispose()
+  expect(b.ctx.slots.entries('conversation.composer.dock')).toHaveLength(0)
   expect(b.ctx.slots.entries('settings.models.footer')).toHaveLength(0)
   expect(b.ctx.slots.entries('shell.overlay')).toHaveLength(0)
   expect(b.ctx.slots.entries('conversation.input.model.options')).toHaveLength(0)

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { expect, it, onTestFinished } from 'vitest'
-import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { LlmModelInfo, LlmProviderInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type {} from '../../../packages/hemi/routing/src/settings.ts'
 import { ScriptedAdapter, textResponse, toolCallResponse } from '../../../packages/hemi/routing/tests/mock-llm.ts'
 import {
@@ -145,12 +145,21 @@ it('runs four native role presets on their configured routes and receives their 
   expect(errors).toEqual([])
 })
 
-const DIR = fileURLToPath(new URL('../../../snapshots/web/hemi-cache-rate', import.meta.url))
-
-it('shows recorded usage totals and weighted cache rates after an unreported memory timeout', async () => {
+it.each(['hemi-cache-rate', 'hemi-api-usage'])('shows recorded usage and provider names (%s)', async (scenario) => {
+  const DIR = fileURLToPath(new URL(`../../../snapshots/web/${scenario}`, import.meta.url))
   const scaffold = await launchWebScaffold()
   onTestFinished(() => scaffold.close())
-  await seedSession(scaffold, await readFile(join(DIR, 'session.v4.jsonl'), 'utf8'), 'hemi-cache-rate')
+  const api = scenario === 'hemi-api-usage'
+  if (api) {
+    class ApiUsageAdapter extends ScriptedAdapter {
+      override providerInfo(provider: string): LlmProviderInfo { return { id: provider, name: 'My API connection' } }
+      override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+        return Promise.resolve([{ provider, id: 'baidu/ernie-5.5-flash-preview:free', name: 'ERNIE Flash' }])
+      }
+    }
+    scaffold.ctx.llm.registerAdapter(['hemi-key-usage-test'], new ApiUsageAdapter([]))
+  }
+  await seedSession(scaffold, await readFile(join(DIR, 'session.v4.jsonl'), 'utf8'), scenario)
   const browser = await chromium.launch()
   onTestFinished(() => browser.close())
   const page = await newEnglishPage(browser)
@@ -168,6 +177,9 @@ it('shows recorded usage totals and weighted cache rates after an unreported mem
     const dialog = page.getByRole('dialog', { name: 'Conversation usage', exact: true })
     expect(await trigger.textContent()).toBe('Cache hit 32%')
     expect(await dialog.getByRole('status').count()).toBe(0)
+    await dialog.getByRole('rowheader', { name: api
+      ? 'baidu/ernie-5.5-flash-preview:free (My API connection)' : 'deepseek-v4-flash (DeepSeek)', exact: true }).waitFor()
+    if (api) expect(await dialog.getByText('hemi-key-usage-test', { exact: false }).count()).toBe(0)
     await compareOrRefreshGolden(join(DIR, 'usage.expected.md'), await dialog.ariaSnapshot(), webSnapshotMode())
     if (!reopened) {
       const shots = await mkdtemp(join(tmpdir(), 'hemi-cache-usage-'))

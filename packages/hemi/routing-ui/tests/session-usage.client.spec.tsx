@@ -7,6 +7,10 @@ import { en, zh } from '../src/client/locales.ts'
 import type { ConversationUsage, ModelUsageRow } from '@deepseek-ai/dsh-hemi-routing/client'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { loadConversationUsage } from '../src/client/usage/conversation-usage.ts'
+import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
+
+const emptyDirectory: Pick<ModelDirectoryState, 'groups' | 'failures'> = { groups: [], failures: [] }
+const modelDirectory = { useModelDirectory: <T,>(select: (state: typeof emptyDirectory) => T): T => select(emptyDirectory) }
 
 afterEach(() => { cleanup(); vi.useRealTimers() })
 const root: ModelUsageRow = { provider: 'test', model: 'main', calls: 2, reportedCalls: 2, totalReports: 2,
@@ -21,7 +25,7 @@ it('shows all model rows, exact aggregate inputs and separately reported cache c
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const own = { models: [root] }
   const catalog = [{ id: 'child' }]
-  const props = {
+  const props = { ...modelDirectory,
     t: makeTranslate(zh),
     useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage: async () => ({ models: [root, child], sessions: 2, unavailableSessions: 0 }),
@@ -44,11 +48,60 @@ it('shows all model rows, exact aggregate inputs and separately reported cache c
   expect(dialog.queryByText('未缓存输入')).toBeNull()
 })
 
+it('shows API connection names and updates a renamed connection without changing recorded rows', () => {
+  type Props = Parameters<typeof HemiSessionUsage>[0]
+  const provider = 'hemi-key-4b6fbbdf-6fb3-416b-87f3-67cde7678924'
+  const rows = [{ ...root, provider, model: 'baidu/ernie-5.5-flash-preview:free' },
+    { ...root, provider: 'second-api', model: 'baidu/ernie-5.5-flash-preview:free' }]
+  let directory: typeof emptyDirectory = { groups: [
+    { id: provider, name: 'My API', models: [] },
+    { id: 'second-api', name: 'My API', models: [] },
+  ], failures: [] }
+  const props = { ...modelDirectory, t: makeTranslate(en),
+    useModelDirectory: <T,>(select: (state: typeof emptyDirectory) => T): T => select(directory),
+    useProjection: (key: string) => key === 'hemiModelUsage' ? { models: rows } : undefined,
+    loadUsage: async () => ({ models: rows, sessions: 1, unavailableSessions: 0 }),
+  } as Props
+  const view = render(<HemiSessionUsage {...props} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Conversation usage' }))
+  const dialog = within(screen.getByRole('dialog'))
+  const headers = dialog.getAllByRole('rowheader')
+  expect(headers.map(header => header.textContent)).toEqual([
+    'baidu/ernie-5.5-flash-preview:free (My API)', 'baidu/ernie-5.5-flash-preview:free (My API)',
+  ])
+  expect(dialog.getByText('260')).toBeTruthy()
+  expect(dialog.queryByText(provider, { exact: false })).toBeNull()
+  directory = { groups: [{ id: provider, name: 'Renamed API', models: [] }, directory.groups[1]!], failures: [] }
+  view.rerender(<HemiSessionUsage {...props} />)
+  expect(dialog.getAllByRole('rowheader')[0]).toBe(headers[0])
+  expect(headers[0]!.textContent).toBe('baidu/ernie-5.5-flash-preview:free (Renamed API)')
+  expect(dialog.getByText('260')).toBeTruthy()
+  expect(rows[0]!.provider).toBe(provider)
+})
+
+it('uses failed provider catalog names and retains unknown historical provider IDs', () => {
+  type Props = Parameters<typeof HemiSessionUsage>[0]
+  const directory: typeof emptyDirectory = { groups: [], failures: [
+    { id: 'api-down', name: 'Offline API', message: 'offline' },
+  ] }
+  const rows = [{ ...root, provider: 'api-down' }, { ...root, provider: 'removed-provider', model: 'old' }]
+  const props = { ...modelDirectory, t: makeTranslate(en),
+    useModelDirectory: <T,>(select: (state: typeof emptyDirectory) => T): T => select(directory),
+    useProjection: (key: string) => key === 'hemiModelUsage' ? { models: rows } : undefined,
+    loadUsage: async () => ({ models: rows, sessions: 1, unavailableSessions: 0 }),
+  } as Props
+  render(<HemiSessionUsage {...props} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Conversation usage' }))
+  const dialog = within(screen.getByRole('dialog'))
+  expect(dialog.getByRole('rowheader', { name: 'main (Offline API)' })).toBeTruthy()
+  expect(dialog.getByRole('rowheader', { name: 'old (removed-provider)' })).toBeTruthy()
+})
+
 it('shows recorded values and zero cache counters without requiring complete reports', () => {
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const row = { ...root, calls: 1, reportedCalls: 1, totalReports: 0, totalTokens: 12, outputTokens: 2 }
   const own = { models: [row] }
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
     loadUsage: async () => ({ models: [row], sessions: 1, unavailableSessions: 0 }),
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -66,7 +119,7 @@ it('refreshes the whole-tree cache rate while the popover is closed', async () =
   const own = { models: [root] }
   const catalog = [{ id: 'child' }]
   let cacheRead = 25
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage: async () => ({ models: [{ ...root, totalTokens: 120, cacheReadTokens: cacheRead, cacheReadReports: 2 }],
       sessions: 2, unavailableSessions: 0 }),
   } as Props
@@ -83,7 +136,7 @@ it('sums reported usage without missing-call counts or unavailable totals', () =
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const row = { ...root, calls: 3, totalTokens: 220, cacheReadTokens: 80, cacheReadReports: 2 }
   const own = { models: [row] }
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
     loadUsage: async () => ({ ...own, sessions: 1, unavailableSessions: 0 }),
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -106,7 +159,7 @@ it.each([
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const row = { ...root, reportedCalls: 0, totalReports: 0, uncachedInputTokens: 0, outputTokens: 0, totalTokens: 0 }
   const own = { models: [row] }
-  const props = { t: makeTranslate(dictionary), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
+  const props = { ...modelDirectory, t: makeTranslate(dictionary), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
     loadUsage: async () => ({ ...own, sessions: 1, unavailableSessions: 0 }),
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -125,7 +178,7 @@ it.each([
 ])('keeps the footer label unchanged when report coverage changes ($title)', ({ dictionary, title, label }) => {
   type Props = Parameters<typeof HemiSessionUsage>[0]
   let own = { models: [{ ...root, calls: 3, totalTokens: 220, cacheReadTokens: 80, cacheReadReports: 2 }] }
-  const props = { t: makeTranslate(dictionary),
+  const props = { ...modelDirectory, t: makeTranslate(dictionary),
     useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
     loadUsage: async () => ({ ...own, sessions: 1, unavailableSessions: 0 }),
   } as Props
@@ -143,7 +196,7 @@ it('uses the live projection without fetching when a solo conversation opens', (
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const own = { models: [{ ...root, totalTokens: 120, cacheReadTokens: 25, cacheReadReports: 2 }] }
   const loadUsage = vi.fn(async () => ({ ...own, sessions: 1, unavailableSessions: 0 }))
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : undefined,
     loadUsage,
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -167,7 +220,7 @@ it('keeps tree figures visible while opening, closing, refreshing and retrying',
     pending.push(request)
     return request.promise
   })
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage,
   } as Props
   const view = render(<HemiSessionUsage {...props} />)
@@ -227,7 +280,7 @@ it('retains the tree figures when the root projections RPC fails and recovers on
     return { usage: { models: [{ ...row, model: id === rootId ? 'main' : 'oracle' }] },
       children: id === rootId ? [{ id: childId, mode: 'local' }] : [] }
   }, signal)
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage,
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -253,7 +306,7 @@ it('distinguishes a first read failure from a refresh failure', async () => {
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const own = { models: [root] }
   const catalog = [{ id: 'child' }]
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage: async () => { throw new Error('offline') },
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -268,7 +321,7 @@ it('keeps available branch totals and cache rates visible beside the read failur
   type Props = Parameters<typeof HemiSessionUsage>[0]
   const own = { models: [root] }
   const catalog = [{ id: 'child' }]
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage: async () => ({ models: [child], sessions: 1, unavailableSessions: 1 }),
   } as Props
   render(<HemiSessionUsage {...props} />)
@@ -288,7 +341,7 @@ it('does not reuse another conversation reader’s retained figures', async () =
   const data = { models: [{ ...root, totalTokens: 120, cacheReadTokens: 25, cacheReadReports: 2 }],
     sessions: 2, unavailableSessions: 0 }
   const next = Promise.withResolvers<ConversationUsage>()
-  const props = { t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
+  const props = { ...modelDirectory, t: makeTranslate(zh), useProjection: (key: string) => key === 'hemiModelUsage' ? own : catalog,
     loadUsage: async () => data,
   } as Props
   const view = render(<HemiSessionUsage {...props} />)

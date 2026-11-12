@@ -1,6 +1,7 @@
 /** Conversation-wide cache summary and per-model detail, owned entirely by Hemi. */
 import { useEffect, useState } from 'react'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ConversationUsage, ModelUsageRow } from '@deepseek-ai/dsh-hemi-routing/client'
 import { NS } from '../locales.ts'
@@ -9,9 +10,11 @@ import { useStatDialog } from './stat-dialog.ts'
 import { conversationCacheHit, formatCacheHit } from './conversation-usage.ts'
 import css from './Usage.module.css'
 
-type Props = PropsRuntime<'conversation.composer.dock'> & PropsLocale<typeof NS> & SessionUsageInjected
+type Props = PropsRuntime<'conversation.composer.dock'> & PropsLocale<typeof NS> & InjectFace<SessionUsageInjected>
 type Translate = PropsLocale<typeof NS>['t']
+/** Recorded counters and the shared catalog's live provider labels. */
 export interface SessionUsageInjected {
+  hooks: { modelDirectory: HostObservable<Pick<ModelDirectoryState, 'groups' | 'failures'>> }
   loadUsage(this: void, signal: AbortSignal): Promise<ConversationUsage>
 }
 type UsageRead = {
@@ -23,6 +26,9 @@ const exact = new Intl.NumberFormat()
 
 export function HemiSessionUsage(props: Props) {
   const { t, loadUsage } = props
+  const groups = props.useModelDirectory(state => state.groups)
+  const failures = props.useModelDirectory(state => state.failures)
+  const providerNames = new Map([...failures, ...groups].map(provider => [provider.id, provider.name]))
   const rootUsage = props.useProjection('hemiModelUsage')
   const catalog = props.useProjection('subagentCatalog')
   const hasChildren = (catalog?.length ?? 0) > 0
@@ -92,15 +98,16 @@ export function HemiSessionUsage(props: Props) {
         <th scope="col">{t('usage.cacheRead')}</th>
         <th scope="col">{t('usage.cacheWrite')}</th>
       </tr></thead>
-      <tbody>{rows.map(row => <ModelRow key={JSON.stringify([row.provider, row.model])} row={row} t={t} />)}</tbody>
+      <tbody>{rows.map(row => <ModelRow key={JSON.stringify([row.provider, row.model])}
+        row={row} providerName={providerNames.get(row.provider) ?? row.provider} t={t} />)}</tbody>
     </table>}
     {data !== undefined && rows.length === 0 && <p className={css.scope}>{t('usage.unavailable')}</p>}
   </UsagePopover>
 }
 
-function ModelRow({ row, t }: { row: ModelUsageRow; t: Translate }) {
+function ModelRow({ row, providerName, t }: { row: ModelUsageRow; providerName: string; t: Translate }) {
   return <tr>
-    <th scope="row">{row.model} ({row.provider})</th>
+    <th scope="row">{row.model} ({providerName})</th>
     <td data-label={t('usage.calls')}>{exact.format(row.calls)}</td>
     <td data-label={t('usage.fullInput')}>{exact.format(row.totalTokens - row.outputTokens)}</td>
     <td data-label={t('usage.output')}>{exact.format(row.outputTokens)}</td>

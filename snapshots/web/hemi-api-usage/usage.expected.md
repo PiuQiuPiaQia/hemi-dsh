@@ -1,0 +1,24 @@
+- dialog "Conversation usage":
+  - text: Conversation usage Total
+  - strong: "275"
+  - text: token Cache hit 32%
+  - table "Recorded usage by model":
+    - caption: Recorded usage by model
+    - rowgroup:
+      - row "Model Calls Input incl. cache Output Cache rate Cache read Cache write":
+        - columnheader "Model"
+        - columnheader "Calls"
+        - columnheader "Input incl. cache"
+        - columnheader "Output"
+        - columnheader "Cache rate"
+        - columnheader "Cache read"
+        - columnheader "Cache write"
+    - rowgroup:
+      - row "baidu/ernie-5.5-flash-preview:free (My API connection) 4 250 25 32% 80 0":
+        - rowheader "baidu/ernie-5.5-flash-preview:free (My API connection)"
+        - cell "4"
+        - cell "250"
+        - cell "25"
+        - cell "32%"
+        - cell "80"
+        - cell "0"

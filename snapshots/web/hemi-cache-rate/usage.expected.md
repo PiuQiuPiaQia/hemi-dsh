@@ -14,16 +14,16 @@
         - columnheader "Cache read"
         - columnheader "Cache write"
     - rowgroup:
-      - row "deepseek-v4-flash (deepseek-official) 3 200 20 40% 80 0":
-        - rowheader "deepseek-v4-flash (deepseek-official)"
+      - row "deepseek-v4-flash (DeepSeek) 3 200 20 40% 80 0":
+        - rowheader "deepseek-v4-flash (DeepSeek)"
         - cell "3"
         - cell "200"
         - cell "20"
         - cell "40%"
         - cell "80"
         - cell "0"
-      - row "deepseek-v4-pro (deepseek-official) 1 50 5 0% 0 0":
-        - rowheader "deepseek-v4-pro (deepseek-official)"
+      - row "deepseek-v4-pro (DeepSeek) 1 50 5 0% 0 0":
+        - rowheader "deepseek-v4-pro (DeepSeek)"
         - cell "1"
         - cell "50"
         - cell "5"
