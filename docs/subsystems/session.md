@@ -1276,11 +1276,11 @@ Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/sess
 
 #### `api-session/added` — emit
 
-A Session became visible or its Agent was created or disposed. Consumers upsert the summary and replace its current running and availability state.
+A Session became visible or its execution availability changed. Consumers upsert the summary and replace its current running and availability state.
 
 ```ts cordis-catalog
 /**
- * A Session became visible or its Agent was created or disposed.
+ * A Session became visible or its execution availability changed.
  * Consumers upsert the summary and replace its current running and availability state.
  * @mode emit
  * @param summary - current list row for the Session.
@@ -1314,11 +1314,11 @@ Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/sess
 
 #### `api-session/removed` — emit
 
-A Session left the live Host registry.
+A Session left the live Host registry and was not republished as a stored row.
 
 ```ts cordis-catalog
 /**
- * A Session left the live Host registry.
+ * A Session left the live Host registry and was not republished as a stored row.
  * @mode emit
  * @param sessionId - removed Session identity.
  */

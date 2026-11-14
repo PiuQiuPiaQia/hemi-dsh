@@ -202,7 +202,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     /** The composed file-reference provider cannot search this execution environment. */
     'file-reference/unsupported-environment': Record<string, never>
     'session/projections-unavailable': Record<string, never>
-    /** The selected execution services cannot serve this Session's files. */
+    /** The selected execution environment could not be attached or could not serve the Session's files. */
     'session/execution-unavailable': { readonly sessionId: SessionId }
     /** A Session file has no verified mapping to the serving desktop. */
     'session/path-unavailable': { readonly sessionId: SessionId }
@@ -692,14 +692,14 @@ export type SessionProjectionFrame =
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * A Session became visible or its Agent was created or disposed.
+     * A Session became visible or its execution availability changed.
      * Consumers upsert the summary and replace its current running and availability state.
      * @mode emit
      * @param summary - current list row for the Session.
      */
     'api-session/added'(summary: SessionSummary): void
     /**
-     * A Session left the live Host registry.
+     * A Session left the live Host registry and was not republished as a stored row.
      * @mode emit
      * @param sessionId - removed Session identity.
      */

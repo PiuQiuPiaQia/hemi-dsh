@@ -11,6 +11,8 @@
 
 当前归属与合并核对以本节为准；下方日期条目保留实施记录。
 
+SSH 会话断线提示归 [ssh-servers-ui](packages/hemi/ssh-servers-ui/README.zh.md)，复用输入区插槽和普通消息发送流程。[Session Controller](packages/api/session-controller/src/index.ts) 在显式执行目标分离后用持久化 header 确认目录成员身份，客户端保留摘要原有的 Agent 可用性。执行 provider 以通用错误类型报告连接失败，Session Controller 将其映射到现有的执行环境不可用错误。现有移除通知无法表达历史仍可读，也无法传递执行连接失败。合并上游时核对断线时保留历史和草稿、重连仍使用同一执行目标，以及真正移除会话时侧栏正常更新。
+
 会话“标记为未读”入口归 [session-unread-ui](packages/hemi/session-unread-ui/README.zh.md)，使用已有会话上下文菜单注册，不修改原生菜单组件。[UiSession](packages/client/ui-session/src/client/index.ts) 只增加通用手动未读接口与重新进入主视图时的确认逻辑，因为已有完成提醒状态没有外部写入入口；手动标记不切换会话、不修改 Host 会话记录，也不改变运行或待交互状态。[会话树投影](packages/client/ui-workspace/src/client/tree.ts)和[状态文案](packages/client/ui-workspace/src/client/rows/Rows.tsx)保留手动来源，使同一个提醒点对手动标记显示“未读”，对自动完成仍显示“已完成”，避免把未完成会话误报为完成。验证由所属状态测试、菜单注册测试和[真实浏览器场景](apps/web/tests/hemi-session-unread.e2e.ts)覆盖。合并上游时核对手动提醒与自动完成提醒互不干扰、当前会话的标记能保留到下一次进入，以及卸载后菜单撤回；上游提供等价入口后评估移除窄扩展。
 
 桌面「保持电脑运行」开关归 [DesktopKeepAwake](apps/desktop/src/keep-awake.ts) 与 [通用设置行](packages/client/ui-settings-general/src/client/DesktopKeepAwakeRow.tsx)。[主进程](apps/desktop/src/main.ts)在启动读取偏好时载入单个 `prevent-app-suspension` 电源断言，[设置文件](apps/desktop/src/settings-file.ts)为 `keepAwake.enabled` 增加独立校验的 loose 节；[IPC](apps/desktop/src/ipc.ts) 与 [preload](apps/desktop/src/preload-app.ts) 按既有 updates 通道三件套暴露读取、写入与变更。上游主进程、设置文件与 preload 原无电源断言入口，因此保留窄接入，不复制 Electron powerSaveBlocker 状态。开关默认关闭，缺字段或无效字段时保持关闭并显示读取错误，写入失败状态不变；屏幕熄灭、合盖与手动睡眠不受影响。验证由 keep-awake、settings-file、preload、main-startup 单测与[真实浏览器场景](apps/web/tests/desktop-keep-awake.e2e.ts)覆盖。合并上游时核对启动载入顺序、IPC 通道名、loose 校验语义与 UI 失败提示。

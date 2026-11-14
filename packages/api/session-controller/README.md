@@ -27,6 +27,8 @@ Desktop analytics follows the [product collection policy](../../client/product-a
 <a id="use-this-package"></a>
 ## Use this package
 
+After a Session with a recorded execution target detaches, the Host checks its stored header and publishes an inactive summary if the record is present. History can be read independently of the Agent. A prompt resumes the original execution target before admission and may return `session/execution-unavailable` before accepting content.
+
 Prompt retries use the request identity in the first committed inbox insertion, including after the message is claimed or removed. Admission checks again after asynchronous attachment preparation, so concurrent retries accept one input. Acceptance acknowledges insertion, not execution or completion.
 
 The controller reads a Session's recorded preset through the optional `agentPresets.presetForSession(session)` service method. A null result means no preset was recorded; an absent service means preset identity is unavailable to the controller.

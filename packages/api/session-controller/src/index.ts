@@ -9,7 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import { errorChain, ReasoningEffortId, type MessageSource } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-client-file-upload'
 import { canOpenNativePath, nativeFileManager, nativeFileApplications, openNativeFileApplication, openNativeAssociatedPath, revealNativePath } from '@deepseek-ai/dsh-native-command'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, RemoteError, TypertRemoteService, principalOf, type TypertResourceResolveInput } from '@deepseek-ai/dsh-typert-protocol'
@@ -169,7 +169,7 @@ export class SessionController extends TypertRemoteService {
   private readonly revealPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
   private readonly listWorkSliceMs: number
-  private readonly promotions = new Set<Promise<void>>()
+  private readonly backgroundTasks = new Set<Promise<void>>()
 
   /**
    * @param ctx - Host context containing the Session capability assembly.
@@ -202,7 +202,7 @@ export class SessionController extends TypertRemoteService {
     // Registered before history so reverse-order teardown closes every
     // follower before waiting for already-admitted promotions.
     ctx.effect(() => async () => {
-      await Promise.allSettled([...this.promotions])
+      await Promise.allSettled([...this.backgroundTasks])
     }, 'session-controller.promotions')
     // Assistant-stream observation must be live before the list read yields: an Agent's
     // opening frame arriving during that await would otherwise have no listener.
@@ -226,7 +226,9 @@ export class SessionController extends TypertRemoteService {
       ctx.emit('api-session/added', this.listState.summaryFor(session))
     })
     ctx.on('session/disposed', (session) => {
-      ctx.emit('api-session/removed', session.id)
+      // Hemi fork: an SSH Agent can detach while its locally stored conversation remains available.
+      if (session.header.executionTarget === undefined) ctx.emit('api-session/removed', session.id)
+      else this.trackBackground(this.publishDetachedSession(session))
     })
     const publishAgentAvailability = ({ agent }: { agent: Agent }): undefined => {
       if (ctx.sessions.get(agent.id) === agent.session) {
@@ -247,6 +249,24 @@ export class SessionController extends TypertRemoteService {
     })
   }
 
+  private async publishDetachedSession(session: Session): Promise<void> {
+    const ctx = this.ctx
+    const sessionId = session.id
+    try {
+      const stored = await ctx.get('sessionPersistence')?.stat(sessionId)
+      if (ctx.sessions.get(sessionId) !== undefined) return
+      if (stored === undefined) ctx.emit('api-session/removed', sessionId)
+      else ctx.emit('api-session/added', this.listState.summarizeCold(stored))
+    } catch (error: unknown) {
+      ctx.logger.warn(`session-controller: could not confirm stored history for "${sessionId}" after detach: ${errorChain(error)}`)
+    }
+  }
+
+  private trackBackground(task: Promise<void>): void {
+    this.backgroundTasks.add(task)
+    void task.finally(() => { this.backgroundTasks.delete(task) })
+  }
+
   /**
    * Request background activation through the existing Session Agent controller.
    * @param observation - owned lease disposed by the background task; callers retain their own lease separately.
@@ -260,8 +280,7 @@ export class SessionController extends TypertRemoteService {
     })().catch((error: unknown) => {
       this.ctx.logger.error(`session-controller: background activation for "${sessionId}" failed: ${errorChain(error)}`)
     })
-    this.promotions.add(task)
-    void task.finally(() => { this.promotions.delete(task) })
+    this.trackBackground(task)
   }
 
   /**

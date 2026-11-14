@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { Session, SessionExecutionTarget, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import { ExecutionTargetUnavailableError, type Session, type SessionExecutionTarget, type SessionHeader, type SessionId } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
@@ -85,7 +85,9 @@ interface ApiSessionComposition {
 }
 
 /** Failures produced while resolving one ordinary Session identity to its live Agent. */
-export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'gateway/internal'>
+export type ApiSessionAgentError = RemoteError<
+  'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'session/execution-unavailable' | 'gateway/internal'
+>
 
 /** Result of resolving one ordinary Session identity to its live Agent. */
 export type ApiSessionAgentResult =
@@ -200,6 +202,11 @@ export class ApiSessionAgentController {
       }
       if (error instanceof Error && error.name === 'SessionAlreadyOwnedError') {
         return { error: new RemoteError('session/writer-held', error.message, { sessionId }) }
+      }
+      // Hemi fork: a failed reattachment leaves the stored conversation available for another attempt.
+      if (error instanceof ExecutionTargetUnavailableError) {
+        return { error: new RemoteError('session/execution-unavailable',
+          'Could not connect to the session environment. Check the connection and try again.', { sessionId }, { cause: error }) }
       }
       return {
         error: new RemoteError(

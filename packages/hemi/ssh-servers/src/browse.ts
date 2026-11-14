@@ -93,9 +93,12 @@ export function sshExec(endpoint: SshEndpointArgs, command: string, signal: Abor
  * @param endpoint - saved connection fields.
  * @param command - fixed POSIX shell program.
  * @param input - exact bytes the remote command reads from stdin.
- * @param signal - caller cancellation; kills the local ssh client after which the exit is awaited.
+ * @param signal - caller cancellation or deadline; kills the local ssh client and awaits its exit.
+ * @param deadline - use the stream deadline or let the caller's signal bound the operation.
  */
-export function sshStream(endpoint: SshEndpointArgs, command: string, input: Buffer, signal: AbortSignal): Promise<void> {
+export function sshStream(
+  endpoint: SshEndpointArgs, command: string, input: Buffer, signal: AbortSignal, deadline: 'stream' | 'caller' = 'stream',
+): Promise<void> {
   signal.throwIfAborted()
   return new Promise<void>((resolve, reject) => {
     const child = spawn('ssh', [...endpointOptions(endpoint), endpoint.host, command], { stdio: ['pipe', 'ignore', 'pipe'] })
@@ -106,19 +109,18 @@ export function sshStream(endpoint: SshEndpointArgs, command: string, input: Buf
     child.stderr.on('data', (chunk: string) => { stderr = (stderr + chunk).slice(-8192) })
     const kill = (): void => { child.kill('SIGKILL') }
     signal.addEventListener('abort', kill, { once: true })
-    // A hung transport or remote reader must not hold the caller forever.
-    const deadline = setTimeout(() => { timedOut = true; kill() }, COMMAND_TIMEOUT_MS)
+    const timer = deadline === 'stream' ? setTimeout(() => { timedOut = true; kill() }, COMMAND_TIMEOUT_MS) : undefined
     const settle = (failed: boolean, exitCode: number | null): void => {
       if (settled) return
       settled = true
-      clearTimeout(deadline)
+      clearTimeout(timer)
       signal.removeEventListener('abort', kill)
-      if (!failed) { resolve(); return }
       if (signal.aborted) {
         reject(signal.reason instanceof Error ? signal.reason : new Error('SSH command cancelled'))
         return
       }
       if (timedOut) { reject(classifyTransport(endpoint, 'SSH command timed out', stderr)); return }
+      if (!failed) { resolve(); return }
       if (exitCode === SSH_TRANSPORT_EXIT) { reject(classifyTransport(endpoint, 'ssh failed', stderr)); return }
       if (exitCode !== null) { reject(new RemoteCommandError(exitCode, reasonOf(stderr))); return }
       reject(classifyTransport(endpoint, 'ssh failed to start', stderr))

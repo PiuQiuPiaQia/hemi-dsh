@@ -24,6 +24,8 @@ export interface SessionListEntry {
   title?: string
   updatedAt: number
   running: boolean
+  /** Whether an explicit execution target has a live Agent. */
+  agentAvailable?: boolean
   /**
    * New Session presentation and reuse eligibility, reconciled with
    * `sessionListMetadata`; lists hide blank sessions (filtering stays with the consumer).
@@ -83,9 +85,11 @@ export function flattenLineage(
       return
     }
     visited.add(s.sessionId)
-    const { agentAvailable: _agentAvailable, ...row } = s
+    // Hemi fork: remote conversations need the live Agent state independently of running state.
+    const { agentAvailable, ...row } = s
     out.push({
       ...row,
+      ...(s.executionTarget === undefined ? {} : { agentAvailable }),
       depth,
     })
     const kids = children.get(s.sessionId)

@@ -21,6 +21,7 @@ import { AddServerAction } from './AddServerAction.tsx'
 import { ConnectionPicker, type ConnectionPickerInjected } from './ConnectionPicker.tsx'
 import { FolderOverlay } from './FolderOverlay.tsx'
 import { ServerOverlay } from './ServerOverlay.tsx'
+import { SessionConnectionNotice } from './SessionConnectionNotice.tsx'
 import type { AuthenticationInjected, EditorInjected, FolderInjected, SharedProps } from './types.ts'
 import { en, NS, zh } from './locales.ts'
 
@@ -41,6 +42,9 @@ export async function mountServers(ctx: Context, contribution: TypertRemoteContr
 
 function registerServers(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'hemi-ssh-servers-ui: copy')
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock', id: 'hemi-ssh-connection', order: 5, locale: NS,
+  }, SessionConnectionNotice))
   ctx.slots.inject('contextMenu.icon', function* () {
     yield ctx.slots.register({ name: 'contextMenu.icon', key: 'hemi-ssh.edit' }, IconEditOutlineRegular)
     yield ctx.slots.register({ name: 'contextMenu.icon', key: 'hemi-ssh.remove' }, IconTrashOutlineRegular)

@@ -25,6 +25,8 @@ Save SSH connections and choose them repeatedly from the conversation’s Worksp
 <a id="use-this-package"></a>
 ## Use this package
 
+If an SSH server disconnects, previously saved conversations stay in the workspace and their history remains readable. Once the server is back online, send a message in the same conversation to reconnect. If reconnecting fails, the composer shows the error and keeps the draft available to resend.
+
 Choose **Add SSH** below **Add workspace** in the conversation’s Workspace picker or sidebar add menu. The form accepts a display name, one SSH address, a separate port, an optional private-key path and an optional preferred remote directory. The address accepts username@host or an OpenSSH alias. A private key stays on the Hemi host; the field accepts its path, not its contents.
 
 The editor retains the optional preferred-directory field. **Choose directory** opens the same directory picker used by saved connections, against the staged endpoint. Select a physical directory to fill the field; leaving it blank starts in the remote home.

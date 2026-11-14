@@ -1,5 +1,5 @@
 /** Saved connections and remote folders, without execution setup controls, over the shipped profile and recorded history. */
-import { mkdir, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, stat, symlink, unlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createPasswordSshFixture } from '../../../packages/hemi/ssh-servers/tests/support/password-ssh.ts'
 import { createOpenSshFixture } from '../../../packages/hemi/ssh-servers/tests/support/openssh.ts'
@@ -11,7 +11,7 @@ import { afterAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type {} from '@deepseek-ai/dsh-hemi-ssh-servers'
 import type {} from '@deepseek-ai/dsh-hemi-ssh-servers/workspaces'
 import {
-  assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
+  acknowledgeReloadConnectionLoss, assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, seedSession, watchConsole, webSnapshotMode,
 } from './scaffold.ts'
 import { ZH_BROWSER_LOCALE } from './support.ts'
@@ -156,7 +156,8 @@ describe.skipIf(MODE === 'record' || process.platform === 'win32' || !existsSync
     onTestFinished(async () => {
       try { await owned.browser?.close(); await owned.scaffold?.close() } finally { await ssh.close(); vi.unstubAllEnvs() }
     })
-    await symlink(process.execPath, join(ssh.bin, 'node'))
+    const remoteNode = join(ssh.bin, 'node')
+    await symlink(process.execPath, remoteNode)
     vi.stubEnv('PATH', ssh.bin + ':' + (process.env.PATH ?? '/usr/bin:/bin'))
     const one = join(ssh.root, 'remote-project-one'), two = join(ssh.root, 'remote-project-two')
     await mkdir(one); await mkdir(two)
@@ -333,6 +334,20 @@ describe.skipIf(MODE === 'record' || process.platform === 'win32' || !existsSync
     await page.emulateMedia({ colorScheme: 'light' })
     await folder.getByRole('button', { name: '浏览 remote-project-one', exact: true }).press('Enter')
     await waitDirectory(one)
+    // Hold the platform probe past the setup deadline before any download can start.
+    const remoteUname = join(ssh.bin, 'uname')
+    await unlink(remoteNode)
+    await writeFile(remoteNode, '#!/bin/sh\nprintf "v22.0.0\\n"\n', { mode: 0o700 })
+    await writeFile(remoteUname, '#!/bin/sh\nsleep 4\nexec /usr/bin/uname "$@"\n', { mode: 0o700 })
+    await useFolder.press('Enter')
+    await folder.getByText('远端 Node 运行环境准备失败，请检查这台电脑的网络后重试', { exact: true }).waitFor()
+    expect(remoteWorkspaces()).toEqual([])
+    expect(app.ctx.get('hemiSshWorkspaces')!.getRuntime(server.id, signal)).toBeUndefined()
+    await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'runtime-provision-timeout.expected.md'),
+      await captureStableAria(page, '[role="dialog"][aria-label="选择远端文件夹"]', ssh.root, { replacements }), MODE)
+    await unlink(remoteUname)
+    await unlink(remoteNode)
+    await symlink(process.execPath, remoteNode)
     await useFolder.press('Enter')
     await folder.waitFor({ state: 'hidden' })
     await expect.poll(() => remoteWorkspaces().length).toBe(1)
@@ -420,6 +435,58 @@ describe.skipIf(MODE === 'record' || process.platform === 'win32' || !existsSync
     await touchPage.close()
     await app.ctx.get('hemiSshServers')!.update(renamedConnection.id, renamedConnection.revision, savedFields, signal)
     expect(app.ctx.get('hemiSshServers')!.list(signal).map(row => row.id)).toEqual([server.id])
+
+    const workspace = remoteWorkspaces().find(row => row.path === one)!
+    const sessionId = await seedSession(app, await readFile(SEED, 'utf8'), 'hemi-ssh-disconnection', undefined, {
+      cwd: one, executionTarget: workspace.executionTarget!,
+    })
+    await workspace.attachSession(sessionId)
+    await page.setViewportSize({ width: 1280, height: 820 })
+    const warningStart = tripwire.warnings.length
+    await page.reload({ waitUntil: 'load' })
+    const remoteGroup = page.getByRole('treeitem', { name: 'remote-project-one（测试 SSH）', exact: true })
+    if (await remoteGroup.getAttribute('aria-expanded') !== 'true') await remoteGroup.click()
+    const sessionRow = page.locator(`[data-row-key="session:${sessionId}"]`)
+    await sessionRow.click()
+    const history = page.getByText('DONE', { exact: true })
+    await history.waitFor()
+    acknowledgeReloadConnectionLoss(tripwire, warningStart)
+    await expect.poll(() => app.ctx.agents.get(sessionId) !== undefined).toBe(true)
+    await ssh.setOnline(false)
+    await expect.poll(() => app.ctx.agents.get(sessionId)).toBeUndefined()
+    const offline = page.getByText('SSH 会话已断开。服务器恢复后，发送消息即可重连', { exact: true })
+    await offline.waitFor()
+    expect(await history.isVisible()).toBe(true)
+    expect(await sessionRow.isVisible()).toBe(true)
+    const draft = page.locator('[contenteditable="true"][role="textbox"]')
+    await draft.fill('SSH reconnect draft')
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    const failed = page.getByText('SSH 重连失败。请确认服务器已上线，再重新发送消息', { exact: true })
+    await failed.waitFor()
+    expect(await draft.textContent()).toBe('SSH reconnect draft')
+    expect(await history.isVisible()).toBe(true)
+    await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'session-reconnect.expected.md'), await failed.ariaSnapshot(), MODE)
+    for (const [width, theme] of [[1280, 'light'], [390, 'dark']] as const) {
+      await page.setViewportSize({ width, height: 820 })
+      await page.emulateMedia({ colorScheme: theme })
+      await expect.poll(() => page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme'))).toBe(theme === 'dark')
+      expect(await failed.evaluate((node) => {
+        const box = node.getBoundingClientRect()
+        return box.left >= 0 && box.right <= innerWidth && node.scrollWidth <= node.clientWidth
+      })).toBe(true)
+      await page.screenshot({ path: join(screenshots, `session-reconnect-${theme}.png`), animations: 'disabled' })
+    }
+    await page.setViewportSize({ width: 1280, height: 820 })
+    await ssh.setOnline(true)
+    await page.getByRole('button', { name: '发送消息', exact: true }).click()
+    await expect.poll(() => app.ctx.agents.get(sessionId) !== undefined).toBe(true)
+    await expect.poll(async () => (await app.ctx.sessionQuery.readSession(sessionId)).events
+      .filter(event => event.type === 'user/message' && event.data.content.some(part => part.type === 'text' && part.text === 'SSH reconnect draft')).length)
+      .toBe(1)
+    await offline.waitFor({ state: 'hidden' })
+    await failed.waitFor({ state: 'hidden' })
+    expect(await history.isVisible()).toBe(true)
+    expect(await sessionRow.isVisible()).toBe(true)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })
@@ -656,5 +723,7 @@ afterAll(async () => {
     'picker-add-menu.expected.md', 'editor.expected.md', 'remote-folders.expected.md', 'remote-workspaces.expected.md',
     'connection-actions.expected.md', 'password-login.expected.md', 'password-folders.expected.md',
     'remote-workspace-actions.expected.md', 'remote-workspace-choices.expected.md',
+    'runtime-provision-timeout.expected.md',
+    'session-reconnect.expected.md',
   ])
 })

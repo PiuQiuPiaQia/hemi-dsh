@@ -8,8 +8,13 @@ export class ExecutionTargetUnavailableError extends Error {
   /** Stable identity for unavailable explicit execution targets. */
   readonly code = 'EXECUTION_TARGET_UNAVAILABLE'
 
-  constructor(readonly target: SessionExecutionTarget, readonly reason: 'provider-unavailable' | 'provider-withdrawn') {
-    super(`execution target is unavailable: ${target.provider}/${target.id} (${reason})`)
+  // Hemi fork: execution providers can report a failed connection without losing its cause.
+  constructor(
+    readonly target: SessionExecutionTarget,
+    readonly reason: 'provider-unavailable' | 'provider-withdrawn' | 'acquisition-failed',
+    options?: ErrorOptions,
+  ) {
+    super(`execution target is unavailable: ${target.provider}/${target.id} (${reason})`, options)
     this.name = 'ExecutionTargetUnavailableError'
   }
 }

@@ -4,7 +4,7 @@ import { posix } from 'node:path'
 import schema from '@deepseek-ai/schemastery'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { AgentExecutionLease } from '@deepseek-ai/dsh-session'
+import { ExecutionTargetUnavailableError, type AgentExecutionLease } from '@deepseek-ai/dsh-session'
 import type { ExecutionProviderId, ExecutionTargetId } from '@deepseek-ai/dsh-session'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
@@ -119,7 +119,13 @@ export default class HemiSshWorkspaces extends TypertRemoteService {
       acquire: (id, signal) => {
         const target = this.directory().global.get().targets.find(row => row.id === id)
         if (target === undefined) throw new RemoteError('hemi-ssh/target-unavailable', 'Restore the saved SSH execution target', { targetId: id })
-        return this.run(signal, control => this.acquireTarget(target, control))
+        return this.run(signal, async (control) => {
+          try { return await this.acquireTarget(target, control) }
+          catch (cause: unknown) {
+            control.throwIfAborted()
+            throw new ExecutionTargetUnavailableError({ provider: SSH_EXECUTION_PROVIDER, id }, 'acquisition-failed', { cause })
+          }
+        })
       },
     })
   }

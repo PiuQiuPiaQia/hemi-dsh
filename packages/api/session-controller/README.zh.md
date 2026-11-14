@@ -27,6 +27,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+记录了执行目标的 Session 分离后，Host 检查其持久化 header。记录仍在时，Host 发布未激活的摘要。读取历史无需 Agent。发送消息会先尝试恢复原执行目标，连接失败时可能在接受消息前返回 `session/execution-unavailable`。
+
 提示重试按首次已提交入队记录中的请求标识去重，消息被领取或删除后仍然有效。异步附件准备结束后再次检查，因此并发重试只接受一条输入。接受确认入队，不代表执行或完成。
 
 控制器通过可选服务方法 `agentPresets.presetForSession(session)` 读取 Session 已记录的预设。null 结果表示未记录预设；服务缺席表示控制器无法获知预设身份。

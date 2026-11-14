@@ -19,6 +19,8 @@ export interface OpenSshFixture {
   readonly bin: string
   /** Bounded diagnostics from the owned inetd children. */
   diagnostics(): string
+  /** Switch transport availability and join disconnected clients when going offline. */
+  setOnline(online: boolean): Promise<void>
   /** Stop admission, disconnect sockets, join owned processes, and remove the verified private root. */
   close(): Promise<void>
 }
@@ -40,6 +42,7 @@ export async function createOpenSshFixture(options: { env?: Record<string, strin
   const sockets = new Set<Socket>()
   const children = new Map<ChildProcess, Promise<void>>()
   let output = ''
+  let online = true
   let closing: Promise<void> | undefined
   const diagnostic = (value: string): void => { output = (output + value).slice(-64 * 1024) }
   server.on('error', (error) => { diagnostic(`listener: ${error.message}\n`) })
@@ -93,12 +96,12 @@ export async function createOpenSshFixture(options: { env?: Record<string, strin
     server.on('connection', (socket) => {
       sockets.add(socket)
       socket.on('error', (error) => { diagnostic(`socket: ${error.message}\n`) })
-      if (closing !== undefined) { sockets.delete(socket); socket.destroy(); return }
+      if (!online || closing !== undefined) { sockets.delete(socket); socket.destroy(); return }
       socket.once('close', () => { sockets.delete(socket) })
       const child = spawn('/usr/sbin/sshd', ['-i', '-e', '-f', config], { stdio: [socket, socket, 'pipe'] })
       const closed = new Promise<void>((resolveClosed) => {
         child.once('error', (error) => { diagnostic(`sshd: ${error.message}\n`); socket.destroy() })
-        child.once('close', () => { socket.destroy(); resolveClosed() })
+        child.once('close', () => { children.delete(child); socket.destroy(); resolveClosed() })
       })
       children.set(child, closed)
       child.stderr?.setEncoding('utf8')
@@ -124,7 +127,17 @@ export async function createOpenSshFixture(options: { env?: Record<string, strin
       '  PasswordAuthentication no', '  KbdInteractiveAuthentication no', '  ForwardAgent no', '  LogLevel ERROR',
     ].join('\n') + '\n', { mode: 0o600 })
     await writeFile(join(bin, 'ssh'), `#!/bin/sh\nexec /usr/bin/ssh -F ${quoteShell(clientConfig)} "$@"\n`, { mode: 0o700 })
-    return { root, host: '127.0.0.1', port, username, identityFile, clientConfig, bin, diagnostics: () => output, close }
+    return {
+      root, host: '127.0.0.1', port, username, identityFile, clientConfig, bin, diagnostics: () => output,
+      setOnline: async (next) => {
+        online = next
+        if (next) return
+        for (const socket of sockets) socket.destroy()
+        for (const child of children.keys()) child.kill('SIGTERM')
+        await Promise.all(children.values())
+      },
+      close,
+    }
   } catch (error: unknown) {
     await close()
     throw error

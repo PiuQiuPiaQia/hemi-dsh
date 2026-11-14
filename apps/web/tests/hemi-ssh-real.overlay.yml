@@ -5,6 +5,8 @@
   disabled: false
 - id: hemi-ssh-workspaces
   disabled: false
+  config:
+    runtimeProvisionTimeoutMs: 2000
 - id: directory-picker
   name: '@deepseek-ai/dsh-host-directory-picker-browse'
 - id: hemi-routing-settings

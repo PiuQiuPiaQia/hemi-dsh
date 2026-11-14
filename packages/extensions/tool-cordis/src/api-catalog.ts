@@ -5369,8 +5369,8 @@ export const EVENT_API: readonly EventApiEntry[] = [
     name: 'api-session/added',
     mode: 'emit',
     signature: '\'api-session/added\'(summary: SessionSummary): void',
-    summary: 'A Session became visible or its Agent was created or disposed.',
-    description: 'A Session became visible or its Agent was created or disposed. Consumers upsert the summary and replace its current running and availability state.',
+    summary: 'A Session became visible or its execution availability changed.',
+    description: 'A Session became visible or its execution availability changed. Consumers upsert the summary and replace its current running and availability state.',
     parameters: [{ name: 'summary', description: 'current list row for the Session.' }],
   },
   {
@@ -5385,8 +5385,8 @@ export const EVENT_API: readonly EventApiEntry[] = [
     name: 'api-session/removed',
     mode: 'emit',
     signature: '\'api-session/removed\'(sessionId: SessionId): void',
-    summary: 'A Session left the live Host registry.',
-    description: 'A Session left the live Host registry.',
+    summary: 'A Session left the live Host registry and was not republished as a stored row.',
+    description: 'A Session left the live Host registry and was not republished as a stored row.',
     parameters: [{ name: 'sessionId', description: 'removed Session identity.' }],
   },
   {
@@ -6187,7 +6187,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ApiSessionAgentError',
-    declaration: 'export type ApiSessionAgentError = RemoteError<\'session/not-found\' | \'session/agent-busy\' | \'session/writer-held\' | \'gateway/internal\'>;',
+    declaration: 'export type ApiSessionAgentError = RemoteError<\'session/not-found\' | \'session/agent-busy\' | \'session/writer-held\' | \'session/execution-unavailable\' | \'gateway/internal\'>;',
   },
   {
     name: 'ApiSessionAgentResult',

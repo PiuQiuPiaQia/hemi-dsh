@@ -33,6 +33,8 @@ Mount `dsh-session` wherever a session must exist. It creates and holds event-so
 
 `SessionStore` also owns the shared execution-provider registry. Register through `ctx.sessions.registerExecutionProvider()` and acquire through `ctx.sessions.acquireExecution(target, signal)` without creating an Agent; the Agent registry delegates to the same owner. Registration withdrawal aborts and drains leases. Directory and Agent consumers close leases only after their dependent scopes and I/O settle; no explicit target falls back to deployment defaults.
 
+Providers can report attachment failure with `ExecutionTargetUnavailableError` and retain the original error as its cause.
+
 Independent `Session.create()` and `Session.fromRestore()` instances accept events and plugin records without sending `session/event`. A `SessionStore` takes ownership through `prepare()` or `enter()`; writes then require store membership and a completed synchronous `session/created` announcement. Creation listeners are read-only and see all existing history; entering an independent instance does not replay that history as `session/event`. Failed announcement or removal leaves writes disabled. Removal emits `session/disposed` only if `session/created` began, including a failed announcement; an entered but never announced instance emits neither notification.
 
 ```text

@@ -33,6 +33,8 @@ kind: "package-reference"
 
 `SessionStore` 同时拥有共享执行 provider 注册表。通过 `ctx.sessions.registerExecutionProvider()` 注册，通过 `ctx.sessions.acquireExecution(target, signal)` 获取环境，无需创建 Agent；Agent 注册器委托同一所有者。注册撤销会中止并等待租约。目录与 Agent 消费者先等待依赖作用域和 I/O 结束，再关闭租约；显式目标不会回退到部署默认环境。
 
+执行环境连接失败时，provider 可返回 `ExecutionTargetUnavailableError`，并在 cause 中保留原始错误。
+
 独立的 `Session.create()` 和 `Session.fromRestore()` 实例接受事件和插件记录，但不发送 `session/event`。`SessionStore` 通过 `prepare()` 或 `enter()` 接管实例；此后只有实例仍在 Store 中且同步 `session/created` 宣告已完成时才能写入。创建监听器只能读取，并能看到全部已有历史；独立实例进入 Store 时不会把已有历史重放为 `session/event`。宣告失败或移除后仍禁止写入。只有开始过 `session/created` 宣告的实例在移除时发出 `session/disposed`，宣告失败也不例外；进入 Store 但从未宣告的实例不发出这两个通知。
 
 ```text

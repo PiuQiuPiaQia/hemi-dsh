@@ -44,6 +44,8 @@ Host 实例为主机、登录名、端口和私钥路径完全相同的组合保
 | `serverAliveCountMax` | 3 | 连续探测无响应达到此次数后，OpenSSH 断开；后续操作可以重新认证。 |
 | `runtimeProvisionTimeoutMs` | 300000 | 整个远端 Node 供给操作允许的毫秒数，包括平台探测、下载、上传与校验。 |
 
+Node 压缩包上传使用供给操作的剩余时间。超时后，Hemi 会提示 Node 运行环境准备失败。远端在将压缩包交给解包步骤之前核对字节数，传输截断的文件无法替换缓存中的压缩包。
+
 `browseServer` 和 `browseSavedFolders` 使用已认证 SSH 连接，不要求远端运行时，也不写入远端；空路径解析远端主目录。取消登录不会启动所请求的目录或执行操作。已确认的首次信任可能保留在 OpenSSH 已知主机文件中。
 
 `prepareServerFolder` 核对所选端点，在应用自有的远端缓存中准备随包提供的版本化执行文件，并验证所选物理目录后返回持久执行引用。helper 运行在 Hemi 自行供给的 Node 上：固定版本的官方 Node.js 构建在本机完成校验后上传到同一缓存并跨连接复用；服务器上已有 PATH 中的 Node.js 24 或更高版本时优先使用。服务器无需预装 Node；Linux 需要 glibc 2.28 或更高，过老 glibc 或 musl 系统仅警告不拒绝。除该缓存外不写入任何位置，也不修改 SSH 配置。执行文件必须位于可写工作区之外。将返回的路径和执行引用交给 `workspace.create`，不能伪造 Workspace id。编辑或删除连接不会重写已有目标快照。`configureRuntime` 及按部署版本操作的接口也支持明确安装的部署。

@@ -37,6 +37,8 @@ export interface SessionSummary {
    * presence, never on `cwd`.
    */
   executionTarget?: SessionExecutionTarget
+  /** Whether the recorded execution environment currently has a live Agent. */
+  agentAvailable?: boolean
   parentId?: SessionId
   /** Coarse durable origin for navigation filtering; not a continuation capability. */
   origin?: 'subagent'
@@ -664,6 +666,8 @@ export class ClientSessions implements ISessions {
         ...(entry.title !== undefined ? { title: entry.title } : {}),
         ...(entry.cwd !== undefined ? { cwd: entry.cwd } : {}),
         ...(entry.executionTarget === undefined ? {} : { executionTarget: entry.executionTarget }),
+        // Hemi fork: expose execution readiness to the SSH conversation notice.
+        ...(entry.agentAvailable === undefined ? {} : { agentAvailable: entry.agentAvailable }),
         ...(entry.parentSessionId !== undefined ? { parentId: entry.parentSessionId } : {}),
         ...(entry.origin !== undefined ? { origin: entry.origin } : {}),
       }

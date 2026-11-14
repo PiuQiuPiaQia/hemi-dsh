@@ -793,7 +793,8 @@ export class SessionManager {
         && prev.parentSessionId === entry.parentSessionId && prev.cwd === entry.cwd
         && sameExecutionTarget(prev.executionTarget, entry.executionTarget)
         && prev.origin === entry.origin && prev.title === entry.title && prev.depth === entry.depth
-        && prev.formatStatus === entry.formatStatus
+        // Hemi fork: an idle SSH Agent can detach without changing any other row field.
+        && prev.formatStatus === entry.formatStatus && prev.agentAvailable === entry.agentAvailable
         && prev.projectionValues === entry.projectionValues
       ) return prev
       this.entryCache.set(entry.sessionId, entry)

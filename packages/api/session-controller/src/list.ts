@@ -177,7 +177,13 @@ export class ApiSessionList {
     return items
   }
 
-  private summarizeCold({ header, formatStatus }: SessionRecord): SessionSummary {
+  /**
+   * Build an inactive summary from a stored header and its cached projections.
+   * @param record - metadata from a persistence listing or stat.
+   * @returns the Session row without activating execution.
+   */
+  summarizeCold(record: Pick<SessionRecord, 'header' | 'formatStatus'>): SessionSummary {
+    const { header, formatStatus } = record
     const projections = this.projectionsFor(header, undefined)
     const metadata = projections?.values.sessionListMetadata
     return {

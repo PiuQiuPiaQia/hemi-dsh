@@ -1,0 +1,11 @@
+.notice {
+  box-sizing: border-box;
+  width: min(var(--dsh-composer-card-max-width), calc(100% - 2 * var(--dsh-composer-side-clearance)));
+  margin: 0 auto;
+  padding: 4px 8px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-radius: var(--dsw-radius-md);
+  font-size: 12px;
+  line-height: 18px;
+}

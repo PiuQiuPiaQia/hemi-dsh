@@ -37,6 +37,9 @@ const MINIMUM_GLIBC_MINOR = 28
 /** Loader pattern whose presence marks a musl system the official Linux build does not target. */
 const MUSL_LOADER_GLOB = '/lib/ld-musl-*.so.1'
 
+/** Remote upload exit status for an archive that ended before all bytes arrived. */
+const INCOMPLETE_ARCHIVE_EXIT = 71
+
 /** Host-side options for {@link provisionRemoteNode}; production defaults resolve from the environment. */
 export interface SshNodeProvisionerOptions {
   /** Host cache directory holding downloaded official tarballs across connections; defaults to `<tmpdir>/hemi-ssh-node-runtime`. */
@@ -237,7 +240,7 @@ async function ensureHostTarball(
 }
 
 /**
- * Upload the verified tarball through the atomic stream transaction, extract it and verify the binary.
+ * Upload the verified tarball within the provisioning deadline, extract it and verify the binary.
  * @param endpoint - saved connection fields.
  * @param remoteDir - version-platform installation directory under the app-owned cache.
  * @param tarball - digest-verified distribution bytes.
@@ -245,6 +248,7 @@ async function ensureHostTarball(
  * @param expectedVersion - version the remote binary must report.
  * @param signal - caller cancellation or the provisioning deadline.
  * @throws RemoteError `hemi-ssh/remote-cache-unwritable` when the upload cannot be written.
+ * @throws RemoteError `hemi-ssh/runtime-provision-failed` when fewer bytes arrive than expected.
  * @throws Error when extraction fails or the deployed binary reports another version; the caller retries once.
  */
 async function installRemoteNode(
@@ -252,12 +256,23 @@ async function installRemoteNode(
 ): Promise<void> {
   const remoteTarball = `${remoteDir}/node.tar.gz`
   const runtimeDir = `${remoteDir}/runtime`
-  const temporary = `${remoteTarball}.hemi-${randomBytes(6).toString('hex')}`
-  await sshStream(endpoint,
-    `umask 077 && mkdir -p ${quoteRemote(remoteDir)} && cat > ${quoteRemote(temporary)} && mv -f ${quoteRemote(temporary)} ${quoteRemote(remoteTarball)}`,
-    tarball, signal,
-  ).catch((error: unknown) => {
+  const temporary = quoteRemote(`${remoteTarball}.hemi-${randomBytes(6).toString('hex')}`)
+  const upload = [
+    'set -e',
+    'umask 077',
+    `mkdir -p ${quoteRemote(remoteDir)}`,
+    `trap ${quoteRemote(`rm -f -- ${temporary}`)} 0`,
+    `cat > ${temporary}`,
+    // A killed SSH client can look like an ordinary EOF to the remote shell.
+    `received=$(wc -c < ${temporary})`,
+    `[ "$received" -eq ${tarball.byteLength} ] || exit ${INCOMPLETE_ARCHIVE_EXIT}`,
+    `mv -f -- ${temporary} ${quoteRemote(remoteTarball)}`,
+  ].join('\n')
+  await sshStream(endpoint, upload, tarball, signal, 'caller').catch((error: unknown) => {
     if (error instanceof RemoteCommandError) {
+      if (error.exitCode === INCOMPLETE_ARCHIVE_EXIT) {
+        throw provisionFailed(endpoint.host, 'the SSH upload ended before the complete Node archive arrived')
+      }
       throw new RemoteError('hemi-ssh/remote-cache-unwritable', 'The remote user directory cannot hold the Hemi runtime cache', {
         host: endpoint.host, detail: `writing node.tar.gz failed: ${error.reason === '' ? `exit ${error.exitCode}` : error.reason}`,
       })
@@ -327,7 +342,7 @@ export async function provisionRemoteNode(
       await installRemoteNode(endpoint, remoteDir, tarball, remoteNode, PROVISIONED_NODE_VERSION, control)
       return remoteNode
     } catch (error: unknown) {
-      if (error instanceof RemoteError) throw error
+      if (control.aborted || error instanceof RemoteError) throw error
       await removeFailedInstall(endpoint, remoteDir, nodeCache, control)
       await installRemoteNode(endpoint, remoteDir, tarball, remoteNode, PROVISIONED_NODE_VERSION, control)
         .catch((second: unknown) => {
@@ -337,8 +352,8 @@ export async function provisionRemoteNode(
       return remoteNode
     }
   } catch (error: unknown) {
-    if (error instanceof RemoteError) throw error
-    if (control.aborted && !signal.aborted) {
+    signal.throwIfAborted()
+    if (control.aborted) {
       throw provisionFailed(endpoint.host, `did not finish within the ${options?.timeoutMs} ms budget: ${describeError(error)}`)
     }
     throw error
