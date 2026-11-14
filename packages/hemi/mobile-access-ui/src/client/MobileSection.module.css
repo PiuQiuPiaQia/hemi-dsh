@@ -1,0 +1,60 @@
+/* Shared settings typography and surfaces; controls retain primitive geometry. */
+.section {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 22px;
+}
+.header { display: grid; gap: 4px; }
+.title { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; }
+.description, .help { margin: 0; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-alias-settings-card-fill);
+}
+.computerName { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.subheading { margin: 0; font-size: 13px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; }
+.row, .device { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
+.row > span { min-width: 0; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pairing { display: grid; justify-items: start; gap: 12px; min-width: 0; }
+.qr { display: block; width: 240px; max-width: 100%; height: auto; aspect-ratio: 1; }
+.manual { width: 100%; min-width: 0; }
+.manual summary { cursor: pointer; padding-block: 4px; }
+.manual[open] { display: grid; gap: 8px; }
+.payload {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 112px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-1);
+  color: inherit;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.device + .device { padding-top: 12px; border-top: 0.5px solid var(--dsw-alias-border-l4); }
+.codeRow { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+.code { font-size: 24px; font-weight: 500; line-height: 32px; letter-spacing: 4px; font-variant-numeric: tabular-nums; }
+.deviceText { display: grid; gap: 2px; flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.feedback { min-height: 22px; }
+.error, .notice p { margin: 0; color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
+.notice { display: grid; justify-items: start; gap: 8px; }
+.loading { display: grid; place-items: center; min-height: 96px; }
+@media (pointer: coarse) {
+  .payload { font-size: 16px; }
+  .section button { min-height: 44px; }
+  .manual summary { min-height: 36px; }
+}

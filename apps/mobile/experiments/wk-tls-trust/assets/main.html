@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>body{font:13px monospace;padding:8px;word-break:break-all}</style>
+</head>
+<body>
+<pre id="log"></pre>
+<script>
+window.onerror = function (message) {
+  var line = document.getElementById('log');
+  line.textContent += 'ONERROR ' + message + '\n';
+  try { webkit.messageHandlers.tls.postMessage(JSON.stringify({ test: 'page-onerror', ok: false, detail: String(message) })); } catch (e) {}
+};
+var RESULTS = [];
+function report(test, ok, detail) {
+  var line = (ok ? 'PASS ' : 'FAIL ') + test + ' ' + (detail || '');
+  document.getElementById('log').textContent += line + '\n';
+  RESULTS.push({ test: test, ok: ok, detail: String(detail || '') });
+  try { webkit.messageHandlers.tls.postMessage(JSON.stringify(RESULTS[RESULTS.length - 1])); } catch (e) {}
+}
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function subtest(name, fn) {
+  return Promise.resolve().then(fn).then(function (d) { report(name, true, d || ''); },
+                   function (e) { report(name, false, (e && (e.message || e)) + ''); });
+}
+var body = document.body;
+window.__NAVIGATION_OK = true;
+window.__REACHED_SUBTEST = typeof subtest;
+subtest('navigation-marker', function () {
+  if (!window.__NAVIGATION_OK) throw new Error('inline bootstrap missing');
+  return 'page scripts executed';
+})
+.then(function () { return subtest('fetch', function () {
+  return fetch('/api.json').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (j) { if (j.pong !== 'yes') throw new Error('bad body'); return 'fetch ok'; });
+}); })
+.then(function () { return subtest('fetch-redirect', function () {
+  return fetch('/redirect').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return 'redirect ok, final ' + r.url;
+  });
+}); })
+.then(function () { return subtest('xhr', function () {
+  return new Promise(function (resolve, reject) {
+    var x = new XMLHttpRequest();
+    x.open('GET', '/api.json');
+    x.onload = function () { x.status === 200 ? resolve('xhr ok') : reject(new Error('HTTP ' + x.status)); };
+    x.onerror = function () { reject(new Error('network error')); };
+    x.send();
+  });
+}); })
+.then(function () { return subtest('script', function () {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement('script');
+    s.src = '/script.js';
+    s.onload = function () { window.__SCRIPT_LOADED === 42 ? resolve('script ok') : reject(new Error('marker missing')); };
+    s.onerror = function () { reject(new Error('load error')); };
+    document.head.appendChild(s);
+  });
+}); })
+.then(function () { return subtest('module', function () {
+  return import('/module.mjs').then(function (m) {
+    if (m.marker !== 7) throw new Error('bad module export');
+    return 'es module ok';
+  });
+}); })
+.then(function () { return subtest('css', function () {
+  return new Promise(function (resolve, reject) {
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = '/style.css';
+    l.onload = function () {
+      setTimeout(function () {
+        getComputedStyle(document.body).color === 'rgb(255, 0, 0)' ? resolve('css ok, rule applied') : reject(new Error('style not applied'));
+      }, 0);
+    };
+    l.onerror = function () { reject(new Error('load error')); };
+    document.head.appendChild(l);
+  });
+}); })
+.then(function () { return subtest('img', function () {
+  return new Promise(function (resolve, reject) {
+    var i = new Image();
+    i.onload = function () { resolve('img ok ' + i.naturalWidth + 'x' + i.naturalHeight); };
+    i.onerror = function () { reject(new Error('load error')); };
+    i.src = '/img.png?' + Date.now();
+  });
+}); })
+.then(function () { return subtest('font', function () {
+  return new Promise(function (resolve, reject) {
+    var s = document.createElement('style');
+    s.textContent = "@font-face{font-family:'ExpFont';src:url('/font.woff2') format('woff2')}";
+    document.head.appendChild(s);
+    var probe = document.createElement('span');
+    probe.textContent = 'mmmmmmmmmmlli';
+    probe.style.cssText = "font-family:'ExpFont';position:absolute;visibility:hidden";
+    document.body.appendChild(probe);
+    var before = probe.getBoundingClientRect().width;
+    document.fonts.load("16px 'ExpFont'").then(function (loaded) {
+      loaded.length ? resolve('font ok, loaded ' + loaded[0].family) : reject(new Error('font not loaded'));
+    }).catch(function (e) { reject(e); });
+  });
+}); })
+.then(function () { return subtest('iframe', function () {
+  return new Promise(function (resolve, reject) {
+    var timer = setTimeout(function () { reject(new Error('timeout')); }, 10000);
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.indexOf('iframe-ok') === 0) {
+        clearTimeout(timer);
+        resolve('iframe ok (' + e.data + ')');
+      }
+    });
+    var f = document.createElement('iframe');
+    f.src = '/iframe.html';
+    f.style.width = '50px'; f.style.height = '30px';
+    document.body.appendChild(f);
+  });
+}); })
+.then(function () { return subtest('wss', function () {
+  return new Promise(function (resolve, reject) {
+    var timer = setTimeout(function () { reject(new Error('timeout')); }, 10000);
+    var w = new WebSocket('wss://' + location.host + '/ws');
+    w.onopen = function () { w.send('ping'); };
+    w.onmessage = function (e) {
+      if (e.data === 'ws-echo') { clearTimeout(timer); w.close(); resolve('wss open+send+echo ok'); }
+    };
+    w.onerror = function () { clearTimeout(timer); reject(new Error('websocket error (trust rejected)')); };
+  });
+}); })
+.then(function () { return sleep(300); })
+.then(function () {
+  var summary = { total: RESULTS.length, failed: RESULTS.filter(function (r) { return !r.ok; }).map(function (r) { return r.test; }) };
+  try { webkit.messageHandlers.tls.postMessage('@@DONE@@ ' + JSON.stringify(summary)); } catch (e) {}
+  document.getElementById('log').textContent += 'DONE ' + JSON.stringify(summary) + '\n';
+});
+</script>
+</body>
+</html>

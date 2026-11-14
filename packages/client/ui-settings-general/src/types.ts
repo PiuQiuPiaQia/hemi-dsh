@@ -72,3 +72,26 @@ export interface DesktopChannelBridge {
    */
   subscribe(listener: (state: DesktopChannelState) => void): () => void
 }
+
+/** Shell-owned idle-sleep prevention state; the display may still sleep. */
+export interface DesktopKeepAwakeState {
+  readonly enabled: boolean
+  /** The persisted choice could not be read; the blocker stays off until a new choice applies. */
+  readonly error?: 'read'
+}
+
+/** Isolated shell API behind the keep-awake switch; present only in Desktop. */
+export interface DesktopKeepAwakeBridge {
+  /** @returns The current startup state, without reading disk again. */
+  get(): Promise<DesktopKeepAwakeState>
+  /**
+   * @param enabled - Explicit user choice to persist and apply.
+   * @returns The committed state; a failed save rejects and leaves the previous state.
+   */
+  set(enabled: boolean): Promise<DesktopKeepAwakeState>
+  /**
+   * @param listener - Receives changes made from any Desktop window.
+   * @returns Removes this window's subscription.
+   */
+  subscribe(listener: (state: DesktopKeepAwakeState) => void): () => void
+}

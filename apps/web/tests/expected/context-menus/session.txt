@@ -1,5 +1,6 @@
 Pin session
 Rename
 Fork session
+Mark as unread
 Copy Session ID
 Archive session

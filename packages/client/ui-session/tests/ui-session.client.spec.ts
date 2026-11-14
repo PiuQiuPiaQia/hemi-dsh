@@ -603,6 +603,127 @@ describe('UiSession status', () => {
     bench.list.update((draft) => { draft.phase = 'ready' })
     expect(service.sessionStatus.getSnapshot().has(id)).toBe(false)
   })
+
+  it('keeps an observed completion separate from an explicit mark', () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const id = sessionId('auto')
+    bench.binding(id)
+    const service = createUiSession(ctx, bench)
+
+    bench.emitStatus(id, true)
+    bench.emitStatus(id, false)
+    const status = service.sessionStatus.getSnapshot().get(id)
+    expect(status?.completionUnread).toBe(true)
+    expect(status?.manuallyUnread).toBeUndefined()
+  })
+})
+
+describe('UiSession explicit unread marks', () => {
+  it('marks a background Session while it runs and one entry acknowledges mark and completion', () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const id = sessionId('bg')
+    bench.binding(id)
+    const service = createUiSession(ctx, bench)
+
+    bench.emitStatus(id, true)
+    service.markUnread(id)
+    expect(service.sessionStatus.getSnapshot().get(id)).toEqual({
+      running: true,
+      pendingInteraction: undefined,
+      completionUnread: true,
+      manuallyUnread: true,
+    })
+
+    bench.emitStatus(id, true)
+    expect(service.sessionStatus.getSnapshot().get(id)).toMatchObject({
+      completionUnread: true,
+      manuallyUnread: true,
+    })
+
+    bench.emitStatus(id, false)
+    expect(service.sessionStatus.getSnapshot().get(id)).toMatchObject({
+      completionUnread: true,
+      manuallyUnread: true,
+    })
+
+    bench.setMainView(id, 1)
+    const acknowledged = service.sessionStatus.getSnapshot().get(id)
+    expect(acknowledged?.completionUnread).toBe(false)
+    expect(acknowledged?.manuallyUnread).toBeUndefined()
+  })
+
+  it('keeps a mark on the main-view Session across unrelated refreshes until the next entry', () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const id = sessionId('open')
+    bench.binding(id)
+    const service = createUiSession(ctx, bench)
+    bench.setMainView(id, 1)
+    const before = service.sessionStatus.getSnapshot().get(id)
+
+    service.markUnread(id)
+    service.markUnread(id)
+    const after = service.sessionStatus.getSnapshot().get(id)
+    expect(after?.running).toBe(before?.running)
+    expect(after?.pendingInteraction).toBe(before?.pendingInteraction)
+    expect(after?.completionUnread).toBe(true)
+    expect(after?.manuallyUnread).toBe(true)
+
+    bench.list.update((draft) => {
+      draft.byId[id]!.displayTitle = 'Renamed'
+      draft.byId[id]!.updatedAt = 5
+    })
+    bench.list.update((draft) => { draft.ids = [...draft.ids] })
+    expect(service.sessionStatus.getSnapshot().get(id)).toMatchObject({
+      completionUnread: true,
+      manuallyUnread: true,
+    })
+
+    bench.setMainView(id, 0)
+    expect(service.sessionStatus.getSnapshot().get(id)).toMatchObject({
+      completionUnread: true,
+      manuallyUnread: true,
+    })
+
+    bench.setMainView(id, 1)
+    const reopened = service.sessionStatus.getSnapshot().get(id)
+    expect(reopened?.completionUnread).toBe(false)
+    expect(reopened?.manuallyUnread).toBeUndefined()
+  })
+
+  it('drops an explicit mark with the Session when a ready list stops listing it', () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const id = sessionId('gone')
+    bench.binding(id)
+    const service = createUiSession(ctx, bench)
+
+    service.markUnread(id)
+    expect(service.sessionStatus.getSnapshot().get(id)?.completionUnread).toBe(true)
+    bench.list.update((draft) => {
+      Reflect.deleteProperty(draft.byId, id)
+      draft.ids = draft.ids.filter(row => row !== id)
+    })
+    expect(service.sessionStatus.getSnapshot().has(id)).toBe(false)
+  })
+
+  it('ignores an explicit mark after the service is disposed', async () => {
+    const ctx = new Context()
+    const bench = createSessionsBench(ctx)
+    const id = sessionId('late')
+    bench.binding(id)
+    const service = createUiSession(ctx, bench)
+    bench.emitStatus(id, true)
+
+    await ctx.fiber.dispose()
+    service.markUnread(id)
+    expect(service.sessionStatus.getSnapshot().get(id)).toMatchObject({
+      running: true,
+      completionUnread: false,
+    })
+  })
 })
 
 describe('UiSession pending interactions', () => {

@@ -1,0 +1,7 @@
+# Exercise the Desktop companion plugins with the shipped Web composition.
+- id: hemi-mobile-access
+  disabled: false
+- id: hemi-mobile-access-ui
+  disabled: false
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-browse'

@@ -435,8 +435,28 @@ type TypertGatewayErrorCode =
 ```
 
 ```ts type-equiv
+/** WebSocket carrier shared by authenticated Host listeners. */
+interface TypertGatewayWebSocket {
+  /** Canonical upgrade path served by this mux. */
+  readonly path: '/api/remote.mux'
+  /**
+   * Transfer an authenticated socket to the existing Remote mux.
+   * The Gateway refuses with 503 before application readiness or after carrier teardown.
+   * The caller owns authentication and must supply its admitted Peer; disposal closes that Peer's sockets.
+   * @param request - admitted WebSocket upgrade request.
+   * @param socket - carrier socket transferred to the mux or ended with a rejection.
+   * @param head - upgrade bytes already read by the listener.
+   * @param peer - Peer established by the carrier's own authentication.
+   */
+  acceptUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope): void
+}
+```
+
+```ts type-equiv
 /** Host dispatcher consumed by Connection adapters. */
 interface TypertGateway {
+  /** Authenticated listeners share the Gateway-owned WebSocket mux and readiness. */
+  readonly websocket: TypertGatewayWebSocket
   /** Carrier adapter shared by WebSocket and in-process transports. */
   readonly wireStream: TypertGatewayWireStream
   /**

@@ -37,7 +37,8 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
-import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopKeepAwakeState, type DesktopUpdateState } from './ipc.ts'
+import { DesktopKeepAwake } from './keep-awake.ts'
 import { readDeviceInfo } from './device-info.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale as resolveOriginalDesktopLocale, resolveDesktopStartupLocale as resolveOriginalDesktopStartupLocale } from './locale.ts'
 import type { DesktopMessages } from './locale.ts'
@@ -793,6 +794,14 @@ async function main(): Promise<void> {
 
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
+  // Keep-awake persists in the shared settings document; the shell holds one assertion while enabled.
+  const keepAwake = new DesktopKeepAwake(app.getPath('userData'), (state) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(DESKTOP_IPC.keepAwakeChanged, state)
+    }
+  })
+  await keepAwake.load()
+
   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
     void track('desktop_upgrade_click', {})
     updateJournal?.action('download-requested')
@@ -964,6 +973,15 @@ async function main(): Promise<void> {
         ...(updates.configurationFailure === 'cleanup' ? { error: 'cleanup' as const } : {}) })
       return { kind: 'failed', state, reason: channelSaveFailure(error) }
     }
+  })
+  ipcMain.handle(DESKTOP_IPC.keepAwakeGet, (event) => {
+    assertProductSender(event)
+    return keepAwake.state
+  })
+  ipcMain.handle(DESKTOP_IPC.keepAwakeSet, async (event, enabled: unknown): Promise<DesktopKeepAwakeState> => {
+    assertProductSender(event)
+    if (typeof enabled !== 'boolean') throw new Error('desktop keep-awake: enabled must be a boolean')
+    return keepAwake.set(enabled)
   })
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
     assertProductSender(event)

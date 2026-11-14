@@ -14,7 +14,7 @@ export interface DesktopSettings {
 export async function readDesktopSettings(userData: string): Promise<DesktopSettings> {
   const file = new DesktopSettingsFile(userData)
   const result = await file.initialize()
-  const preference = result.kind === 'ready' ? result.fields.allowTestAuthPopupWindow : undefined
+  const preference = result.kind === 'ready' ? result.fields.updates.allowTestAuthPopupWindow : undefined
   if (preference?.kind === 'valid') return { updates: { allowTestAuthPopupWindow: preference.value } }
   const error = result.kind === 'error' ? result.error : preference?.kind === 'invalid' ? preference.error : undefined
   if (error) {

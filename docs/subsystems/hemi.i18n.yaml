@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/hemi.md
 /hemi-customizations:
-  en: 9234323e39c8636f
-  zh: cbd3c967b0858e30
+  en: 4e04880558d54146
+  zh: 003898ba94afe3dc
 /hemi-customizations/ssh-authentication:
   en: 766859d817ebd353
   zh: f1c4e0c0c0aea3f7

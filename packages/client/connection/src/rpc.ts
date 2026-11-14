@@ -1,7 +1,7 @@
 /** Generic unary RPC contracts shared by the Host and Client Connection halves. */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol'
+import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 
 /** Correlation id minted by a caller and echoed by the Connection response. */
 export type RpcId = Branded<'rpc-id'>
@@ -200,77 +200,6 @@ export interface HostConnectionRpc {
     matches: ConnectionRpcEndpointMatcher,
     handler: ConnectionRpcHandler,
   ): () => Promise<void>
-}
-
-/** Host `ctx.connection` members consumed by transport-independent adapters. */
-export interface HostConnectionHandle {
-  /** Generic RPC channel registry. */
-  readonly rpc: HostConnectionRpc
-  /** Exact Fetch routes for streaming or browser-native responses. */
-  readonly fetch: HostConnectionFetch
-  /** The owner Peer every authenticated browser connection shares. */
-  readonly browserPeer: PeerScope
-
-  /**
-   * Whether this deployment accepts authorities beyond loopback: true only
-   * when a validated `trustedHosts` entry names a non-loopback hostname.
-   */
-  readonly allowsRemoteAuthorities: boolean
-
-  /**
-   * Compose exact Fetch routes and the shared-channel RPC interceptor.
-   * @param channel - shared channel mounted by Connection.
-   * @returns Fetch handler for trusted, authenticated requests.
-   */
-  createSharedFetchHandler(channel: '/api'): ConnectionFetchHandler
-
-  /**
-   * Apply Connection's Host/Origin checks and browser authentication to
-   * another Web route.
-   * @param request - request headers from the HTTP or upgrade request.
-   * @returns rejection status, or undefined when the route may accept the request.
-   */
-  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
-
-  /**
-   * Admit an HTTP request against its signed browser or API credential and live Peer.
-   * @param request - request headers from the HTTP or upgrade request.
-   * @returns the credential's Peer, or the rejection status.
-   */
-  admit(request: ConnectionTrustRequest): PeerAdmission
-
-  /**
-   * Create an independent in-process Peer, disposed with the Context that read `ctx.connection`.
-   * @param options - fixed principal and optional interaction participation (default `answer`).
-   * @returns a new Peer distinct from every other Peer.
-   */
-  createPeer(options: { readonly principal: Principal; readonly interactions?: 'answer' | 'none' }): PeerScope
-
-  /**
-   * Claim a physical socket for an API Peer; browser sockets share their owner Peer.
-   * @param request - authenticated upgrade request headers.
-   * @returns the Peer and idempotent release, or 409 for duplicate API ownership.
-   * The carrier releases on socket termination or failed upgrade; release removes
-   * API admission synchronously without cancelling independent HTTP calls.
-   */
-  admitConnection(request: ConnectionTrustRequest): ConnectionAdmission
-
-  /**
-   * Authenticate one frontend index request, owning a token redirect or 401.
-   * The cookie this mints is `Secure` when the mounted Web carrier serves TLS,
-   * which only that listener's protocol decides.
-   * @param request - root or configured-index HTTP request.
-   * @param response - response owned when the result is false.
-   * @returns true only when the frontend may serve index.html.
-   */
-  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
-
-  /**
-   * Add the fresh process token to an ordinary Web application URL.
-   * @param baseUrl - clean application URL whose authority and mount are preserved.
-   * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
-   */
-  authenticatedUrl(baseUrl: string): string
 }
 
 /** Transport-independent Fetch handler used by HTTP and worker carriers. */

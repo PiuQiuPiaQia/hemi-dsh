@@ -1,0 +1,9 @@
+- menu:
+  - menuitem "置顶会话"
+  - menuitem "重命名"
+  - menuitem "分叉会话"
+  - menuitem "标记为未读"
+  - separator
+  - menuitem "复制 Session ID"
+  - separator
+  - menuitem "归档会话"

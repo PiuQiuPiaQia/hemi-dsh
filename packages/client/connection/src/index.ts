@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-credentials'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { API_PATH } from './api-path.ts'
 import { CONNECT_PATH } from './connect-protocol.ts'
-import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
+import { DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority } from './api-request-trust.ts'
 import { BrowserAuth } from './browser-auth.ts'
 import { HostConnectionService } from './rpc-host.ts'
@@ -32,7 +32,6 @@ export type {
   ConnectionRequestBodyMode,
   ConnectionTrustRequest,
   ClientRequest,
-  HostConnectionHandle,
   HostConnectionFetch,
   HostConnectionRpc,
   RpcMessage,
@@ -51,7 +50,7 @@ export {
   rpcResultSchema,
   serverResponseSchema,
 } from './rpc-schema.ts'
-export { HostConnectionService } from './rpc-host.ts'
+export { HostConnectionService, type HostConnectionHandle } from './rpc-host.ts'
 
 export { API_PATH } from './api-path.ts'
 
@@ -154,7 +153,7 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
           res.end(admission.rejection === 401 ? 'unauthorized' : 'forbidden')
           return
         }
-        await webCtx.waterfall('connection/request', req, res, () => bridge(req, res, fetchHandler, admission.peer, maxRequestBodyBytes))
+        await connection.serveHttp(req, res, fetchHandler, admission.peer, maxRequestBodyBytes)
       },
     }
     webCtx.effect(() => webCtx.webServer.register(route), 'client-connection: /api route')

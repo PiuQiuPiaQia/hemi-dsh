@@ -224,7 +224,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-gateway`
 
 - `inject`: `typert` · `remoteAccess`
-- `source`: [`packages/api/gateway/src/index.ts:158`](../packages/api/gateway/src/index.ts)
+- `source`: [`packages/api/gateway/src/index.ts:160`](../packages/api/gateway/src/index.ts)
 
 ```ts config-catalog
 /** Gateway transport configuration. */
@@ -479,7 +479,7 @@ export type Config = LocalConfig
 ## `@deepseek-ai/dsh-client-connection`
 
 - `inject`: `credentials`
-- `source`: [`packages/client/connection/src/index.ts:96`](../packages/client/connection/src/index.ts)
+- `source`: [`packages/client/connection/src/index.ts:95`](../packages/client/connection/src/index.ts)
 
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
@@ -1687,6 +1687,46 @@ export interface MemoryLifecycleConfig {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-memory -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-mobile-access -->
+<a id="deepseek-aidsh-hemi-mobile-access"></a>
+
+## `@deepseek-ai/dsh-hemi-mobile-access`
+
+- `inject`: `connection` · `typertGateway` · `webServer` · `credentials`
+- `source`: [`packages/hemi/mobile-access/src/index.ts:80`](../packages/hemi/mobile-access/src/index.ts)
+
+```ts config-catalog
+/** Mobile-access listener configuration. */
+export interface Config {
+  /**
+   * Listen port. Zero (the default) asks the OS for a port on the first
+   * start; that port is then persisted and reused by later starts, so a
+   * phone's saved origin keeps working. An explicit port always wins, and a
+   * busy persisted port fails the start instead of silently moving.
+   * @default 0
+   */
+  port?: number
+  /**
+   * Server name shown to phones in pairing and session responses. Defaults
+   * to the machine hostname.
+   */
+  serverName?: string
+  /** One-time invitation lifetime in seconds. @default 120 */
+  invitationTtlSeconds?: number
+  /** Pending pairing-claim lifetime in seconds. @default 300 */
+  requestTtlSeconds?: number
+  /** Maximum accepted pair-endpoint JSON body in bytes. @default 8192 */
+  maxPairBodyBytes?: number
+  /** Pair-endpoint events allowed per remote address per minute. @default 20 */
+  pairRequestsPerMinute?: number
+  /** Maximum number of approved devices. @default 10 */
+  maxDevices?: number
+  /** Maximum buffered `/api` request body forwarded to the shared bridge. @default 67108864 */
+  maxApiBodyBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-mobile-access -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-access -->
 <a id="deepseek-aidsh-hemi-model-access"></a>
@@ -5159,9 +5199,11 @@ export interface Config {
 | `@deepseek-ai/dsh-harness-dev-context` | `systemPrompt` · `sessionProjections` · `webApp` | [`packages/context/harness-dev-context/src/index.ts`](../packages/context/harness-dev-context/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-backup-ui` | — | [`packages/hemi/backup-ui/src/index.ts`](../packages/hemi/backup-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-memory-ui` | — | [`packages/hemi/memory-ui/src/index.ts`](../packages/hemi/memory-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-mobile-access-ui` | — | [`packages/hemi/mobile-access-ui/src/index.ts`](../packages/hemi/mobile-access-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-access-ui` | — | [`packages/hemi/model-access-ui/src/index.ts`](../packages/hemi/model-access-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-settings-ui` | — | [`packages/hemi/model-settings-ui/src/index.ts`](../packages/hemi/model-settings-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-routing-ui` | — | [`packages/hemi/routing-ui/src/index.ts`](../packages/hemi/routing-ui/src/index.ts) |
+| `@deepseek-ai/dsh-hemi-session-unread-ui` | — | [`packages/hemi/session-unread-ui/src/index.ts`](../packages/hemi/session-unread-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-ssh-servers` | `storageDomain` | [`packages/hemi/ssh-servers/src/index.ts`](../packages/hemi/ssh-servers/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-ssh-servers-ui` | — | [`packages/hemi/ssh-servers-ui/src/index.ts`](../packages/hemi/ssh-servers-ui/src/index.ts) |
 | `@deepseek-ai/dsh-host-directory-picker-auto` | `webServer` · `connection` · `loader` | [`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts) |

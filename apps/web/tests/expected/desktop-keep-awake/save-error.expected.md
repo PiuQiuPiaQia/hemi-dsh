@@ -1,0 +1,5 @@
+- group "Keep computer awake":
+  - text: Keep computer awake While enabled, the computer stays awake when idle. The display may still turn off; closing the lid and manual sleep are unaffected.
+  - alert: Could not apply the keep-awake setting. Please try again.
+  - switch "Keep computer awake" [checked]
+- alert: Could not apply the keep-awake setting. Please try again.

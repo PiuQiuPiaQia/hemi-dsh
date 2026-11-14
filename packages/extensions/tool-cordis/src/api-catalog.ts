@@ -757,8 +757,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'connection',
-    summary: 'Host `ctx.connection` members consumed by transport-independent adapters.',
-    description: 'Host `ctx.connection` members consumed by transport-independent adapters.',
+    summary: 'Node HTTP carrier operations stay on the Host face, separate from browser RPC types.',
+    description: 'Node HTTP carrier operations stay on the Host face, separate from browser RPC types.',
     methods: [
       {
         signature: 'readonly rpc: HostConnectionRpc',
@@ -821,6 +821,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Add the fresh process token to an ordinary Web application URL.',
         parameters: [{ name: 'baseUrl', description: 'clean application URL whose authority and mount are preserved.' }],
         returns: 'tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.',
+      },
+      {
+        signature: 'serveHttp( request: IncomingMessage, response: ServerResponse, handler: ConnectionFetchHandler, peer: PeerScope, maxRequestBodyBytes: number, ): Promise<void>',
+        description: 'Serve an already authenticated HTTP request through shared admission and the Fetch bridge. The carrier authenticates its Peer before calling; `connection/request` can refuse work before body transfer.',
+        parameters: [{ name: 'request', description: 'admitted carrier request.' }, { name: 'response', description: 'response owned until completion or client disconnect.' }, { name: 'handler', description: 'selected API or registered-resource handler.' }, { name: 'peer', description: 'independent Peer admitted by the carrier.' }, { name: 'maxRequestBodyBytes', description: 'buffered request cap; streaming routes retain their own limits.' }],
+        returns: 'completion of admission and transfer, rejecting on handler failure.',
       },
     ],
   },
@@ -1780,6 +1786,61 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'hemiMobileAccess',
+    summary: 'The mobile-access service.',
+    description: 'The mobile-access service. Remote methods manage pairing and the listener; the listener itself answers phones over TLS. Disposal closes the listener, disposes every device Peer, and clears pairing state without touching Host-side Sessions or agent work.',
+    methods: [
+      {
+        signature: '@Remote async getState(signal: AbortSignal): Promise<MobileAccessState>',
+        description: 'Current management state: listener status, bind candidates, the safe invitation view, pairing rows, and approved devices.',
+        parameters: [{ name: 'signal', description: 'caller cancellation before the read.' }],
+        returns: 'the authoritative state.',
+        throws: ['RemoteError `hemi-mobile/unauthorized` from any Peer but the desktop browser owner Peer.'],
+      },
+      {
+        signature: '@Remote async start(signal: AbortSignal): Promise<MobileAccessState>',
+        description: 'Automatically bind the current LAN candidates; no client supplies a network address. The group accepts traffic only after all binding and durable-port work succeeds.',
+        parameters: [{ name: 'signal', description: 'caller cancellation before lifecycle admission.' }],
+        returns: 'committed listener state; failed starts close every acquired listener.',
+        throws: ['RemoteError for no network, an existing listener, credential failure or a failed bind.'],
+      },
+      {
+        signature: '@Remote async stop(signal: AbortSignal): Promise<MobileAccessState>',
+        description: 'Stop the TLS listener: sockets and device Peers close and pending pairing state clears. Host-side Sessions and accepted agent work keep running.',
+        parameters: [{ name: 'signal', description: 'caller cancellation before shutdown starts.' }],
+        returns: 'the authoritative state after shutdown.',
+      },
+      {
+        signature: '@Remote async createInvitation(signal: AbortSignal): Promise<{ readonly invitation: MobileInvitation; readonly state: MobileAccessState }>',
+        description: 'Mint a new one-time invitation, replacing any live one. The complete payload — including the token — is returned exactly once; management state never repeats it.',
+        parameters: [{ name: 'signal', description: 'caller cancellation before minting.' }],
+        returns: 'the invitation for the owner to transfer to the phone, plus state.',
+        throws: ['RemoteError `hemi-mobile/not-listening` before the listener runs.'],
+      },
+      {
+        signature: '@Remote async approve(requestId: MobileRequestId, code: string, signal: AbortSignal): Promise<MobileAccessState>',
+        description: 'Approve one pending pairing after comparing the six-digit code shown on both screens. The device record — name, creation time, and the secret hash — is durably written before the request publishes `approved`, so a phone never observes an approval that did not persist.',
+        parameters: [{ name: 'requestId', description: 'pairing attempt identity.' }, { name: 'code', description: 'six-digit verification code.' }, { name: 'signal', description: 'caller cancellation before the durable write.' }],
+        returns: 'the authoritative state.',
+        throws: ['RemoteError `hemi-mobile/request-not-found`, `hemi-mobile/wrong-code`, `hemi-mobile/device-limit`, or `hemi-mobile/credentials-unavailable`.'],
+      },
+      {
+        signature: '@Remote async reject(requestId: MobileRequestId, signal: AbortSignal): Promise<MobileAccessState>',
+        description: 'Reject one pending pairing request; the phone observes `rejected` on its next status poll.',
+        parameters: [{ name: 'requestId', description: 'pairing attempt identity.' }, { name: 'signal', description: 'caller cancellation before the rejection.' }],
+        returns: 'the authoritative state.',
+        throws: ['RemoteError `hemi-mobile/request-not-found`.'],
+      },
+      {
+        signature: '@Remote async revoke(deviceId: MobileDeviceId, signal: AbortSignal): Promise<MobileAccessState>',
+        description: 'Revoke one approved device. The durable record is removed first, so new requests fail authentication immediately; the device\'s Peer is then disposed, closing its WebSocket. Already-accepted Host work is not recalled.',
+        parameters: [{ name: 'deviceId', description: 'approved device identity.' }, { name: 'signal', description: 'caller cancellation before the revocation.' }],
+        returns: 'the authoritative state.',
+        throws: ['RemoteError `hemi-mobile/device-not-found` or `hemi-mobile/credentials-unavailable`.'],
+      },
+    ],
+  },
+  {
     key: 'hemiModelAccess',
     summary: 'Reuse the adapter\'s authorization flow and credential record rather than storing another grant.',
     description: 'Reuse the adapter\'s authorization flow and credential record rather than storing another grant.',
@@ -1831,7 +1892,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote async disconnect(provider: string): Promise<void>',
-        description: 'Remove only a saved subscription grant. Model profiles may also serve API-key connections.',
+        description: 'Remove a saved subscription grant and the models selected through it.',
         parameters: [{ name: 'provider', description: 'Configured subscription provider ID.' }],
       },
       {
@@ -7935,6 +7996,46 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'MessageSourceMap',
     declaration: 'export interface MessageSourceMap {\n    user: {\n        kind: \'user\';\n    };\n    model: ModelMessageSource;\n    tool: ToolMessageSource;\n    \'system-prompt\': SystemPromptMessageSource;\n}',
+  },
+  {
+    name: 'MobileAccessState',
+    declaration: 'export interface MobileAccessState {\n    readonly listening: boolean;\n    readonly origin: string | null;\n    readonly addresses: readonly MobileAddress[];\n    readonly invitation: MobileInvitationView | null;\n    readonly requests: readonly MobilePairRequest[];\n    readonly devices: readonly MobileDeviceView[];\n    readonly lastListener: MobileListenerRecord | null;\n}',
+  },
+  {
+    name: 'MobileAddress',
+    declaration: 'export interface MobileAddress {\n    readonly address: string;\n    readonly interface: string;\n    readonly scope: \'private\' | \'link-local\';\n}',
+  },
+  {
+    name: 'MobileDeviceId',
+    declaration: 'export type MobileDeviceId = Branded<\'MobileDeviceId\'>;',
+  },
+  {
+    name: 'MobileDeviceView',
+    declaration: 'export interface MobileDeviceView {\n    readonly deviceId: MobileDeviceId;\n    readonly name: string;\n    readonly createdAt: number;\n    readonly lastSeenAt: number | null;\n    readonly connected: boolean;\n}',
+  },
+  {
+    name: 'MobileInvitation',
+    declaration: 'export interface MobileInvitation {\n    readonly kind: \'hemi-dsh-mobile\';\n    readonly version: 1;\n    readonly origin: string;\n    readonly origins?: readonly string[];\n    readonly fingerprint: string;\n    readonly token: string;\n    readonly expiresAt: number;\n}',
+  },
+  {
+    name: 'MobileInvitationView',
+    declaration: 'export interface MobileInvitationView {\n    readonly createdAt: number;\n    readonly expiresAt: number;\n    readonly origin: string;\n    readonly fingerprint: string;\n}',
+  },
+  {
+    name: 'MobileListenerRecord',
+    declaration: 'export interface MobileListenerRecord {\n    readonly host: string;\n    readonly port: number;\n}',
+  },
+  {
+    name: 'MobilePairRequest',
+    declaration: 'export interface MobilePairRequest {\n    readonly requestId: MobileRequestId;\n    readonly deviceName: string;\n    readonly createdAt: number;\n    readonly expiresAt: number;\n    readonly status: MobilePairStatus;\n    readonly verificationCode: string;\n}',
+  },
+  {
+    name: 'MobilePairStatus',
+    declaration: 'export type MobilePairStatus = \'pending\' | \'approved\' | \'rejected\' | \'expired\';',
+  },
+  {
+    name: 'MobileRequestId',
+    declaration: 'export type MobileRequestId = Branded<\'MobileRequestId\'>;',
   },
   {
     name: 'ModDefinition',

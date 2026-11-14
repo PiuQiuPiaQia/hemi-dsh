@@ -2,7 +2,9 @@ import type { DesktopFileActions } from '@deepseek-ai/dsh-client-ui-file-actions
 /** Typed preload operations exposed only by the Electron shell. */
 
 export type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
+export type { DesktopKeepAwakeBridge, DesktopKeepAwakeState } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import type { DesktopChannelBridge, DesktopChannelState } from '@deepseek-ai/dsh-client-ui-settings-general/types'
+import type { DesktopKeepAwakeBridge } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import type { DesktopKeyboardApi, DesktopShortcutsApi } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { NewApiDesktopBridge } from '@deepseek-ai/dsh-hemi-model-access/desktop-import'
@@ -42,6 +44,9 @@ export const DESKTOP_IPC = {
   updatesChannelGet: 'dsh-desktop:updates-channel-get',
   updatesChannelSet: 'dsh-desktop:updates-channel-set',
   updatesChannelChanged: 'dsh-desktop:updates-channel-changed',
+  keepAwakeGet: 'dsh-desktop:keep-awake-get',
+  keepAwakeSet: 'dsh-desktop:keep-awake-set',
+  keepAwakeChanged: 'dsh-desktop:keep-awake-changed',
   updatesStatus: 'dsh-desktop:updates-status',
   updatesOpen: 'dsh-desktop:updates-open',
   updatesPresentation: 'dsh-desktop:updates-presentation',
@@ -120,6 +125,7 @@ export interface DshDesktopProductApi {
     open(): Promise<void>
     subscribe(listener: (state: DesktopUpdatePresentation) => void): () => void
   }
+  readonly keepAwake: DesktopKeepAwakeBridge
 }
 
 /** Scheme of Desktop-owned application documents. */

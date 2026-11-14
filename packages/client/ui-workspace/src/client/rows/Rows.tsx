@@ -386,7 +386,7 @@ interface SessionStatus {
  * outranks completion reminders.
  */
 function sessionStatuses(
-  node: Pick<SessionNode, 'pendingInteraction' | 'running' | 'runningSubagentCount' | 'completed'>,
+  node: Pick<SessionNode, 'pendingInteraction' | 'running' | 'runningSubagentCount' | 'completed' | 'manuallyUnread'>,
   t: RowTranslate,
 ): readonly [SessionStatus, ...SessionStatus[]] {
   const subagents: SessionStatus | undefined = node.runningSubagentCount === 0
@@ -433,7 +433,8 @@ function sessionStatuses(
     return subagents === undefined ? [primary] : [primary, subagents]
   }
   if (subagents !== undefined) return [subagents]
-  if (node.completed) return [{ state: 'done', label: t('status.completed') }]
+  // Hemi fork: a manual reminder does not imply the Session has completed work.
+  if (node.completed) return [{ state: 'done', label: t(node.manuallyUnread ? 'status.unread' : 'status.completed') }]
   return [{ state: 'idle', label: t('status.idle') }]
 }
 

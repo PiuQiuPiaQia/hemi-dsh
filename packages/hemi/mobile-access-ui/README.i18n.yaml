@@ -1,0 +1,46 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/mobile-access-ui/README.md
+/:
+  en: 945447c990bad2ad
+  zh: 05aded51d8ec4dc8
+/deepseek-ai-dsh-hemi-mobile-access-ui:
+  en: 1e39bffea4bbb0be
+  zh: d96da569c590d61d
+/deepseek-ai-dsh-hemi-mobile-access-ui/summary:
+  en: d842b509c0546fea
+  zh: fda02aca5e5d93cc
+/deepseek-ai-dsh-hemi-mobile-access-ui/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: cc88f7a5ff84f206
+/deepseek-ai-dsh-hemi-mobile-access-ui/use-this-package:
+  en: 0b77e791219ee739
+  zh: 749f18afe3d0d849
+/deepseek-ai-dsh-hemi-mobile-access-ui/understand-the-implementation:
+  en: 91eebaed73deab1c
+  zh: 066c89335de05ca7
+/deepseek-ai-dsh-hemi-mobile-access-ui/further-exploration:
+  en: 21f7d2fb9b6980b6
+  zh: 9d369385a102ce40
+/deepseek-ai-dsh-hemi-mobile-access-ui/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-hemi-mobile-access-ui/model-experience/hemimobileaccess-controls:
+  en: b19096ffa09a27de
+  zh: aedc1ca11f48c665
+/deepseek-ai-dsh-hemi-mobile-access-ui/model-experience/hemimobileaccess-controls/what-the-model-sees:
+  en: 0114793e163491a6
+  zh: c269c14d5cf939ef
+/deepseek-ai-dsh-hemi-mobile-access-ui/model-experience/hemimobileaccess-controls/token-effect:
+  en: 84909c72fb78a792
+  zh: 84758f9ed2131e4c
+/deepseek-ai-dsh-hemi-mobile-access-ui/model-experience/hemimobileaccess-controls/kv-cache-effect:
+  en: b61bdb94dbbb29b9
+  zh: b6a484f070c9ba7f
+/deepseek-ai-dsh-hemi-mobile-access-ui/known-limitations-and-deferred-work:
+  en: 09f3349695a71087
+  zh: 5ac42fc63f0fbc97
+/deepseek-ai-dsh-hemi-mobile-access-ui/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

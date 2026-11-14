@@ -303,6 +303,7 @@ const harness = await vi.hoisted(async () => {
 
 const testAuth = vi.hoisted(() => ({ login: vi.fn<() => Promise<'returned' | 'cancelled' | 'failed'>>(),
   focus: vi.fn(), dispose: vi.fn(async () => {}) }))
+const powerSave = vi.hoisted(() => ({ start: vi.fn(() => 7), stop: vi.fn() }))
 vi.mock('../src/policy-test-auth.ts', () => ({ DesktopPolicyTestAuth: class {
   readonly login = testAuth.login
   readonly focus = testAuth.focus
@@ -332,6 +333,7 @@ vi.mock('electron', () => ({
   } },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: harness.protocolHandle },
   powerMonitor: harness.powerMonitor,
+  powerSaveBlocker: { start: powerSave.start, stop: powerSave.stop },
   Tray: harness.FakeTray,
   nativeImage: { createFromPath: (path: string) => ({ path }) },
 }))
@@ -547,6 +549,35 @@ describe('desktop main startup', () => {
       { channel: 'stable', packagedChannel: 'nightly', changing: false })
     await expect(invoke(DESKTOP_IPC.updatesChannelSet, 'app', 'alpha')).rejects.toThrow('unsupported channel')
     expect(await invoke(DESKTOP_IPC.updatesChannelGet, 'app')).toMatchObject({ channel: 'stable' })
+  })
+
+  it('persists keep-awake through product IPC and holds one assertion while enabled', async () => {
+    await readyForUpdate()
+    expect(await invoke(DESKTOP_IPC.keepAwakeGet, 'app')).toEqual({ enabled: false })
+    expect(await invoke(DESKTOP_IPC.keepAwakeSet, 'app', true)).toEqual({ enabled: true })
+    const path = join(harness.app.getPath('userData'), 'desktop', 'settings.json')
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ updates: { allowTestAuthPopupWindow: false }, keepAwake: { enabled: true } })
+    expect(powerSave.start).toHaveBeenCalledWith('prevent-app-suspension')
+    expect(harness.windows[0]!.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.keepAwakeChanged, { enabled: true })
+    await expect(invoke(DESKTOP_IPC.keepAwakeSet, 'app', 'yes')).rejects.toThrow('must be a boolean')
+    expect(() => invoke(DESKTOP_IPC.keepAwakeGet, 'shell')).toThrow('unowned renderer')
+    expect(await invoke(DESKTOP_IPC.keepAwakeSet, 'app', false)).toEqual({ enabled: false })
+    expect(powerSave.stop).toHaveBeenCalledWith(powerSave.start.mock.results[0]!.value)
+    expect(await invoke(DESKTOP_IPC.keepAwakeSet, 'app', false)).toEqual({ enabled: false })
+    expect(powerSave.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps keep-awake off on an invalid persisted choice and preserves a corrupt document', async () => {
+    const directory = join(harness.app.getPath('userData'), 'desktop')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'settings.json'), '{"keepAwake":{"enabled":"bad"}}')
+    await readyForUpdate()
+    expect(await invoke(DESKTOP_IPC.keepAwakeGet, 'app')).toEqual({ enabled: false, error: 'read' })
+    expect(powerSave.start).not.toHaveBeenCalled()
+    writeFileSync(join(directory, 'settings.json'), '{broken')
+    await expect(invoke(DESKTOP_IPC.keepAwakeSet, 'app', true)).rejects.toBeInstanceOf(Error)
+    expect(await invoke(DESKTOP_IPC.keepAwakeGet, 'app')).toEqual({ enabled: false, error: 'read' })
+    expect(readFileSync(join(directory, 'settings.json'), 'utf8')).toBe('{broken')
   })
 
   it('reports a corrupt document without replacing it or pretending a UI save succeeded', async () => {

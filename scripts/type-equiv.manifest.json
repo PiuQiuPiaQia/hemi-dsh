@@ -2133,6 +2133,11 @@
     },
     {
       "doc": "docs/subsystems/typert.md",
+      "symbol": "TypertGatewayWebSocket",
+      "source": "packages/api/gateway/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/typert.md",
       "symbol": "TypertGateway",
       "source": "packages/api/gateway/src/types.ts"
     },

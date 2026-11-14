@@ -15,4 +15,4 @@ The [Hemi fork rules](../../docs/defensive-patterns/hemi-fork.md) own implementa
 
 Native runtime behavior remains documented in [model streaming](../../docs/subsystems/llm-streaming.md) and [subagents](../../docs/subsystems/subagent.md).
 
-The [Hemi subsystem](../../docs/subsystems/hemi.md) documents the plugin service interfaces.
+The [Hemi subsystem](../../docs/subsystems/hemi.md) documents the plugin service interfaces. [Mobile access](mobile-access/README.md) connects an approved phone to the same running Host; [mobile settings](mobile-access-ui/README.md) owns local pairing and device management.

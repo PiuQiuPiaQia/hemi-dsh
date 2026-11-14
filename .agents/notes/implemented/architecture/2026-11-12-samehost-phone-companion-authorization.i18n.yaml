@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-12-samehost-phone-companion-authorization.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-12-samehost-phone-companion-authorization.md
+/agent-note-same-host-phone-companion-authorization:
+  en: 3ca21aeb543c4e92
+  zh: 3ca21aeb543c4e92
+/agent-note-same-host-phone-companion-authorization/problem:
+  en: 1eefe5979bc3d154
+  zh: 51911e950483fba3
+/agent-note-same-host-phone-companion-authorization/decision:
+  en: 3715168c7258765f
+  zh: d91910850e4f009d
+/agent-note-same-host-phone-companion-authorization/alternatives-considered:
+  en: 82ca4a44baab0dd6
+  zh: add538c2df2d6216
+/agent-note-same-host-phone-companion-authorization/consequences:
+  en: f449a2f2c702cbe4
+  zh: 7e65be4b6dd6524c
+/agent-note-same-host-phone-companion-authorization/testing:
+  en: 4b83c319b766a238
+  zh: 80790b126e0ef2ed

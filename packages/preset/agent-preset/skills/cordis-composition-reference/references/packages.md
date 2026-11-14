@@ -286,12 +286,15 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-hemi-backup-ui` | no | Hemi data backup settings section: target configuration, scheduled runs, and staged restore |
 | `@deepseek-ai/dsh-hemi-memory` | yes | Hemi cross-session memory: persistent markdown stores (long-term, daily log, scratchpad) with model-facing read, write, search, and forget tools |
 | `@deepseek-ai/dsh-hemi-memory-ui` | no | Hemi memory settings page for editing persistent Markdown memory |
+| `@deepseek-ai/dsh-hemi-mobile-access` | yes | Same-LAN mobile access to this Hemi host over TLS pairing |
+| `@deepseek-ai/dsh-hemi-mobile-access-ui` | no | Hemi settings for connecting a phone to the current desktop Host |
 | `@deepseek-ai/dsh-hemi-model-access` | yes | Subscription authorization, quota and New API model import |
 | `@deepseek-ai/dsh-hemi-model-access-ui` | no | Model Connections settings page |
 | `@deepseek-ai/dsh-hemi-model-settings` | yes | Host operations for Hemi model settings |
 | `@deepseek-ai/dsh-hemi-model-settings-ui` | no | Hemi Models and Routing settings page over the Harness model editor |
 | `@deepseek-ai/dsh-hemi-routing` | yes | Hemi role-based delegation routing: preset explorer/oracle/fixer/designer roles with user-chosen model routes, per-conversation auto/fixed mode, and model-bound native subagents |
 | `@deepseek-ai/dsh-hemi-routing-ui` | no | Hemi model routing: session mode controls and main/role model configuration |
+| `@deepseek-ai/dsh-hemi-session-unread-ui` | no | Mark conversations unread from the Session context menu |
 | `@deepseek-ai/dsh-hemi-ssh-servers` | no | Saved SSH server references for Hemi |
 | `@deepseek-ai/dsh-hemi-ssh-servers-ui` | no | Saved SSH connections and remote folder selection in Hemi |
 

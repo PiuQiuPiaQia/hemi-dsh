@@ -4,6 +4,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { IncomingMessage } from 'node:http'
+import type { Duplex } from 'node:stream'
 import type { PeerScope, RemoteUplinkWindow, TypertResourceReader } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteEventAgentId, RemoteEventHostInfo } from './stream-protocol.ts'
 
@@ -150,8 +152,26 @@ export interface PendingRemoteEventInfo {
   readonly agentId: RemoteEventAgentId
 }
 
+/** WebSocket carrier shared by authenticated Host listeners. */
+export interface TypertGatewayWebSocket {
+  /** Canonical upgrade path served by this mux. */
+  readonly path: '/api/remote.mux'
+  /**
+   * Transfer an authenticated socket to the existing Remote mux.
+   * The Gateway refuses with 503 before application readiness or after carrier teardown.
+   * The caller owns authentication and must supply its admitted Peer; disposal closes that Peer's sockets.
+   * @param request - admitted WebSocket upgrade request.
+   * @param socket - carrier socket transferred to the mux or ended with a rejection.
+   * @param head - upgrade bytes already read by the listener.
+   * @param peer - Peer established by the carrier's own authentication.
+   */
+  acceptUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope): void
+}
+
 /** Host dispatcher consumed by Connection adapters. */
 export interface TypertGateway {
+  /** Authenticated listeners share the Gateway-owned WebSocket mux and readiness. */
+  readonly websocket: TypertGatewayWebSocket
   /** Carrier adapter shared by WebSocket and in-process transports. */
   readonly wireStream: TypertGatewayWireStream
 

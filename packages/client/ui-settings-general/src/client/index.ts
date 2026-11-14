@@ -34,9 +34,11 @@ import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client
 import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
-import type { DesktopUpdateBridge } from '../types.ts'
+import type { DesktopUpdateBridge, DesktopKeepAwakeBridge } from '../types.ts'
 import { DesktopChannelSource } from './desktop-channel-source.ts'
 import { DesktopChannelRow, DesktopChannelToast } from './DesktopChannelRow.tsx'
+import { DesktopKeepAwakeSource } from './desktop-keep-awake-source.ts'
+import { DesktopKeepAwakeRow } from './DesktopKeepAwakeRow.tsx'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
@@ -103,7 +105,9 @@ export function apply(ctx: ClientContext): void {
   }, CurrentVersionRow))
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-general: dictionaries')
   const connection = ctx.get('connection') as ConnectionHandle
-  const carrier = (globalThis as typeof globalThis & { dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge } }).dshDesktop
+  const carrier = (globalThis as typeof globalThis & {
+    dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge; keepAwake?: DesktopKeepAwakeBridge }
+  }).dshDesktop
   const desktopUpdate = new DesktopUpdateSource(carrier?.protocolVersion === 1 ? carrier.updates : undefined)
   ctx.effect(() => () => { desktopUpdate.dispose() }, 'ui-settings-general: desktop update carrier')
   const channelBridge = carrier?.protocolVersion === 1 ? carrier.updates?.channels : undefined
@@ -119,6 +123,18 @@ export function apply(ctx: ClientContext): void {
       inject: () => ({ hooks: { channel: channel.store },
         dismiss: (sequence: number) => { channel.dismissNotice(sequence) }, openConfiguration: () => { desktopUpdate.open() } }),
     }, DesktopChannelToast))
+  }
+  const keepAwakeBridge = carrier?.protocolVersion === 1 ? carrier.keepAwake : undefined
+  if (keepAwakeBridge !== undefined) {
+    const keepAwake = new DesktopKeepAwakeSource(keepAwakeBridge)
+    ctx.effect(() => () => { keepAwake.dispose() }, 'ui-settings-general: desktop keep awake')
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item', id: 'desktop-keep-awake', order: 96, locale: NS,
+      inject: () => ({
+        hooks: { keepAwake: keepAwake.store },
+        setEnabled: (enabled: boolean) => keepAwake.setEnabled(enabled),
+      }),
+    }, DesktopKeepAwakeRow))
   }
 
   ctx.slots.inject('sidebar.toggle.badge', () => ctx.slots.register({

@@ -405,6 +405,55 @@ describe('Typert Remote streams', () => {
     expect(startup.pending).toBe(0)
   })
 
+  it('shares readiness, framing and Peer disposal with another authenticated listener', async () => {
+    const startup = new StartupProbe()
+    const { ctx, service } = await setup(true, { websocketCompression: 'none' }, startup)
+    const peer = ctx.connection.createPeer({ principal: { kind: 'owner' }, interactions: 'answer' })
+    const unmount = ctx.webServer.registerUpgrade({
+      path: '/companion',
+      handler: (request, socket, head) => { ctx.typertGateway.websocket.acceptUpgrade(request, socket, head, peer) },
+    })
+    const url = `ws://127.0.0.1:${String(ctx.webServer.port)}/companion`
+    const beforeReady = new WebSocket(url)
+    const rejected = new Promise<number>((resolve) => {
+      beforeReady.once('unexpected-response', (request, response) => {
+        resolve(response.statusCode ?? 0)
+        response.resume()
+        request.destroy()
+        beforeReady.terminate()
+      })
+      beforeReady.on('error', () => {})
+    })
+    const beforeClosed = new Promise<void>((resolve) => { beforeReady.once('close', () => { resolve() }) })
+    expect(await rejected).toBe(503)
+    await beforeClosed
+    startup.commit()
+    const socket = new WebSocket(url)
+    const closed = new Promise<void>((resolve) => { socket.once('close', () => { resolve() }) })
+    try {
+      await once(socket, 'open')
+      const frames: Record<string, unknown>[] = []
+      socket.on('message', (data) => { frames.push(JSON.parse(rawText(data)) as Record<string, unknown>) })
+      sendOpen(socket, 'companion-echo', 'feed/echo', { prefix: 'phone:' })
+      socket.send(JSON.stringify({ type: 'item', streamId: 'companion-echo', value: 'same-host' }))
+      await vi.waitFor(() => {
+        expect(frames).toContainEqual({ type: 'item', streamId: 'companion-echo', value: 'phone:same-host' })
+      })
+      expect(service.peers).toEqual([peer])
+      expect(peer).not.toBe(ctx.connection.browserPeer)
+      expect(service.windows[0]?.maxBytes).toBe(262_144)
+      expect(socket.extensions).toBe('')
+      await peer.dispose()
+      await closed
+      expect(service.returns).toBe(1)
+    } finally {
+      socket.terminate()
+      await closed
+      await peer.dispose()
+      unmount()
+    }
+  })
+
   it('withdraws a pending WebSocket startup subscription when the Gateway unloads', async () => {
     const startup = new StartupProbe()
     const { ctx } = await setup(true, {}, startup)

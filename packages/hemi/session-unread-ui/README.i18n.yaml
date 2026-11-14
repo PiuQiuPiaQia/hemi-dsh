@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/session-unread-ui/README.md
+/:
+  en: 53c21db8b456c75d
+  zh: c885bbc375d12789
+/deepseek-ai-dsh-hemi-session-unread-ui:
+  en: e478abac0df448ef
+  zh: ba0500a0cb8b637d
+/deepseek-ai-dsh-hemi-session-unread-ui/summary:
+  en: 7da5c598fc135906
+  zh: bf7be793ea0b1e33
+/deepseek-ai-dsh-hemi-session-unread-ui/table-of-contents:
+  en: 3460b3e585e0c020
+  zh: 7fe42d6e4bcfbde5
+/deepseek-ai-dsh-hemi-session-unread-ui/use-this-package:
+  en: 310352eeeac31659
+  zh: 08062651ab9ee739
+/deepseek-ai-dsh-hemi-session-unread-ui/understand-the-implementation:
+  en: e583af2ce2237899
+  zh: a67c8ed1760798ce
+/deepseek-ai-dsh-hemi-session-unread-ui/model-experience:
+  en: 65bb3c44a339f0b2
+  zh: e141c7b6a274e0e2
+/deepseek-ai-dsh-hemi-session-unread-ui/model-experience/kv-cache-effect:
+  en: a2a7207e51c6f8b1
+  zh: 82c2e841647fd4b1
+/deepseek-ai-dsh-hemi-session-unread-ui/known-limitations-and-deferred-work:
+  en: d1202f6d3c3b7fc0
+  zh: 89524ee16ce972fa
+/deepseek-ai-dsh-hemi-session-unread-ui/known-limitations-and-deferred-work/dev-note:
+  en: 0a1253c6f7b5e8b9
+  zh: 9f56528562c7c914

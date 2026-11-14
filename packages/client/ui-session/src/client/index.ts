@@ -62,8 +62,13 @@ export interface SessionStatus {
   readonly running: boolean | undefined
   /** Highest-precedence domain request currently awaiting user interaction. */
   readonly pendingInteraction: SessionPendingInteraction | undefined
-  /** Whether an observed stop outside the main view still needs acknowledgement. */
+  /** Whether an observed stop outside the main view or an explicit mark still needs acknowledgement. */
   readonly completionUnread: boolean
+  /**
+   * Present only while an explicit `markUnread` call, not an observed
+   * completion, keeps this Session unread; absent once acknowledged.
+   */
+  readonly manuallyUnread?: true
 }
 
 /** Current UI status indexed by Session identity. */
@@ -290,6 +295,11 @@ export class UiSession extends Service {
   private pendingSnapshot: ReadonlyMap<SessionId, SessionPendingInteractionBase> = new Map()
   private readonly running = new Map<SessionId, boolean>()
   private readonly completionUnread = new Set<SessionId>()
+  /**
+   * Explicit unread marks keyed by whether the mark still waits for the
+   * Session to leave the main view before its next entry can acknowledge it.
+   */
+  private readonly manuallyUnread = new Map<SessionId, boolean>()
   private statusSnapshot: SessionStatusSnapshot = new Map()
   private readonly statusListeners = new Set<() => void>()
   private mainRetainId: SessionId | undefined
@@ -434,6 +444,28 @@ export class UiSession extends Service {
     return (interaction, delegate) => domain.publish(interaction, delegate)
   }
 
+  /**
+   * Mark one Session unread until its next main-view entry.
+   *
+   * The mark is process-local, works for background Sessions and for the
+   * Session currently in the main view, and does not change running state,
+   * pending interactions, or the current selection. It survives unrelated
+   * list refreshes. A Session that is in the main view when marked stays
+   * unread until it leaves the main view and enters it again; a background
+   * Session is acknowledged the next time it enters the main view. Running
+   * events do not clear an explicit mark.
+   *
+   * @param sessionId - Session identity to mark unread.
+   */
+  // Hemi fork: generic explicit-unread entry point for the Hemi session menu
+  // plugin (packages/hemi/session-unread-ui); the completion-reminder state had
+  // no external writer. See hemi-fork-changes.md#hemi-customization-isolation.
+  markUnread(sessionId: SessionId): void {
+    if (!this.active) return
+    this.manuallyUnread.set(sessionId, this.isMain(sessionId))
+    this.publishStatus()
+  }
+
   private rebuildBindings(): void {
     const absent = this.materializeAbsent()
     const updates = [...this.bindings.values].map(record => ({
@@ -528,11 +560,24 @@ export class UiSession extends Service {
     for (const id of present) {
       if (this.isMain(id)) this.completionUnread.delete(id)
     }
+    // Hemi fork: explicit marks acknowledge on the main-view entry edge, not on
+    // every list refresh, so a mark on the open Session survives unrelated
+    // updates and clears the next time the Session is opened again.
+    for (const [id, awaitingLeave] of this.manuallyUnread) {
+      if (this.isMain(id)) {
+        if (!awaitingLeave) this.manuallyUnread.delete(id)
+      } else if (awaitingLeave) {
+        this.manuallyUnread.set(id, false)
+      }
+    }
     if (list.phase === 'ready') {
       for (const id of this.running.keys()) {
         if (present.has(id)) continue
         this.running.delete(id)
         this.completionUnread.delete(id)
+      }
+      for (const id of this.manuallyUnread.keys()) {
+        if (!present.has(id)) this.manuallyUnread.delete(id)
       }
     }
     this.publishStatus()
@@ -548,13 +593,15 @@ export class UiSession extends Service {
       ...this.running.keys(),
       ...this.pendingSnapshot.keys(),
       ...this.completionUnread,
+      ...this.manuallyUnread.keys(),
     ])
     const next = new Map<SessionId, SessionStatus>()
     for (const id of ids) {
       next.set(id, {
         running: this.running.get(id),
         pendingInteraction: this.pendingSnapshot.get(id),
-        completionUnread: this.completionUnread.has(id),
+        completionUnread: this.completionUnread.has(id) || this.manuallyUnread.has(id),
+        ...this.manuallyUnread.has(id) ? { manuallyUnread: true as const } : {},
       })
     }
     if (sameSessionStatus(this.statusSnapshot, next)) return
@@ -722,7 +769,8 @@ function sameSessionStatus(left: SessionStatusSnapshot, right: SessionStatusSnap
     if (candidate === undefined
       || candidate.running !== status.running
       || candidate.pendingInteraction !== status.pendingInteraction
-      || candidate.completionUnread !== status.completionUnread) return false
+      || candidate.completionUnread !== status.completionUnread
+      || candidate.manuallyUnread !== status.manuallyUnread) return false
   }
   return true
 }

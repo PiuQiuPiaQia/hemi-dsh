@@ -13,6 +13,7 @@ import { DesktopChannelRow, DesktopChannelToast } from '../src/client/DesktopCha
 import { DesktopChannelSource } from '../src/client/desktop-channel-source.ts'
 import type { DesktopChannelChangeResult, DesktopChannelState } from '../src/types.ts'
 import { DeveloperToolsRow } from '../src/client/DeveloperToolsRow.tsx'
+import { DesktopKeepAwakeRow } from '../src/client/DesktopKeepAwakeRow.tsx'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsDocumentStore } from '../src/client/settings-document-store.ts'
@@ -102,6 +103,34 @@ it('toggles developer tools using the accepted setting and disables duplicate wr
   finish()
   await waitFor(() => { expect(toggle.getAttribute('aria-checked')).toBe('true') })
   expect(toggle.hasAttribute('disabled')).toBe(false)
+})
+
+it('renders the keep-awake switch with optimistic position and classified alerts', async () => {
+  const setEnabled = vi.fn(async () => {})
+  const props = { ...kit, t, setEnabled }
+  const view = render(<DesktopKeepAwakeRow {...props}
+    useKeepAwake={bindSnapshotSelector(createSnapshotStore({ failed: false }))} />)
+  expect(screen.getByText('Keep computer awake')).toBeTruthy()
+  const toggle = screen.getByRole('switch', { name: 'Keep computer awake' })
+  expect(toggle.getAttribute('aria-checked')).toBe('false')
+  fireEvent.click(toggle)
+  expect(setEnabled).toHaveBeenCalledWith(true)
+  const failing = vi.fn(async () => { throw new Error('IPC closed') })
+  view.rerender(<DesktopKeepAwakeRow {...props} setEnabled={failing}
+    useKeepAwake={bindSnapshotSelector(createSnapshotStore({ failed: false, state: { enabled: false } }))} />)
+  const rollback = screen.getByRole('switch', { name: 'Keep computer awake' })
+  fireEvent.click(rollback)
+  await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(en['desktop.keepAwake.error']) })
+  view.rerender(<DesktopKeepAwakeRow {...props} setEnabled={failing}
+    useKeepAwake={bindSnapshotSelector(createSnapshotStore({ failed: true }))} />)
+  expect(screen.getByRole('alert').textContent).toBe(en['desktop.keepAwake.readError'])
+  view.rerender(<DesktopKeepAwakeRow {...props} setEnabled={failing}
+    useKeepAwake={bindSnapshotSelector(createSnapshotStore({ failed: false, state: { enabled: false, error: 'read' } }))} />)
+  expect(screen.getByRole('alert').textContent).toBe(en['desktop.keepAwake.error'])
+  view.rerender(<DesktopKeepAwakeRow {...props} setEnabled={failing}
+    useKeepAwake={bindSnapshotSelector(createSnapshotStore({ failed: false, pending: true, state: { enabled: false } }))} />)
+  expect(screen.getByRole('switch', { name: 'Keep computer awake' }).getAttribute('aria-checked')).toBe('true')
+  expect(screen.getByRole('switch', { name: 'Keep computer awake' }).hasAttribute('disabled')).toBe(true)
 })
 
 describe('chrome content', () => {

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/mobile/experiments/wk-tls-trust/README.md
+/wkwebview-self-signed-tls-trust-experiment:
+  en: cb07f5eea80135cb
+  zh: 7dd9b0b4c9e2c800
+/wkwebview-self-signed-tls-trust-experiment/verdict-this-host-macos-webkit-xcode-26-6:
+  en: 49fc22eae0d851f5
+  zh: 8d1f68cad74751b3
+/wkwebview-self-signed-tls-trust-experiment/layout:
+  en: 7f5bbd74533437cb
+  zh: ced917d077b014ea
+/wkwebview-self-signed-tls-trust-experiment/run:
+  en: 625fd57f21f7282e
+  zh: d374e49cb848c9df
+/wkwebview-self-signed-tls-trust-experiment/platform-note:
+  en: 93a6017648651b6b
+  zh: 3385c6fb176a621e

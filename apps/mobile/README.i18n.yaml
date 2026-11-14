@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/mobile/README.md
+/hemi-dsh-mobile-ios-shell:
+  en: c31918a1834e5e54
+  zh: 5771e51825a87cff
+/hemi-dsh-mobile-ios-shell/layout:
+  en: 956591becb0352d6
+  zh: 225f53bd4efa55f4
+/hemi-dsh-mobile-ios-shell/pairing-protocol-kind-hemi-dsh-mobile-version-1:
+  en: 318e25264441d780
+  zh: 8e7763bec4914de6
+/hemi-dsh-mobile-ios-shell/security-model:
+  en: 50595b59d9bea234
+  zh: 434b1204055ee0ca
+/hemi-dsh-mobile-ios-shell/build-and-test:
+  en: b7b29514e3e782a7
+  zh: e3cabeaebe68b6bc
+/hemi-dsh-mobile-ios-shell/borrowed-code:
+  en: 2120c5987413c5e5
+  zh: 0787ccd9e6c2de28
+/hemi-dsh-mobile-ios-shell/known-limitations-and-device-gaps:
+  en: dff97e992de6140a
+  zh: 4332a6ff815ef837

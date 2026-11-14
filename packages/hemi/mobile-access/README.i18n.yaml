@@ -1,0 +1,49 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/hemi/mobile-access/README.md
+/:
+  en: e8154210159e4815
+  zh: db119d57b9c0fe4e
+/deepseek-ai-dsh-hemi-mobile-access:
+  en: 0ac0e0b384cc6f8f
+  zh: fe797705d51ad8a4
+/deepseek-ai-dsh-hemi-mobile-access/summary:
+  en: 912325ea39124578
+  zh: 5b2c8fa62609254e
+/deepseek-ai-dsh-hemi-mobile-access/table-of-contents:
+  en: b563e4ec4727d0de
+  zh: 44ebe7ceeda3dff6
+/deepseek-ai-dsh-hemi-mobile-access/use-this-package:
+  en: 58089a73c8f2075a
+  zh: 1b18d5741282d52e
+/deepseek-ai-dsh-hemi-mobile-access/use-this-package/configuration:
+  en: 9180c5577c0953c2
+  zh: e9267a818c8b0fe3
+/deepseek-ai-dsh-hemi-mobile-access/understand-the-implementation:
+  en: c26142974ab9a21c
+  zh: 39802dde8a9ea331
+/deepseek-ai-dsh-hemi-mobile-access/further-exploration:
+  en: bd391b1ef3077c63
+  zh: f54cd7d17ee6b82d
+/deepseek-ai-dsh-hemi-mobile-access/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-hemi-mobile-access/model-experience/phone-driven-sessions:
+  en: eaac71bf3cfde7f1
+  zh: d088f8b531cb6a8d
+/deepseek-ai-dsh-hemi-mobile-access/model-experience/phone-driven-sessions/what-the-model-sees:
+  en: b7efa1b1f3d11bf6
+  zh: f89f40bec5f20151
+/deepseek-ai-dsh-hemi-mobile-access/model-experience/phone-driven-sessions/token-effect:
+  en: adb8db98d3de55ac
+  zh: bfd1580ad4fbafcd
+/deepseek-ai-dsh-hemi-mobile-access/model-experience/phone-driven-sessions/kv-cache-effect:
+  en: d19cd1e49a44a995
+  zh: 61715229ebd9f47f
+/deepseek-ai-dsh-hemi-mobile-access/known-limitations-and-deferred-work:
+  en: 21176b50eb36cf9c
+  zh: 935968aa5e832d26
+/deepseek-ai-dsh-hemi-mobile-access/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: cdd2a143b725accd

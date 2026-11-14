@@ -336,17 +336,20 @@ describe('deriveGroups', () => {
     expect(strayGroups.map(group => group.key)).toEqual(['first'])
   })
 
-  it('projects the completion reminder into session and search rows (absent = false)', () => {
+  it.each([false, true])('projects automatic and manual reminders into session and search rows (manual=%s)', (manual) => {
     const done = summary('done', 3)
     const plain = summary('plain', 2)
     const sessions = list(done, plain)
-    const statuses: SessionStatusSnapshot = new Map([[done.id, status(undefined, { completionUnread: true })]])
+    const statuses: SessionStatusSnapshot = new Map([[done.id, status(undefined, {
+      completionUnread: true, ...(manual ? { manuallyUnread: true as const } : {}),
+    })]])
     const groups = deriveGroups(
       sessions, [workspace('first', ['done', 'plain'])], noRows, statuses, view(['first']),
     )
     const doneNode = groups[0]!.sessions.find(session => session.id === done.id)!
     const plainNode = groups[0]!.sessions.find(session => session.id === plain.id)!
     expect(doneNode.completed).toBe(true)
+    expect(doneNode.manuallyUnread).toBe(manual ? true : undefined)
     expect(plainNode.completed).toBe(false)
     expect(deriveFlat(sessions, visibleSessionIds(sessions, noArchive, 'default'), noRows, statuses)
       .find(node => node.id === done.id)!.completed).toBe(true)
@@ -355,6 +358,7 @@ describe('deriveGroups', () => {
       statuses, { items: [], hasMore: false }, 10,
     )
     expect(search.items[0]?.completed).toBe(true)
+    expect(search.items[0]?.manuallyUnread).toBe(manual ? true : undefined)
   })
 
   it('hides subagent-origin sessions and reads direct running counts from catalogs', () => {

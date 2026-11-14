@@ -116,6 +116,8 @@ const SERVICE_ROLES: ServiceRole[] = [
     consumers: ['hemi-model-access-ui'], note: 'Owns subscription authorization, quota queries and model import.' },
   { key: 'hemiModelSettings', pkg: 'hemi-model-settings', title: 'Hemi model tests', mode: 'service',
     consumers: ['hemi-model-settings-ui'], note: 'Owns explicit model connection tests.' },
+  { key: 'hemiMobileAccess', pkg: 'hemi-mobile-access', title: 'Hemi mobile access', mode: 'service',
+    consumers: ['hemi-mobile-access-ui'], note: 'Owns phone pairing approval, the TLS listener and the revocable device directory.' },
   { key: 'hemiRoutingSettings', pkg: 'hemi-routing', title: 'Hemi role routes', mode: 'service',
     consumers: ['hemi-routing-ui'], note: 'Owns saved main and role routes and per-Session automatic mode.' },
   { key: 'hemiSshServers', pkg: 'hemi-ssh-servers', title: 'Hemi SSH servers', mode: 'service',

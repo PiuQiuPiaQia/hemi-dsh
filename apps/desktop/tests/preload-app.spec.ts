@@ -320,3 +320,21 @@ it('exposes channel choices and scoped subscriptions without exposing updater ob
   dispose()
   expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.updatesChannelChanged, handler)
 })
+
+it('exposes the keep-awake bridge with scoped subscriptions', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/index.html'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  await api.keepAwake.get()
+  await api.keepAwake.set(true)
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([[DESKTOP_IPC.keepAwakeGet], [DESKTOP_IPC.keepAwakeSet, true]])
+  const listener = vi.fn()
+  const dispose = api.keepAwake.subscribe(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([channel]) => channel === DESKTOP_IPC.keepAwakeChanged)?.[1] as
+    (event: unknown, state: unknown) => void
+  const state = { enabled: true }
+  handler({}, state)
+  expect(listener).toHaveBeenCalledWith(state)
+  dispose()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.keepAwakeChanged, handler)
+})

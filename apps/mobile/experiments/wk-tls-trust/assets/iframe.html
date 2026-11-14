@@ -1,0 +1,11 @@
+<!doctype html>
+<html><body>
+<script>
+fetch('/api.json').then(function (r) {
+  return r.ok ? parent.postMessage('iframe-ok:fetch ' + r.status, '*') : parent.postMessage('iframe-ok:fetch-fail ' + r.status, '*');
+}).catch(function (e) {
+  parent.postMessage('iframe-ok:fetch-error', '*');
+});
+parent.postMessage('iframe-ok:doc', '*');
+</script>
+</body></html>

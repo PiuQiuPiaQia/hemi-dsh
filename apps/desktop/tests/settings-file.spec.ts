@@ -4,7 +4,7 @@ import * as atomic from '@deepseek-ai/dsh-atomic-write'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
-import { DesktopSettingsFile, isDesktopUpdateChannel } from '../src/settings-file.ts'
+import { DesktopSettingsFile, isDesktopKeepAwakeEnabled, isDesktopUpdateChannel } from '../src/settings-file.ts'
 import { readDesktopSettings } from '../src/settings.ts'
 import { DesktopUpdateSettings } from '../src/update-settings.ts'
 
@@ -29,7 +29,7 @@ it('distinguishes missing files from absent fields without creating a file durin
   await expect(readFile(file.path)).rejects.toMatchObject({ code: 'ENOENT' })
   await file.saveUpdates({})
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    channel: { kind: 'absent' }, allowTestAuthPopupWindow: { kind: 'absent' },
+    updates: { channel: { kind: 'absent' }, allowTestAuthPopupWindow: { kind: 'absent' } },
   } })
 })
 
@@ -48,8 +48,10 @@ it.each([
 it('keeps an invalid channel independent from the popup preference and repairs only the selected field', async () => {
   const { root, file } = await fixture('{"other":[1],"updates":{"channel":"alpha","allowTestAuthPopupWindow":true,"future":{"x":2}}}')
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    channel: { kind: 'invalid', error: { problem: { kind: 'invalid', reason: 'field', field: 'channel' } } },
-    allowTestAuthPopupWindow: { kind: 'valid', value: true },
+    updates: {
+      channel: { kind: 'invalid', error: { problem: { kind: 'invalid', reason: 'field', field: 'channel' } } },
+      allowTestAuthPopupWindow: { kind: 'valid', value: true },
+    },
   } })
   expect((await readDesktopSettings(root)).updates.allowTestAuthPopupWindow).toBe(true)
   expect(await new DesktopUpdateSettings(root, 'stable').load()).toMatchObject({ kind: 'error' })
@@ -68,7 +70,7 @@ it('keeps a valid channel usable when the popup preference is invalid', async ()
   expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({ updates: { channel: 'stable', allowTestAuthPopupWindow: 'bad' } })
   await file.saveUpdates({ allowTestAuthPopupWindow: true })
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    allowTestAuthPopupWindow: { kind: 'valid', value: true }, channel: { kind: 'valid', value: 'stable' },
+    updates: { allowTestAuthPopupWindow: { kind: 'valid', value: true }, channel: { kind: 'valid', value: 'stable' } },
   } })
 })
 
@@ -96,7 +98,7 @@ it('preserves a file created by an external writer during exclusive initializati
     if (path === file.path) await original(path, external)
     return original(path, contents, options)
   })
-  expect(await file.initialize()).toMatchObject({ kind: 'ready', fields: { channel: { kind: 'valid', value: 'nightly' } } })
+  expect(await file.initialize()).toMatchObject({ kind: 'ready', fields: { updates: { channel: { kind: 'valid', value: 'nightly' } } } })
   expect(await readFile(file.path, 'utf8')).toBe(external)
 })
 
@@ -135,13 +137,13 @@ it('reports a committed write when lock cleanup fails, without claiming rollback
 it.each(['nightly', 'stable'])('accepts the same channel at the IPC and file boundaries: %s', async (channel) => {
   const { file } = await fixture(JSON.stringify({ updates: { channel } }))
   expect(isDesktopUpdateChannel(channel)).toBe(true)
-  expect(await file.read()).toMatchObject({ kind: 'ready', fields: { channel: { kind: 'valid', value: channel } } })
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: { updates: { channel: { kind: 'valid', value: channel } } } })
 })
 
 it.each([null, false, 1, 'alpha', ''])('rejects an explicit invalid channel without treating it as absent: %s', async (channel) => {
   const { file } = await fixture(JSON.stringify({ updates: { channel } }))
   expect(isDesktopUpdateChannel(channel)).toBe(false)
-  expect(await file.read()).toMatchObject({ kind: 'ready', fields: { channel: { kind: 'invalid' } } })
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: { updates: { channel: { kind: 'invalid' } } } })
 })
 
 it('reports a partial initialization write as uncertain and preserves it for diagnosis', async () => {
@@ -219,4 +221,29 @@ it.each([false, true])('leaves an uncertain write for explicit recovery, committ
   expect(JSON.parse(await readFile(`${file.path}.save.jsonl`, 'utf8'))).toMatchObject({ effect: 'unknown' })
   await expect(fs.access(`${file.path}.lock`)).rejects.toMatchObject({ code: 'ENOENT' })
   expect(await settings.load()).toEqual({ kind: 'ready', channel: committed ? 'stable' : 'nightly' })
+})
+
+it('keeps the keep-awake section independent from updates fields and unknown fields', async () => {
+  const { file } = await fixture('{"other":[1],"updates":{"channel":"nightly","future":{"x":2}},"keepAwake":{"enabled":"bad"}}')
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
+    updates: { channel: { kind: 'valid', value: 'nightly' } },
+    keepAwake: { enabled: { kind: 'invalid', error: { problem: { kind: 'invalid', reason: 'field', field: 'enabled' } } } },
+  } })
+  await file.saveKeepAwake({ enabled: true })
+  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({ other: [1], updates: {
+    channel: 'nightly', future: { x: 2 },
+  }, keepAwake: { enabled: true } })
+  await file.saveUpdates({ channel: 'stable' })
+  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({ other: [1], updates: {
+    channel: 'stable', future: { x: 2 },
+  }, keepAwake: { enabled: true } })
+})
+
+it('validates the keep-awake choice at the IPC boundary like file loading', async () => {
+  const { file } = await fixture(JSON.stringify({ keepAwake: { enabled: true } }))
+  expect(isDesktopKeepAwakeEnabled(true)).toBe(true)
+  expect(isDesktopKeepAwakeEnabled(false)).toBe(true)
+  expect(isDesktopKeepAwakeEnabled('yes')).toBe(false)
+  expect(isDesktopKeepAwakeEnabled(undefined)).toBe(false)
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: { keepAwake: { enabled: { kind: 'valid', value: true } } } })
 })

@@ -1,6 +1,7 @@
 /** Host registry and HTTP adapter for generic Connection RPC channels. */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { PeerId, PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConnectionInteractions } from './connect-protocol.ts'
@@ -29,7 +30,6 @@ import type {
   ConnectionRpcResult,
   ConnectionRequestRejection,
   ConnectionTrustRequest,
-  HostConnectionHandle,
   HostConnectionRpc,
 } from './rpc.ts'
 
@@ -64,6 +64,95 @@ declare module '@deepseek-ai/cordis' {
     /** Host Connection transport and RPC registrations. */
     connection: HostConnectionHandle
   }
+}
+
+/** Node HTTP carrier operations stay on the Host face, separate from browser RPC types. */
+export interface HostConnectionHandle {
+  /** Generic RPC channel registry. */
+  readonly rpc: HostConnectionRpc
+  /** Exact Fetch routes for streaming or browser-native responses. */
+  readonly fetch: HostConnectionFetch
+  /** The owner Peer every authenticated browser connection shares. */
+  readonly browserPeer: PeerScope
+
+  /**
+   * Whether this deployment accepts authorities beyond loopback: true only
+   * when a validated `trustedHosts` entry names a non-loopback hostname.
+   */
+  readonly allowsRemoteAuthorities: boolean
+
+  /**
+   * Compose exact Fetch routes and the shared-channel RPC interceptor.
+   * @param channel - shared channel mounted by Connection.
+   * @returns Fetch handler for trusted, authenticated requests.
+   */
+  createSharedFetchHandler(channel: '/api'): ConnectionFetchHandler
+
+  /**
+   * Apply Connection's Host/Origin checks and browser authentication to
+   * another Web route.
+   * @param request - request headers from the HTTP or upgrade request.
+   * @returns rejection status, or undefined when the route may accept the request.
+   */
+  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
+
+  /**
+   * Admit an HTTP request against its signed browser or API credential and live Peer.
+   * @param request - request headers from the HTTP or upgrade request.
+   * @returns the credential's Peer, or the rejection status.
+   */
+  admit(request: ConnectionTrustRequest): PeerAdmission
+
+  /**
+   * Create an independent in-process Peer, disposed with the Context that read `ctx.connection`.
+   * @param options - fixed principal and optional interaction participation (default `answer`).
+   * @returns a new Peer distinct from every other Peer.
+   */
+  createPeer(options: { readonly principal: Principal; readonly interactions?: 'answer' | 'none' }): PeerScope
+
+  /**
+   * Claim a physical socket for an API Peer; browser sockets share their owner Peer.
+   * @param request - authenticated upgrade request headers.
+   * @returns the Peer and idempotent release, or 409 for duplicate API ownership.
+   * The carrier releases on socket termination or failed upgrade; release removes
+   * API admission synchronously without cancelling independent HTTP calls.
+   */
+  admitConnection(request: ConnectionTrustRequest): ConnectionAdmission
+
+  /**
+   * Authenticate one frontend index request, owning a token redirect or 401.
+   * The cookie this mints is `Secure` when the mounted Web carrier serves TLS,
+   * which only that listener's protocol decides.
+   * @param request - root or configured-index HTTP request.
+   * @param response - response owned when the result is false.
+   * @returns true only when the frontend may serve index.html.
+   */
+  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean
+
+  /**
+   * Add the fresh process token to an ordinary Web application URL.
+   * @param baseUrl - clean application URL whose authority and mount are preserved.
+   * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
+   */
+  authenticatedUrl(baseUrl: string): string
+
+  /**
+   * Serve an already authenticated HTTP request through shared admission and the Fetch bridge.
+   * The carrier authenticates its Peer before calling; `connection/request` can refuse work before body transfer.
+   * @param request - admitted carrier request.
+   * @param response - response owned until completion or client disconnect.
+   * @param handler - selected API or registered-resource handler.
+   * @param peer - independent Peer admitted by the carrier.
+   * @param maxRequestBodyBytes - buffered request cap; streaming routes retain their own limits.
+   * @returns completion of admission and transfer, rejecting on handler failure.
+   */
+  serveHttp(
+    request: IncomingMessage,
+    response: ServerResponse,
+    handler: ConnectionFetchHandler,
+    peer: PeerScope,
+    maxRequestBodyBytes: number,
+  ): Promise<void>
 }
 
 /** Host Connection service whose channel registrations belong to the caller fiber. */
@@ -229,6 +318,18 @@ export class HostConnectionService extends Service implements HostConnectionHand
         return interceptor.fetchHandler.fetch(request, peer)
       },
     }
+  }
+
+  serveHttp(
+    request: IncomingMessage,
+    response: ServerResponse,
+    handler: ConnectionFetchHandler,
+    peer: PeerScope,
+    maxRequestBodyBytes: number,
+  ): Promise<void> {
+    // Hemi fork: authenticated companion carriers must retain the Desktop update admission lock.
+    return this.owner.waterfall('connection/request', request, response, () =>
+      bridge(request, response, handler, peer, maxRequestBodyBytes))
   }
 
   private registerFetchRoute(

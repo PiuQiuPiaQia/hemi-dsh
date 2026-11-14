@@ -18,7 +18,8 @@ import type { DeveloperToolsRowInjected } from '../src/client/DeveloperToolsRow.
 import { HostReleasePrompt, type HostReleasePromptInjected } from '../src/client/HostReleasePrompt.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
 import type { DesktopChannelRowInjected, DesktopChannelToastInjected } from '../src/client/DesktopChannelRow.tsx'
-import type { DesktopChannelBridge } from '../src/types.ts'
+import type { DesktopChannelBridge, DesktopKeepAwakeBridge } from '../src/types.ts'
+import type { DesktopKeepAwakeRowInjected } from '../src/client/DesktopKeepAwakeRow.tsx'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
 import { SettingsDocumentAction } from '../src/client/SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from '../src/client/SettingsDocumentAction.tsx'
@@ -240,6 +241,26 @@ describe('ui-settings-general apply', () => {
     await c.flush()
     expect(unsubscribe).toHaveBeenCalledOnce()
     expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-channel-toast')).toBe(false)
+  })
+
+  it('registers the Desktop keep-awake row from the carrier and releases it on unload', async ({ mock, start }) => {
+    const unsubscribe = vi.fn()
+    const save = vi.fn(async (enabled: boolean) => ({ enabled }))
+    const keepAwake: DesktopKeepAwakeBridge = { get: async () => ({ enabled: false }), set: save, subscribe: () => unsubscribe }
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1, keepAwake })
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    const { c } = await client(mock, start)
+    const row = c.ctx.slots.entries('settings.general.item').find(row => row.options.id === 'desktop-keep-awake')!
+    const injected = row.inject!()
+    const setEnabled = injected.setEnabled as DesktopKeepAwakeRowInjected['setEnabled']
+    const hooks = injected.hooks as DesktopKeepAwakeRowInjected['hooks']
+    await setEnabled(true)
+    expect(save).toHaveBeenCalledWith(true)
+    expect(hooks.keepAwake.getSnapshot()).toEqual({ state: { enabled: true }, failed: false })
+    await c.unload(SELF)
+    await c.flush()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    expect(c.ctx.slots.entries('settings.general.item').some(row => row.options.id === 'desktop-keep-awake')).toBe(false)
   })
 
   it('the nav label thunk follows the active locale without re-registration', async ({ mock, start }) => {

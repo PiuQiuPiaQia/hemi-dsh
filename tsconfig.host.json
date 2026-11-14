@@ -12,6 +12,8 @@
     // Hemi fork: branding e2e boots the Host scaffold rather than the Client program.
     "apps/web/tests/hemi-branding.e2e.ts",
     "apps/web/tests/hemi-ssh-servers.e2e.ts",
+    "apps/web/tests/hemi-mobile-access.e2e.ts",
+    "apps/web/tests/hemi-session-unread.e2e.ts",
     // Hemi fork: build-only remote payload producer is checked with its Host-side tests.
     "packages/hemi/ssh-servers/build/remote-helper.ts",
     "apps/web/tests/hemi-desktop-startup.e2e.ts",
@@ -581,6 +583,7 @@
     // Hemi fork: compile fork Host plugins and the isolated desktop adapters.
     { "path": "./packages/hemi/memory" },
     { "path": "./packages/hemi/ssh-servers" },
+    { "path": "./packages/hemi/mobile-access" },
     { "path": "./packages/hemi/model-settings" },
     { "path": "./packages/hemi/model-access" },
     { "path": "./packages/hemi/routing" },

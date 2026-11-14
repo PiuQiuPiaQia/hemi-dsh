@@ -1,0 +1,25 @@
+- banner:
+  - navigation "会话层级": Use the read tool twice
+  - button "更多操作"
+  - button "打开右侧边栏"
+  - tablist:
+    - tab "对话" [selected]
+    - tab "轨迹"
+  - button "更多会话视图"
+- text: "Use the read tool twice in one assistant message: read a.txt and b.txt. Then reply with the single word DONE and stop. {{clock}}"
+- button "复制"
+- status: 已完成
+- button "已完成，用时 {{duration}}"
+- paragraph: DONE
+- button "复制"
+- button "好的回答"
+- button "有问题的回答"
+- button "在新对话中分支"
+- text: {{clock}}
+- textbox "发消息或创建任务, / 调用指令, @ 文件或对话"
+- button "添加文件或调用指令"
+- button "访问模式，当前：工作区内修改"
+- button "选择模型，当前 DeepSeek-V4-Flash": DeepSeek-V4-Flash
+- button "发送消息" [disabled]
+- button "1 轮 2 步 · {{throughput}} tok/s": 1 轮 2 步{{throughput}} tok/s
+- button "会话用量": 缓存命中 97.9%

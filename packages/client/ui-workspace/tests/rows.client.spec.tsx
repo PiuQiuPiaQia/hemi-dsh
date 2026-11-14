@@ -1186,18 +1186,20 @@ describe('workspace browser rows', () => {
     }
   })
 
-  it('completed hover card shows the Completed status line', () => {
+  it.each([false, true])('labels automatic completions and manual unread reminders separately (manual=%s)', (manual) => {
     vi.useFakeTimers()
     try {
       const node: SessionNode = {
         id: sid('s1'), title: 'Done', blank: false, running: false,
         runningSubagentCount: 0, completed: true, updatedAt: 0, pinned: false, archived: false,
+        ...(manual ? { manuallyUnread: true as const } : {}),
       }
       render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()} t={t} />)
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
       act(() => { vi.advanceTimersByTime(800) })
       // Row's visually-hidden reminder label plus the hover card's status line.
-      expect(screen.getAllByText('已完成')).toHaveLength(2)
+      expect(screen.getAllByText(manual ? '未读' : '已完成')).toHaveLength(2)
+      expect(screen.queryByText(manual ? '已完成' : '未读')).toBeNull()
     } finally {
       vi.useRealTimers()
     }

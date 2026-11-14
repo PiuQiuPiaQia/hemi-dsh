@@ -1,0 +1,18 @@
+# Generated experiment output (contains per-run pins and raw logs).
+experiments/wk-tls-trust/results/
+experiments/wk-tls-trust/assets/img.png
+experiments/wk-tls-trust/assets/font.woff2
+
+# Swift Package Manager build output.
+.build/
+
+# exFAT AppleDouble files and Finder metadata.
+._*
+.DS_Store
+
+# Optional user-owned signing configuration; never committed.
+ios/signing.local.xcconfig
+
+# Throwaway certificates or keys must never land in the tree.
+*.pem
+*.key

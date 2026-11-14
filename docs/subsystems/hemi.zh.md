@@ -2,7 +2,7 @@
 
 [English](hemi.md) | 中文
 
-[Hemi 插件](../../packages/hemi/README.zh.md)提供跨会话记忆、备份、模型接入、角色路由与 SSH 服务器登记。Electron 适配归 [customizations](../../packages/hemi/customizations/README.zh.md) 所有；原生子智能体负责等待、取消及结果交付。
+[Hemi 插件](../../packages/hemi/README.zh.md)提供跨会话记忆、备份、模型接入、角色路由、SSH 服务器登记，以及让已批准手机接入同一 Host。Electron 适配归 [customizations](../../packages/hemi/customizations/README.zh.md) 所有；原生子智能体负责等待、取消及结果交付。
 
 <a id="ssh-authentication"></a>
 ## SSH 认证
@@ -179,6 +179,87 @@ Read and edit the same Markdown files used by the memory tools.
 
 Source: [`packages/hemi/memory/src/remote.ts`](../../packages/hemi/memory/src/remote.ts)
 
+<a id="ctxhemimobileaccess--hemimobileaccess"></a>
+
+### `ctx.hemiMobileAccess` — `HemiMobileAccess`
+
+The mobile-access service. Remote methods manage pairing and the listener; the listener itself answers phones over TLS. Disposal closes the listener, disposes every device Peer, and clears pairing state without touching Host-side Sessions or agent work.
+
+```ts cordis-catalog
+/**
+ * Current management state: listener status, bind candidates, the safe
+ * invitation view, pairing rows, and approved devices.
+ * @param signal - caller cancellation before the read.
+ * @returns the authoritative state.
+ * @throws RemoteError `hemi-mobile/unauthorized` from any Peer but the desktop browser owner Peer.
+ */
+@Remote async getState(signal: AbortSignal): Promise<MobileAccessState>
+
+/**
+ * Automatically bind the current LAN candidates; no client supplies a network address.
+ * The group accepts traffic only after all binding and durable-port work succeeds.
+ * @param signal - caller cancellation before lifecycle admission.
+ * @returns committed listener state; failed starts close every acquired listener.
+ * @throws RemoteError for no network, an existing listener, credential failure or a failed bind.
+ */
+@Remote async start(signal: AbortSignal): Promise<MobileAccessState>
+
+/**
+ * Stop the TLS listener: sockets and device Peers close and pending pairing
+ * state clears. Host-side Sessions and accepted agent work keep running.
+ * @param signal - caller cancellation before shutdown starts.
+ * @returns the authoritative state after shutdown.
+ */
+@Remote async stop(signal: AbortSignal): Promise<MobileAccessState>
+
+/**
+ * Mint a new one-time invitation, replacing any live one. The complete
+ * payload — including the token — is returned exactly once; management
+ * state never repeats it.
+ * @param signal - caller cancellation before minting.
+ * @returns the invitation for the owner to transfer to the phone, plus state.
+ * @throws RemoteError `hemi-mobile/not-listening` before the listener runs.
+ */
+@Remote async createInvitation(signal: AbortSignal): Promise<{ readonly invitation: MobileInvitation; readonly state: MobileAccessState }>
+
+/**
+ * Approve one pending pairing after comparing the six-digit code shown on
+ * both screens. The device record — name, creation time, and the secret
+ * hash — is durably written before the request publishes `approved`, so a
+ * phone never observes an approval that did not persist.
+ * @param requestId - pairing attempt identity.
+ * @param code - six-digit verification code.
+ * @param signal - caller cancellation before the durable write.
+ * @returns the authoritative state.
+ * @throws RemoteError `hemi-mobile/request-not-found`, `hemi-mobile/wrong-code`,
+ * `hemi-mobile/device-limit`, or `hemi-mobile/credentials-unavailable`.
+ */
+@Remote async approve(requestId: MobileRequestId, code: string, signal: AbortSignal): Promise<MobileAccessState>
+
+/**
+ * Reject one pending pairing request; the phone observes `rejected` on its
+ * next status poll.
+ * @param requestId - pairing attempt identity.
+ * @param signal - caller cancellation before the rejection.
+ * @returns the authoritative state.
+ * @throws RemoteError `hemi-mobile/request-not-found`.
+ */
+@Remote async reject(requestId: MobileRequestId, signal: AbortSignal): Promise<MobileAccessState>
+
+/**
+ * Revoke one approved device. The durable record is removed first, so new
+ * requests fail authentication immediately; the device's Peer is then
+ * disposed, closing its WebSocket. Already-accepted Host work is not recalled.
+ * @param deviceId - approved device identity.
+ * @param signal - caller cancellation before the revocation.
+ * @returns the authoritative state.
+ * @throws RemoteError `hemi-mobile/device-not-found` or `hemi-mobile/credentials-unavailable`.
+ */
+@Remote async revoke(deviceId: MobileDeviceId, signal: AbortSignal): Promise<MobileAccessState>
+```
+
+Source: [`packages/hemi/mobile-access/src/index.ts`](../../packages/hemi/mobile-access/src/index.ts)
+
 <a id="ctxhemimodelaccess--hemimodelaccess"></a>
 
 ### `ctx.hemiModelAccess` — `HemiModelAccess`
@@ -244,7 +325,7 @@ Reuse the adapter's authorization flow and credential record rather than storing
 @Remote cancel(id: string): void
 
 /**
- * Remove only a saved subscription grant. Model profiles may also serve API-key connections.
+ * Remove a saved subscription grant and the models selected through it.
  * @param provider - Configured subscription provider ID.
  */
 @Remote async disconnect(provider: string): Promise<void>

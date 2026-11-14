@@ -19,6 +19,9 @@ flowchart LR
   pkg_hemi_model_settings["hemi-model-settings"]
   svc_hemiModelSettings["ctx.hemiModelSettings<br/>Hemi model tests"]
   pkg_hemi_model_settings_ui["hemi-model-settings-ui"]
+  pkg_hemi_mobile_access["hemi-mobile-access"]
+  svc_hemiMobileAccess["ctx.hemiMobileAccess<br/>Hemi mobile access"]
+  pkg_hemi_mobile_access_ui["hemi-mobile-access-ui"]
   pkg_hemi_routing["hemi-routing"]
   svc_hemiRoutingSettings["ctx.hemiRoutingSettings<br/>Hemi role routes"]
   pkg_hemi_routing_ui["hemi-routing-ui"]
@@ -407,6 +410,7 @@ flowchart LR
   pkg_headless --> svc_headlessStartup
   pkg_hemi_backup --> svc_hemiBackup
   pkg_hemi_memory --> svc_hemiMemory
+  pkg_hemi_mobile_access --> svc_hemiMobileAccess
   pkg_hemi_model_access --> svc_hemiModelAccess
   pkg_hemi_model_settings --> svc_hemiModelSettings
   pkg_hemi_routing --> svc_hemiRoutingSettings
@@ -555,6 +559,7 @@ flowchart LR
   svc_headlessStartup --> pkg_headless
   svc_hemiBackup --> pkg_hemi_backup_ui
   svc_hemiMemory --> pkg_hemi_memory_ui
+  svc_hemiMobileAccess --> pkg_hemi_mobile_access_ui
   svc_hemiModelAccess --> pkg_hemi_model_access_ui
   svc_hemiModelSettings --> pkg_hemi_model_settings_ui
   svc_hemiRoutingSettings --> pkg_hemi_routing_ui
@@ -687,6 +692,7 @@ flowchart LR
 | `ctx.hemiMemory` | `service` | [`hemi-memory`](../packages/hemi/memory) | - | [`hemi-memory-ui`](../packages/hemi/memory-ui) | - | Owns revision-checked memory store reads and edits. |
 | `ctx.hemiModelAccess` | `service` | [`hemi-model-access`](../packages/hemi/model-access) | - | [`hemi-model-access-ui`](../packages/hemi/model-access-ui) | - | Owns subscription authorization, quota queries and model import. |
 | `ctx.hemiModelSettings` | `service` | [`hemi-model-settings`](../packages/hemi/model-settings) | - | [`hemi-model-settings-ui`](../packages/hemi/model-settings-ui) | - | Owns explicit model connection tests. |
+| `ctx.hemiMobileAccess` | `service` | [`hemi-mobile-access`](../packages/hemi/mobile-access) | - | [`hemi-mobile-access-ui`](../packages/hemi/mobile-access-ui) | - | Owns phone pairing approval, the TLS listener and the revocable device directory. |
 | `ctx.hemiRoutingSettings` | `service` | [`hemi-routing`](../packages/hemi/routing) | - | [`hemi-routing-ui`](../packages/hemi/routing-ui) | - | Owns saved main and role routes and per-Session automatic mode. |
 | `ctx.hemiSshServers` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`hemi-ssh-servers-ui`](../packages/hemi/ssh-servers-ui) | - | Owns saved server references without establishing connections. |
 | `ctx.hemiSshWorkspaces` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`session`](../packages/core/session), [`workspace`](../packages/workspace/workspace) | - | Owns explicit helper deployments and immutable SSH execution targets for Session and directory consumers. |

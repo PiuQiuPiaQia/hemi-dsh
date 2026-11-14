@@ -119,7 +119,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.connection` — `HostConnectionHandle`
 
-Host `ctx.connection` members consumed by transport-independent adapters.
+Node HTTP carrier operations stay on the Host face, separate from browser RPC types.
 
 ```ts cordis-catalog
 /**
@@ -176,11 +176,23 @@ authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexRespons
  * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
  */
 authenticatedUrl(baseUrl: string): string
+
+/**
+ * Serve an already authenticated HTTP request through shared admission and the Fetch bridge.
+ * The carrier authenticates its Peer before calling; `connection/request` can refuse work before body transfer.
+ * @param request - admitted carrier request.
+ * @param response - response owned until completion or client disconnect.
+ * @param handler - selected API or registered-resource handler.
+ * @param peer - independent Peer admitted by the carrier.
+ * @param maxRequestBodyBytes - buffered request cap; streaming routes retain their own limits.
+ * @returns completion of admission and transfer, rejecting on handler failure.
+ */
+serveHttp( request: IncomingMessage, response: ServerResponse, handler: ConnectionFetchHandler, peer: PeerScope, maxRequestBodyBytes: number, ): Promise<void>
 ```
 
 Types: [Principal](typert.zh.md)
 
-Source: [`packages/client/connection/src/rpc.ts`](../../packages/client/connection/src/rpc.ts)
+Source: [`packages/client/connection/src/rpc-host.ts`](../../packages/client/connection/src/rpc-host.ts)
 
 <a id="ctxwebapp--webapp"></a>
 

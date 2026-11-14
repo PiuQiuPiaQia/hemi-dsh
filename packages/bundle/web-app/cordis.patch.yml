@@ -88,6 +88,11 @@
       name: '@deepseek-ai/dsh-hemi-ssh-servers'
       disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
+    # Hemi fork: the companion listener stays closed until explicitly enabled from Desktop settings.
+    - id: hemi-mobile-access
+      name: '@deepseek-ai/dsh-hemi-mobile-access'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
     - id: hemi-ssh-workspaces
       name: '@deepseek-ai/dsh-hemi-ssh-servers/workspaces'
       disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
@@ -421,8 +426,17 @@
       name: '@deepseek-ai/dsh-hemi-ssh-servers-ui'
       disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
+    # Hemi fork: local-only device management is contributed by its owning companion plugin.
+    - id: hemi-mobile-access-ui
+      name: '@deepseek-ai/dsh-hemi-mobile-access-ui'
+      disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
+
     - id: hemi-memory-ui
       name: '@deepseek-ai/dsh-hemi-memory-ui'
+
+    # Hemi fork: manual unread actions use the existing Session context-menu extension.
+    - id: hemi-session-unread-ui
+      name: '@deepseek-ai/dsh-hemi-session-unread-ui'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'

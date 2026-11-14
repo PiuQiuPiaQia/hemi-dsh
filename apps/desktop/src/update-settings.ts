@@ -27,7 +27,7 @@ export class DesktopUpdateSettings {
     const result = await this.file.read()
     if (result.kind === 'error') return result
     if (result.kind === 'missing') return { kind: 'ready', channel: this.packagedChannel }
-    const channel = result.fields.channel
+    const channel = result.fields.updates.channel
     if (channel.kind === 'invalid') return { kind: 'error', error: channel.error }
     return { kind: 'ready', channel: channel.kind === 'valid' ? channel.value : this.packagedChannel }
   }

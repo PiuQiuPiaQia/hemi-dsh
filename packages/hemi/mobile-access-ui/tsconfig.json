@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../mobile-access" },
+    { "path": "../../client/connection/tsconfig.client.json" },
+    { "path": "../../client/locale/tsconfig.client.json" },
+    { "path": "../../client/resources" },
+    { "path": "../../client/ui-primitives" },
+    { "path": "../../client/ui-renderer" },
+    { "path": "../../client/ui-settings/tsconfig.client.json" },
+    { "path": "../../client/ui-slots" },
+    { "path": "../../typert/protocol" }
+  ]
+}

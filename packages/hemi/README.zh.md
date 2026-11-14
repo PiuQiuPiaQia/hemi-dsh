@@ -15,4 +15,4 @@ Hemi 功能插件放在本目录。非插件的桌面壳适配放在 [customizat
 
 原生运行时行为继续由[模型流式调用](../../docs/subsystems/llm-streaming.zh.md)与[子智能体](../../docs/subsystems/subagent.zh.md)文档说明。
 
-[Hemi 子系统](../../docs/subsystems/hemi.zh.md)记录插件的服务接口。
+[Hemi 子系统](../../docs/subsystems/hemi.zh.md)记录插件的服务接口。[手机接入](mobile-access/README.zh.md)将已批准的手机连接到同一个运行中的 Host；[手机设置](mobile-access-ui/README.zh.md)负责本机配对与设备管理。

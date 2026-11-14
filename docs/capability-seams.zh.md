@@ -21,6 +21,9 @@ flowchart LR
   pkg_hemi_model_settings["hemi-model-settings"]
   svc_hemiModelSettings["ctx.hemiModelSettings<br/>Hemi model tests"]
   pkg_hemi_model_settings_ui["hemi-model-settings-ui"]
+  pkg_hemi_mobile_access["hemi-mobile-access"]
+  svc_hemiMobileAccess["ctx.hemiMobileAccess<br/>Hemi mobile access"]
+  pkg_hemi_mobile_access_ui["hemi-mobile-access-ui"]
   pkg_hemi_routing["hemi-routing"]
   svc_hemiRoutingSettings["ctx.hemiRoutingSettings<br/>Hemi role routes"]
   pkg_hemi_routing_ui["hemi-routing-ui"]
@@ -409,6 +412,7 @@ flowchart LR
   pkg_headless --> svc_headlessStartup
   pkg_hemi_backup --> svc_hemiBackup
   pkg_hemi_memory --> svc_hemiMemory
+  pkg_hemi_mobile_access --> svc_hemiMobileAccess
   pkg_hemi_model_access --> svc_hemiModelAccess
   pkg_hemi_model_settings --> svc_hemiModelSettings
   pkg_hemi_routing --> svc_hemiRoutingSettings
@@ -557,6 +561,7 @@ flowchart LR
   svc_headlessStartup --> pkg_headless
   svc_hemiBackup --> pkg_hemi_backup_ui
   svc_hemiMemory --> pkg_hemi_memory_ui
+  svc_hemiMobileAccess --> pkg_hemi_mobile_access_ui
   svc_hemiModelAccess --> pkg_hemi_model_access_ui
   svc_hemiModelSettings --> pkg_hemi_model_settings_ui
   svc_hemiRoutingSettings --> pkg_hemi_routing_ui
@@ -689,6 +694,7 @@ flowchart LR
 | `ctx.hemiMemory` | `service` | [`hemi-memory`](../packages/hemi/memory) | - | [`hemi-memory-ui`](../packages/hemi/memory-ui) | - | 管理带修订核对的记忆存储读取与编辑。 |
 | `ctx.hemiModelAccess` | `service` | [`hemi-model-access`](../packages/hemi/model-access) | - | [`hemi-model-access-ui`](../packages/hemi/model-access-ui) | - | 管理订阅授权、额度查询与模型导入。 |
 | `ctx.hemiModelSettings` | `service` | [`hemi-model-settings`](../packages/hemi/model-settings) | - | [`hemi-model-settings-ui`](../packages/hemi/model-settings-ui) | - | 管理显式模型连接测试。 |
+| `ctx.hemiMobileAccess` | `service` | [`hemi-mobile-access`](../packages/hemi/mobile-access) | - | [`hemi-mobile-access-ui`](../packages/hemi/mobile-access-ui) | - | 管理手机配对批准、TLS 监听器与可吊销设备目录。 |
 | `ctx.hemiRoutingSettings` | `service` | [`hemi-routing`](../packages/hemi/routing) | - | [`hemi-routing-ui`](../packages/hemi/routing-ui) | - | 管理保存的主模型与角色路由，以及每个 Session 的自动模式。 |
 | `ctx.hemiSshServers` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`hemi-ssh-servers-ui`](../packages/hemi/ssh-servers-ui) | - | 管理服务器登记，不建立连接。 |
 | `ctx.hemiSshWorkspaces` | `service` | [`hemi-ssh-servers`](../packages/hemi/ssh-servers) | - | [`session`](../packages/core/session), [`workspace`](../packages/workspace/workspace) | - | 管理显式 helper 部署配置及不可变 SSH 执行目标，供 Session 与目录消费者使用。 |

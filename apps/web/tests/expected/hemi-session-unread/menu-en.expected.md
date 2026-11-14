@@ -1,0 +1,9 @@
+- menu:
+  - menuitem "Pin session"
+  - menuitem "Rename"
+  - menuitem "Fork session"
+  - menuitem "Mark as unread"
+  - separator
+  - menuitem "Copy Session ID"
+  - separator
+  - menuitem "Archive session"

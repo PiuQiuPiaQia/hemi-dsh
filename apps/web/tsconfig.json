@@ -27,6 +27,8 @@
     // Hemi fork: the branding e2e consumes Host declarations through its scaffold.
     "tests/hemi-branding.e2e.ts",
     "tests/hemi-ssh-servers.e2e.ts",
+    "tests/hemi-mobile-access.e2e.ts",
+    "tests/hemi-session-unread.e2e.ts",
     "tests/hemi-desktop-startup.e2e.ts",
     "tests/home-whale.e2e.ts",
     "tests/sidebar-drawer.e2e.ts",
@@ -148,6 +150,7 @@
     "tests/settings-import.e2e.ts",
     "tests/desktop-updates.e2e.ts",
     "tests/desktop-channel.e2e.ts",
+    "tests/desktop-keep-awake.e2e.ts",
     "tests/developer-tools-settings.e2e.ts",
     "tests/models-settings.e2e.ts",
     "tests/deepseek-messages-settings.e2e.ts",
