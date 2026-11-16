@@ -336,14 +336,13 @@ flowchart TD
     pkg_hemi_backup["hemi-backup"]
     pkg_hemi_backup_ui["hemi-backup-ui"]
     pkg_hemi_customizations["hemi-customizations"]
-    pkg_hemi_memory["hemi-memory"]
-    pkg_hemi_memory_ui["hemi-memory-ui"]
     pkg_hemi_model_access["hemi-model-access"]
     pkg_hemi_model_access_ui["hemi-model-access-ui"]
     pkg_hemi_model_settings["hemi-model-settings"]
     pkg_hemi_model_settings_ui["hemi-model-settings-ui"]
     pkg_hemi_routing["hemi-routing"]
     pkg_hemi_routing_ui["hemi-routing-ui"]
+    pkg_hemi_session_unread_ui["hemi-session-unread-ui"]
     pkg_hemi_ssh_servers["hemi-ssh-servers"]
     pkg_hemi_ssh_servers_ui["hemi-ssh-servers-ui"]
   end
@@ -1068,14 +1067,6 @@ flowchart TD
   pkg_tool_call_timeout_policy --> pkg_llm
   pkg_tool_call_timeout_policy --> pkg_timeout
   pkg_tool_call_timeout_policy --> pkg_tools
-  pkg_hemi_memory --> pkg_agent
-  pkg_hemi_memory --> pkg_compaction
-  pkg_hemi_memory --> pkg_llm
-  pkg_hemi_memory --> pkg_session
-  pkg_hemi_memory --> pkg_session_persistence
-  pkg_hemi_memory --> pkg_system_prompt
-  pkg_hemi_memory --> pkg_tools
-  pkg_hemi_memory --> pkg_typert_protocol
   pkg_tool_ask_user --> pkg_agent
   pkg_tool_ask_user --> pkg_tools
   pkg_tool_ask_user --> pkg_user_questions
@@ -1713,10 +1704,10 @@ flowchart TD
 | [`client-ui-cordis`](../packages/extensions/ui-cordis) | `extensions` | — |
 | [`cordis-client-runner`](../packages/extensions/cordis-client-runner) | `extensions` | — |
 | [`hemi-backup-ui`](../packages/hemi/backup-ui) | `hemi` | — |
-| [`hemi-memory-ui`](../packages/hemi/memory-ui) | `hemi` | — |
 | [`hemi-model-access-ui`](../packages/hemi/model-access-ui) | `hemi` | — |
 | [`hemi-model-settings-ui`](../packages/hemi/model-settings-ui) | `hemi` | — |
 | [`hemi-routing-ui`](../packages/hemi/routing-ui) | `hemi` | — |
+| [`hemi-session-unread-ui`](../packages/hemi/session-unread-ui) | `hemi` | — |
 | [`hemi-ssh-servers-ui`](../packages/hemi/ssh-servers-ui) | `hemi` | — |
 | [`host-directory-picker`](../packages/host/directory-picker) | `host` | — |
 | [`host-directory-picker-browse`](../packages/host/directory-picker-browse) | `host` | — |
@@ -1891,7 +1882,6 @@ flowchart TD
 | [`message-feedback`](../packages/feedback/message-feedback) | `feedback` | [`brand`](../packages/util/brand), [`command-feedback`](../packages/feedback/command-feedback), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`typert-protocol`](../packages/typert/protocol) |
 | [`repeat-tool-reminder`](../packages/guard/repeat-tool-reminder) | `guard` | [`agent`](../packages/core/agent), [`tools`](../packages/core/tools) |
 | [`tool-call-timeout-policy`](../packages/guard/timeout-policy) | `guard` | [`llm`](../packages/llm/llm), [`timeout`](../packages/util/timeout), [`tools`](../packages/core/tools) |
-| [`hemi-memory`](../packages/hemi/memory) | `hemi` | [`agent`](../packages/core/agent), [`compaction`](../packages/compaction/compaction), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol) |
 | [`tool-ask-user`](../packages/interaction/tool-ask-user) | `interaction` | [`agent`](../packages/core/agent), [`tools`](../packages/core/tools), [`user-questions`](../packages/interaction/user-questions) |
 | [`tool-jobs`](../packages/jobs/tool-jobs) | `jobs` | [`agent`](../packages/core/agent), [`jobs`](../packages/jobs/jobs), [`llm`](../packages/llm/llm), [`output-retention`](../packages/util/output-retention), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools) |
 | [`tool-lsp`](../packages/lsp/tool-lsp) | `lsp` | [`llm`](../packages/llm/llm), [`lsp`](../packages/lsp/lsp), [`system-prompt`](../packages/core/system-prompt), [`timeout`](../packages/util/timeout), [`tools`](../packages/core/tools), [`working-directory`](../packages/session/working-directory) |

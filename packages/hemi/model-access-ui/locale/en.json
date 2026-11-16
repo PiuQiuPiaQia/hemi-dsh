@@ -1,5 +1,6 @@
 {
   "meta": {
-    "title": "Hemi model access"
+    "title": "Hemi model access",
+    "description": "Manage subscription accounts, VVCode groups and API connections."
   }
 }

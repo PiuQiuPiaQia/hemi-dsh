@@ -22,6 +22,26 @@ it('preserves explicit offers, explicit disabling, installed models and unrelate
   expect(withProtocolReasoning(profiles, PROTOCOL_REASONING_DEFAULTS)).toEqual(profiles)
 })
 
+it('stands the fallback down for exact-id references on effort-family routes and keeps it otherwise', () => {
+  const referenced = getBuiltinModels('openai').find(model => model.reasoning && model.thinkingLevelMap !== undefined)!.id
+  const anthropic = getBuiltinModels('anthropic')[0]!.id
+  const filled = withProtocolReasoning({
+    relay: { api: 'openai-completions', models: [{ id: referenced }] },
+    unknown: { api: 'openai-completions', models: [{ id: 'unknown-relay-model' }] },
+    relayAnthropic: { api: 'anthropic-messages', models: [{ id: anthropic }] },
+  }, PROTOCOL_REASONING_DEFAULTS)
+  // The referenced entry keeps only its capability reference; the catalog
+  // resolver supplies its reasoning fields.
+  expect(filled.relay!.models).toEqual([{ id: referenced, catalogProvider: 'openai' }])
+  // Unknown ids keep the deployment fallback.
+  expect(filled.unknown!.models).toEqual([{ id: 'unknown-relay-model',
+    reasoningEfforts: PROTOCOL_REASONING_DEFAULTS['openai-completions']!.efforts, defaultReasoningEffort: 'medium' }])
+  // References onto a route outside every effort wire family keep the existing protocol fallback.
+  expect(filled.relayAnthropic!.models).toEqual([{ id: anthropic, catalogProvider: 'anthropic',
+    reasoningEfforts: PROTOCOL_REASONING_DEFAULTS['anthropic-messages']!.efforts, defaultReasoningEffort: 'high',
+    compat: { forceAdaptiveThinking: true } }])
+})
+
 it.each(['openai-completions', 'openai-responses', 'anthropic-messages'])(
   'advertises and sends protocol defaults and chosen levels for %s without persisting them', async (api) => {
     vi.stubEnv('HEMI_REASONING_TEST_KEY', 'fixture-key')

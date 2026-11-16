@@ -2,6 +2,8 @@
 
 // Hemi fork: community native signatures use a fixed-certificate provider with the shared runtime traversal.
 import { createHemiMacRuntimeSigner, resolveHemiCommunitySigning } from '@deepseek-ai/dsh-hemi-customizations/github-community-signing'
+// Hemi fork: preinstalled third-party plugins retain their original license and matching complete source.
+import { stageHemiDesktopPluginSources } from '@deepseek-ai/dsh-hemi-customizations/desktop-plugins'
 import { resolveMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
 import { packagingStep } from './packaging-step.mjs'
 import { spawn } from 'node:child_process'
@@ -179,6 +181,7 @@ async function main(): Promise<void> {
         await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), appId, signing, target.arch, cacheDirectory, 'primary'))
       }
     }
+    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:third-party-sources', async () => stageHemiDesktopPluginSources(DSH_OUTPUT_ROOT))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:manifests', () => prepareRuntimeManifests(DSH_OUTPUT_ROOT))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:primary-smoke', async () => smokePrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime')))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:write-descriptor', async () => {

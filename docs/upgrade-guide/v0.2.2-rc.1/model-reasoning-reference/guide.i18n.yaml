@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/model-reasoning-reference/guide.md
+/:
+  en: 00854d00a5be79dc
+  zh: b7fef239acd8b4d7
+/reasoning-capabilities-follow-one-model-declaration:
+  en: d8b1fa9a286bba0d
+  zh: 12a6b56ffef9d376
+/reasoning-capabilities-follow-one-model-declaration/change:
+  en: 15578479736d3957
+  zh: 719b94501309a09a
+/reasoning-capabilities-follow-one-model-declaration/migration:
+  en: 34d728f859e79ae1
+  zh: 73f54d5b0e250b01

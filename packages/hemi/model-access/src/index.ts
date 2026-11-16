@@ -23,10 +23,17 @@ import type { ModelOptions, ModelOptionsView } from './types.ts'
 import { mountProtocolReasoning, PROTOCOL_REASONING_DEFAULTS } from './protocol-reasoning.ts'
 import type { ProtocolReasoningDefault } from './protocol-reasoning.ts'
 import { mountTransportLog } from './transport-log.ts'
+import { VvcodeSubscription, VVCODE_KEY } from './vvcode/index.ts'
+import { vvcodeConfig, vvcodeConnectionConfig, vvcodeConnectionsConfig } from './vvcode/settings.ts'
+import type { VvcodeConfig } from './vvcode/settings.ts'
+import type { VvcodeGroupConnection, VvcodeLegacyConnection } from './vvcode/adapter.ts'
+import { isVvcodeProvider } from './vvcode/adapter.ts'
+import type { VvcodeDirectory, VvcodeModelSelection, VvcodeUsage } from './types.ts'
 
 import type { LoginState, NewApiBrowserCommit, NewApiBrowserCommitResult, NewApiImportReceipt, NewApiLogin, NewApiToken, QuotaWindow, Subscription } from './types.ts'
 
 const SUBSCRIPTIONS = [
+  { id: 'vvcode', name: 'VVCode', hosts: [] },
   { id: BIGMODEL_PROVIDER, name: 'GLM Coding Plan', hosts: ['bigmodel.cn', 'www.bigmodel.cn'] },
   { id: 'openai-codex', name: 'ChatGPT Codex', hosts: ['auth.openai.com'] },
   { id: 'anthropic', name: 'Claude', hosts: ['claude.ai', 'console.anthropic.com', 'platform.claude.com'] },
@@ -42,6 +49,12 @@ interface ModelAccessConfig {
   subscriptionModelOptions: Volatile<Record<string, Record<string, ModelOptions>>>
   /** Request limits and client versions for live subscription model listings. */
   subscriptionDiscovery: SubscriptionDiscoveryConfig
+  /** VVCode account endpoint and request budgets. */
+  vvcode: VvcodeConfig
+  /** Legacy single-group VVCode binding, readable until its one-time migration into `vvcodeConnections`. */
+  vvcodeConnection: Volatile<VvcodeLegacyConnection | null | undefined>
+  /** Saved per-group VVCode bindings, each with its own route, key reference, catalog and selection. */
+  vvcodeConnections: Volatile<Record<string, VvcodeGroupConnection>>
 }
 
 interface Attempt {
@@ -77,6 +90,9 @@ const reasoningFallbacks = z.dict(z.object({
 export default class HemiModelAccess extends TypertRemoteService {
   static Config = z.object({
     reasoningFallbacks: reasoningFallbacks.default(PROTOCOL_REASONING_DEFAULTS),
+    vvcode: vvcodeConfig,
+    vvcodeConnection: vvcodeConnectionConfig,
+    vvcodeConnections: vvcodeConnectionsConfig,
     subscriptionModels: z.dict(z.array(z.string())).default({}).volatile(),
     subscriptionModelOptions: z.dict(z.dict(z.object({
       name: z.string(), contextWindow: z.number().step(1).min(1), maxTokens: z.number().step(1).min(1),
@@ -96,17 +112,20 @@ export default class HemiModelAccess extends TypertRemoteService {
   private browserImporting = false
   private changingModels = false
   private readonly refreshBigModel: (() => void) | undefined
+  private readonly vvcode: VvcodeSubscription
 
   constructor(ctx: Context, private readonly config: ModelAccessConfig) {
     super(ctx, 'hemiModelAccess', { namespace: 'hemiModelAccess' })
     mountProtocolReasoning(ctx, config.reasoningFallbacks)
     mountTransportLog(ctx)
+    this.vvcode = new VvcodeSubscription(ctx, config)
     this.refreshBigModel = mountBigModel(ctx, () => this.config.subscriptionModels.get().bigmodel,
       () => this.config.subscriptionModelOptions.get().bigmodel)
     ctx.effect(() => () => this.active?.controller.abort(), 'cancel model authorization on unload')
   }
 
   private assertIdle(): void {
+    this.vvcode.assertIdle()
     if (this.disconnecting || this.active?.state.phase === 'pending') throw failure('Complete the current account operation first.')
   }
 
@@ -125,6 +144,7 @@ export default class HemiModelAccess extends TypertRemoteService {
     this.assertOwner()
     const subscriptions: Subscription[] = []
     for (const provider of SUBSCRIPTIONS) {
+      if (provider.id === 'vvcode') { subscriptions.push(await this.vvcode.describe()); continue }
       const key = credentialKey('llm-pi-ai', provider.id)
       if (!this.ctx.authorization.describe(key)?.methods.some(method => method.id === 'oauth')) continue
       const stored = await this.ctx.credentials.describeRecord(key)
@@ -137,30 +157,36 @@ export default class HemiModelAccess extends TypertRemoteService {
 
   /**
    * Read the subscription model catalog; DeepSeek uses its native account adapter catalog.
-   * @param provider - Configured subscription provider ID.
+   * @param provider - Configured subscription provider ID, including VVCode group routes.
    * @param signal - Caller cancellation for authentication and model-list requests.
    * @returns available IDs; GLM uses the live Coding Plan catalog and DeepSeek retains native model admission.
    */
   @Remote
   async subscriptionCandidates(provider: string, signal: AbortSignal): Promise<string[]> {
     this.assertOwner()
+    if (isVvcodeProvider(provider)) {
+      this.assertIdle()
+      return this.vvcode.refreshCatalog(provider, signal)
+    }
     return subscriptionCatalog(this.ctx, provider, this.config.subscriptionDiscovery,
       AbortSignal.any([signal, AbortSignal.timeout(this.config.subscriptionDiscovery.timeoutMs)]))
   }
 
   /**
    * Read the models currently selected for a connected subscription.
-   * @param provider - Subscription provider ID.
+   * @param provider - Subscription provider ID, including VVCode group routes.
    * @param signal - Caller cancellation while the adapter reads its catalog.
    * @returns selected model IDs; an empty array also covers a signed-out account.
    */
   @Remote
   async subscriptionModels(provider: string, signal: AbortSignal): Promise<string[]> {
     this.assertOwner()
-    if (provider !== 'deepseek-account' && !SUBSCRIPTIONS.some(entry => entry.id === provider)) {
+    if (provider !== 'deepseek-account' && !isVvcodeProvider(provider)
+      && !SUBSCRIPTIONS.some(entry => entry.id === provider)) {
       throw failure('Subscription sign-in is unavailable.')
     }
     signal.throwIfAborted()
+    if (isVvcodeProvider(provider)) return [...this.vvcode.selectedModels(provider)]
     const models = await this.ctx.llm.listModels(provider)
     signal.throwIfAborted()
     return models.map(model => model.id)
@@ -168,7 +194,7 @@ export default class HemiModelAccess extends TypertRemoteService {
 
   /**
    * Add or remove one model while retaining account authorization and other selections.
-   * @param provider - Configured subscription provider ID.
+   * @param provider - Configured subscription provider ID, including VVCode group routes.
    * @param model - Model ID within the selected provider.
    * @param add - True adds this model; false removes it while retaining authorization.
    */
@@ -176,6 +202,7 @@ export default class HemiModelAccess extends TypertRemoteService {
   async changeSubscriptionModel(provider: string, model: string, add: boolean): Promise<void> {
     this.assertOwner()
     this.assertIdle()
+    if (isVvcodeProvider(provider)) return this.vvcode.changeModel(provider, model, add)
     if (this.changingModels) throw failure('Wait for the current model change to finish.')
     this.changingModels = true
     try {
@@ -235,9 +262,9 @@ export default class HemiModelAccess extends TypertRemoteService {
     const provider = SUBSCRIPTIONS.find(entry => entry.id === providerId)
     if (provider === undefined) throw failure('Subscription sign-in is unavailable.')
     this.assertIdle()
-    const key = credentialKey('llm-pi-ai', providerId)
+    const key = providerId === 'vvcode' ? VVCODE_KEY : credentialKey('llm-pi-ai', providerId)
     if (!this.ctx.authorization.describe(key)?.methods.some(method => method.id === 'oauth')) throw failure('Subscription sign-in is unavailable.')
-    if (providerId !== BIGMODEL_PROVIDER) this.checkRoute(providerId)
+    if (providerId !== BIGMODEL_PROVIDER && providerId !== 'vvcode') this.checkRoute(providerId)
     if ((await this.ctx.credentials.describeRecord(key)).kind === 'api-key') {
       throw failure('This provider already has a saved API-key credential.')
     }
@@ -252,7 +279,8 @@ export default class HemiModelAccess extends TypertRemoteService {
           if (signal.aborted || notice.url === undefined) return
           const url = URL.parse(notice.url)
           if (url === null) return
-          if (url.protocol !== 'https:' || url.username || url.password || !provider.hosts.includes(url.hostname)) return
+          const allowed = providerId === 'vvcode' ? url.origin === new URL(this.config.vvcode.origin).origin : provider.hosts.includes(url.hostname)
+          if (url.protocol !== 'https:' || url.username || url.password || !allowed) return
           attempt.state.url = url.href
           if (notice.code !== undefined) attempt.state.code = notice.code
         },
@@ -261,7 +289,7 @@ export default class HemiModelAccess extends TypertRemoteService {
     }).then(async (result) => {
       if (result.status !== 'authorized') { this.finish(attempt, 'cancelled'); return }
       try {
-        if (providerId !== BIGMODEL_PROVIDER) await this.ensureRoute(providerId)
+        if (providerId !== BIGMODEL_PROVIDER && providerId !== 'vvcode') await this.ensureRoute(providerId)
         this.finish(attempt, 'connected')
       } catch {
         this.finish(attempt, 'route-failed')
@@ -318,6 +346,7 @@ export default class HemiModelAccess extends TypertRemoteService {
     this.assertOwner()
     this.assertIdle()
     if (!SUBSCRIPTIONS.some(entry => entry.id === provider)) throw failure('Subscription sign-in is unavailable.')
+    if (provider === 'vvcode') return this.vvcode.disconnect()
     const key = credentialKey('llm-pi-ai', provider)
     this.disconnecting = true
     try {
@@ -372,6 +401,66 @@ export default class HemiModelAccess extends TypertRemoteService {
     } catch {
       throw failure('Subscription quota is unavailable. Check the account and try again.')
     }
+  }
+
+  /**
+   * Read every VVCode group the account may use together with its saved binding and read-only
+   * model directory, without creating tokens or keys, so the directory is browsable before any
+   * connection exists. A failed live groups read reports `unavailable` and retains every saved
+   * row; a failed per-group model read stays on that row and keeps its previous IDs; an
+   * expired account reports `sign-in-required` and retains locally editable rows.
+   * @param signal - Caller cancellation for the group and model directory queries.
+   * @returns the directory rows the connection page renders.
+   */
+  @Remote
+  async vvcodeDirectory(signal: AbortSignal): Promise<VvcodeDirectory> {
+    this.assertOwner()
+    return this.vvcode.directory(signal)
+  }
+
+  /**
+   * Save the model selections of several VVCode groups in one atomic settings write, as the
+   * connection modal commits on save. Unknown or duplicate providers and additions to revoked
+   * or withheld groups reject the whole call without writing anything; any addition requires a
+   * valid account, while pure removals stay available on an expired account. Groups without a
+   * binding are prepared first — reusing the recorded token or key reference, or creating the
+   * group's key exactly once after the caller confirmed it — and every selection is validated
+   * against its group's key catalog, so nothing unsupported is ever committed. The method
+   * never invokes a model.
+   * @param selections - One entry per changed group provider with its complete enabled list.
+   * @param signal - Caller cancellation; aborting before the commit writes nothing.
+   */
+  @Remote
+  async saveVvcodeModels(selections: VvcodeModelSelection[], signal: AbortSignal): Promise<void> {
+    this.assertOwner()
+    this.assertIdle()
+    await this.vvcode.saveSelections(selections, signal)
+  }
+
+  /**
+   * Refresh one group's directory entry: verify live authorization, persist confirmed group
+   * metadata, and re-read that group's read-only model directory. The refresh never creates,
+   * verifies, or reveals a token, so it also answers for a group with a pending unobserved
+   * creation. A failed model read propagates so the caller can mark that row stale.
+   * @param group - Exact application-authorized group name.
+   * @param signal - Caller cancellation for the directory reads.
+   */
+  @Remote
+  async syncVvcodeGroup(group: string, signal: AbortSignal): Promise<void> {
+    this.assertOwner()
+    this.assertIdle()
+    await this.vvcode.syncGroup(group, signal)
+  }
+
+  /**
+   * Read account balance and currently active VVCode subscriptions without invoking a model.
+   * @param signal - Caller cancellation for the read-only usage queries.
+   * @returns amounts in the site's configured unit, with independent unavailable or reauthorization states.
+   */
+  @Remote
+  async vvcodeUsage(signal: AbortSignal): Promise<VvcodeUsage> {
+    this.assertOwner()
+    return this.vvcode.usage(signal)
   }
 
   /**
@@ -480,8 +569,10 @@ export default class HemiModelAccess extends TypertRemoteService {
   }
 
   /**
-   * Save editable capabilities while retaining account and protocol configuration.
-   * @param provider - Configured provider ID.
+   * Save editable capabilities while retaining account and protocol configuration. VVCode
+   * group models save through the subscription's exclusive write chain so a concurrent group
+   * sync cannot replace the binding mid-edit.
+   * @param provider - Configured provider ID, including VVCode group routes.
    * @param model - Available model ID.
    * @param options - Explicit overrides; omitted fields inherit adapter defaults.
    * @param revision - Settings revision observed when the editor opened.
@@ -490,6 +581,7 @@ export default class HemiModelAccess extends TypertRemoteService {
   async saveModelOptions(provider: string, model: string, options: ModelOptions, revision: number): Promise<void> {
     this.assertOwner()
     this.assertIdle()
+    if (this.vvcode.ownsProvider(provider)) return this.vvcode.saveOptions(provider, model, options, revision)
     await writeModelOptions(this.ctx, provider, model, options, revision, this.refreshBigModel !== undefined)
     if (provider === BIGMODEL_PROVIDER) this.refreshBigModel?.()
   }

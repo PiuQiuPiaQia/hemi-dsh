@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-14-preinstalled-desktop-bundles.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-14-preinstalled-desktop-bundles.md
+/agent-note-preinstalled-third-party-desktop-bundles:
+  en: cec82d692a60d6c3
+  zh: 4d3e80b10d4c870b
+/agent-note-preinstalled-third-party-desktop-bundles/problem:
+  en: 1a2d535fbee5817c
+  zh: d04def3c392689a1
+/agent-note-preinstalled-third-party-desktop-bundles/decision:
+  en: bea9d60e423631c2
+  zh: 1299edc55573f8c7
+/agent-note-preinstalled-third-party-desktop-bundles/alternatives-considered:
+  en: 5536cacd5ffa8a23
+  zh: 8ef656dbfa67e0b9
+/agent-note-preinstalled-third-party-desktop-bundles/consequences:
+  en: 33dd08214a39323c
+  zh: 9625062e1a5e2215
+/agent-note-preinstalled-third-party-desktop-bundles/testing:
+  en: 4d2b4909c36f13b4
+  zh: d5a0f3cff7ed0d69

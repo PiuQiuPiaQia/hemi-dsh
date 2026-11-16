@@ -44,6 +44,10 @@
       "types": "./release/identity.d.mts",
       "default": "./release/identity.mjs"
     },
+    "./desktop-plugins": {
+      "types": "./release/desktop-plugins.d.mts",
+      "default": "./release/desktop-plugins.mjs"
+    },
     "./desktop-artwork": {
       "types": "./release/artwork.d.mts",
       "default": "./release/artwork.mjs"
@@ -61,6 +65,7 @@
     "release/config.mjs",
     "release/cua.mjs",
     "release/identity.mjs",
+    "release/desktop-plugins.mjs",
     "release/publish.mjs",
     "release/setup.mjs",
     "release/signing.mjs",
@@ -96,6 +101,8 @@
   },
   "private": true,
   "dependencies": {
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "@deepseek-ai/dsh-app-boot": "workspace:*",
     "js-yaml": "^4.3.2",
     "semver": "^7.8.5",
     "@electron/osx-sign": "1.3.3",

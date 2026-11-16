@@ -307,7 +307,7 @@ function SourcesDialog({ state, t, face }: {
           </ul>
         )}
         <form className={css.sourceForm} onSubmit={(event) => { event.preventDefault(); face.addSource() }}>
-          <Input className={css.grow as string} value={state.draft} placeholder={t('sourcePlaceholder')} aria-label={t('sourceUrl')}
+          <Input className={css.grow} value={state.draft} placeholder={t('sourcePlaceholder')} aria-label={t('sourceUrl')}
             aria-invalid={state.sourceFailure !== null} data-modal-autofocus onChange={(event) => { face.editDraft(event.target.value) }} />
           <Button type="submit" variant="primary" size="sm" icon={<IconPlusOutlineRegular size={13} />}
             disabled={state.saving || state.draft.trim() === ''}>
@@ -476,7 +476,7 @@ function Browser({ state, listing, t, face, hooks, language, onInstall, openPack
               <IconChevronDownOutlineRegular size={12} aria-hidden="true" />
             </Button>
           )} />
-        <Input className={css.search as string} type="search" icon={<IconSearchOutlineRegular size={14} />} value={text}
+        <Input className={css.search} type="search" icon={<IconSearchOutlineRegular size={14} />} value={text}
           placeholder={t('search')} aria-label={t('search')} onChange={(event) => { setText(event.target.value) }} />
         {declarations.labels.length === 0 ? null : (
           <Menu open={menu === 'filter'} onClose={() => { setMenu(null) }} portal autoFocus align="end" selectedIds={query.labels}

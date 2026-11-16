@@ -86,6 +86,29 @@ const THINKING_LEVEL_GATE: Record<ModelThinkingLevel, true> = {
 /** Every pi-ai thinking level a profile may declare, in escalation order. */
 export const THINKING_LEVELS = Object.keys(THINKING_LEVEL_GATE) as readonly ModelThinkingLevel[]
 
+/**
+ * Hemi fork: the reasoning-effort wire family of each protocol with an evidenced effort value
+ * domain. OpenAI Responses and Chat Completions send identical effort spellings through
+ * `reasoning.effort` / `reasoning_effort`, so an installed catalog entry's `thinkingLevelMap`
+ * stays dispatchable when a referenced model resolves onto the sibling protocol. Protocols that
+ * dispatch thinking through budgets or adaptive modes have no evidenced equivalent and stay
+ * outside, so a reference onto them transfers no reasoning fields. Naming a family here
+ * requires wire evidence that its protocols accept the same effort values.
+ */
+const EFFORT_WIRE_FAMILIES: ReadonlyMap<string, string> = new Map([
+  ['openai-completions', 'openai-efforts'],
+  ['openai-responses', 'openai-efforts'],
+])
+
+/**
+ * Read the reasoning-effort wire family one protocol sends.
+ * @param api - Wire protocol.
+ * @returns the shared family name, or undefined for a protocol with no evidenced effort domain.
+ */
+export function effortWireFamily(api: string): string | undefined {
+  return EFFORT_WIRE_FAMILIES.get(api)
+}
+
 /** One reasoning-dispatch wire format a profile may name. */
 export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFormat']>
 
@@ -606,8 +629,11 @@ export interface PiAiModelProfile {
   /** Model id sent to the provider and accepted by {@link GenerateOptions.model}. */
   id: string
   /**
-   * Hemi fork: installed provider whose matching id supplies name, modalities and capacities only;
-   * route transport and reasoning remain independent.
+   * Hemi fork: installed provider whose matching id supplies name, modalities, and capacities;
+   * route transport stays independent. The reference's reasoning fields resolve from it only
+   * when the model's protocol shares the reference's evidenced effort wire family, the
+   * reference itself dispatches its levels as OpenAI-style efforts, and no explicit
+   * declaration or disabled endpoint switch has decided them.
    */
   catalogProvider?: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
@@ -709,6 +735,16 @@ interface ModelReasoning {
 }
 
 /**
+ * Read the thinking format one compat block declares, when its protocol names one.
+ * @param compat - the configured or inherited compat block.
+ * @returns the declared format, or undefined when the block names none.
+ */
+function declaredThinkingFormat(compat: PiAiCompatProfile | undefined): PiAiThinkingFormat | undefined {
+  if (compat === undefined || !('thinkingFormat' in compat)) return undefined
+  return compat.thinkingFormat
+}
+
+/**
  * Resolve one model's reasoning capability from its declared efforts.
  *
  * A declared dict translates to pi-ai's `thinkingLevelMap` with every level
@@ -723,15 +759,26 @@ interface ModelReasoning {
  * @param provider - provider route key, for diagnostics.
  * @param entry - the configured model entry.
  * @param base - the installed catalog entry of the same id, when one exists.
+ * @param referenced - the catalog entry an explicit `catalogProvider` names, when its reasoning
+ *   fields may resolve from the reference; absent leaves the reasoning fields to the route.
  * @returns the reasoning fields the materialized model carries.
  */
 function resolveModelReasoning(
   provider: string,
   entry: PiAiModelProfile,
   base: Model<Api> | undefined,
+  referenced: Model<Api> | undefined,
 ): ModelReasoning {
   const efforts = entry.reasoningEfforts
   if (efforts === undefined) {
+    // Hemi fork: an explicit catalogProvider reference decides both reasoning
+    // fields from one source — a reasoning reference carries its exact level
+    // map, and a known non-reasoning reference stays non-reasoning instead of
+    // inheriting whatever the route's own entry would have said.
+    if (referenced !== undefined) {
+      return { reasoning: referenced.reasoning,
+        ...(referenced.thinkingLevelMap === undefined ? {} : { thinkingLevelMap: referenced.thinkingLevelMap }) }
+    }
     // Reasoning rides the installed entry or is absent: a bare capability flag
     // would make pi-ai advertise effort levels with no `thinkingLevelMap` to
     // spell them, and no listing endpoint reports a model's reasoning
@@ -956,6 +1003,69 @@ export function resolveRouteModels(
     // Only a value the profile named is a deployment choice; the catalog's is
     // the model's capability and stays out of request defaults.
     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
+    // Hemi fork: a referenced entry's reasoning transfers only when this
+    // model's protocol sends efforts in the referenced entry's evidenced wire
+    // family, the reference itself dispatches its map as OpenAI-style efforts
+    // (a pinned vendor thinking format or a disabled effort switch spells a
+    // different wire), and neither an explicit declaration nor a disabled
+    // endpoint switch has decided the field; otherwise the reference keeps
+    // supplying identity and capacities only, exactly as before.
+    const referenceFormat = referenced !== undefined && referenced.compat !== undefined
+      && 'thinkingFormat' in referenced.compat ? referenced.compat.thinkingFormat : undefined
+    const referenceEffortSwitch = referenced !== undefined && referenced.compat !== undefined
+      && 'supportsReasoningEffort' in referenced.compat ? referenced.compat.supportsReasoningEffort : undefined
+    // A target that declares a vendor thinking format dispatches its levels
+    // through that channel, not the effort parameter, so the reference's
+    // OpenAI-effort map would not describe its wire either.
+    const targetFormat = declaredThinkingFormat(entry.compat) ?? declaredThinkingFormat(request.compat)
+    const routeFamily = effortWireFamily(api)
+    const reasoningReference = referenced !== undefined
+      && entry.reasoningEfforts === undefined
+      && (entry.compat?.supportsReasoningEffort ?? request.compat?.supportsReasoningEffort) !== false
+      && routeFamily !== undefined && routeFamily === effortWireFamily(referenced.api)
+      && (targetFormat === undefined || targetFormat === 'openai')
+      && (!referenced.reasoning || referenced.thinkingLevelMap !== undefined)
+      && referenceEffortSwitch !== false
+      && (referenceFormat === undefined || referenceFormat === 'openai')
+      ? referenced : undefined
+    const modelReasoning = resolveModelReasoning(provider, entry, base, reasoningReference)
+    // An explicit effort offer beside a disabled endpoint effort switch
+    // contradicts itself: the switch stops every effort dispatch, so selectors
+    // would advertise levels the wire never carries. The configuration is
+    // refused where it is read, and deferred reads retain the diagnostic.
+    if (entry.reasoningEfforts !== undefined && entry.reasoningEfforts !== false
+      && compatGate(api)?.supportsReasoningEffort === 'offer'
+      && (entry.compat?.supportsReasoningEffort ?? request.compat?.supportsReasoningEffort) === false) {
+      invalid(provider, `model "${entry.id}" declares reasoningEfforts but sets compat.supportsReasoningEffort to`
+        + ' false; the switch stops every effort dispatch, so declare the levels without the switch or remove the offer')
+    }
+    const modelCompat = resolveModelCompat(provider, entry, request.compat, base, api)
+    // An endpoint switch that disables effort dispatch must name the thinking
+    // channel when the model's native capability resolves reasoning on the
+    // route: without a declared thinking format the deployment has not stated
+    // whether its levels are controllable, so selectors and dispatch could
+    // disagree. Declaring the format decides — an OpenAI format strips the
+    // levels, a vendor format keeps its own channel.
+    if ('compat' in modelCompat
+      && compatGate(api)?.supportsReasoningEffort === 'offer'
+      && (entry.compat?.supportsReasoningEffort ?? request.compat?.supportsReasoningEffort) === false
+      && !('thinkingFormat' in modelCompat.compat)
+      && base?.reasoning === true) {
+      invalid(provider, `model "${entry.id}" keeps its installed reasoning capability while the route disables`
+        + ' compat.supportsReasoningEffort; declare compat.thinkingFormat so the route states which thinking channel'
+        + ' remains, or remove the switch')
+    }
+    // The endpoint switch that disables effort dispatch decides what this
+    // route can control. A model whose thinking channel on the resolved
+    // protocol is the declared OpenAI effort parameter cannot carry any level
+    // across the switch, so the route presents it as non-reasoning and
+    // explicit effort requests are refused before dispatch. A model
+    // dispatching thinking through its own declared vendor channel keeps its
+    // levels; the switch only silences the effort parameter.
+    const routeEffortsDisabled = 'compat' in modelCompat
+      && 'supportsReasoningEffort' in modelCompat.compat
+      && !modelCompat.compat.supportsReasoningEffort
+      && modelCompat.compat.thinkingFormat === 'openai'
     const model: Model<Api> = {
       // The installed entry lays the floor, and the fields below override it.
       // Enumerating instead would silently drop every `Model` field this
@@ -972,8 +1082,8 @@ export function resolveRouteModels(
       cost: base?.cost ?? NO_COST,
       contextWindow,
       maxTokens,
-      ...resolveModelReasoning(provider, entry, base),
-      ...resolveModelCompat(provider, entry, request.compat, base, api),
+      ...routeEffortsDisabled ? { reasoning: false } : modelReasoning,
+      ...modelCompat,
     }
     // Hemi fork: defaults enter both description and dispatch through one validated catalog.
     if (entry.defaultReasoningEffort !== undefined) {
@@ -1005,6 +1115,14 @@ export function resolveRouteModels(
   for (const [field] of configuredCompatEntries(request.compat)) {
     const takers = compatProtocols(field)
     if (serviceableModels.some(model => takers.includes(model.api))) continue
+    // A field whose every taker was withheld by its own diagnostic is already
+    // reported on those models; failing the route again would name the field
+    // instead of the cause.
+    const withheldTaker = [...modelErrors.keys()].some((id) => {
+      const api = request.api ?? defaults.get(id)?.api ?? routeApi
+      return api !== undefined && takers.includes(api)
+    })
+    if (withheldTaker) continue
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }

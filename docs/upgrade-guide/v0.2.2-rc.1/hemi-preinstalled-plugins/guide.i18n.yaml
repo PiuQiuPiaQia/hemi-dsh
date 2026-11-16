@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/hemi-preinstalled-plugins/guide.md
+/:
+  en: 2125c0da75f7a126
+  zh: cfc3948785ceef88
+/hemi-desktop-preinstalls-third-party-plugins:
+  en: 1ecf0a7e3c157a4c
+  zh: a79493e2a30c5af2
+/hemi-desktop-preinstalls-third-party-plugins/change:
+  en: 2b7cf144da371488
+  zh: 2a50aec49611ea5e
+/hemi-desktop-preinstalls-third-party-plugins/migration:
+  en: 491011dd2e6115ea
+  zh: c325d834de0481b6

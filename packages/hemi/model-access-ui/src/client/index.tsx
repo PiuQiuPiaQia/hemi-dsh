@@ -35,6 +35,12 @@ async function unwrap<T>(request: Promise<RemoteResult<T>>): Promise<T> {
   return result.value
 }
 
+async function unwrapVvcode<T>(request: Promise<RemoteResult<T>>): Promise<T> {
+  const result = await request
+  if (!result.ok) throw result.error
+  return result.value
+}
+
 /** Bind operations for the independent settings entry. */
 export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const unmount = await ctx.remote.$mount(accessRemote)
@@ -73,6 +79,9 @@ function register(ctx: Context): void {
     subscriptionCandidates: (provider, signal) => unwrap(remote.subscriptionCandidates(provider, signal)),
     subscriptionModels: (provider, signal) => unwrap(remote.subscriptionModels(provider, signal)),
     changeSubscriptionModel: (provider, model, add) => unwrap(remote.changeSubscriptionModel(provider, model, add)),
+    vvcodeUsage: signal => unwrapVvcode(remote.vvcodeUsage(signal)),
+    vvcodeDirectory: signal => unwrapVvcode(remote.vvcodeDirectory(signal)),
+    saveVvcodeModels: (selections, signal) => unwrapVvcode(remote.saveVvcodeModels(selections, signal)),
     subscriptions: () => unwrap(remote.subscriptions()),
     state: () => unwrap(remote.state()),
     start: provider => unwrap(remote.start(provider)),

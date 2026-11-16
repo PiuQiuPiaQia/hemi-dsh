@@ -114,6 +114,19 @@ describe('tierExternalDeps', () => {
     expect(isPermissive('MPL-2.0')).toBe(false)
   })
 
+  it('limits the Hemi Pocket exception to the original package and GPL-2.0 terms', () => {
+    expect(() => { assertRuntimeLicenses([{ name: 'dsh-pocket', license: 'GPL-2.0' }]) }).not.toThrow()
+    expect(isPermissive('GPL-2.0')).toBe(false)
+    for (const dependency of [
+      { name: 'dsh-pocket-unreviewed', license: 'GPL-2.0' },
+      { name: 'unrelated-plugin', license: 'GPL-2.0' },
+      { name: 'dsh-pocket', license: 'GPL-3.0-only' },
+      { name: 'dsh-pocket', license: 'UNKNOWN' },
+    ]) {
+      expect(() => { assertRuntimeLicenses([dependency]) }).toThrow(`${dependency.name} (${dependency.license})`)
+    }
+  })
+
   it('keeps license rejection active when a browser library is declared for development', () => {
     const { manifests, names } = workspace({
       'packages/client/ui/package.json': { devDependencies: { 'browser-lib': '^1', 'test-tool': '^1' } },

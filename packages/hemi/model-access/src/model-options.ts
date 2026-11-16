@@ -5,6 +5,7 @@ import type { ModelOptions, ModelOptionsView } from './types.ts'
 import { asObject } from './response.ts'
 import { draftModelDefaults, importedCatalogModel } from './model-catalog.ts'
 import { catalogModels } from '@deepseek-ai/dsh-llm-pi-ai'
+import { VVCODE_PROVIDER, isVvcodeProvider } from './vvcode/adapter.ts'
 
 function modelSettingsFailure(message: string): RemoteError<'hemi/model-access-failed'> {
   return new RemoteError('hemi/model-access-failed', message, {})
@@ -79,7 +80,8 @@ function configuration(ctx: Context, provider: string, model: string, ownBigMode
   const account = provider === 'deepseek-account'
     ? ctx.llm.listConfigurableProviders().find(entry => entry.provider === provider) : undefined
   if (provider === 'deepseek-account' && account === undefined) throw modelSettingsFailure('Model settings are unavailable.')
-  const ns = account?.settingsNs ?? (ownBigModel && provider === 'bigmodel' ? 'hemi-model-access' : 'llm-pi-ai')
+  const ownsVvcodeRoute = boundVvcodeGroup(ctx, provider) !== undefined
+  const ns = account?.settingsNs ?? (ownsVvcodeRoute || (ownBigModel && provider === 'bigmodel') ? 'hemi-model-access' : 'llm-pi-ai')
   const section = ctx.settings.describe().find(item => item.ns === ns)
   if (section === undefined) throw modelSettingsFailure('Model settings are unavailable.')
   const basePath = account?.settingsPath ?? []
@@ -91,6 +93,34 @@ function configuration(ctx: Context, provider: string, model: string, ownBigMode
     ? asObject(asObject(settings?.subscriptionModelOptions)?.[provider])?.[model]
     : models.find(value => asObject(value)?.id === model)
   return { ns, section, models, previous, account: account !== undefined, basePath }
+}
+
+/**
+ * Read the group a VVCode provider route is bound to, from the saved per-group map or the
+ * legacy binding. The adapter appends the group to every published model name, so the editor
+ * needs the binding to report the raw name back.
+ * @param ctx - Host context providing the model-access settings section.
+ * @param provider - Configured provider ID.
+ * @returns the bound group name, or undefined for non-VVCode or unbound providers.
+ */
+function boundVvcodeGroup(ctx: Context, provider: string): string | undefined {
+  if (!isVvcodeProvider(provider)) return undefined
+  const settings = asObject(ctx.settings.describe().find(item => item.ns === 'hemi-model-access')?.value)
+  for (const [group, record] of Object.entries(asObject(settings?.vvcodeConnections) ?? {})) {
+    if (asObject(record)?.provider === provider) return group
+  }
+  const legacy = asObject(settings?.vvcodeConnection)
+  return provider === VVCODE_PROVIDER && typeof legacy?.group === 'string' ? legacy.group : undefined
+}
+
+/**
+ * Remove the one group label the VVCode adapter appends to published model names, so saving an
+ * unchanged name never stores the label as a display-name override.
+ */
+function stripGroupSuffix(name: string, group: string | undefined): string {
+  if (group === undefined) return name
+  const suffix = ` · ${group}`
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name
 }
 
 /**
@@ -109,8 +139,9 @@ export async function readModelOptions(ctx: Context, provider: string, model: st
   const route = asObject(asObject(asObject(section.value)?.providers)?.[provider])
   const fallback = ns === 'llm-pi-ai' ? readKeyModelDefaults(ctx, typeof route?.api === 'string' ? route.api : '', model, provider) : {}
   const maxTokens = options.maxTokens ?? info.defaultMaxTokens ?? fallback.maxTokens
+  const group = boundVvcodeGroup(ctx, provider)
   return { revision: section.revision, options, effective: {
-    name: info.name,
+    name: stripGroupSuffix(info.name, group),
     ...info.context === undefined ? {} : { contextWindow: info.context.contextWindow },
     ...maxTokens === undefined ? {} : { maxTokens },
     ...info.inputModalities === undefined ? {} : { input: [...info.inputModalities] },

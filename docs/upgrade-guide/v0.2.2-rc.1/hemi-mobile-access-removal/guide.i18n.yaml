@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/hemi-mobile-access-removal/guide.md
+/:
+  en: 6f98597daf15084e
+  zh: 7d0c899c514e2edd
+/hemi-removes-built-in-phone-connections:
+  en: 7cce85377cb8f4ac
+  zh: 48cdb9ab75079522
+/hemi-removes-built-in-phone-connections/change:
+  en: 9c3052aaa0e1dbcf
+  zh: a5294806b581c031
+/hemi-removes-built-in-phone-connections/migration:
+  en: a9bba3398e8374fc
+  zh: 6454b92b6813aad7

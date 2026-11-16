@@ -139,7 +139,13 @@ export function clientBundle(
   const lib = clientLibraryConfig(manifest, libEntry, options.lib)
   return ({ env }) => {
     const face = buildFace(env?.DSH_BUILD_FACE)
-    const clientEntry = face === undefined ? 'src/client/index.ts' : 'lib/types/client/index.js'
+    let clientEntry = 'lib/types/client/index.js'
+    if (face === undefined) {
+      // Hemi fork: source-plane dependency disclosure must read TSX entrypoints as well as TS.
+      const sourceEntry = ['src/client/index.ts', 'src/client/index.tsx'].find(entry => existsSync(join(packageDir, entry)))
+      if (sourceEntry === undefined) throw new Error(`client bundle: ${packageDir} has no src/client/index.ts or index.tsx`)
+      clientEntry = sourceEntry
+    }
     const client = clientConfig(manifest, packageDir, clientEntry, options.clientBanner, options.dualClient === true)
     const node = [lib, ...(options.companions ?? [])]
     const clientFaces = options.dualClient === true

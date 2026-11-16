@@ -98,6 +98,29 @@ describe('client bundle build faces', () => {
       .toMatchObject({ entryFileNames: 'client.js' })
   })
 
+  it('selects an existing TSX entry for source inspection without changing the emitted Client entry', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-client-tsx-'))
+    onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
+    mkdirSync(join(root, 'src/client'), { recursive: true })
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-client-tsx-fixture' }))
+    writeFileSync(join(root, 'src/client/index.tsx'), 'export const apply = () => <div />\n')
+    const bundle = clientBundle(root, ['lib/types/index.js'])
+    expect(bundle({ env: {} }).find(config => config.platform === 'browser')?.entry)
+      .toEqual({ client: 'src/client/index.tsx' })
+    expect(bundle({ env: { DSH_BUILD_FACE: 'client' } }).find(config => config.platform === 'browser')?.entry)
+      .toEqual({ client: 'lib/types/client/index.js' })
+  })
+
+  it('rejects a missing source entry while leaving artifact-face validation to the compiler', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-client-missing-source-'))
+    onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-client-missing-source' }))
+    const bundle = clientBundle(root, ['lib/types/index.js'])
+    expect(() => bundle({ env: {} })).toThrow('has no src/client/index.ts or index.tsx')
+    expect(bundle({ env: { DSH_BUILD_FACE: 'client' } }).find(config => config.platform === 'browser')?.entry)
+      .toEqual({ client: 'lib/types/client/index.js' })
+  })
+
   it('watches source in development and consumes emitted JavaScript in the Client build', () => {
     const bundle = clientBundle(REQUESTING_PACKAGE_DIR, ['lib/types/index.js'])
     const development = bundle({ env: {} }).find(config => config.platform === 'browser')

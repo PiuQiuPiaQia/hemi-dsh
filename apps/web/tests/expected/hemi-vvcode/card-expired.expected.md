@@ -1,0 +1,7 @@
+- region "VVCode":
+  - strong: VVCode
+  - paragraph: 登录已失效，请重新授权后使用 VVCode；已选模型已保留
+  - button "重新授权"
+  - button "解除连接"
+  - status: 已选 3 个型号（2 个分组）
+  - button "管理分组与模型"

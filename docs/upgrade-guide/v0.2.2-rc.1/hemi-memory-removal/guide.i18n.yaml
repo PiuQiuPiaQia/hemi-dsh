@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/hemi-memory-removal/guide.md
+/:
+  en: a9609629660150f8
+  zh: 06ec48779c0e30e3
+/hemi-built-in-memory-is-removed:
+  en: 03143a5567b5e9dc
+  zh: 0f5e65b35b7d66c7
+/hemi-built-in-memory-is-removed/change:
+  en: 6e2407377e0225be
+  zh: 48e6d08d2e0fff49
+/hemi-built-in-memory-is-removed/migration:
+  en: 9d53e4c500801d66
+  zh: 96ccc493079740ad

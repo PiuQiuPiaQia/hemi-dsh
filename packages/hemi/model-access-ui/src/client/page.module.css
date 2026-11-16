@@ -77,6 +77,89 @@
   font: inherit;
 }
 
+.vvcodeDialog {
+  max-height: 100%;
+}
+
+.vvcodeDialogContent {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.vvcodeGroups p {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.vvcodeGroups {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-block-start: 8px;
+}
+
+.vvcodeGroupActions,
+.vvcodeGroupHeader {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vvcodeSearch {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.vvcodeGroup {
+  min-width: 0;
+  padding-block: 10px 4px;
+  border-block-start: 0.5px solid var(--dsw-alias-settings-card-stroke);
+}
+
+.vvcodeGroupHeader {
+  justify-content: space-between;
+}
+
+.vvcodeGroupToggle {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.vvcodeGroupToggle > span:nth-child(2) {
+  font-weight: 500;
+}
+
+.vvcodeGroupHeader small {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.vvcodeGroupBody {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-block-start: 6px;
+}
+
+.vvcodeGroup[hidden],
+.vvcodeGroupBody[hidden] {
+  display: none;
+}
+
 .card button,
 .card a,
 .importBody button,
@@ -105,7 +188,8 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.card .modelChoice {
+.card .modelChoice,
+.vvcodeGroups .modelChoice {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -197,8 +281,26 @@
 .balanceLine {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 0 8px;
   font-variant-numeric: tabular-nums;
+}
+
+.balanceDetail {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: inherit;
+}
+
+.quotaBars:has(.balanceDetail),
+.quotaBars:has([role='alert']),
+.quotaBars:has([role='status']) {
+  width: 240px;
+  max-width: 100%;
+}
+
+.quotaBars > [role] {
+  font-size: inherit;
 }
 
 .quotaLine progress,

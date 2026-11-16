@@ -5,6 +5,7 @@ import type { LoginState, Subscription } from '@deepseek-ai/dsh-hemi-model-acces
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './copy.ts'
 import { ProviderCardContent } from './ProviderCardContent.tsx'
+import { VvcodeGroups, type VvcodeGroupControls } from './VvcodeGroups.tsx'
 import type { SubscriptionBalance } from './ProviderUsage.tsx'
 export type { SubscriptionBalance } from './ProviderUsage.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
@@ -26,12 +27,17 @@ export type SubscriptionCardProps = Props & {
   accountFailed?: boolean
   balance?: SubscriptionBalance
   refreshBalance?: () => Promise<void>
+  /** VVCode-only group facts and callbacks; other subscriptions omit them. */
+  vvcodeGroups?: VvcodeGroupControls
 }
 
 /** @param props - account facts and native account operations. @returns the shared subscription card. */
 export function SubscriptionCard({ row, actions, test, t, pending, attempt, connect, disconnect, modelsChanged,
-  balance, refreshBalance, accountFailed, modelLoading }: SubscriptionCardProps) {
-  const [busy, setBusy] = useState(false)
+  balance, refreshBalance, accountFailed, modelLoading, vvcodeGroups }: SubscriptionCardProps) {
+  const [changing, setBusy] = useState(false)
+  const busy = changing
+  const accountBusy = busy || vvcodeGroups?.mutationBusy === true
+  const expired = row.vvcode?.expired === true
   const [failed, setFailed] = useState(false)
   async function change(run: () => Promise<void>): Promise<void> {
     setBusy(true)
@@ -39,35 +45,43 @@ export function SubscriptionCard({ row, actions, test, t, pending, attempt, conn
     try { await run() } catch { setFailed(true) } finally { setBusy(false) }
   }
   return <section className={css.card} aria-label={row.name}>
-    <ProviderCardContent provider={row.id} name={row.name} description={t(row.connected ? 'connected' : 'disconnected')}
-      models={row.connected ? row.models : []} actions={actions} test={test} t={t} saved={modelsChanged}
+    <ProviderCardContent provider={row.id} name={row.name} description={t(expired ? 'vvcodeExpired' : row.connected ? 'connected' : 'disconnected')}
+      models={row.connected && vvcodeGroups === undefined ? row.models : []} actions={actions} test={test} t={t} saved={modelsChanged}
       modelLoading={row.connected && modelLoading === true}
+      modelUnavailable={expired}
       remove={async (model) => {
         await actions.changeSubscriptionModel(row.id, model, false)
         await modelsChanged()
       }}
       {...row.connected ? {
-        discovery: {
-          disabled: busy || pending || modelLoading === true,
+        ...vvcodeGroups === undefined ? { discovery: {
+          disabled: busy || pending || expired || modelLoading === true,
           load: (signal: AbortSignal) => actions.subscriptionCandidates(row.id, signal),
           add: async (models: string[]) => {
             try { for (const model of models) await actions.changeSubscriptionModel(row.id, model, true) }
             finally { await modelsChanged() }
           },
-        },
+        } } : {},
         usage: {
           actions, t, busy,
           ...row.quota ? { quota: { provider: row.id, identity: attempt?.id ?? row.id } } : {},
           ...balance === undefined ? {} : { balance },
-          ...refreshBalance === undefined ? {} : { refreshBalance: () => { void change(refreshBalance) } },
+          ...refreshBalance === undefined ? {} : { refreshBalance: () => {
+            if (vvcodeGroups === undefined) void change(refreshBalance)
+            else void refreshBalance()
+          } },
         },
       } : {}}
       buttons={[
-        { id: 'connect', label: t(row.connected ? 'reconnect' : 'connect'), disabled: busy || pending,
+        { id: 'connect', label: t(row.connected ? 'reconnect' : 'connect'), disabled: accountBusy || pending,
           run: () => { void change(connect) } },
-        ...row.connected ? [{ id: 'disconnect', label: t('disconnect'), disabled: busy || pending,
+        ...row.connected ? [{ id: 'disconnect', label: t('disconnect'), disabled: accountBusy || pending,
           run: () => { void change(disconnect) } }] : [],
       ]} />
+    {/* Authorization epochs own the editing scope; directory refreshes keep drafts and focus. */}
+    {row.connected && vvcodeGroups !== undefined
+      && <VvcodeGroups key={`${row.vvcode?.expiresAt ?? ''}/${attempt?.id ?? ''}/${attempt?.phase ?? ''}`}
+        controls={vvcodeGroups} disabled={expired || busy || pending} actions={actions} test={test} t={t} />}
     {attempt !== undefined && (attempt.phase === 'pending'
       ? <LoginAttempt attempt={attempt} actions={actions} change={change} busy={busy} t={t} />
       : attempt.phase !== 'connected' && <p role="status">{t(attempt.phase === 'route-failed' ? 'routeFailed' : attempt.phase)}</p>)}

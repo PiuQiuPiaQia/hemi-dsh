@@ -12,7 +12,6 @@ Hemi-DSH is an open-source desktop AI agent built on [DeepSeek Harness (DSH)](ht
 
 - **Use the models you already have.** Manage subscription accounts, API keys, and New API sites in one place. For New API, sign in inside Hemi, select models from the list, and import them in one step. [Model connections guide](packages/hemi/model-access-ui/README.md)
 - **Give each role its own model.** Keep your preferred model for the main conversation and assign others to research, review, execution, or design. Switch between automatic routing and a fixed model per session. [Model routing guide](packages/hemi/routing-ui/README.md)
-- **Pick up where you left off.** Hemi uses saved memory and daily logs as context for new sessions. You can read and edit that context in Settings. [Memory guide](packages/hemi/memory-ui/README.md)
 - **Back up your work to a location you choose.** Save sessions and memory to a local folder or WebDAV, and preview how a backup will merge with local data before restoring it. [Backup guide](packages/hemi/backup-ui/README.md)
 
 ## Download

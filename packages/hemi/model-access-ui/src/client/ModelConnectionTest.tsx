@@ -11,13 +11,17 @@ import css from './page.module.css'
  * @param props - Saved route, connection operations and localized copy.
  * @returns the model row with its test result and actions.
  */
-export function ModelConnectionTest({ provider, model, test, remove, actions, saved, t }: PropsLocale<typeof NS> & {
+export function ModelConnectionTest({ provider, model, test, remove, actions, saved, modelUnavailable, selection, t }:
+PropsLocale<typeof NS> & {
   provider: string
   model: string
   test: ModelTest
+  modelUnavailable?: boolean
   remove?: () => Promise<void>
   actions: ModelAccessActions
   saved?: () => Promise<void>
+  /** Optional local enablement; does not revoke the provider credential. */
+  selection?: { enabled: boolean; busy: boolean; disabled: boolean; label: string; change: (enabled: boolean) => void }
 }) {
   const [status, setStatus] = useState<'testingModel' | 'modelToolOk' | 'modelResponseOk' | null>(null)
   const testing = status === 'testingModel'
@@ -25,7 +29,7 @@ export function ModelConnectionTest({ provider, model, test, remove, actions, sa
   const active = useRef<AbortController | null>(null)
   useEffect(() => () => { active.current?.abort() }, [])
   async function run(): Promise<void> {
-    if (active.current !== null) return
+    if (active.current !== null || modelUnavailable) return
     const request = new AbortController()
     active.current = request
     setStatus('testingModel')
@@ -43,16 +47,22 @@ export function ModelConnectionTest({ provider, model, test, remove, actions, sa
   }
   return (
     <div className={css.modelTestRow} role="group" aria-label={model}>
-      <span className={css.modelName}>{model}</span>
+      {selection === undefined ? <span className={css.modelName}>{model}</span>
+        : <label className={css.modelChoice}>
+          <input type="checkbox" checked={selection.enabled} aria-label={selection.label}
+            disabled={selection.busy || selection.disabled || testing || removing} aria-busy={selection.busy}
+            onChange={(event) => { selection.change(event.currentTarget.checked) }} />
+          <span className={css.modelName}>{model}</span>
+        </label>}
       <div className={css.actions}>
         <SavedModelOptions provider={provider} model={model} actions={actions} t={t}
-          disabled={testing || removing} {...saved === undefined ? {} : { saved }} />
+          disabled={testing || removing || modelUnavailable === true} {...saved === undefined ? {} : { saved }} />
         {status !== null && status !== 'testingModel' && <small role="status">{t(status)}</small>}
         <Tooltip label={t(testing ? 'testingModel' : 'testModel')} side="top" portal>
           <Button variant="ghost" size="sm" className={css.modelIconButton}
             aria-label={t(testing ? 'testingModel' : 'testModel')} aria-busy={testing}
             icon={testing ? <IconLoadingOutlineRegular size={16} className={css.modelTestSpinner} /> : <IconPlayOutlineRegular size={16} />}
-            disabled={testing || removing} onClick={() => { void run() }} />
+            disabled={testing || removing || modelUnavailable === true} onClick={() => { void run() }} />
         </Tooltip>
         {remove !== undefined && <Tooltip label={t('deleteModel')} side="top" portal>
           <Button variant="ghost" size="sm" className={`${css.modelIconButton} ${css.dangerAction}`}

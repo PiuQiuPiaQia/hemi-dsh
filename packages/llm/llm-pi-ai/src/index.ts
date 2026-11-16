@@ -82,6 +82,9 @@ export { Config, resolveProfiles } from './config.ts'
 // Hemi fork: model editors consume adapter defaults through shipped exports rather than source-only paths.
 export { DEFAULT_CONTEXT_WINDOW, DEFAULT_INPUT, DEFAULT_MAX_TOKENS } from './config.ts'
 export { catalogModels } from './catalog.ts'
+// Hemi fork: profile decoration and the catalog resolver share this protocol compatibility
+// classification through the published entrypoint.
+export { effortWireFamily } from './catalog.ts'
 export type {
   Options,
   PiAiCompatProfile,

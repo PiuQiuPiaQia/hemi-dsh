@@ -1,5 +1,6 @@
 {
   "meta": {
-    "title": "Connexions aux modèles Hemi"
+    "title": "Connexions aux modèles Hemi",
+    "description": "Gérez les comptes d’abonnement, les groupes VVCode et les connexions API."
   }
 }

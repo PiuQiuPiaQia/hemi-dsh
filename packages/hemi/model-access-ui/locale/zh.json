@@ -1,5 +1,6 @@
 {
   "meta": {
-    "title": "Hemi 模型接入"
+    "title": "Hemi 模型接入",
+    "description": "管理订阅账号、VVCode 分组和 API 接入。"
   }
 }

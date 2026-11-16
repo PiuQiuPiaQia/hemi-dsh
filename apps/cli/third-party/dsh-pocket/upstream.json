@@ -1,0 +1,17 @@
+{
+  "name": "dsh-pocket",
+  "version": "2.13.0",
+  "license": "GPL-2.0",
+  "repository": "https://github.com/shaobeichen/dsh-pocket",
+  "revision": "8bc0f55cd32f6584be3004f69fe47b00e0281df8",
+  "source": {
+    "file": "source.tar.gz",
+    "url": "https://codeload.github.com/shaobeichen/dsh-pocket/tar.gz/8bc0f55cd32f6584be3004f69fe47b00e0281df8",
+    "bytes": 767789,
+    "sha256": "ee265b3cdf0c8d88c1c9e2c1d123ad34fa9d15e48482919c5d343e308a7d1527"
+  },
+  "npm": {
+    "url": "https://registry.npmjs.org/dsh-pocket/-/dsh-pocket-2.13.0.tgz",
+    "integrity": "sha512-eHdAB4+QkJFfyBVFPUYUTx7Bpt0KzR7Qf7IHyRHAxjFX/mTFhUnEsMw9GVBHTjtlVQmqX2BeFM3VD493iVAWhg=="
+  }
+}

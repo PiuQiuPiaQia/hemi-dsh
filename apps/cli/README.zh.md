@@ -4,6 +4,8 @@
 
 `dsh` 是唯一受支持的 Node 应用启动器；profile 由多个插件组合包 patch 层按顺序叠加而成，其上再应用用户自己的覆盖配置。SDK 与 ACP（Agent Client Protocol）都是 profile，而不是独立的公开可执行命令。Python 运行时 wheel 包中也包含同一个命令；SDK 默认使用 `sdk`，极简示例选择 `sdk-minimal`。[`src/args.ts`](src/args.ts) 负责命令语法，[`src/bin.ts`](src/bin.ts) 只加载选中的运行器。无效命令、来自其他模式的选项，以及致命的配置或启动错误都会以非零状态退出。
 
+本 Hemi 分发将原版 `dsh-pocket` 与 `dsh-mnemon` 作为固定依赖携带，只有 [Desktop profile 准备](../desktop/README.zh.md#installation-ownership)会自动选择它们。npm 包随附 [Pocket 原始许可证及完整匹配源码](third-party/dsh-pocket/README.zh.md)，Desktop 与 SDK 分发也保留相同源码材料。
+
 ## 入口模式
 
 | 命令 | 用途 |

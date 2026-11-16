@@ -4072,8 +4072,6 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-settings-models DefaultModelsPage id \'models\'',
       'client-ui-settings-plugins PluginsSettingsSection id \'plugins\'',
       'hemi-backup-ui BackupSection id \'hemi-backup\'',
-      'hemi-memory-ui MemorySection',
-      'hemi-mobile-access-ui MobileSection id \'hemi-mobile-access\'',
       'hemi-model-settings-ui ModelSettingsPage id \'hemi-model-access\'',
     ],
     replaceRisk: 'none',

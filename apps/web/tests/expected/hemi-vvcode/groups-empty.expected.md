@@ -1,0 +1,8 @@
+- dialog "管理分组与模型":
+  - heading "管理分组与模型" [level=2]
+  - button "关闭"
+  - textbox "搜索分组或模型"
+  - button "刷新目录"
+  - status: 当前账号没有可用的 VVCode 分组，请向 VVCode 确认分组权限后重新读取
+  - button "取消"
+  - button "保存选择" [disabled]

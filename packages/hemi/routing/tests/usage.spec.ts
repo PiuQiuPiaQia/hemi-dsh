@@ -6,7 +6,7 @@ import Projections from '@deepseek-ai/dsh-session-projection'
 import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
 import { RetryId } from '@deepseek-ai/dsh-llm-retry'
-import type {} from '../../memory/src/lifecycle.ts'
+import type {} from '../src/legacy-memory-events.ts'
 import { CompactionId } from '@deepseek-ai/dsh-compaction'
 import { modelUsageProjection } from '../src/usage.ts'
 

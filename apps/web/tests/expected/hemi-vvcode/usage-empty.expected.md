@@ -1,0 +1,10 @@
+- region "VVCode":
+  - strong: VVCode
+  - paragraph: 已授权
+  - text: 账号余额 $0
+  - status: 暂无有效订阅
+  - button "刷新余额"
+  - button "重新授权"
+  - button "解除连接"
+  - status: 已选 3 个型号（2 个分组）
+  - button "管理分组与模型"

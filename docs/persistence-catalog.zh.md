@@ -574,26 +574,30 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `hemi-memory/summary-request` — log-only
 
 ```ts persistence-catalog
-/** Exact auxiliary request sent to produce an automatic memory summary. */
+/**
+ * Exact auxiliary request sent to produce an automatic memory summary.
+ */
 'hemi-memory/summary-request': {
-  throughSeq: SessionSeq
+  throughSeq: LegacySessionSeq
   config: LlmCallConfig
   system: string
   messages: RequestMessage[]
 }
 ```
 
-来源：[`packages/hemi/memory/src/lifecycle.ts:21`](../packages/hemi/memory/src/lifecycle.ts)
+来源：[`packages/hemi/routing/src/legacy-memory-events.ts:17`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 <a id="hemi-memorysummary-result--log-only"></a>
 
 #### `hemi-memory/summary-result` — log-only
 
 ```ts persistence-catalog
-/** Outcome and provider-reported usage of the preceding memory summary request. */
+/**
+ * Outcome and provider-reported usage of the preceding memory summary request.
+ */
 'hemi-memory/summary-result': {
-  requestSeq: SessionSeq
-  throughSeq: SessionSeq
+  requestSeq: LegacySessionSeq
+  throughSeq: LegacySessionSeq
   outcome: 'saved' | 'empty' | 'failed'
   failure?: 'timeout' | 'model' | 'output' | 'storage'
   text: string
@@ -603,7 +607,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 类型：[TokenUsage](subsystems/llm-streaming.zh.md)
 
-来源：[`packages/hemi/memory/src/lifecycle.ts:28`](../packages/hemi/memory/src/lifecycle.ts)
+来源：[`packages/hemi/routing/src/legacy-memory-events.ts:26`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 ### `hook/*`
 
@@ -6405,7 +6409,7 @@ SHA-256: `3e4e7683b0192c9f0e6a75c59076108f017892cdb302a98032c2632fd79c356f`
 
 SHA-256: `753191848b8d19a7565b775b412b0052c192e3f0a522b9a1b228770458941db7`
 
-来源：[`packages/hemi/memory/src/lifecycle.ts:21`](../packages/hemi/memory/src/lifecycle.ts)
+来源：[`packages/hemi/routing/src/legacy-memory-events.ts:17`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -6637,7 +6641,7 @@ SHA-256: `693f4952fb5565da96c06bace8924b098ac2fbc915fde0ff8019701183abc057`
 
 SHA-256: `3073d76680b592eddb60110522e90f3ea3ea6c5d82da50ac5c0b839a7be68d35`
 
-来源：[`packages/hemi/memory/src/lifecycle.ts:28`](../packages/hemi/memory/src/lifecycle.ts)
+来源：[`packages/hemi/routing/src/legacy-memory-events.ts:26`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|

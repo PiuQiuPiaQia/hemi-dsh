@@ -1,0 +1,5 @@
+- listitem:
+  - button "查看 可组合记忆 (dsh-mnemon)": 可组合记忆 (dsh-mnemon)
+  - text: 面向 DeepSeek Harness 的可组合视图上下文。来源与策略可插拔，开箱即用提供分层记忆与自进化技能。
+  - status
+  - switch "启用 可组合记忆 (dsh-mnemon)" [checked]

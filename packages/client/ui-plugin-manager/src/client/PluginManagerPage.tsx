@@ -297,7 +297,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
         ? (
           <Input
             type="search"
-            className={css.partsFilter as string}
+            className={css.partsFilter}
             placeholder={t('partsFilter')}
             aria-label={t('partsFilter')}
             value={filter}
@@ -1570,9 +1570,10 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
 
   // The page omits profile bundles and persistent terminals. Other installed or offered bundles and
   // unreadable selections remain manageable; Settings' Plugin list inspects the full Host inventory.
+  // Hemi fork: installation-provided third-party bundles remain manageable after being switched off.
   const listed = state.packages.filter(pkg => !HIDDEN_BUNDLES.has(pkg.name)
     && (pkg.listedByDefault !== false || pkg.enabled || pkg.installed || rowsRunning(pkg))
-    && (pkg.installed || pkg.official || pkg.error !== undefined))
+    && (pkg.installed || pkg.official || pkg.availability === 'installation' || pkg.error !== undefined))
   const mine = listed.filter(pkg => !pkg.official)
   const official = listed.filter(pkg => pkg.official)
   // Both lists read one order over the eligible bundles: the main list holds the always-held ones plus the held-back

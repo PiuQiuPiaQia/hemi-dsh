@@ -94,7 +94,8 @@ const OVERRIDES: Record<string, { license?: string; repo?: string }> = {
   '@modelcontextprotocol/server-filesystem': { license: 'MIT / Apache-2.0', repo: 'https://github.com/modelcontextprotocol/servers' },
   // No repository field in the published manifest.
   'node-addon-require-builtin': { repo: 'https://www.npmjs.com/package/node-addon-require-builtin' },
-  // No `license` field in the published manifest; the tarball's LICENSE.txt is the MIT text.
+  // ssh2 declares MIT in the legacy `licenses` array and ships the matching LICENSE text.
+  ssh2: { license: 'MIT' },
 }
 
 /**
@@ -706,6 +707,8 @@ export function isPermissive(license: string): boolean {
 export function assertRuntimeLicenses(dependencies: readonly { name: string; license: string }[]): void {
   const rejected = dependencies.filter(dep => !isPermissive(dep.license)
     && !isOwnerAuthorizedRuntime(dep.name)
+    // Hemi fork: the owner selects the original Pocket plugin with its matching source and GPL notice.
+    && !(dep.name === 'dsh-pocket' && dep.license === 'GPL-2.0')
     && !(LIBREOFFICE_PACKAGES.has(dep.name) && dep.license === 'MPL-2.0'))
   if (rejected.length > 0) {
     throw new Error(`gen-third-party-notices: runtime ${rejected.map(dep => `${dep.name} (${dep.license})`).join(', ')} is not a permissive license; review the distribution terms and record the decision before regenerating.`)
@@ -807,6 +810,7 @@ External packages installed for runtime use or embedded in distributed Host or b
 
 ${renderNpmTable(runtimeDeps)}
 
+${runtimeDeps.some(dep => dep.name === 'dsh-pocket') ? 'Hemi preinstalls the original `dsh-pocket` package under GPL-2.0 at the project owner\'s request. This exact package-and-license exception does not classify GPL as permissive. The [source and license directory](apps/cli/third-party/dsh-pocket/README.md) contains the matching complete upstream source, build inputs, source revision, archive digests, and unchanged license; Desktop copies it into `dsh/third-party/dsh-pocket` before sealing the runtime. The original `dsh-mnemon` package retains its MIT license.\n' : ''}
 pnpm applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
 
 ${patchedLines.join('\n')}

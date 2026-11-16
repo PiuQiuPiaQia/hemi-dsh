@@ -4,8 +4,28 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
-import { readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
-import { runtimeFixture } from './runtime-fixture.ts'
+import { loadProfileDirectory, readProfilePlugins } from '@deepseek-ai/dsh-app-boot'
+import { runtimeFixture, writePackage } from './runtime-fixture.ts'
+
+/** Whether the disabled-intent marker was already on the manifest when each sanitize entered. */
+const sanitizeCheckpoints = vi.hoisted(() => ({ markedAtEntry: [] as boolean[] }))
+vi.mock('@deepseek-ai/dsh-app-boot', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@deepseek-ai/dsh-app-boot')>()
+  return {
+    ...actual,
+    sanitizeProfile: (binName: string, profileDir: string, bundles: readonly string[]) => {
+      let marked = false
+      try {
+        marked = (JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as DesktopManifest)
+          .hemiDesktop?.preinstalledBundles !== undefined
+      } catch {
+        marked = false
+      }
+      sanitizeCheckpoints.markedAtEntry.push(marked)
+      return actual.sanitizeProfile(binName, profileDir, bundles)
+    },
+  }
+})
 
 const roots: string[] = []
 function temporaryRoot(): string {
@@ -328,5 +348,180 @@ describe('desktop link-backend projections', () => {
     expect(existsSync(join(profile, '.dsh-module-fallback'))).toBe(false)
     expect(lstatSync(join(profile, 'node_modules', 'bridge'), { throwIfNoEntry: false })).toBeUndefined()
     expect(existsSync(join(target, 'package.json'))).toBe(true)
+  })
+})
+
+/** Preinstalled package names a Hemi runtime declares, in seeding order. */
+const PREINSTALLED = ['dsh-pocket', 'dsh-mnemon'] as const
+
+interface DesktopManifest {
+  dependencies: Record<string, string>
+  dsh: { profile: { bundles: string[] } }
+  hemiDesktop?: { preinstalledBundles?: string[] }
+  userTuning?: unknown
+}
+
+function readDesktopManifest(manager: DesktopProjectManager): DesktopManifest {
+  return JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')) as DesktopManifest
+}
+function writeDesktopManifest(manager: DesktopProjectManager, manifest: DesktopManifest): void {
+  writeFileSync(join(manager.paths.profile, 'package.json'), JSON.stringify(manifest))
+}
+function installationAnchor(manager: DesktopProjectManager): string {
+  return join(manager.runtime.dsh, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
+}
+/** Declare the preinstalled packages in the CLI manifest and install them into the runtime. */
+function seedPreinstalledRuntime(dsh: string, versions: readonly string[] = ['2.13.0', '0.5.45']): void {
+  const manifestPath = join(dsh, 'node_modules', '@deepseek-ai/dsh', 'package.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { dependencies: Record<string, string> }
+  for (const [index, name] of PREINSTALLED.entries()) {
+    manifest.dependencies[name] = versions[index]!
+    const directory = writePackage(join(dsh, 'node_modules'), name, { version: versions[index], dsh: { bundle: { patch: './bundle.yml' } } })
+    writeFileSync(join(directory, 'bundle.yml'), '[]\n')
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+function hemiSetup(): { root: string; manager: DesktopProjectManager } {
+  const { root, manager } = setup()
+  seedPreinstalledRuntime(manager.runtime.dsh)
+  return { root, manager }
+}
+
+describe('desktop preinstalled plugin seeding', () => {
+  it('seeds the preinstalled bundles once, keeps them across restarts, and loads them as layers', async () => {
+    const { manager } = hemiSetup()
+    await manager.applyRelease()
+    const manifest = readDesktopManifest(manager)
+    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PREINSTALLED])
+    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(manifest.dependencies).toEqual({})
+    const loaded = loadProfileDirectory('dsh', manager.paths.profile, installationAnchor(manager))
+    expect(loaded.layers.map(layer => layer.packageName)).toEqual(expect.arrayContaining([...PREINSTALLED]))
+    expect(loaded.skippedBundles).toEqual([])
+
+    const before = readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')
+    await manager.applyRelease()
+    expect(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')).toBe(before)
+    expect(readDesktopManifest(manager).dsh.profile.bundles.filter(name => name === 'dsh-pocket')).toHaveLength(1)
+  })
+
+  it('upgrades a legacy profile without duplicating a user-selected preinstalled bundle', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const manifest = readDesktopManifest(manager)
+    manifest.dsh.profile.bundles.push('dsh-pocket')
+    writeDesktopManifest(manager, manifest)
+    seedPreinstalledRuntime(manager.runtime.dsh)
+
+    await manager.applyRelease()
+
+    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-pocket', 'dsh-mnemon'])
+  })
+
+  it('leaves a user-installed disabled preinstalled package disabled', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const manifest = readDesktopManifest(manager)
+    manifest.dependencies['dsh-pocket'] = '2.13.0'
+    writeDesktopManifest(manager, manifest)
+    seedPreinstalledRuntime(manager.runtime.dsh)
+
+    await manager.applyRelease()
+
+    const seeded = readDesktopManifest(manager)
+    expect(seeded.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-mnemon'])
+    expect(seeded.dependencies).toEqual({ 'dsh-pocket': '2.13.0' })
+    expect(seeded.hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+  })
+
+  it('preserves user configuration, dependency versions, patches, and lockfiles while seeding', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const manifest = readDesktopManifest(manager)
+    manifest.dependencies['my-plugin'] = '3.2.1'
+    manifest.userTuning = { keep: true }
+    writeDesktopManifest(manager, manifest)
+    const profile = manager.paths.profile
+    writeFileSync(join(profile, 'cordis.patch.yml'), '# my patch\n[]\n')
+    writeFileSync(join(profile, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n')
+    seedPreinstalledRuntime(manager.runtime.dsh)
+
+    await manager.applyRelease()
+
+    const seeded = readDesktopManifest(manager)
+    expect(seeded.dependencies).toEqual({ 'my-plugin': '3.2.1' })
+    expect(seeded.userTuning).toEqual({ keep: true })
+    expect(seeded.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PREINSTALLED])
+    expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).toBe('# my patch\n[]\n')
+    expect(readFileSync(join(profile, 'pnpm-lock.yaml'), 'utf8')).toBe('lockfileVersion: 9.0\n')
+  })
+
+  it('keeps a recovery after seeding from re-enabling the preinstalled bundles', async () => {
+    const { manager } = hemiSetup()
+    await manager.applyRelease()
+    await manager.disableAllPlugins()
+    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+
+    await manager.applyRelease()
+
+    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+  })
+
+  it('marks a legacy profile handled during recovery before the first preparation', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    seedPreinstalledRuntime(manager.runtime.dsh)
+    await manager.disableAllPlugins()
+    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+
+    await manager.applyRelease()
+
+    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+  })
+
+  it('records the disabled intent before the sanitize commit, so a crashed recovery cannot re-seed', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    sanitizeCheckpoints.markedAtEntry.length = 0
+
+    const backupPath = await manager.disableAllPlugins()
+
+    expect(backupPath).toBeTruthy()
+    expect(sanitizeCheckpoints.markedAtEntry).toEqual([true])
+    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+
+    seedPreinstalledRuntime(manager.runtime.dsh)
+    await manager.applyRelease()
+    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+  })
+
+  it('needs no profile manifest for recovery even when the runtime preinstalls plugins', async () => {
+    const { manager } = hemiSetup()
+    await expect(manager.disableAllPlugins()).resolves.toBeUndefined()
+    expect(existsSync(join(manager.paths.profile, 'package.json'))).toBe(false)
+    expect(existsSync(manager.paths.lock)).toBe(false)
+  })
+
+  it('fails an installed preinstalled package that cannot serve as a bundle without changing the profile', async () => {
+    const { manager } = hemiSetup()
+    const directory = join(manager.runtime.dsh, 'node_modules', 'dsh-mnemon')
+    rmSync(directory, { recursive: true, force: true })
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'package.json'), JSON.stringify({ name: 'dsh-mnemon', version: '0.5.45', dsh: { bundle: { patch: './bundle.yml' } } }))
+    await expect(manager.applyRelease()).rejects.toThrow(/missing its declared patch file/)
+    const manifest = readDesktopManifest(manager)
+    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
+    expect(manifest.hemiDesktop).toBeUndefined()
+  })
+
+  it('reports a broken profile manifest during preparation without replacing it', async () => {
+    const { manager } = hemiSetup()
+    await manager.applyRelease()
+    const path = join(manager.paths.profile, 'package.json')
+    writeFileSync(path, '{broken')
+    await expect(manager.applyRelease()).rejects.toThrow()
+    expect(readFileSync(path, 'utf8')).toBe('{broken')
   })
 })

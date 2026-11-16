@@ -1,0 +1,9 @@
+- region "VVCode":
+  - strong: VVCode
+  - paragraph: 已授权
+  - text: "账号余额 $5 有效订阅 #1 剩余 $1.5 / $2 到期 2033/5/18 {{clock}} 有效订阅 #2 剩余 不限额 / 不限额 到期 2033/5/18 {{clock}}"
+  - button "刷新余额"
+  - button "重新授权"
+  - button "解除连接"
+  - status: 正在读取已选型号…
+  - button "管理分组与模型"

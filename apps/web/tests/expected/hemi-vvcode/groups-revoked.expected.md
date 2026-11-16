@@ -1,0 +1,35 @@
+- dialog "管理分组与模型":
+  - heading "管理分组与模型" [level=2]
+  - button "关闭"
+  - textbox "搜索分组或模型"
+  - button "刷新目录"
+  - region "VVCode 分组 solo":
+    - button "solo 已选 1 / 2 权限不可用" [expanded]
+    - text: 用量倍率：2 倍
+    - alert: 此分组已无授权，请向 VVCode 确认分组权限后刷新目录
+    - group "vv-model-a":
+      - checkbox "启用 vv-model-a · solo" [checked]
+      - text: vv-model-a
+      - button "模型设置" [disabled]
+      - button "测试" [disabled]
+    - group "vv-model-solo":
+      - checkbox "启用 vv-model-solo · solo" [disabled]
+      - text: vv-model-solo
+      - button "模型设置" [disabled]
+      - button "测试" [disabled]
+  - region "VVCode 分组 team":
+    - button "team 已选 2 / 2 权限不可用" [expanded]
+    - text: 用量倍率：自动
+    - alert: 此分组已无授权，请向 VVCode 确认分组权限后刷新目录
+    - group "vv-model-a":
+      - checkbox "启用 vv-model-a · team" [checked]
+      - text: vv-model-a
+      - button "模型设置" [disabled]
+      - button "测试" [disabled]
+    - group "vv-model-b":
+      - checkbox "启用 vv-model-b · team" [checked]
+      - text: vv-model-b
+      - button "模型设置" [disabled]
+      - button "测试" [disabled]
+  - button "取消"
+  - button "保存选择" [disabled]

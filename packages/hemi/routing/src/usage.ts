@@ -6,6 +6,7 @@ import type { TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import type {} from '@deepseek-ai/dsh-compaction/types'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
+import type {} from './legacy-memory-events.ts'
 import type { ModelUsageRow } from './usage-types.ts'
 export type { ModelUsageProjection, ModelUsageRow } from './usage-types.ts'
 
@@ -75,8 +76,9 @@ export const modelUsageProjection = {
       return { ...state, route: { provider, model } }
     }
     if (event.seq < state.inheritedCount) return state
-    // The optional Hemi memory plugin records its own auxiliary model calls.
-    // Read its versioned data structurally without making routing depend on memory.
+    // Published history: the removed Hemi memory plugin's summary events stay
+    // declared in ./legacy-memory-events.ts. Fold them read-only into the
+    // usage rows; no active producer appends them.
     const auxiliary: { type: string; data: unknown } = event
     if (auxiliary.type === 'hemi-memory/summary-request') {
       const request = memoryRequestSchema.safeParse(event.data)

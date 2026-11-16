@@ -108,11 +108,11 @@
   en: a17a354ca123f574
   zh: a17a354ca123f574
 /session-persistence-event-catalog/events/hemi-memory/hemi-memory-summary-request-log-only:
-  en: 1175cfe9d58ebea8
-  zh: c7d9009398ef8646
+  en: 34cbee41f9e9fb01
+  zh: 6221846ac444c61b
 /session-persistence-event-catalog/events/hemi-memory/hemi-memory-summary-result-log-only:
-  en: 935d3893e51dbcec
-  zh: 5c8ab1415b7a2691
+  en: ddc780bfb0dd2ac2
+  zh: 58ad7b0886842a46
 /session-persistence-event-catalog/events/hook:
   en: 8d6fa78d450a0e56
   zh: 8d6fa78d450a0e56
@@ -1542,8 +1542,8 @@
   en: 5d6e0e9879d42943
   zh: 77f58b07aeeb745e
 /session-persistence-event-catalog/resolved-persistence-types/config-messages-system-throughseq:
-  en: 36fd4b32ce6daef5
-  zh: 7ac7ba656151ab35
+  en: 0c3c17f96a3dc89b
+  zh: ed47e28b28d4afac
 /session-persistence-event-catalog/resolved-persistence-types/cwd:
   en: 1bc55be85a68f0a3
   zh: 9e84a55ed11bba5d
@@ -1590,8 +1590,8 @@
   en: 52592a5ff0006224
   zh: f7c7b29bf5bf8d22
 /session-persistence-event-catalog/resolved-persistence-types/failure-outcome-requestseq-text:
-  en: 01cb93d6e441e555
-  zh: b43cbbee2dda2e79
+  en: a65bc0195cebe383
+  zh: 45c86d7582c0e881
 /session-persistence-event-catalog/resolved-persistence-types/header-reason-startsseries:
   en: e170bd51fb07d787
   zh: d49c89ba4c3965bd

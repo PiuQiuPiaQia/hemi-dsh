@@ -222,7 +222,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-api-gateway`
 
 - `inject`: `typert` · `remoteAccess`
-- `source`: [`packages/api/gateway/src/index.ts:160`](../packages/api/gateway/src/index.ts)
+- `source`: [`packages/api/gateway/src/index.ts:158`](../packages/api/gateway/src/index.ts)
 
 ```ts config-catalog
 /** Gateway transport configuration. */
@@ -477,7 +477,7 @@ export type Config = LocalConfig
 ## `@deepseek-ai/dsh-client-connection`
 
 - `inject`: `credentials`
-- `source`: [`packages/client/connection/src/index.ts:95`](../packages/client/connection/src/index.ts)
+- `source`: [`packages/client/connection/src/index.ts:96`](../packages/client/connection/src/index.ts)
 
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
@@ -1663,69 +1663,6 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-headless -->
 
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-memory -->
-<a id="deepseek-aidsh-hemi-memory"></a>
-
-## `@deepseek-ai/dsh-hemi-memory`
-
-- `inject`: `tools` · `llm` · `systemPrompt` · `sessionPersistence`
-- `source`: [`packages/hemi/memory/src/lifecycle.ts:40`](../packages/hemi/memory/src/lifecycle.ts)
-
-```ts config-catalog
-/** Limits apply to the complete emitted context and complete summary input. */
-export interface MemoryLifecycleConfig {
-  /** Maximum bytes of memory context included in a model request. */
-  contextMaxBytes: number
-  /** Maximum bytes of conversation text sent for memory summarization. */
-  summaryMaxInputBytes: number
-  /** Maximum output tokens requested for a memory summary. */
-  summaryMaxOutputTokens: number
-  /** Maximum milliseconds to wait for a memory summary request. */
-  summaryTimeoutMs: number
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-memory -->
-
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-mobile-access -->
-<a id="deepseek-aidsh-hemi-mobile-access"></a>
-
-## `@deepseek-ai/dsh-hemi-mobile-access`
-
-- `inject`: `connection` · `typertGateway` · `webServer` · `credentials`
-- `source`: [`packages/hemi/mobile-access/src/index.ts:80`](../packages/hemi/mobile-access/src/index.ts)
-
-```ts config-catalog
-/** Mobile-access listener configuration. */
-export interface Config {
-  /**
-   * Listen port. Zero (the default) asks the OS for a port on the first
-   * start; that port is then persisted and reused by later starts, so a
-   * phone's saved origin keeps working. An explicit port always wins, and a
-   * busy persisted port fails the start instead of silently moving.
-   * @default 0
-   */
-  port?: number
-  /**
-   * Server name shown to phones in pairing and session responses. Defaults
-   * to the machine hostname.
-   */
-  serverName?: string
-  /** One-time invitation lifetime in seconds. @default 120 */
-  invitationTtlSeconds?: number
-  /** Pending pairing-claim lifetime in seconds. @default 300 */
-  requestTtlSeconds?: number
-  /** Maximum accepted pair-endpoint JSON body in bytes. @default 8192 */
-  maxPairBodyBytes?: number
-  /** Pair-endpoint events allowed per remote address per minute. @default 20 */
-  pairRequestsPerMinute?: number
-  /** Maximum number of approved devices. @default 10 */
-  maxDevices?: number
-  /** Maximum buffered `/api` request body forwarded to the shared bridge. @default 67108864 */
-  maxApiBodyBytes?: number
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-mobile-access -->
-
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-access -->
 <a id="deepseek-aidsh-hemi-model-access"></a>
 
@@ -1733,7 +1670,7 @@ export interface Config {
 
 - `inject`: `authorization` · `credentials` · `settings` · `llm`
 - `refs`: `ModelThinkingLevel` (`@earendil-works/pi-ai`) · [`PiAiReasoningEfforts`](../packages/llm/llm-pi-ai/src/index.ts) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/hemi/model-access/src/index.ts:36`](../packages/hemi/model-access/src/index.ts)
+- `source`: [`packages/hemi/model-access/src/index.ts:43`](../packages/hemi/model-access/src/index.ts)
 
 ```ts config-catalog
 interface ModelAccessConfig {
@@ -1745,6 +1682,12 @@ interface ModelAccessConfig {
   subscriptionModelOptions: Volatile<Record<string, Record<string, ModelOptions>>>
   /** Request limits and client versions for live subscription model listings. */
   subscriptionDiscovery: SubscriptionDiscoveryConfig
+  /** VVCode account endpoint and request budgets. */
+  vvcode: VvcodeConfig
+  /** Legacy single-group VVCode binding, readable until its one-time migration into `vvcodeConnections`. */
+  vvcodeConnection: Volatile<VvcodeLegacyConnection | null | undefined>
+  /** Saved per-group VVCode bindings, each with its own route, key reference, catalog and selection. */
+  vvcodeConnections: Volatile<Record<string, VvcodeGroupConnection>>
 }
 
 /** Configurable effort offer and request default for one wire protocol. */
@@ -1778,6 +1721,77 @@ export interface SubscriptionDiscoveryConfig {
   /** ZCode version sent when downloading the current Coding Plan catalog. */
   zcodeAppVersion: string
 }
+
+/** Deployment-specific VVCode origin and bounded management operations. */
+export interface VvcodeConfig {
+  /** HTTPS origin serving the VVCode account and model APIs. */
+  origin: string
+  /** Deadline for each management or model-catalog request in milliseconds. */
+  timeoutMs: number
+  /** Maximum browser authorization duration in milliseconds. */
+  loginTimeoutMs: number
+  /** Maximum decoded response bytes accepted from VVCode. */
+  maxResponseBytes: number
+  /** Maximum number of advertised model IDs accepted from the gateway. */
+  maxModels: number
+  /** Maximum pages inspected when recovering a uniquely named model token. */
+  tokenPageLimit: number
+}
+
+/** The legacy single-group binding, kept readable until its one-time migration lands. */
+export type VvcodeLegacyConnection = {
+  /** HTTPS origin that issued the single group's key. */
+  origin: string
+  /** Exact group name adopted by the multi-group collection. */
+  group: string
+  /** Account ID owning the legacy group token. */
+  userId: string
+  /** Server token ID retained during adoption. */
+  tokenId: number
+  /** Existing credential reference, retained without copying its secret. */
+  apiKeyRef: string
+  /** Previously advertised model protocols for the single group. */
+  models: readonly {
+    /** Gateway model ID, retained in saved Session references. */
+    id: string
+    /** Site-declared protocol for this model. */
+    api: VvcodeApi
+  }[]
+}
+
+/** Non-secret binding of one group: its route, key reference, catalog, and selection. */
+export interface VvcodeGroupConnection {
+  /** HTTPS origin that issued the model API key. */
+  origin: string
+  /** Exact application-authorized group; the settings key names the same group. */
+  group: string
+  /** Account ID owning the group's model token. */
+  userId: string
+  /** Server-side model token ID used for exact key lookup. */
+  tokenId: number
+  /** Credential reference containing the group's model API key, never its literal value. */
+  apiKeyRef: string
+  /** Stable provider route derived from origin, account, and group. */
+  provider: string
+  /** Models advertised to the group's key with supported site-declared protocols. */
+  models: readonly {
+    /** Gateway model identifier. */
+    id: string
+    /** Site-declared protocol used for this model. */
+    api: VvcodeApi
+  }[]
+  /** Model IDs the owner enabled for this group. */
+  selected: readonly string[]
+  /** Last advertised billing multiplier; absent until a read reports one. */
+  ratio?: number | 'auto'
+  /** Last advertised description; absent until a read reports one. */
+  desc?: string
+  /** Set when a successful authorized-group read confirmed the group is no longer authorized. */
+  revoked?: boolean
+}
+
+/** Protocols supported by the VVCode subscription transport. */
+export type VvcodeApi = 'openai-completions' | 'openai-responses' | 'anthropic-messages'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-hemi-model-access -->
 
@@ -2265,8 +2279,11 @@ export interface PiAiModelProfile {
   /** Model id sent to the provider and accepted by {@link GenerateOptions.model}. */
   id: string
   /**
-   * Hemi fork: installed provider whose matching id supplies name, modalities and capacities only;
-   * route transport and reasoning remain independent.
+   * Hemi fork: installed provider whose matching id supplies name, modalities, and capacities;
+   * route transport stays independent. The reference's reasoning fields resolve from it only
+   * when the model's protocol shares the reference's evidenced effort wire family, the
+   * reference itself dispatches its levels as OpenAI-style efforts, and no explicit
+   * declaration or disabled endpoint switch has decided them.
    */
   catalogProvider?: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
@@ -5196,8 +5213,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-goal-round-driver` | `agents` · `goals` · `sessions` | [`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts) |
 | `@deepseek-ai/dsh-harness-dev-context` | `systemPrompt` · `sessionProjections` · `webApp` | [`packages/context/harness-dev-context/src/index.ts`](../packages/context/harness-dev-context/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-backup-ui` | — | [`packages/hemi/backup-ui/src/index.ts`](../packages/hemi/backup-ui/src/index.ts) |
-| `@deepseek-ai/dsh-hemi-memory-ui` | — | [`packages/hemi/memory-ui/src/index.ts`](../packages/hemi/memory-ui/src/index.ts) |
-| `@deepseek-ai/dsh-hemi-mobile-access-ui` | — | [`packages/hemi/mobile-access-ui/src/index.ts`](../packages/hemi/mobile-access-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-access-ui` | — | [`packages/hemi/model-access-ui/src/index.ts`](../packages/hemi/model-access-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-model-settings-ui` | — | [`packages/hemi/model-settings-ui/src/index.ts`](../packages/hemi/model-settings-ui/src/index.ts) |
 | `@deepseek-ai/dsh-hemi-routing-ui` | — | [`packages/hemi/routing-ui/src/index.ts`](../packages/hemi/routing-ui/src/index.ts) |

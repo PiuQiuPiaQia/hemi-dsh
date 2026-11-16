@@ -572,26 +572,30 @@ Source: [`packages/goal/goal/src/domain.ts:66`](../packages/goal/goal/src/domain
 #### `hemi-memory/summary-request` — log-only
 
 ```ts persistence-catalog
-/** Exact auxiliary request sent to produce an automatic memory summary. */
+/**
+ * Exact auxiliary request sent to produce an automatic memory summary.
+ */
 'hemi-memory/summary-request': {
-  throughSeq: SessionSeq
+  throughSeq: LegacySessionSeq
   config: LlmCallConfig
   system: string
   messages: RequestMessage[]
 }
 ```
 
-Source: [`packages/hemi/memory/src/lifecycle.ts:21`](../packages/hemi/memory/src/lifecycle.ts)
+Source: [`packages/hemi/routing/src/legacy-memory-events.ts:17`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 <a id="hemi-memorysummary-result--log-only"></a>
 
 #### `hemi-memory/summary-result` — log-only
 
 ```ts persistence-catalog
-/** Outcome and provider-reported usage of the preceding memory summary request. */
+/**
+ * Outcome and provider-reported usage of the preceding memory summary request.
+ */
 'hemi-memory/summary-result': {
-  requestSeq: SessionSeq
-  throughSeq: SessionSeq
+  requestSeq: LegacySessionSeq
+  throughSeq: LegacySessionSeq
   outcome: 'saved' | 'empty' | 'failed'
   failure?: 'timeout' | 'model' | 'output' | 'storage'
   text: string
@@ -601,7 +605,7 @@ Source: [`packages/hemi/memory/src/lifecycle.ts:21`](../packages/hemi/memory/src
 
 Types: [TokenUsage](subsystems/llm-streaming.md)
 
-Source: [`packages/hemi/memory/src/lifecycle.ts:28`](../packages/hemi/memory/src/lifecycle.ts)
+Source: [`packages/hemi/routing/src/legacy-memory-events.ts:26`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 ### `hook/*`
 
@@ -6403,7 +6407,7 @@ Sources: [`packages/compaction/compaction/src/types.ts:24`](../packages/compacti
 
 SHA-256: `753191848b8d19a7565b775b412b0052c192e3f0a522b9a1b228770458941db7`
 
-Sources: [`packages/hemi/memory/src/lifecycle.ts:21`](../packages/hemi/memory/src/lifecycle.ts)
+Sources: [`packages/hemi/routing/src/legacy-memory-events.ts:17`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -6635,7 +6639,7 @@ Sources: [`packages/llm/llm/src/types.ts:168`](../packages/llm/llm/src/types.ts)
 
 SHA-256: `3073d76680b592eddb60110522e90f3ea3ea6c5d82da50ac5c0b839a7be68d35`
 
-Sources: [`packages/hemi/memory/src/lifecycle.ts:28`](../packages/hemi/memory/src/lifecycle.ts)
+Sources: [`packages/hemi/routing/src/legacy-memory-events.ts:26`](../packages/hemi/routing/src/legacy-memory-events.ts)
 
 | Property | Presence | Type |
 |---|---|---|

@@ -11,13 +11,17 @@
 
 当前归属与合并核对以本节为准；下方日期条目保留实施记录。
 
+原版 dsh-pocket 与 dsh-mnemon 的预装归 [Hemi profile 适配器](packages/hemi/customizations/release/desktop-plugins.mjs)。[CLI 解析清单](apps/cli/package.json)使用固定 npm 依赖，让生产闭包随包携带原版，并让既有插件管理器正确识别安装归属；其他 profile 只携带、不自动启用。[Desktop profile 准备](apps/desktop/src/project-manager.ts)在现有锁内一次性选择 bundle，标记与选择同一原子写入，已有配置和停用决定保留。上游初始化没有 Hemi 默认项迁移入口，因此保留该窄接入；恢复不会重新开启插件。[插件页](packages/client/ui-plugin-manager/src/client/PluginManagerPage.tsx)只补通用 installation 来源的可见性，使预装第三方包关闭后仍可管理，不改变官方分类、卸载或更新权限。[CLI 发布清单](apps/cli/package.json)将 [Pocket 原始许可证及完整对应源码](apps/cli/third-party/dsh-pocket/README.zh.md)随 npm 包携带，覆盖 Desktop 和 SDK 的共同分发闭包；[桌面打包](apps/desktop/scripts/prepare-dsh.ts)在完整性封存前另行镜像到运行时顶层，通知检查仅允许 dsh-pocket 的 GPL-2.0 精确组合。合并上游时核对一次性默认选择、用户关闭与恢复、安装包闭包及源码版本／摘要，不能改成启动联网安装或复制上游业务源码。
+
+[共享 Client 构建预设](packages/client/tsdown.client.ts)在 source face 从实际存在的 index.ts／index.tsx 选择入口，artifact face 继续使用已编译 JavaScript。两个 Hemi 模型界面的入口包含 JSX，而原预设只认识 index.ts，导致真实许可证依赖披露无法读取它们；修复不增加独立入口配置。验证由 [TSX 与缺失入口回归](scripts/client-bundle-purity.spec.ts)、[浏览器依赖分析](scripts/browser-bundled-externals.spec.ts)和实际通知再生成覆盖。合并上游时优先采用等价 source-entry 支持，保留构建面分离。
+
+Hemi 不再提供自研记忆工具、设置编辑器、记忆上下文、压缩交接和退出摘要；Desktop 的记忆能力由预装原版 dsh-mnemon 提供。Web 组合与标准预设移除旧条目及依赖，聚合编译、目录生成器和 Python 运行时依赖同步撤销。已发布的摘要事件声明由 [routing 历史类型](packages/hemi/routing/src/legacy-memory-events.ts)保留，原用量投影继续只读处理历史记录，不改写已有 Session 或投影缓存。旧 `hemi-memory/` 文件及其备份支持保留，迁移影响见[升级指南](docs/upgrade-guide/v0.2.2-rc.1/hemi-memory-removal/guide.zh.md)。合并上游时核对旧条目没有被重新挂载，新的默认记忆能力仅来自预装原版插件，以及旧会话用量和备份仍可读。验证包含 44 项备份测试、11 项历史用量测试、routing 包类型检查、真实设置页与旧文件字节保留回归，以及角色委派工具目录和两份历史用量的无密钥回放；录制 Session 文件保持不变，只移除工具目录中的四项旧工具。`test:docs` 的 21 项检查通过。完整产物构建和 Host 聚合检查受到并行 vvcode 改动的类型错误阻塞，浏览器验证使用现有构建产物和当前组合，未更新用户安装的应用。
+
 SSH 会话断线提示归 [ssh-servers-ui](packages/hemi/ssh-servers-ui/README.zh.md)，复用输入区插槽和普通消息发送流程。[Session Controller](packages/api/session-controller/src/index.ts) 在显式执行目标分离后用持久化 header 确认目录成员身份，客户端保留摘要原有的 Agent 可用性。执行 provider 以通用错误类型报告连接失败，Session Controller 将其映射到现有的执行环境不可用错误。现有移除通知无法表达历史仍可读，也无法传递执行连接失败。合并上游时核对断线时保留历史和草稿、重连仍使用同一执行目标，以及真正移除会话时侧栏正常更新。
 
 会话“标记为未读”入口归 [session-unread-ui](packages/hemi/session-unread-ui/README.zh.md)，使用已有会话上下文菜单注册，不修改原生菜单组件。[UiSession](packages/client/ui-session/src/client/index.ts) 只增加通用手动未读接口与重新进入主视图时的确认逻辑，因为已有完成提醒状态没有外部写入入口；手动标记不切换会话、不修改 Host 会话记录，也不改变运行或待交互状态。[会话树投影](packages/client/ui-workspace/src/client/tree.ts)和[状态文案](packages/client/ui-workspace/src/client/rows/Rows.tsx)保留手动来源，使同一个提醒点对手动标记显示“未读”，对自动完成仍显示“已完成”，避免把未完成会话误报为完成。验证由所属状态测试、菜单注册测试和[真实浏览器场景](apps/web/tests/hemi-session-unread.e2e.ts)覆盖。合并上游时核对手动提醒与自动完成提醒互不干扰、当前会话的标记能保留到下一次进入，以及卸载后菜单撤回；上游提供等价入口后评估移除窄扩展。
 
 桌面「保持电脑运行」开关归 [DesktopKeepAwake](apps/desktop/src/keep-awake.ts) 与 [通用设置行](packages/client/ui-settings-general/src/client/DesktopKeepAwakeRow.tsx)。[主进程](apps/desktop/src/main.ts)在启动读取偏好时载入单个 `prevent-app-suspension` 电源断言，[设置文件](apps/desktop/src/settings-file.ts)为 `keepAwake.enabled` 增加独立校验的 loose 节；[IPC](apps/desktop/src/ipc.ts) 与 [preload](apps/desktop/src/preload-app.ts) 按既有 updates 通道三件套暴露读取、写入与变更。上游主进程、设置文件与 preload 原无电源断言入口，因此保留窄接入，不复制 Electron powerSaveBlocker 状态。开关默认关闭，缺字段或无效字段时保持关闭并显示读取错误，写入失败状态不变；屏幕熄灭、合盖与手动睡眠不受影响。验证由 keep-awake、settings-file、preload、main-startup 单测与[真实浏览器场景](apps/web/tests/desktop-keep-awake.e2e.ts)覆盖。合并上游时核对启动载入顺序、IPC 通道名、loose 校验语义与 UI 失败提示。
-
-手机连接的配对、TLS 监听与设备撤销归 [mobile-access](packages/hemi/mobile-access/README.zh.md)，电脑设置归 [mobile-access-ui](packages/hemi/mobile-access-ui/README.zh.md)，iPhone 载体归 [移动应用](apps/mobile/README.zh.md)。[Connection](packages/client/connection/src/rpc-host.ts) 只增加通用的已认证 HTTP 载体入口，保留原有准入瀑布、请求体限制及背压；[Gateway](packages/api/gateway/src/index.ts) 只暴露现有 WebSocket mux 的已认证升级入口，共用就绪、配置和关闭生命周期。现有进程内 Fetch 与流接口不提供完整物理载体准入，因此保留这两处窄扩展，不复制会话、Agent 或队列实现。Desktop 组合仅挂载所属插件，默认不开放网络监听；手机以独立 Peer 接入同一个 Host，不获得桌面启动令牌。合并上游时核对 HTTP 安装锁、mux 就绪与 Peer 撤销、默认关闭、远程管理拒绝及传输参数透传；验证范围与真机限制由所属 README 记录。
 
 发布校验保留上游 `V17` 日志锚点及 Web `cordis` 预设 ID 的语义，[rescope 校验](scripts/rescope-vendor.ts)不将产品数据当作包名，也不放宽模块导入重置。SSH provider 随默认 Desktop 工作区使用，不再登记为非默认可选包；遥测 exporter 仍按默认禁用行登记为可选，不改变隐私行为。[发布文件约束](scripts/check-workspace-constraints.ts)闭合 SSH 密码共享块与八语言元数据，Hemi 定制包仅发布实际运行的 release adapter，不携带需要仓库源码的图形生成器。合并上游时核对日志锚点、预设 ID、默认组合可达性及发布闭包，不能通过启用遥测或跳过检查来消除校验错误。SSH 密码夹具仅使用 `ssh2` 的纯 JavaScript 实现，其可选原生加速与 CPU 探测构建在 pnpm 中明确禁用，严格依赖构建策略保持开启。
 
@@ -66,6 +70,10 @@ Codex WebSocket 故障记录归 [Hemi 模型接入插件](packages/hemi/model-ac
 模型导入的完整 ID 匹配与默认能力展示归 `hemi/model-access/src/model-catalog.ts` 和 `hemi/model-access-ui`。现有 profile 瀑布无法独立表达“继承输出容量但不设置请求上限”，因此 `llm-pi-ai/src/catalog.ts`、`config.ts` 保留通用 `catalogProvider` 引用及校验，只继承名称、输入类型和容量；`index.ts` 导出目录读取及默认值，确保 Hemi 使用已发布入口而非源码路径。合并上游须核对引用失效报错、显式覆盖优先、原连接传输保持独立及未修改默认值的保存行为。实际验证包括 117 项定向测试、型号设置浏览器回放、构建包入口导入冒烟、`build:artifacts`、`build:check`、`doc-sync` 与定向 lint。
 
 独立推理选择器的浏览器场景为 `apps/web/tests/hemi-effort-picker.e2e.ts`；`apps/web/tsconfig.json` 排除该 Host 场景，`tsconfig.host.json` 负责检查，产品运行时无需新增扩展点。实际验证包括 29 项菜单行为测试、Chromium/WebKit 浅深色与 390px/1280px 布局、保存和焦点恢复、`build:artifacts`、`build:check` 与 `doc-sync`；合并上游时须保留两组按钮和对应测试的能力判断。
+
+VVCode 订阅授权、应用分组与模型 Key 隔离归 [模型接入插件](packages/hemi/model-access/README.zh.md)，账号卡片及分组模型管理弹窗归 [模型接入界面](packages/hemi/model-access-ui/README.zh.md)。各组使用独立原生提供方、Key 和勾选列表；目录使用登录态只读接口，拉取不创建或获取模型 Key，仅在保存启用未连接组时准备调用连接。弹窗将勾选暂存为草稿，一次原子保存多组选择，取消不准备连接或提交勾选。已有手动 `vvcode` 提供方不被空订阅路由占用，型号选项按实际绑定而非名称前缀判定归属。旧单组数据自动接纳到新集合，保留 `vvcode` 路由以兼容已保存会话，说明见[迁移指南](docs/upgrade-guide/v0.2.2-rc.1/hemi-vvcode-groups/guide.zh.md)。账号授权与分组连接复用已有授权、凭据、LLM 适配器及设置注册入口；通用模型能力解析的原生目录扩展见下段；[Web 编译配置](apps/web/tsconfig.json)排除其 Host 浏览器场景，[Host 编译配置](tsconfig.host.json)检查[真实组装用例](apps/web/tests/hemi-vvcode.e2e.ts)。合并上游时保留 PAT 与模型 Key 分离、专属组目录来源、跨站重定向拒绝、取消后的资源收敛，以及过期重新登录时的选择保留；服务端令牌不因本地断开而撤销。余额和有效订阅额度使用独立的只读查询，旧授权缺少钱包权限时保留余额并提示重新授权，不混入过期订阅或把读取失败当成零。[API 生成器](scripts/gen-cordis-catalog.ts)的既有类型链接表登记目录、用量和多组选择类型，指向 [Hemi 子系统说明](docs/subsystems/hemi.md)，无需运行时扩展。验证包含 328 项定向回归、真实 Loader 多组同名模型的独立 Key 请求、目录撤权时序、持久化失败与旧 Key 所有权恢复，以及弹窗保存、取消、搜索、折叠和余额状态的浏览器回放；完整产物、消费者构建和文档校验通过。
+
+通用推理能力由 [Pi 目录解析器](packages/llm/llm-pi-ai/src/catalog.ts)统一生成，[主入口](packages/llm/llm-pi-ai/src/index.ts)导出共享协议编码分类。原有 `catalogProvider` 扩展不传递推理字段，Hemi 装饰器无法仅靠既有引用复用声明，因此该通用扩展必须留在原生解析器：显式档位优先，协议编码适用的目录引用解析推理标记与映射，其他模型保留原生声明。供应商专用格式不跨协议借用，矛盾的强度开关保留诊断并禁止误报档位；迁移说明见[推理引用指南](docs/upgrade-guide/v0.2.2-rc.1/model-reasoning-reference/guide.zh.md)。Hemi 的[协议策略](packages/hemi/model-access/src/protocol-reasoning.ts)保留未知模型的 OpenAI／Anthropic 兜底，普通配置与 VVCode 均使用这一处理规则，界面和派发共用最终模型信息，无型号名称特判。合并上游时检查引用语义、来源及目标编码限制、默认强度回传和禁用开关的一致性；799 项相关回归及真实请求拦截已验证这些行为，未发送真实付费请求。
 
 记忆、备份与模型接入页的控件组合归各自的 `packages/hemi/*-ui` 插件，使用现有 `Button`、`Input`、`Switch`、`SegmentedControl`，不修改公共设置外壳、配置表单、Remote 或保存策略。现有模型接入浏览器用例按标准 tab 语义选择接入方式，无需新的运行时扩展。验证包括 34 项组件回归、三个 UI 包类型检查、Client 聚合检查、限定 lint 和 12 组源码组件的明暗／390px 与桌面渲染；真实 Host 的记忆保存、冲突与重新加载场景通过。全仓 Host 检查及 GUI 聚合未全部通过，三页的完整组合复验受系统原生依赖加载阻塞，未作为成功证据。合并时保留公共控件依赖、字段标签、键盘切换、草稿保留和窄屏布局；源码构建不替换运行中的安装版。
 
@@ -143,18 +151,6 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 
 - 上游 `packages/client/ui-settings-account`：账号下拉菜单移除 Settings 项，账号行末尾新增独立齿轮按钮直接打开设置（Tooltip 本地化标签 + `settingsShortcut` 键帽/`aria-keyshortcuts`）；折叠侧栏内 36px 账号与设置按钮纵向堆叠。菜单保留意见反馈与登录/退出。同步更新测试、菜单快照与 README（中英）。
 
-## 2026-11-05 · 自动记忆生命周期
-
-- `packages/hemi/memory/src/lifecycle.ts` 为主会话添加每步记忆上下文、压缩交接和等待完成的退出摘要。退出摘要记录请求、结果、失败阶段和提供方用量。
-- `packages/core/session/src/index.ts` 的非 surface 日志写入支持可选 `ignorable: true`。Hemi 摘要事件使用此标记，旧读取方可保留并跳过。同步更新 Session API 文档和生成的事件目录。
-- 构建时发现源目录中的误生成文件。通过相邻 TypeScript 源文件和 source map 确认后，将 64 个产物保存在 `.artifacts/memory-lifecycle/emitted-src-backup/`，以便需要时恢复。
-
-## 2026-11-05 · 记忆设置页
-
-- `packages/hemi/memory-ui/` 通过 `settings.section` 注册独立「记忆」页。`packages/hemi/memory/settings` 在 Host 根作用域提供读写接口，与 preset 内的记忆工具共用文件。保存时在写锁内核对版本。
-- `packages/bundle/web-app/cordis.patch.yml` 注册 Host 和客户端插件，`packages/bundle/web-app/package.json` 增加客户端包的解析依赖。
-- `tsconfig.client.json` 引用客户端包。`apps/web/tsconfig.json` 和 `tsconfig.host.json` 将真实设置页测试归入 Host 检查，`pnpm-lock.yaml` 记录工作区依赖。
-
 ## 2026-11-04 · 角色路由插件（hemi-routing）
 
 新增自有包：
@@ -165,20 +161,7 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 2. `packages/bundle/web-app/presets/standard.patch.yml`：persona 行后新增 `hemi-routing` 行（示例角色表指向当前默认路由，用户按需改）。
 3. `packages/bundle/web-app/package.json`：dependencies 增加 `@deepseek-ai/dsh-hemi-routing: workspace:*`（resolver manifest——必需，见顶部规则）。
 
-同时补记：hemi-memory 的 resolver manifest 行（`@deepseek-ai/dsh-hemi-memory: workspace:*`）——之前的记忆插件提交漏了它，导致该插件的 preset 行一直 "never started"（本次发现并修复）。
-
 验证：单元渲染（role 表→提示词段文本、空表不出段）+ 全量构建 10 gates + dev 新会话零报错。
-
-## 2026-11-04 · 跨会话记忆插件（hemi-memory）
-
-新增自有包：
-- `packages/hemi/memory/`：host 工具插件。存储=markdown 文件（`$DSH_HOME/hemi-memory/` 下 `MEMORY.md` 长期 / `daily/YYYY-MM-DD.md` 日志 / `SCRATCHPAD.md` 便签，用户可直接编辑）；工具=`memory_write`（append/overwrite，daily 只追加）、`memory_read`、`memory_search`（全库大小写不敏感逐行检索，40 行上限）、`memory_forget`（按子串删行并收拢空行）。路径用 `@deepseek-ai/dsh-home-paths` 直连库依赖。
-
-改动的上游文件（2 处，均为单行登记）：
-1. `tsconfig.host.json`：references 增加 `{ "path": "./packages/hemi/memory" }`。
-2. `packages/bundle/web-app/presets/standard.patch.yml`：agent preset plugins 列表在 tool-schedule 后新增 `hemi-memory` 行（带 fork 注释）。
-
-验证：包级单元脚本全生命周期通过（临时 DSH_HOME 下注册 4 工具、三存储写入、搜索命中、读取、删行、非法目标拒绝，磁盘布局正确）；dev 新会话创建无报错（preset 组合通过，组合失败会响亮报错）。语义检索/每日自动摘要延期。
 
 语音（hemi-voice）：按用户决定砍掉不做，需求原文留档。
 

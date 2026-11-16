@@ -284,10 +284,6 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | Package | Config | Description |
 |---|---|---|
 | `@deepseek-ai/dsh-hemi-backup-ui` | no | Hemi data backup settings section: target configuration, scheduled runs, and staged restore |
-| `@deepseek-ai/dsh-hemi-memory` | yes | Hemi cross-session memory: persistent markdown stores (long-term, daily log, scratchpad) with model-facing read, write, search, and forget tools |
-| `@deepseek-ai/dsh-hemi-memory-ui` | no | Hemi memory settings page for editing persistent Markdown memory |
-| `@deepseek-ai/dsh-hemi-mobile-access` | yes | Same-LAN mobile access to this Hemi host over TLS pairing |
-| `@deepseek-ai/dsh-hemi-mobile-access-ui` | no | Hemi settings for connecting a phone to the current desktop Host |
 | `@deepseek-ai/dsh-hemi-model-access` | yes | Subscription authorization, quota and New API model import |
 | `@deepseek-ai/dsh-hemi-model-access-ui` | no | Model Connections settings page |
 | `@deepseek-ai/dsh-hemi-model-settings` | yes | Host operations for Hemi model settings |

@@ -33,6 +33,19 @@ it('keeps explicit text-only and token overrides on a catalog-known relay model'
   expect(profile.configuredMaxTokens.get(base.id)).toBe(2048)
 })
 
+it('resolves a referenced reasoning model to its exact catalog levels instead of the protocol fallback', () => {
+  const base = getBuiltinModels('openai').find(model =>
+    model.reasoning && model.thinkingLevelMap !== undefined && model.api === 'openai-responses')!
+  const configured = { relay: { api: 'openai-completions', baseURL: 'https://relay.invalid/v1', models: [{ id: base.id }] } }
+  const profile = resolveProfiles(withProtocolReasoning(configured, PROTOCOL_REASONING_DEFAULTS)).get('relay')!
+  const model = profile.piProvider?.getModels()[0]
+  expect(model).toMatchObject({ id: base.id, reasoning: true, api: 'openai-completions', baseUrl: 'https://relay.invalid/v1' })
+  // The vendor's published level map arrives intact: levels the model does not
+  // support stay unoffered, and no protocol fallback widens the offer.
+  expect(model?.thinkingLevelMap).toEqual(base.thinkingLevelMap)
+  expect(configured.relay.models).toEqual([{ id: base.id }])
+})
+
 it.each([
   ['anthropic', 'openai-completions'],
   ['openai', 'anthropic-messages'],

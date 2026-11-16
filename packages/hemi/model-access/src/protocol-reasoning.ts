@@ -2,6 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { Config, PiAiModelProfile, PiAiProviderProfile, PiAiReasoningEfforts } from '@deepseek-ai/dsh-llm-pi-ai'
+import { effortWireFamily } from '@deepseek-ai/dsh-llm-pi-ai'
 import { installedCatalogModel, withCatalogCapabilities } from './model-catalog.ts'
 
 type Profiles = ReturnType<Config['providers']['get']>
@@ -27,6 +28,12 @@ export const PROTOCOL_REASONING_DEFAULTS: Record<string, ProtocolReasoningDefaul
 
 /**
  * Fill unknown model efforts without replacing configured or installed capabilities.
+ *
+ * A model an exact-id catalog reference describes resolves its reasoning fields from that
+ * reference in the catalog resolver, so on a route whose protocol shares an effort wire family
+ * the generic fallback stands down: it must neither widen a reasoning model's levels nor
+ * promote a reference the catalog records as non-reasoning. Every other unknown model keeps
+ * the configured protocol fallback.
  * @param profiles - validated configured provider profiles.
  * @param defaults - protocol offers chosen by this deployment.
  * @returns detached profiles with catalog capabilities and ephemeral effort defaults for unknown models.
@@ -43,6 +50,7 @@ export function withProtocolReasoning(
       const fallback = api === undefined ? undefined : defaults[api]
       if (fallback === undefined || base !== undefined || entry.reasoningEfforts !== undefined
         || (entry.compat?.supportsReasoningEffort ?? profile.compat?.supportsReasoningEffort) === false) return entry
+      if (entry.catalogProvider !== undefined && api !== undefined && effortWireFamily(api) !== undefined) return entry
       return {
         ...entry, reasoningEfforts: { ...fallback.efforts },
         defaultReasoningEffort: entry.defaultReasoningEffort ?? fallback.defaultEffort,

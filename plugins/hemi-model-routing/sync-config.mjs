@@ -17,7 +17,6 @@ export function syncConfig(write) {
     .replace(/^#.*\n/gm, '')
     .replace('- insert:\n    - id: preset-standard\n', '- id: preset-standard\n')
     .replace(/^    /gm, '')
-    .replace(/^[ ]*# Hemi fork addition: cross-session memory stores and tools\.\n[ ]*- id: hemi-memory\n[ ]*name: '@deepseek-ai\/dsh-hemi-memory'\n/m, '')
   const outputs = new Map([
     ['packages/bundle/web-app/presets/hemi-roles.patch.yml', roles],
     ['plugins/hemi-model-routing/roles.patch.yml', roles],

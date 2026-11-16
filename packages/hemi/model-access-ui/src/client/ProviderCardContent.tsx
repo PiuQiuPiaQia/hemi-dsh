@@ -26,6 +26,8 @@ type Props = PropsLocale<typeof NS> & {
   }
   usage?: ProviderUsageProps
   modelLoading?: boolean
+  /** Disable remote tests and settings while retaining local model removal. */
+  modelUnavailable?: boolean
 }
 
 /**
@@ -34,7 +36,7 @@ type Props = PropsLocale<typeof NS> & {
  * @returns the subscription-style header and compact model rows.
  */
 export function ProviderCardContent({ provider, name, description, detail, models, actions, test, saved, remove,
-  buttons, discovery, usage, modelLoading, t }: Props) {
+  buttons, discovery, usage, modelLoading, modelUnavailable, t }: Props) {
   return <>
     <div className={css.providerHeader}>
       <div className={css.providerIdentity}>
@@ -49,7 +51,7 @@ export function ProviderCardContent({ provider, name, description, detail, model
       </div>
     </div>
     {models.map(model => <ModelConnectionTest key={model} provider={provider} model={model}
-      test={test} t={t} actions={actions} saved={saved} remove={() => remove(model)} />)}
+      test={test} t={t} actions={actions} saved={saved} remove={() => remove(model)} modelUnavailable={modelUnavailable === true} />)}
     {modelLoading && <p role="status">{t('loading')}</p>}
   </>
 }

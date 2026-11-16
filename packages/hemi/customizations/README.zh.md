@@ -16,6 +16,7 @@ kind: "package-library"
 ## 目录
 
 - [启动页展示](#startup-presentation)
+- [预装插件](#preinstalled-plugins)
 - [GitHub 发布](#github-releases)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
@@ -28,6 +29,16 @@ kind: "package-library"
 `/desktop-branding` 适配使用 Hemi 应用名称，保留 `hemi-dsh` 分发标记、外部协议、安装包前缀和偏好目录。`/desktop-artwork` 拥有黑白分发资源，`/web-branding` 将其应用到显式命名的 Hemi Web 构建。在仓库根目录运行 `node packages/hemi/customizations/release/render-artwork.mjs` 可重新生成资源。该仅供工作区使用的渲染脚本不进入发布运行时，生成的分发资源仍随包提供。
 
 `/desktop-branding` 适配提供本地化加载展示，并读取 Hemi Host 插件的提供方中立启动选项。Desktop Host 在构建时将此入口打包进启动模块。加载页保留原生布局和浅深色配色，仅使用 Hemi 品牌与状态文案。它不替换原生账号欢迎页：Hemi Desktop 跳过该窗口，将引导放在 Hemi 设置插件中。
+
+<a id="preinstalled-plugins"></a>
+
+## 预装插件
+
+纯 Node 入口 `/desktop-plugins` 为 CLI 安装声明了两个包的 Desktop profile 一次性选择原版 `dsh-pocket` 和 `dsh-mnemon` bundle。适配器在 Desktop profile 锁内，将选择结果和 `hemiDesktop.preinstalledBundles` 标记原子写入同一个 manifest。已有选择不重复添加；profile 中已安装但未选择的版本保持关闭。用户补丁、依赖版本、锁文件和插件数据不会重写，后续启动及恢复流程不重新启用用户已关闭的 bundle。
+
+CLI manifest 固定随包版本。其他 profile 携带包，但不自动选择其 bundle。插件管理器沿用现有安装归属：预装包可关闭或开启，不能从签名运行时卸载，随 Hemi 发版更新。Pocket 保留原有局域网与密码行为及已保存的隧道偏好；全新安装不会启动公网隧道。Mnemon 使用自己的工具、设置和存储，不导入 Hemi 记忆或手机配对数据。
+
+运行时准备通过 `stageHemiDesktopPluginSources` 核对并复制 [Pocket 源码与许可证](../../../apps/cli/third-party/dsh-pocket/README.zh.md)，然后记录运行时完整性。源码摘要或已装版本不一致会停止打包。适配器不执行压缩包，也不在应用启动时下载插件代码。
 
 <a id="github-releases"></a>
 

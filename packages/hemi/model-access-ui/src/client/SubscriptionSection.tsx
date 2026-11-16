@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { LoginState, Subscription } from '@deepseek-ai/dsh-hemi-model-access/types'
 import type { PropsLocale, PropsRenderFactories } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './copy.ts'
 import { SubscriptionCard } from './SubscriptionCard.tsx'
+import { VvcodeSubscription } from './VvcodeSubscription.tsx'
 import { DeepSeekSubscription } from './DeepSeekSubscription.tsx'
 import type { ModelAccessActions, ModelTest } from './types.ts'
 import css from './page.module.css'
@@ -14,6 +15,7 @@ export function SubscriptionSection({ actions, test, t, renderFactorySlot }: Sub
   const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(null)
   const [attempt, setAttempt] = useState<LoginState | null>(null)
   const [failed, setFailed] = useState(false)
+  const refreshSubscriptions = useCallback(async () => { setSubscriptions(await actions.subscriptions()) }, [actions])
 
   useEffect(() => {
     let active = true
@@ -55,18 +57,19 @@ export function SubscriptionSection({ actions, test, t, renderFactorySlot }: Sub
       <h3>{t('subscriptions')}</h3>
       {renderFactorySlot('account.connection', { title: t('deepseekAccount') }, { slots: { content: DeepSeekSubscription }, fallback: null })}
       {subscriptions === null ? (!failed && <p>{t('loading')}</p>) : subscriptions.length === 0 ? <p>{t('empty')}</p> : null}
-      {subscriptions?.map(row => (
-        <SubscriptionCard key={row.id} row={row} actions={actions} test={test} t={t} pending={pendingId !== undefined}
+      {subscriptions?.map((row) => {
+        const Card = row.id === 'vvcode' ? VvcodeSubscription : SubscriptionCard
+        return <Card key={row.id} row={row} actions={actions} test={test} t={t} pending={pendingId !== undefined}
           {...attempt?.provider === row.id ? { attempt } : {}}
           connect={async () => { setAttempt(await actions.start(row.id)) }}
           disconnect={async () => {
-            if (!window.confirm(t('confirmDisconnect'))) return
+            if (!window.confirm(t(row.id === 'vvcode' ? 'vvcodeConfirmDisconnect' : 'confirmDisconnect'))) return
             await actions.disconnect(row.id)
             setSubscriptions(await actions.subscriptions())
             if (attempt?.provider === row.id) setAttempt(null)
           }}
-          modelsChanged={async () => { setSubscriptions(await actions.subscriptions()) }} />
-      ))}
+          modelsChanged={refreshSubscriptions} />
+      })}
       {failed && <p role="alert">{t('failed')}</p>}
     </section>
   )

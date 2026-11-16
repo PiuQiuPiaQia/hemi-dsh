@@ -1,0 +1,5 @@
+- listitem:
+  - button "查看 dsh-pocket": dsh-pocket
+  - text: 把 DeepSeek Harness 装进你的口袋：一个包、一个设置页，手机扫码即同步访问电脑上的 DSH（局域网 + 公网，实时同屏）。
+  - status
+  - switch "启用 dsh-pocket" [checked]

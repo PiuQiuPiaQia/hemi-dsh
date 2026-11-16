@@ -542,11 +542,13 @@ describe('package payload constraints', () => {
   )
 })
 
-it('publishes CLI runtime declarations and rejects a payload that omits them', () => {
+it('publishes CLI declarations and corresponding third-party source, rejecting either omission', () => {
   const manifest = JSON.parse(readFileSync(new URL('../apps/cli/package.json', import.meta.url), 'utf8')) as WorkspaceManifest['manifest']
   expect(checkWorkspaceManifest({ dir: 'apps/cli', manifest })).toEqual([])
-  expect(checkWorkspaceManifest({ dir: 'apps/cli', manifest: { ...manifest, files: ['lib/*.js'] } }))
-    .toEqual([expect.stringContaining('@deepseek-ai/dsh: package.json files must be ["lib/*.js","lib/types/*.d.ts"]')])
+  for (const files of [['third-party', 'lib/*.js'], ['lib/*.js', 'lib/types/*.d.ts']]) {
+    expect(checkWorkspaceManifest({ dir: 'apps/cli', manifest: { ...manifest, files } }))
+      .toEqual([expect.stringContaining('@deepseek-ai/dsh: package.json files must be ["third-party","lib/*.js","lib/types/*.d.ts"]')])
+  }
 })
 
 it('requires Hemi artwork and permits only its explicit preload stylesheet source', () => {

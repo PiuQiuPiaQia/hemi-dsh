@@ -71,6 +71,20 @@ interface SshRemoteFolders extends SshRemoteDirectory {
 }
 ```
 
+## VVCode 分组目录
+
+`hemiModelAccess.vvcodeDirectory(signal)` 返回 [`VvcodeDirectory` 和 `VvcodeGroupView`](../../packages/hemi/model-access/src/types.ts)。目录 `state` 区分成功取得权威结果（`ready`）、读取不可用但保留本地条目（`unavailable`），以及授权过期或不存在（`sign-in-required`）。读取不可用不代表账号没有分组。
+
+各组拥有独立的原生 `provider` 标识。型号 `id` 来自登录账号的只读分组目录，`enabled` 记录已保存的本地选择。`hasConnection` 区分已保存的调用连接与尚未建立连接但无需 Key 就能浏览的分组。`catalogError` 表示型号目录读取失败，原有 ID 仍保留。分组 `state` 区分没有已保存调用连接（`not-synced`）、已有连接（`ready`）、已确认失去权限（`unavailable`），以及创建结果未观测且没有可恢复 ID（`creation-unknown`）。`ratio` 为 null 表示未知，不是零。目录读取与刷新不创建或获取 Key，账号级用量仍单独展示。
+
+`hemiModelAccess.saveVvcodeModels(selections, signal)` 接受发生变更的提供方对应的 [`VvcodeModelSelection`](../../packages/hemi/model-access/src/types.ts) 条目。各条目提供该组完整的目标型号 ID 集合，未包含的分组保持不变。新增选择要求有效授权及当前分组权限。用户确认后，保存操作只准备选中分组的调用连接，仅在必要时创建 Key，并通过该 Key 的目录验证协议。准备完成后，全部变更选择一起提交；准备失败时保留待处理令牌 ID 供安全重试，不部分保存选择。纯移除仍为本地操作，登录过期时也可用。弹窗在调用此方法前只保存勾选草稿，取消不准备连接，也不保存选择。
+
+## VVCode 用量
+
+`hemiModelAccess.vvcodeUsage(signal)` 返回 [`VvcodeUsage` 和 `VvcodeUsageItem`](../../packages/hemi/model-access/src/types.ts)。`unit` 标识站点配置的显示货币或额度单位，返回的金额已经换算为该单位。
+
+`balance` 和 `subscriptions` 分别区分可用数据与 `unavailable`。授权缺少 `wallet:read` 或订阅接口拒绝权限时，订阅部分另返回 `reauthorize`，不会使仍可用的模型连接失效。`ready` 状态的订阅列表可以为空。列表仅包含当前有效订阅：不限额时 `remaining` 和 `total` 为 null，否则保留各订阅独立的额度。`expiresAt` 和非 null 的 `resetAt` 使用毫秒时间戳，未声明重置时间时 `resetAt` 为 null。钱包余额与订阅额度不相加。授权、刷新和失败展示由[模型接入包](../../packages/hemi/model-access/README.zh.md)说明。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -151,115 +165,6 @@ Hemi backup orchestrator: settings, runs, retention, and staged restore, exposed
 
 Source: [`packages/hemi/backup/src/service.ts`](../../packages/hemi/backup/src/service.ts)
 
-<a id="ctxhemimemory--hemimemoryservice"></a>
-
-### `ctx.hemiMemory` — `HemiMemoryService`
-
-Read and edit the same Markdown files used by the memory tools.
-
-```ts cordis-catalog
-/**
- * Read one memory file. A missing file is an empty document.
- * @param target - memory store.
- * @param date - YYYY-MM-DD for a daily log.
- * @returns document content and the revision required to save it.
- */
-@Remote async readStore(target: StoreTarget, date?: string): Promise<MemorySnapshot>
-
-/**
- * Replace a memory file only if its content still matches the loaded revision.
- * @param target - memory store.
- * @param content - replacement Markdown.
- * @param revision - revision from readStore or the last successful save.
- * @param date - YYYY-MM-DD for a daily log.
- * @returns new revision, or null when the file changed before saving.
- */
-@Remote async saveStore(target: StoreTarget, content: string, revision: string, date?: string): Promise<string | null>
-```
-
-Source: [`packages/hemi/memory/src/remote.ts`](../../packages/hemi/memory/src/remote.ts)
-
-<a id="ctxhemimobileaccess--hemimobileaccess"></a>
-
-### `ctx.hemiMobileAccess` — `HemiMobileAccess`
-
-The mobile-access service. Remote methods manage pairing and the listener; the listener itself answers phones over TLS. Disposal closes the listener, disposes every device Peer, and clears pairing state without touching Host-side Sessions or agent work.
-
-```ts cordis-catalog
-/**
- * Current management state: listener status, bind candidates, the safe
- * invitation view, pairing rows, and approved devices.
- * @param signal - caller cancellation before the read.
- * @returns the authoritative state.
- * @throws RemoteError `hemi-mobile/unauthorized` from any Peer but the desktop browser owner Peer.
- */
-@Remote async getState(signal: AbortSignal): Promise<MobileAccessState>
-
-/**
- * Automatically bind the current LAN candidates; no client supplies a network address.
- * The group accepts traffic only after all binding and durable-port work succeeds.
- * @param signal - caller cancellation before lifecycle admission.
- * @returns committed listener state; failed starts close every acquired listener.
- * @throws RemoteError for no network, an existing listener, credential failure or a failed bind.
- */
-@Remote async start(signal: AbortSignal): Promise<MobileAccessState>
-
-/**
- * Stop the TLS listener: sockets and device Peers close and pending pairing
- * state clears. Host-side Sessions and accepted agent work keep running.
- * @param signal - caller cancellation before shutdown starts.
- * @returns the authoritative state after shutdown.
- */
-@Remote async stop(signal: AbortSignal): Promise<MobileAccessState>
-
-/**
- * Mint a new one-time invitation, replacing any live one. The complete
- * payload — including the token — is returned exactly once; management
- * state never repeats it.
- * @param signal - caller cancellation before minting.
- * @returns the invitation for the owner to transfer to the phone, plus state.
- * @throws RemoteError `hemi-mobile/not-listening` before the listener runs.
- */
-@Remote async createInvitation(signal: AbortSignal): Promise<{ readonly invitation: MobileInvitation; readonly state: MobileAccessState }>
-
-/**
- * Approve one pending pairing after comparing the six-digit code shown on
- * both screens. The device record — name, creation time, and the secret
- * hash — is durably written before the request publishes `approved`, so a
- * phone never observes an approval that did not persist.
- * @param requestId - pairing attempt identity.
- * @param code - six-digit verification code.
- * @param signal - caller cancellation before the durable write.
- * @returns the authoritative state.
- * @throws RemoteError `hemi-mobile/request-not-found`, `hemi-mobile/wrong-code`,
- * `hemi-mobile/device-limit`, or `hemi-mobile/credentials-unavailable`.
- */
-@Remote async approve(requestId: MobileRequestId, code: string, signal: AbortSignal): Promise<MobileAccessState>
-
-/**
- * Reject one pending pairing request; the phone observes `rejected` on its
- * next status poll.
- * @param requestId - pairing attempt identity.
- * @param signal - caller cancellation before the rejection.
- * @returns the authoritative state.
- * @throws RemoteError `hemi-mobile/request-not-found`.
- */
-@Remote async reject(requestId: MobileRequestId, signal: AbortSignal): Promise<MobileAccessState>
-
-/**
- * Revoke one approved device. The durable record is removed first, so new
- * requests fail authentication immediately; the device's Peer is then
- * disposed, closing its WebSocket. Already-accepted Host work is not recalled.
- * @param deviceId - approved device identity.
- * @param signal - caller cancellation before the revocation.
- * @returns the authoritative state.
- * @throws RemoteError `hemi-mobile/device-not-found` or `hemi-mobile/credentials-unavailable`.
- */
-@Remote async revoke(deviceId: MobileDeviceId, signal: AbortSignal): Promise<MobileAccessState>
-```
-
-Source: [`packages/hemi/mobile-access/src/index.ts`](../../packages/hemi/mobile-access/src/index.ts)
-
 <a id="ctxhemimodelaccess--hemimodelaccess"></a>
 
 ### `ctx.hemiModelAccess` — `HemiModelAccess`
@@ -275,7 +180,7 @@ Reuse the adapter's authorization flow and credential record rather than storing
 
 /**
  * Read the subscription model catalog; DeepSeek uses its native account adapter catalog.
- * @param provider - Configured subscription provider ID.
+ * @param provider - Configured subscription provider ID, including VVCode group routes.
  * @param signal - Caller cancellation for authentication and model-list requests.
  * @returns available IDs; GLM uses the live Coding Plan catalog and DeepSeek retains native model admission.
  */
@@ -283,7 +188,7 @@ Reuse the adapter's authorization flow and credential record rather than storing
 
 /**
  * Read the models currently selected for a connected subscription.
- * @param provider - Subscription provider ID.
+ * @param provider - Subscription provider ID, including VVCode group routes.
  * @param signal - Caller cancellation while the adapter reads its catalog.
  * @returns selected model IDs; an empty array also covers a signed-out account.
  */
@@ -291,7 +196,7 @@ Reuse the adapter's authorization flow and credential record rather than storing
 
 /**
  * Add or remove one model while retaining account authorization and other selections.
- * @param provider - Configured subscription provider ID.
+ * @param provider - Configured subscription provider ID, including VVCode group routes.
  * @param model - Model ID within the selected provider.
  * @param add - True adds this model; false removes it while retaining authorization.
  */
@@ -337,6 +242,48 @@ Reuse the adapter's authorization flow and credential record rather than storing
  * @returns the selected account’s quota windows.
  */
 @Remote async quota(provider: string, signal: AbortSignal): Promise<QuotaWindow[]>
+
+/**
+ * Read every VVCode group the account may use together with its saved binding and read-only
+ * model directory, without creating tokens or keys, so the directory is browsable before any
+ * connection exists. A failed live groups read reports `unavailable` and retains every saved
+ * row; a failed per-group model read stays on that row and keeps its previous IDs; an
+ * expired account reports `sign-in-required` and retains locally editable rows.
+ * @param signal - Caller cancellation for the group and model directory queries.
+ * @returns the directory rows the connection page renders.
+ */
+@Remote async vvcodeDirectory(signal: AbortSignal): Promise<VvcodeDirectory>
+
+/**
+ * Save the model selections of several VVCode groups in one atomic settings write, as the
+ * connection modal commits on save. Unknown or duplicate providers and additions to revoked
+ * or withheld groups reject the whole call without writing anything; any addition requires a
+ * valid account, while pure removals stay available on an expired account. Groups without a
+ * binding are prepared first — reusing the recorded token or key reference, or creating the
+ * group's key exactly once after the caller confirmed it — and every selection is validated
+ * against its group's key catalog, so nothing unsupported is ever committed. The method
+ * never invokes a model.
+ * @param selections - One entry per changed group provider with its complete enabled list.
+ * @param signal - Caller cancellation; aborting before the commit writes nothing.
+ */
+@Remote async saveVvcodeModels(selections: VvcodeModelSelection[], signal: AbortSignal): Promise<void>
+
+/**
+ * Refresh one group's directory entry: verify live authorization, persist confirmed group
+ * metadata, and re-read that group's read-only model directory. The refresh never creates,
+ * verifies, or reveals a token, so it also answers for a group with a pending unobserved
+ * creation. A failed model read propagates so the caller can mark that row stale.
+ * @param group - Exact application-authorized group name.
+ * @param signal - Caller cancellation for the directory reads.
+ */
+@Remote async syncVvcodeGroup(group: string, signal: AbortSignal): Promise<void>
+
+/**
+ * Read account balance and currently active VVCode subscriptions without invoking a model.
+ * @param signal - Caller cancellation for the read-only usage queries.
+ * @returns amounts in the site's configured unit, with independent unavailable or reauthorization states.
+ */
+@Remote async vvcodeUsage(signal: AbortSignal): Promise<VvcodeUsage>
 
 /**
  * List the enabled New API tokens after proving the selected account identity.
@@ -396,8 +343,10 @@ Reuse the adapter's authorization flow and credential record rather than storing
 @Remote getModelDefaults(api: string, model: string, provider?: string): ModelOptions
 
 /**
- * Save editable capabilities while retaining account and protocol configuration.
- * @param provider - Configured provider ID.
+ * Save editable capabilities while retaining account and protocol configuration. VVCode
+ * group models save through the subscription's exclusive write chain so a concurrent group
+ * sync cannot replace the binding mid-edit.
+ * @param provider - Configured provider ID, including VVCode group routes.
  * @param model - Available model ID.
  * @param options - Explicit overrides; omitted fields inherit adapter defaults.
  * @param revision - Settings revision observed when the editor opened.

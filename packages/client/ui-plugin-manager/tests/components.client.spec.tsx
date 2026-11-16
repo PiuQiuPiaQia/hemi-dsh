@@ -762,6 +762,23 @@ describe('PluginManagerPage', () => {
     expect(locked.getAttribute('title')).toBe(en.reasonManagementRequired)
   })
 
+  it.each([false, true])('keeps installation-provided third-party bundles manageable while enabled=%s', (enabled) => {
+    const name = 'dsh-included-companion'
+    const { actions } = renderTab({ packages: [pkg({
+      name, availability: 'installation', installed: false, official: false,
+      optional: false, removable: false, updatable: false, enabled,
+    })] })
+    const card = document.querySelector(`[data-plugin-package="${name}"]`)
+    expect(card).not.toBeNull()
+    expect(screen.getByRole('heading', { name: en.bundlesTitle })).toBeTruthy()
+    const toggle = screen.getByRole('switch', { name: en.enableToggle.replace('{name}', name) })
+    expect(toggle).toHaveProperty('disabled', false)
+    fireEvent.click(toggle)
+    expect(actions.setEnabled).toHaveBeenCalledExactlyOnceWith(name, !enabled)
+    expect(actions.uninstall).not.toHaveBeenCalled()
+    expect(actions.installFrom).not.toHaveBeenCalled()
+  })
+
   it('omits profile and persistent-terminal bundles while retaining other optional and third-party bundles', () => {
     renderTab({
       packages: [

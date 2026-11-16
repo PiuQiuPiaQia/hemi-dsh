@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.1/hemi-vvcode-groups/guide.md
+/:
+  en: fe0ca6466fab57f5
+  zh: fcf6eebb9f696fad
+/vvcode-connections-support-multiple-groups:
+  en: 8f5b01b3bea23570
+  zh: e4736afc0403e278
+/vvcode-connections-support-multiple-groups/change:
+  en: 8ad8518b8a7dc174
+  zh: 661a4306a893a456
+/vvcode-connections-support-multiple-groups/migration:
+  en: eeeaecd99e02895a
+  zh: 0ed9d11838904a0a

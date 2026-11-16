@@ -1,10 +1,99 @@
-/** Wire-safe model access DTOs. */
+/** Wire-safe model access DTOs and subscription failure declarations. */
+export type { VvcodeLoginFailure } from './vvcode/types.ts'
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    /** VVCode account or group operations failed; the reason determines the safe recovery action. */
+    'hemi/vvcode-failed': { reason: 'sign-in-required' | 'account-changed' | 'group-unavailable' | 'creation-unknown' | 'operation-failed' | 'busy' }
+  }
+}
+
+/** Redacted subscription connection facts and selected model IDs. */
 export interface Subscription {
   id: string
   name: string
   connected: boolean
   quota: boolean
   models: string[]
+  /** VVCode account expiry; absent for other subscriptions or signed-out accounts. Group rows render from VvcodeDirectory. */
+  vvcode?: { expiresAt: number; expired: boolean }
+}
+
+/** Every application-authorized VVCode group with its saved per-group state. */
+export interface VvcodeDirectory {
+  /**
+   * `ready` when the live authorized-group read succeeded, so the directory is browsable
+   * whether or not any group is connected — the read-only model listing never creates keys.
+   * Per-group model-read failures stay local to their rows and do not downgrade the state.
+   * `unavailable` when that groups read failed with the grant still valid, retaining every
+   * saved group, key and selection unchanged; `sign-in-required` when no grant exists or it
+   * expired, retaining saved rows for local edits.
+   */
+  state: 'ready' | 'unavailable' | 'sign-in-required'
+  /** Authorized groups with their saved rows, sorted by name. */
+  groups: VvcodeGroupView[]
+}
+
+/** One VVCode group row: live metadata where available, otherwise the last saved values. */
+export interface VvcodeGroupView {
+  /** Group identifier; the exact sync and relay requests name it. */
+  name: string
+  /** Server description, or the last saved one; empty when never read. Display only, never an identifier. */
+  desc: string
+  /** Billing multiplier, `'auto'`, or null when no read has reported one yet. */
+  ratio: number | 'auto' | null
+  /** Provider route owning this group's models; `vvcode` is the migrated legacy group. */
+  provider: string
+  /**
+   * `not-synced` when authorized without a saved binding (a pending creation that kept its
+   * token ID also reports this, and saving an enable resumes verification without recreating);
+   * `ready` when the saved binding serves; `unavailable` when a successful authorized-group
+   * read confirmed the group is no longer authorized, keeping the key and selection saved;
+   * `creation-unknown` when an unobserved token creation is recorded for this group.
+   */
+  state: 'not-synced' | 'ready' | 'unavailable' | 'creation-unknown'
+  /** Whether a saved binding with the group's key exists, so enabling reuses it; saving an enable for false rows prepares one first. */
+  hasConnection: boolean
+  /**
+   * Whether this group's read-only model read failed in the latest directory pass while the
+   * groups read itself succeeded. The row keeps its previous model IDs instead of faking an
+   * empty list; the single-group refresh or a fresh directory read retries it.
+   */
+  catalogError: boolean
+  /** Read-only directory model IDs for browsing and selection, with each saved selection enabled. */
+  models: { id: string; enabled: boolean }[]
+}
+
+/** One group provider's full enabled-model list, as a connection-modal save commits it. */
+export interface VvcodeModelSelection {
+  /** The legacy `vvcode` route or one `vvcode-group-…` route. */
+  provider: string
+  /** The complete enabled model ID list for that group; an empty list clears its selection. */
+  models: string[]
+}
+
+/** Display amounts use the site's configured currency or quota units, never a client-side assumed exchange rate. */
+export interface VvcodeUsage {
+  unit: { kind: 'currency' | 'tokens'; symbol: string }
+  balance: { state: 'ready'; remaining: number } | { state: 'unavailable' }
+  subscriptions: { state: 'ready'; items: VvcodeUsageItem[] } | { state: 'unavailable' } | { state: 'reauthorize' }
+}
+
+/** One currently active subscription; null quota limits mean unlimited, and dates are epoch milliseconds. */
+export interface VvcodeUsageItem {
+  id: number
+  total: number | null
+  used: number
+  remaining: number | null
+  expiresAt: number
+  resetAt: number | null
+}
+
+/** An application-authorized VVCode group; the name, not its description, identifies the group. */
+export interface VvcodeGroup {
+  name: string
+  desc: string
+  ratio: number | 'auto'
 }
 
 /**

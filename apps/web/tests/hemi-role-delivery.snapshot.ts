@@ -96,6 +96,10 @@ it.skipIf(MODE === 'record')('replays native activation receipts and completion 
     expect(prompts[0]).toContain('You are an AI agent powered by Hemi.')
     expect(prompts[0]).not.toContain('powered by DeepSeek Harness')
     const schemas = raw.flatMap(log => normalizedToolSchemas(log, context))
+    for (const removed of ['memory_write', 'memory_read', 'memory_search', 'memory_forget']) {
+      expect(JSON.stringify(schemas)).not.toContain(`"name":"${removed}"`)
+    }
+    expect(prompts.join('\n')).not.toContain('hemi:memory')
     const promptPin = formatSystemPromptSnapshot(prompts[0]!, prompts.slice(1))
     const schemaPin = formatToolSchemasSnapshot(schemas[0]!, schemas.slice(1))
     if (MODE === 'refresh') {

@@ -12,7 +12,6 @@ Hemi-DSH 是基于 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/de
 
 - **把已有的模型接到一起。** 在同一页管理订阅账号、API Key 和 New API 站点。New API 可以在 Hemi 内登录，从列表勾选模型后一键导入。[模型接入说明](packages/hemi/model-access-ui/README.zh.md)
 - **给不同任务分配不同模型。** 用常用模型负责主对话，另选模型做研究、评审、执行或设计。每个会话都可以在自动路由和固定模型之间切换。[模型路由说明](packages/hemi/routing-ui/README.zh.md)
-- **换个会话也能接着做。** Hemi 会在新会话中读取已保存的记忆和每日日志。你可以在设置里查看和修改这些内容。[记忆说明](packages/hemi/memory-ui/README.zh.md)
 - **自己决定备份存在哪里。** 将会话和记忆备份到本地文件夹或 WebDAV，恢复前可以预览与本地数据的合并结果。[备份说明](packages/hemi/backup-ui/README.zh.md)
 
 ## 下载

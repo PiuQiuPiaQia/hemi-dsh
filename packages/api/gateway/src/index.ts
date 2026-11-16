@@ -40,7 +40,6 @@ import type {
   TypertGateway,
   TypertGatewayErrorCode,
   TypertGatewayWireStream,
-  TypertGatewayWebSocket,
   TypertRemoteEventDispatch,
   TypertRemoteEventFrame,
   TypertRemoteEventInvocation,
@@ -76,7 +75,6 @@ export type {
   TypertGateway,
   TypertGatewayErrorCode,
   TypertGatewayWireStream,
-  TypertGatewayWebSocket,
   TypertRemoteEventContext,
   TypertRemoteEventDispatch,
   TypertRemoteEventFrame,
@@ -229,17 +227,6 @@ export class TypertGatewayService extends Service implements TypertGateway {
     failure: error => rpcError(error),
   }
 
-  // Hemi fork: additional authenticated listeners share the native mux and its readiness lifetime.
-  readonly websocket: TypertGatewayWebSocket = {
-    path: REMOTE_STREAM_MUX_PATH,
-    acceptUpgrade: (request, socket, head, peer) => {
-      const mux = this.websocketMux
-      if (mux === undefined) { rejectRemoteStreamUpgrade(socket, 503); return }
-      mux.handleUpgrade(request, socket, head, peer)
-    },
-  }
-
-  private websocketMux: RemoteStreamMuxServer | undefined
   private srcClaims: ReadonlySet<string> | undefined
   private remoteEvents: RegisteredRemoteEventSource | undefined
   private readonly remoteEventClients = new Map<RemoteEventClientId, RemoteEventClient>()
@@ -278,13 +265,11 @@ export class TypertGatewayService extends Service implements TypertGateway {
           },
         )
         const releases = new Set<Promise<void>>()
-        webCtx.effect((function* (this: TypertGatewayService) {
+        webCtx.effect(function* () {
           yield async () => {
-            if (this.websocketMux === mux) this.websocketMux = undefined
             await mux.close()
             await Promise.all(releases)
           }
-          this.websocketMux = mux
           const route: WebUpgradeRoute = {
             path: REMOTE_STREAM_MUX_PATH,
             handler: (req, socket, head) => {
@@ -322,7 +307,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
             },
           }
           yield webCtx.webServer.registerUpgrade(route)
-        }).bind(this), `api-gateway: ${REMOTE_STREAM_MUX_PATH} WebSocket`)
+        }, `api-gateway: ${REMOTE_STREAM_MUX_PATH} WebSocket`)
       }
       // Existing pages reconnect before the new Host prints its URL. No stream
       // may enter until the launcher has activated and audited its controllers.

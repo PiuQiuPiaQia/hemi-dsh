@@ -27,9 +27,9 @@
     // Hemi fork: the branding e2e consumes Host declarations through its scaffold.
     "tests/hemi-branding.e2e.ts",
     "tests/hemi-ssh-servers.e2e.ts",
-    "tests/hemi-mobile-access.e2e.ts",
     "tests/hemi-session-unread.e2e.ts",
     "tests/hemi-desktop-startup.e2e.ts",
+    "tests/hemi-preinstalled-plugins.e2e.ts",
     "tests/home-whale.e2e.ts",
     "tests/sidebar-drawer.e2e.ts",
     "tests/creation-recommendations.e2e.ts",
@@ -144,6 +144,8 @@
     "tests/hemi-effort-picker.e2e.ts",
     "tests/hemi-native-roles.e2e.ts",
     "tests/hemi-model-access.e2e.ts",
+    // Hemi fork: VVCode browser authorization uses the Host-owned Web scaffold.
+    "tests/hemi-vvcode.e2e.ts",
     "tests/hemi-new-api-browser.e2e.ts",
     "tests/menu-material.e2e.ts",
     "tests/desktop-locale.e2e.ts",

@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-14-third-party-phone-access.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-11-14-third-party-phone-access.md
+/agent-note-third-party-phone-access:
+  en: cfcc40eb59c62d68
+  zh: 695df5022457abb2
+/agent-note-third-party-phone-access/problem:
+  en: ed2924c9f79f780d
+  zh: d097f1a830a5403d
+/agent-note-third-party-phone-access/decision:
+  en: 560805445760bb91
+  zh: cf49e38c9b392ca2
+/agent-note-third-party-phone-access/alternatives-considered:
+  en: 9a8e7b448a19a9aa
+  zh: e1345ce24e457cd8
+/agent-note-third-party-phone-access/consequences:
+  en: bdf51ad7532a83b7
+  zh: af8b955e436e941f
+/agent-note-third-party-phone-access/testing:
+  en: ba236eba941cc88e
+  zh: 528bc037ed0ec622

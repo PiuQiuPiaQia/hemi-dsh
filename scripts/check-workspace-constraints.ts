@@ -81,7 +81,8 @@ const standardReleaseMemberDirectory = new RegExp(
 const desktopApplicationDirectory = 'apps/desktop'
 const localArtifactDirs = new Set(['node_modules'])
 const appPackageFiles: Readonly<Record<string, readonly string[]>> = {
-  '@deepseek-ai/dsh': ['lib/*.js', 'lib/types/*.d.ts'],
+  // Hemi fork: every CLI-derived distribution carries the preinstalled Pocket plugin's complete source and license.
+  '@deepseek-ai/dsh': ['third-party', 'lib/*.js', 'lib/types/*.d.ts'],
   '@deepseek-ai/dsh-desktop-host': [
     'lib/index.js', 'lib/cli.js',
   ],
@@ -190,7 +191,6 @@ export function readWorkspaceManifests(repositoryRoot: string): WorkspaceManifes
 const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // Hemi fork: separately bundled settings, usage, native import and preload entries.
   '@deepseek-ai/dsh-hemi-routing': ['lib/settings.js', 'lib/usage.js', 'lib/overflow-compaction.js'],
-  '@deepseek-ai/dsh-hemi-memory': ['lib/remote.js'],
   // Hemi fork: the SSH plugin publishes its bundled subpath entries and the app-owned
   // remote helper artifact payload that ships beside them under lib/remote.
   '@deepseek-ai/dsh-hemi-ssh-servers': [
@@ -208,7 +208,7 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   // Hemi fork: plain-Node release tooling precedes shell compilation; the workspace-only renderer is not a runtime artifact.
   '@deepseek-ai/dsh-hemi-customizations': [
     'lib/preload.js', 'release/artwork.mjs', 'release/command.mjs', 'release/config.mjs', 'release/cua.mjs',
-    'release/identity.mjs', 'release/publish.mjs', 'release/setup.mjs', 'release/signing.mjs', 'release/web.mjs',
+    'release/identity.mjs', 'release/desktop-plugins.mjs', 'release/publish.mjs', 'release/setup.mjs', 'release/signing.mjs', 'release/web.mjs',
     'release/*.d.mts', 'release/*.cer', 'src/desktop-startup.css', 'artwork',
   ],
   // Tools entry points share error classes and invocation stages through runtime chunks.

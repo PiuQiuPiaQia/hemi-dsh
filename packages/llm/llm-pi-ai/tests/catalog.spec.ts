@@ -768,6 +768,218 @@ describe('per-model reasoning efforts', () => {
   })
 })
 
+describe('catalog reference reasoning', () => {
+  const openaiResponsesReasoning = (): Model<Api> => {
+    const entry = getBuiltinModels('openai').find(model =>
+      model.reasoning && model.thinkingLevelMap !== undefined && model.api === 'openai-responses')
+    if (entry === undefined) throw new Error('the installed catalog ships no openai-responses reasoning model')
+    return entry
+  }
+  const openaiPlain = (): Model<Api> => {
+    const entry = getBuiltinModels('openai').find(model => !model.reasoning)
+    if (entry === undefined) throw new Error('the installed catalog ships no non-reasoning openai model')
+    return entry
+  }
+  const anthropicModel = (): Model<Api> => {
+    const [entry] = getBuiltinModels('anthropic')
+    if (entry === undefined) throw new Error('the installed catalog ships no anthropic model')
+    return entry
+  }
+  /**
+   * The dispatch-relevant compat facts of one installed entry. Each fact is
+   * narrowed out of the compat union by its own `in` check, so no protocol's
+   * block has to be assignable to a shared shape.
+   */
+  const effortDispatchOf = (model: Model<Api>): { format: LlmPiAi.PiAiThinkingFormat | undefined; effortDisabled: boolean } => {
+    const compat = model.compat
+    return {
+      format: compat !== undefined && 'thinkingFormat' in compat ? compat.thinkingFormat : undefined,
+      effortDisabled: compat !== undefined && 'supportsReasoningEffort' in compat
+        && !compat.supportsReasoningEffort,
+    }
+  }
+  /** An installed entry that reasons but pins a vendor-specific dispatch format, with its provider. */
+  const vendorPinned = (): { provider: string; entry: Model<Api> } | undefined => {
+    for (const provider of getBuiltinProviders()) {
+      const entry = getBuiltinModels(provider).find(model => model.reasoning
+        && effortDispatchOf(model).format !== undefined && effortDispatchOf(model).format !== 'openai')
+      if (entry !== undefined) return { provider, entry }
+    }
+    return undefined
+  }
+  /** An installed reasoning entry whose own compat disables effort dispatch, with its provider. */
+  const effortDisabled = (): { provider: string; entry: Model<Api> } | undefined => {
+    for (const provider of getBuiltinProviders()) {
+      const entry = getBuiltinModels(provider).find(model => model.reasoning && effortDispatchOf(model).effortDisabled)
+      if (entry !== undefined) return { provider, entry }
+    }
+    return undefined
+  }
+
+  /** The first materialized model of a relay route listing exactly the given entry. */
+  function modelOf(api: string, entry: LlmPiAi.PiAiModelProfile, route?: Partial<LlmPiAi.PiAiProviderProfile>): Model<Api> {
+    const [model] = resolveProfiles({ relay: { api, baseURL: 'https://relay.test/v1', ...route, models: [entry] } })
+      .get('relay')?.piProvider?.getModels() ?? []
+    if (model === undefined) throw new Error('the relay route resolved no models')
+    return model
+  }
+
+  it('transfers a referenced entry’s exact reasoning levels onto the family’s sibling protocol', () => {
+    const catalog = openaiResponsesReasoning()
+    const model = modelOf('openai-completions', { id: catalog.id, catalogProvider: 'openai' })
+
+    expect(model.reasoning).toBe(true)
+    expect(model.thinkingLevelMap).toEqual(catalog.thinkingLevelMap)
+    expect(getSupportedThinkingLevels(model)).toEqual(getSupportedThinkingLevels(catalog))
+    // Identity and transport stay the route's: the reference never moves the endpoint.
+    expect(model).toMatchObject({ id: catalog.id, provider: 'relay', api: 'openai-completions',
+      baseUrl: 'https://relay.test/v1', name: catalog.name, contextWindow: catalog.contextWindow })
+  })
+
+  it('keeps a known non-reasoning reference non-reasoning', () => {
+    const catalog = openaiPlain()
+    const model = modelOf('openai-completions', { id: catalog.id, catalogProvider: 'openai' })
+
+    expect(model.reasoning).toBe(false)
+    expect(getSupportedThinkingLevels(model)).toEqual(['off'])
+  })
+
+  it('transfers no reasoning fields across effort wire families while capacities still transfer', () => {
+    const catalog = anthropicModel()
+    const model = modelOf('openai-completions', { id: catalog.id, catalogProvider: 'anthropic' })
+
+    expect(model.reasoning).toBe(false)
+    expect(model.thinkingLevelMap).toBeUndefined()
+    expect(model.name).toBe(catalog.name)
+    expect(model.contextWindow).toBe(catalog.contextWindow)
+  })
+
+  it('keeps explicit effort declarations ahead of the reference', () => {
+    const catalog = openaiResponsesReasoning()
+    const stripped = modelOf('openai-completions', { id: catalog.id, catalogProvider: 'openai', reasoningEfforts: false })
+    expect(stripped.reasoning).toBe(false)
+    expect(getSupportedThinkingLevels(stripped)).toEqual(['off'])
+
+    const narrowed = modelOf('openai-completions',
+      { id: catalog.id, catalogProvider: 'openai', reasoningEfforts: { off: 'none', high: 'high' } })
+    expect(narrowed.thinkingLevelMap).toEqual({ off: 'none', high: 'high', minimal: null, low: null, medium: null, xhigh: null, max: null })
+  })
+
+  it('treats a disabled endpoint effort switch as a decided field on the model and the route', () => {
+    const catalog = openaiResponsesReasoning()
+    const perModel = modelOf('openai-completions',
+      { id: catalog.id, catalogProvider: 'openai', compat: { supportsReasoningEffort: false } })
+    expect(perModel.reasoning).toBe(false)
+
+    const perRoute = modelOf('openai-completions', { id: catalog.id, catalogProvider: 'openai' },
+      { compat: { supportsReasoningEffort: false } })
+    expect(perRoute.reasoning).toBe(false)
+  })
+
+  it('refuses an explicit effort offer beside a disabled endpoint effort switch', () => {
+    const declare = (entry: LlmPiAi.PiAiModelProfile, route?: Partial<LlmPiAi.PiAiProviderProfile>): (() => unknown) =>
+      () => resolveProfiles({ relay: { api: 'openai-completions', baseURL: 'https://relay.test/v1', ...route, models: [entry] } })
+
+    expect(declare({ id: 'm', reasoningEfforts: { off: 'none', high: 'high' },
+      compat: { supportsReasoningEffort: false } }))
+      .toThrow(/declares reasoningEfforts but sets compat.supportsReasoningEffort/)
+    expect(declare({ id: 'm', reasoningEfforts: { off: 'none', high: 'high' } },
+      { compat: { supportsReasoningEffort: false } }))
+      .toThrow(/declares reasoningEfforts but sets compat.supportsReasoningEffort/)
+    // Consistent declarations keep resolving.
+    expect(modelOf('openai-completions',
+      { id: 'm', reasoningEfforts: false, compat: { supportsReasoningEffort: false } }).reasoning).toBe(false)
+    expect(modelOf('openai-completions',
+      { id: 'm', reasoningEfforts: { off: 'none', high: 'high' }, compat: { supportsReasoningEffort: true } }).reasoning)
+      .toBe(true)
+  })
+
+  it('transfers nothing for a reference that dispatches its own map outside the OpenAI effort form', () => {
+    // The invariant needs a fixture: an installed reasoning entry pinning a vendor dispatch.
+    const pinned = vendorPinned()
+    if (pinned === undefined) return
+    for (const api of ['openai-completions', 'openai-responses'] as const) {
+      const model = modelOf(api, { id: pinned.entry.id, catalogProvider: pinned.provider })
+      expect(model.reasoning).toBe(false)
+      // Capacities still transfer from the reference.
+      expect(model.name).toBe(pinned.entry.name)
+      expect(model.contextWindow).toBe(pinned.entry.contextWindow)
+    }
+  })
+
+  it('transfers nothing onto a target that declares a vendor thinking format', () => {
+    const catalog = openaiResponsesReasoning()
+    // The target dispatches its levels through its declared vendor channel, so
+    // the reference's OpenAI-effort map would not describe its wire either.
+    const vendorTarget = modelOf('openai-completions',
+      { id: catalog.id, catalogProvider: 'openai', compat: { thinkingFormat: 'deepseek' } })
+    expect(vendorTarget.reasoning).toBe(false)
+    expect(vendorTarget.name).toBe(catalog.name)
+    expect(vendorTarget.contextWindow).toBe(catalog.contextWindow)
+    // A target that declares the OpenAI format keeps the transfer.
+    const openaiTarget = modelOf('openai-completions',
+      { id: catalog.id, catalogProvider: 'openai', compat: { thinkingFormat: 'openai' } })
+    expect(openaiTarget.reasoning).toBe(true)
+    expect(openaiTarget.thinkingLevelMap).toEqual(catalog.thinkingLevelMap)
+  })
+
+  it('transfers nothing for a reference whose own entry disables effort dispatch', () => {
+    const disabled = effortDisabled()
+    if (disabled === undefined) return
+    const model = modelOf('openai-completions', { id: disabled.entry.id, catalogProvider: disabled.provider })
+    expect(model.reasoning).toBe(false)
+    expect(model.contextWindow).toBe(disabled.entry.contextWindow)
+  })
+
+  it('presents no controllable efforts on a native model whose route pins OpenAI format and disables effort dispatch', () => {
+    const catalog = openaiResponsesReasoning()
+    const model = resolveProfiles({
+      openai: { api: 'openai-completions', baseURL: 'https://gateway.example/v1',
+        compat: { thinkingFormat: 'openai', supportsReasoningEffort: false },
+        models: [{ id: catalog.id }] },
+    }).get('openai')?.piProvider?.getModels()[0]
+    if (model === undefined) throw new Error('the gatewayed route resolved no models')
+    // The switch leaves the effort parameter as the model's only thinking
+    // channel on this route, so no level is controllable and selectors stop
+    // advertising one.
+    expect(model.reasoning).toBe(false)
+    expect(getSupportedThinkingLevels(model)).toEqual(['off'])
+  })
+
+  it('refuses a disabled effort switch that names no thinking channel for a reasoning-capable native model', () => {
+    const catalog = openaiResponsesReasoning()
+    // With no declared format the deployment has not stated whether the
+    // levels stay controllable, so the ambiguous combination is refused where
+    // it is read.
+    expect(() => resolveProfiles({
+      openai: { api: 'openai-completions', baseURL: 'https://gateway.example/v1',
+        compat: { supportsReasoningEffort: false },
+        models: [{ id: catalog.id }] },
+    })).toThrow(/declare compat.thinkingFormat/)
+    // A model without native reasoning capability has nothing the switch
+    // could contradict.
+    const plain = openaiPlain()
+    expect(() => resolveProfiles({
+      openai: { api: 'openai-completions', baseURL: 'https://gateway.example/v1',
+        compat: { supportsReasoningEffort: false },
+        models: [{ id: plain.id }] },
+    })).not.toThrow()
+  })
+
+  it('keeps vendor-dispatched levels on a native route that disables effort parameters', () => {
+    const pinned = vendorPinned()
+    if (pinned === undefined) return
+    const model = resolveProfiles({
+      [pinned.provider]: { compat: { supportsReasoningEffort: false }, models: [{ id: pinned.entry.id }] },
+    }).get(pinned.provider)?.piProvider?.getModels()[0]
+    if (model === undefined) throw new Error('the vendor route resolved no models')
+    // The model dispatches thinking through its own declared vendor channel,
+    // which the effort switch does not silence.
+    expect(model.reasoning).toBe(true)
+    expect(getSupportedThinkingLevels(model)).toEqual(getSupportedThinkingLevels(pinned.entry))
+  })
+})
+
 describe('modelOverrides', () => {
   const deepseekModel = (): Model<Api> => {
     const [model] = getBuiltinModels('deepseek')
@@ -884,15 +1096,22 @@ describe('compat switches', () => {
     const responses = catalog.find(model => model.api === 'openai-responses')
     if (completions === undefined || responses === undefined) throw new Error('opencode ships no mixed catalog')
 
-    const models = modelsOf({
+    const providers = {
       opencode: {
         compat: { supportsReasoningEffort: false },
         models: [{ id: completions.id }, { id: responses.id }],
       },
-    }, 'opencode')
-
-    expect((models.get(completions.id)?.compat as OpenAICompletionsCompat).supportsReasoningEffort).toBe(false)
-    expect(models.get(responses.id)?.compat).toEqual(responses.compat)
+    }
+    // A write or load refuses the route: the effort switch names no thinking
+    // channel for the reasoning-capable completions model.
+    expect(() => resolveProfiles(providers)).toThrow(/declare compat.thinkingFormat/)
+    // A stored read keeps the route's other protocol serving and retains the
+    // refusal as that model's diagnostic.
+    const resolved = resolveProfiles(providers, 'deferred').get('opencode')!
+    expect(resolved.modelErrors.get(completions.id)).toMatch(/declare compat.thinkingFormat/)
+    const served = resolved.piProvider?.getModels()[0]
+    expect(served?.id).toBe(responses.id)
+    expect(served?.compat).toEqual(responses.compat)
   })
 
   it('rejects a model-level switch on a protocol that has no such field, naming what it offers', () => {

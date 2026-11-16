@@ -1,4 +1,4 @@
-import type { KeyDirectory, KeyProfileInput, LoginState, ModelOptions, ModelOptionsView, NewApiLogin, NewApiToken, QuotaWindow, Subscription } from '@deepseek-ai/dsh-hemi-model-access/types'
+import type { KeyDirectory, KeyProfileInput, LoginState, ModelOptions, ModelOptionsView, NewApiLogin, NewApiToken, QuotaWindow, Subscription, VvcodeDirectory, VvcodeModelSelection, VvcodeUsage } from '@deepseek-ai/dsh-hemi-model-access/types'
 
 /** A failed model-row operation announced outside the connection page. */
 export interface ModelActionFailure {
@@ -20,6 +20,12 @@ export interface ModelAccessActions {
   subscriptionCandidates: (provider: string, signal: AbortSignal) => Promise<string[]>
   subscriptionModels: (provider: string, signal: AbortSignal) => Promise<string[]>
   changeSubscriptionModel: (provider: string, model: string, add: boolean) => Promise<void>
+  /** Read normalized balance and per-subscription quotas; preserves structured Remote errors and caller-owned cancellation. */
+  vvcodeUsage: (signal: AbortSignal) => Promise<VvcodeUsage>
+  /** Read all authorized groups and their saved model enablement, without creating keys. */
+  vvcodeDirectory: (signal: AbortSignal) => Promise<VvcodeDirectory>
+  /** Prepare calling keys for newly enabled groups, then atomically replace changed selections; never revokes remote keys. */
+  saveVvcodeModels: (selections: VvcodeModelSelection[], signal: AbortSignal) => Promise<void>
   subscriptions: () => Promise<Subscription[]>
   state: () => Promise<LoginState | null>
   start: (id: string) => Promise<LoginState>

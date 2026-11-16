@@ -842,7 +842,10 @@ describe('provider profile lifecycle', () => {
     expect(server.requests[0]).toMatchObject({ reasoning_effort: 'none' })
   })
 
-  it('holds back reasoning_effort when the endpoint cannot take it', async () => {
+  it('withholds a model whose effort offer contradicts a disabled endpoint switch', async () => {
+    // A declared offer beside a disabled endpoint switch would advertise levels
+    // dispatch never sends, so the model is retained as a diagnostic instead of
+    // resolving, and a request against it fails with that contradiction.
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([{ events: textEvents }])
     const ctx = new Context()
@@ -863,14 +866,45 @@ describe('provider profile lifecycle', () => {
         },
       },
     })
-
-    await assemble(ctx, {
+    expect(await ctx.llm.listModels('acme-gateway')).toEqual([])
+    const result = await assemble(ctx, {
       provider: 'acme-gateway',
       model: 'acme-think',
       reasoningEffort: ReasoningEffortId('high'),
       messages: [],
     })
-    expect(server.requests[0]).not.toHaveProperty('reasoning_effort')
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'INVALID_CONFIG' } })
+    expect(server.requests).toHaveLength(0)
+  })
+
+  it('offers no efforts on a native model whose gateway pins OpenAI format but disables effort dispatch', async () => {
+    vi.stubEnv('PI_TEST_KEY', 'test-key')
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const native = getBuiltinModels('openai').find(model => model.reasoning && model.thinkingLevelMap !== undefined)
+    if (native === undefined) throw new Error('the installed catalog ships no openai reasoning model')
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        'gatewayed-openai': {
+          apiKeyEnv: 'PI_TEST_KEY',
+          api: 'openai-completions',
+          baseURL: `${server.url}/v1`,
+          compat: { thinkingFormat: 'openai', supportsReasoningEffort: false },
+          models: [{ id: native.id }],
+        },
+      },
+    })
+    const info = await ctx.llm.resolveModelInfo('gatewayed-openai', native.id)
+    expect(info.reasoning).toBeUndefined()
+    const result = await assemble(ctx, {
+      provider: 'gatewayed-openai',
+      model: native.id,
+      reasoningEffort: ReasoningEffortId('high'),
+      messages: [],
+    })
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'UNSUPPORTED_REASONING_EFFORT' } })
+    expect(server.requests).toHaveLength(0)
   })
 
   it('reports efforts in ascending order and dispatches the level a caller selects', async () => {

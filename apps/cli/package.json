@@ -15,11 +15,14 @@
     "dsh": "lib/bin.js"
   },
   "files": [
+    "third-party",
     "lib/*.js",
     "lib/types/*.d.ts"
   ],
   "license": "MIT",
   "dependencies": {
+    "dsh-pocket": "2.13.0",
+    "dsh-mnemon": "0.5.45",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-hmr": "workspace:*",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",

@@ -1,0 +1,34 @@
+- dialog "管理分组与模型":
+  - heading "管理分组与模型" [level=2]
+  - button "关闭"
+  - textbox "搜索分组或模型"
+  - button "刷新目录"
+  - alert: 无法读取 VVCode 分组，请检查登录状态和网络后重新读取，或重新授权
+  - region "VVCode 分组 solo":
+    - button "solo 已选 1 / 2" [expanded]
+    - text: 用量倍率：2 倍
+    - group "vv-model-a":
+      - checkbox "启用 vv-model-a · solo" [checked]
+      - text: vv-model-a
+      - button "模型设置"
+      - button "测试"
+    - group "vv-model-solo":
+      - checkbox "启用 vv-model-solo · solo"
+      - text: vv-model-solo
+      - button "模型设置" [disabled]
+      - button "测试" [disabled]
+  - region "VVCode 分组 team":
+    - button "team 已选 2 / 2" [expanded]
+    - text: 用量倍率：自动
+    - group "vv-model-a":
+      - checkbox "启用 vv-model-a · team" [checked]
+      - text: vv-model-a
+      - button "模型设置"
+      - button "测试"
+    - group "vv-model-b":
+      - checkbox "启用 vv-model-b · team" [checked]
+      - text: vv-model-b
+      - button "模型设置"
+      - button "测试"
+  - button "取消"
+  - button "保存选择" [disabled]

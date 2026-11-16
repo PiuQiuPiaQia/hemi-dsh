@@ -112,7 +112,7 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
 
-模型可指定 `catalogProvider`，从另一已安装提供方的同 ID 条目继承显示名称、输入类型及 token 容量，显式模型字段优先。此引用不继承传输、鉴权、价格、推理或兼容元数据；引用的型号不存在时视为配置错误。继承的输出容量不会成为每次请求的输出上限。
+模型可指定 `catalogProvider`，从另一已安装提供方的同 ID 条目继承显示名称、输入类型及 token 容量，显式模型字段优先。当路由与引用共享有实证的 effort 词域、且引用本身以 OpenAI 风格派发其档位（固定供应商 thinking format 或禁用 effort 开关均不转移）时，引用的推理字段同样由引用解析，显式声明与端点开关仍最优先。此引用不继承传输、鉴权、价格或兼容元数据；引用的型号不存在时视为配置错误。继承的输出容量不会成为每次请求的输出上限。
 
 ### 运行时更改配置
 

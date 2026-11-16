@@ -11,8 +11,11 @@ type Props = PropsLocale<typeof NS> & { actions: ModelAccessActions }
 
 /** Account-owned balance rows, already formatted by the account provider. */
 export interface SubscriptionBalance {
-  rows: { id: string; label: string; value: string }[]
+  rows: { id: string; label: string; value: string; detail?: string }[]
   unavailable: boolean
+  /** Query feedback stays beside retained rows; all text is locale-owned. */
+  notices?: { id: string; text: string; failed?: boolean }[]
+  loading?: boolean
   usageUrl?: string
 }
 
@@ -30,12 +33,14 @@ export function ProviderUsage({ quota, balance, refreshBalance, busy, actions, t
     {quota !== undefined && <Quota key={quota.identity} provider={quota.provider} actions={actions} t={t} />}
     {balance !== undefined && <div className={css.quotaInline}>
       <div className={css.quotaBars}>
-        {balance.rows.map(value => <div className={css.balanceLine} key={value.id}>
-          <span>{value.label}</span><span>{value.value}</span>
+        {balance.rows.map(value => <div key={value.id}>
+          <div className={css.balanceLine}><span>{value.label}</span><span>{value.value}</span></div>
+          {value.detail !== undefined && <small className={css.balanceDetail}>{value.detail}</small>}
         </div>)}
+        {balance.notices?.map(notice => <small key={notice.id} role={notice.failed ? 'alert' : 'status'}>{notice.text}</small>)}
         {balance.unavailable && <a href={balance.usageUrl} target="_blank" rel="noreferrer">{t('balanceUnavailable')}</a>}
       </div>
-      {refreshBalance !== undefined && <UsageRefreshButton label={t('refreshBalance')} loading={busy} refresh={refreshBalance} />}
+      {refreshBalance !== undefined && <UsageRefreshButton label={t('refreshBalance')} loading={busy || balance.loading === true} refresh={refreshBalance} />}
     </div>}
   </>
 }
