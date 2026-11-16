@@ -219,7 +219,7 @@ function readUpstreamRecord(sourceDir, name) {
     || typeof source.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(source.sha256)) {
     throw new Error(`Hemi Desktop: the pinned upstream record ${path} lacks its name, version, license, or verified source fields`)
   }
-  // A single file name keeps every provenance read inside the distribution directory.
+  // A single file name keeps every source archive read inside the distribution directory.
   if (isAbsolute(source.file) || source.file.includes('/') || source.file.includes('\\') || source.file === '.' || source.file === '..') {
     throw new Error(`Hemi Desktop: the pinned upstream record ${path} must reference its archive by a single file name inside the distribution`)
   }

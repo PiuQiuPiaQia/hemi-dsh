@@ -21,6 +21,7 @@ import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import type { PeerId, RemoteInvocation } from '@deepseek-ai/dsh-typert-protocol'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import HemiModelAccess from '../src/index.ts'
+import { importedCatalogModel } from '../src/model-catalog.ts'
 import { VVCODE_KEY } from '../src/vvcode/index.ts'
 import { vvcodeProviderId } from '../src/vvcode/adapter.ts'
 import { asObject } from '../src/response.ts'
@@ -526,11 +527,18 @@ function servedModels(catalog: CatalogEntry[]): string[] {
     .map(entry => entry.id)
 }
 
-/** The installed openai-responses reasoning model whose exact effort levels a gateway model inherits. */
+/**
+ * The installed openai-responses reasoning model whose exact effort levels a gateway model inherits.
+ * The id must resolve unambiguously across the whole installed catalog and spell every mapped
+ * level as its own level id, so both served protocols inherit the exact published offer.
+ */
 function catalogReasoningModel(): Model<Api> {
-  const entry = getBuiltinModels('openai').find(model =>
-    model.reasoning && model.thinkingLevelMap !== undefined && model.api === 'openai-responses')
-  if (entry === undefined) throw new Error('the installed catalog ships no openai-responses reasoning model')
+  const entry = getBuiltinModels('openai').find(model => model.reasoning && model.thinkingLevelMap !== undefined
+    && model.api === 'openai-responses'
+    && importedCatalogModel('openai-responses', model.id) === model
+    && importedCatalogModel('openai-completions', model.id) !== undefined
+    && Object.entries(model.thinkingLevelMap).every(([level, wire]) => wire === null || wire === level))
+  if (entry === undefined) throw new Error('the installed catalog ships no unambiguous openai-responses reasoning model')
   return entry
 }
 

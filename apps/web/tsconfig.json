@@ -142,6 +142,7 @@
     "tests/hemi-model-settings.e2e.ts",
     // Hemi fork: the composer browser scenario boots Host services, checked by tsconfig.host.json.
     "tests/hemi-effort-picker.e2e.ts",
+    "tests/hemi-model-reasoning.e2e.ts",
     "tests/hemi-native-roles.e2e.ts",
     "tests/hemi-model-access.e2e.ts",
     // Hemi fork: VVCode browser authorization uses the Host-owned Web scaffold.

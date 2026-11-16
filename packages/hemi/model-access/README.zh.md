@@ -23,7 +23,7 @@ DeepSeek 账号目录查询委托给已注册的 `deepseek-account` 适配器，
 
 模型能力编辑使用打开编辑器时读取的设置版本，保留无关模型字段。API 和 Pi 订阅模型的覆盖值保存在 `llm-pi-ai` 中；Hemi 自有 GLM 和 VVCode 适配器从本插件设置的 `subscriptionModelOptions` 读取各自的覆盖值。移除可选字段可恢复适配器默认值。改动影响后续模型解析，已经准备的请求保留原模型配置。
 
-导入的 API 模型按完整 ID 从已安装目录继承名称、输入类型及 token 容量。优先采用 OpenAI 和 Anthropic 的原厂条目；其他匹配须使用相同协议且能力一致。未知或存在歧义的 ID 保留连接默认值。临时 `catalogProvider` 引用保留显式覆盖，不引入原厂接口地址、鉴权、兼容选项或请求输出上限。已有连接使用相同解析，无需重写已保存设置。
+导入的 API 和 VVCode 模型按完整模型 ID 继承名称、输入类型、token 容量和推理能力，不依赖连接的提供方名称。显式 `catalogProvider` 选择能力来源；自动匹配存在歧义时保留连接默认值。模型显式覆盖优先。能力继承不会替换连接的接口地址、鉴权或请求头，继承的输出容量也不会设置请求输出上限。已有连接使用相同解析，无需重写已保存设置。
 
 其他订阅型号在每次打开或刷新时重新请求服务端，查询失败不会用内置目录替代。Codex 使用登录账号的 `/backend-api/codex/models` 接口，Claude 和 Copilot 请求各自的鉴权型号接口。GLM 通过 `/api/v1/client/configs` 和公共 CDN 读取官方在线 ZCode Coding Plan 目录；这是公布的个人／团队套餐目录，不是逐账号权益校验。公共目录请求不携带账号凭据。响应不兼容或服务不可用时保留已有型号选择。`subscriptionDiscovery` 可配置请求时限、目录数量上限和外部 Codex／ZCode 客户端版本。
 
@@ -39,7 +39,7 @@ VVCode 使用浏览器 PKCE 授权及本机回环回调。管理 PAT 保存在�
 
 排查 Codex WebSocket 中断时，可在 `$DSH_HOME/logs/codex-websocket.jsonl`（Hemi 桌面默认是 `~/.hemi-dsh/logs/codex-websocket.jsonl`）中按会话 ID 搜索。SDK 首次报告 WebSocket 故障时创建该文件。每行记录路由、时间、是否已开始流式输出、可用的关闭码和 SDK 最终结果，包括是否改用 SSE。本地日志不包含提示词、令牌或原始关闭原因。文件写入失败时，宿主日志会接收脱敏后的诊断。删除文件即可清除旧记录。
 
-配置型号既没有内置目录记录、也未声明推理档位时，`reasoningFallbacks` 按协议补齐候选项：OpenAI Chat Completions 和 Responses 默认 `medium`，Anthropic Messages 默认 `high`。显式档位、显式禁用和内置目录记录优先。默认值同时用于选择器和实际请求，不改写已保存的连接。Anthropic 的补齐型号默认使用自适应思考，显式配置仍优先。
+推理能力依次采用显式档位、已识别模型支持的档位；没有解析出可用档位时，才采用配置的 `reasoningFallbacks`。已知非推理模型或显式禁用的设置不会获得兜底档位。协议预置中，OpenAI Chat Completions 和 Responses 默认 `medium`，Anthropic Messages 默认 `high`。请求协议负责参数编码；兼容的模型专用思考格式同时控制思考的启用和关闭。这些默认值只在运行时生效，由选择器和实际请求共用。Anthropic 的补齐型号默认使用自适应思考，显式配置仍优先。
 
 ## 模型体验
 

@@ -133,6 +133,7 @@
     "apps/web/tests/hemi-model-settings.e2e.ts",
     // Hemi fork: check the composer browser scenario with the Host service declarations.
     "apps/web/tests/hemi-effort-picker.e2e.ts",
+    "apps/web/tests/hemi-model-reasoning.e2e.ts",
     "apps/web/tests/hemi-native-roles.e2e.ts",
     "apps/web/tests/hemi-model-access.e2e.ts",
     // Hemi fork: check the VVCode subscription scenario with its Host service declarations.

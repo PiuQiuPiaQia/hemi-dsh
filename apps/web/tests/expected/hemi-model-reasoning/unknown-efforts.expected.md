@@ -1,0 +1,8 @@
+- menu:
+  - menuitem "Off"
+  - menuitem "Minimal"
+  - menuitem "Low"
+  - menuitem "Medium"
+  - menuitem "High"
+  - menuitem "Xhigh"
+  - menuitem "Max"

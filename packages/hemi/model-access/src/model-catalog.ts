@@ -1,4 +1,5 @@
 /** Exact-id capability inheritance for imported gateway models. */
+import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model } from '@earendil-works/pi-ai'
 import { getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { PiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
@@ -20,29 +21,46 @@ export function installedCatalogModel(provider: string, model: string): Model<Ap
 }
 
 /**
- * Find intrinsic capabilities without guessing from model names or importing vendor transport.
- * @param api - Connection wire protocol.
+ * Preserve a unanimous non-reasoning declaration even when other capabilities disagree.
  * @param id - Exact model id returned by discovery or entered by the owner.
- * @returns the canonical vendor entry, or an unambiguous matching protocol entry.
+ * @returns whether every matching catalog entry explicitly marks the model non-reasoning.
  */
-export function importedCatalogModel(api: string, id: string): Model<Api> | undefined {
-  const canonical = api === 'anthropic-messages' ? 'anthropic'
-    : ['openai-completions', 'openai-responses', 'openai-codex-responses', 'azure-openai-responses'].includes(api) ? 'openai' : undefined
-  const preferred = canonical === undefined ? undefined : installed.get(canonical)?.get(id)
-  if (preferred !== undefined) return preferred
-  const vendors = ['openai', 'anthropic'].flatMap((provider) => {
-    const entry = installed.get(provider)?.get(id)
-    return entry === undefined ? [] : [entry]
-  })
-  if (vendors.length === 1) return vendors[0]
+export function isKnownNonReasoningModel(id: string): boolean {
   const candidates = [...installed.values()].flatMap((models) => {
     const entry = models.get(id)
-    return entry?.api === api ? [entry] : []
+    return entry === undefined ? [] : [entry]
   })
-  const first = candidates[0]
+  return candidates.length > 0 && candidates.every(entry => !entry.reasoning)
+}
+
+/**
+ * Find intrinsic capabilities without guessing from model names or importing vendor transport.
+ * @param api - Target protocol, used only to select an equivalent parameter encoding.
+ * @param id - Exact model id returned by discovery or entered by the owner.
+ * @returns an agreeing capability record, or undefined for unknown or conflicting identities.
+ */
+export function importedCatalogModel(api: string, id: string): Model<Api> | undefined {
+  const candidates = [...installed.values()].flatMap((models) => {
+    const entry = models.get(id)
+    return entry === undefined ? [] : [entry]
+  })
+  // A missing level map supplies no evidence against an explicit, agreeing offer.
+  const described = candidates.filter(entry => !entry.reasoning || entry.thinkingLevelMap !== undefined)
+  const first = described[0] ?? candidates[0]
   if (first === undefined) return undefined
-  return candidates.every(entry => entry.contextWindow === first.contextWindow && entry.maxTokens === first.maxTokens
-    && entry.input.length === first.input.length && entry.input.every(type => first.input.includes(type))) ? first : undefined
+  if (!candidates.every(entry => entry.contextWindow === first.contextWindow && entry.maxTokens === first.maxTokens
+    && entry.input.length === first.input.length && entry.input.every(type => first.input.includes(type))
+    && entry.reasoning === first.reasoning)) return undefined
+  const levels = getSupportedThinkingLevels(first)
+  if (!described.every(entry => getSupportedThinkingLevels(entry).join(',') === levels.join(','))) return undefined
+  const transports = (described.length === 0 ? candidates : described).filter(entry => entry.api === api)
+  const transport = transports[0]
+  if (transport === undefined) return first
+  const encoding = (entry: Model<Api>): string => JSON.stringify({
+    format: entry.compat !== undefined && 'thinkingFormat' in entry.compat ? entry.compat.thinkingFormat : undefined,
+    levels: getSupportedThinkingLevels(entry).map(level => [level, entry.thinkingLevelMap?.[level]]),
+  })
+  return transports.every(entry => encoding(entry) === encoding(transport)) ? transport : undefined
 }
 
 /**
