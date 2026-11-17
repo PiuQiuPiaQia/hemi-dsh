@@ -1,6 +1,6 @@
 /** Rename dialog shared by Session menus, shortcuts, and title double-clicks. */
 import { useRef, useState } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionRenameDialogInjected, SessionRenameDialogProps, SessionRenameTarget,
 } from '../contract/slots.ts'
@@ -56,7 +56,9 @@ function RenameForm({ request, renameSession, onSettle, t }: {
       onSettle()
     }).catch((reason: unknown) => {
       setRenaming(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      // Hemi fork: the dialog shows the shared safe summary, never the raw
+      // failure text; the reason stays whole for console diagnostics.
+      setError(userErrorMessage(t, reason))
     })
   }
   return (

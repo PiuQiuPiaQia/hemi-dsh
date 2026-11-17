@@ -135,7 +135,8 @@ export function apply(ctx: ClientContext): void {
     if (live === undefined) throw new Error('this session is not materialized yet')
     const result = await live.command(`/permission ${preset}`)
     if (!result.ok) {
-      throw new Error(`permission switch failed: ${result.error.code}: ${result.error.message}`)
+      // Hemi fork: shared admission presenters classify the original failure without parsing diagnostic text.
+      throw result.error
     }
     if (!result.value.matched) throw new Error('the host offers no /permission command')
     return true

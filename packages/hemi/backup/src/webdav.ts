@@ -11,14 +11,17 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
+/** Stable WebDAV failure codes; the UI localizes on these, never on `message`. */
+export type WebdavFailureCode = 'AUTH_FAILED' | 'NOT_FOUND' | 'REQUEST_FAILED' | 'FORBIDDEN' | 'TRAFFIC_EXHAUSTED'
+
 /** Typed WebDAV failure with a stable code for the UI. */
 export class WebdavError extends Error {
   override name = 'WebdavError'
   /**
    * @param code - stable failure code.
-   * @param message - human-readable failure description.
+   * @param message - human-readable failure description, diagnostic-only.
    */
-  constructor(readonly code: 'AUTH_FAILED' | 'NOT_FOUND' | 'REQUEST_FAILED', message: string) {
+  constructor(readonly code: WebdavFailureCode, message: string) {
     super(message)
   }
 }
@@ -59,6 +62,11 @@ export interface WebdavClient {
   testConnection(): Promise<{ ok: true } | { ok: false; code: WebdavError['code']; message: string }>
 }
 
+/** Read Nutstore's XML exception field, excluding diagnostic text and partial code matches. */
+function trafficRateExhausted(body: string): boolean {
+  return /<((?:[A-Za-z_][\w.-]*:)?exception)(?:\s[^>]*)?>\s*TrafficRateExhausted\s*<\/\1\s*>/u.test(body)
+}
+
 /** Decode `xml:locale`-agnostic multistatus listing bodies. */
 function parseMultistatus(body: string, dirPath: string): WebdavEntry[] {
   const entries: WebdavEntry[] = []
@@ -85,10 +93,17 @@ export function createWebdavClient(options: WebdavClientOptions): WebdavClient {
   const base = options.baseUrl.replace(/\/+$/, '')
   const headers = () => ({ Authorization: `Basic ${Buffer.from(`${options.username}:${options.password}`).toString('base64')}` })
   const url = (remotePath: string): string => `${base}/${remotePath.replace(/^\/+/, '')}`
+  /** Classify the HTTP status and the provider's XML exception code. */
+  const failureOf = async (response: Response, action: string): Promise<WebdavError> => {
+    if (response.status === 401) return new WebdavError('AUTH_FAILED', `${action}: wrong account or application password`)
+    if (response.status === 404) return new WebdavError('NOT_FOUND', `${action}: remote path not found`)
+    const body = await response.text().catch(() => '')
+    if (response.status === 403 && trafficRateExhausted(body)) return new WebdavError('TRAFFIC_EXHAUSTED', `${action}: HTTP 403 TrafficRateExhausted`)
+    return new WebdavError(response.status === 403 ? 'FORBIDDEN' : 'REQUEST_FAILED', `${action}: HTTP ${response.status} ${body}`.trim())
+  }
+  /** Classify and throw; the operation paths share {@linkcode failureOf}. */
   const failure = async (response: Response, action: string): Promise<never> => {
-    if (response.status === 401) throw new WebdavError('AUTH_FAILED', `${action}: wrong account or application password`)
-    if (response.status === 404) throw new WebdavError('NOT_FOUND', `${action}: remote path not found`)
-    throw new WebdavError('REQUEST_FAILED', `${action}: HTTP ${response.status} ${await response.text().catch(() => '')}`.trim())
+    throw await failureOf(response, action)
   }
   return {
     async ensureDir(remotePath: string): Promise<void> {
@@ -127,15 +142,15 @@ export function createWebdavClient(options: WebdavClientOptions): WebdavClient {
       await pipeline(Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]), createWriteStream(localAbs))
     },
     async testConnection(): Promise<{ ok: true } | { ok: false; code: WebdavError['code']; message: string }> {
+      let response: Response
       try {
-        const response = await fetch(`${base}/`, { method: 'PROPFIND', headers: { ...headers(), Depth: '0' } })
-        if (response.ok) return { ok: true }
-        if (response.status === 401) return { ok: false, code: 'AUTH_FAILED', message: 'wrong account or application password' }
-        if (response.status === 404) return { ok: false, code: 'NOT_FOUND', message: 'server address or directory not found' }
-        return { ok: false, code: 'REQUEST_FAILED', message: `HTTP ${response.status}` }
+        response = await fetch(`${base}/`, { method: 'PROPFIND', headers: { ...headers(), Depth: '0' } })
       } catch (error) {
         return { ok: false, code: 'REQUEST_FAILED', message: error instanceof Error ? error.message : String(error) }
       }
+      if (response.ok) return { ok: true }
+      const failure = await failureOf(response, 'PROPFIND /')
+      return { ok: false, code: failure.code, message: failure.message }
     },
   }
 }

@@ -106,17 +106,18 @@ describe('ConversationController', () => {
     await b.runtime.dispose()
   })
 
-  it('folds Session business failures into callback rejections', async () => {
+  it('rejects send, cancel, and updateQueue with the Session failure identity preserved', async () => {
     const b = await bench()
-    b.prompt.mockResolvedValueOnce({ ok: false, error: new RemoteError('session/agent-busy', 'busy', { reason: 'busy' }) } as never)
-    await expect(b.scoped.send('x')).rejects.toThrow('conversation.send failed: session/agent-busy: busy')
-    b.cancel.mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', 'nope', {}) } as never)
-    await expect(b.scoped.cancel()).rejects.toThrow('conversation.cancel failed: gateway/internal: nope')
-    b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: new RemoteError('gateway/internal', 'broken', {}),
-    } as never)
-    await expect(b.scoped.updateQueue('item-1' as never, { kind: 'steer' }))
-      .rejects.toThrow('conversation.updateQueue failed: gateway/internal: broken')
+    const busy = new RemoteError('session/agent-busy', 'busy', { reason: 'busy' })
+    b.prompt.mockResolvedValueOnce({ ok: false, error: busy } as never)
+    // The original failure object rejects unchanged, so its code and message stay distinguishable.
+    await expect(b.scoped.send('x')).rejects.toBe(busy)
+    const nope = new RemoteError('gateway/internal', 'nope', {})
+    b.cancel.mockResolvedValueOnce({ ok: false, error: nope } as never)
+    await expect(b.scoped.cancel()).rejects.toBe(nope)
+    const broken = new RemoteError('gateway/internal', 'broken', {})
+    b.updateQueue.mockResolvedValueOnce({ ok: false, error: broken } as never)
+    await expect(b.scoped.updateQueue('item-1' as never, { kind: 'steer' })).rejects.toBe(broken)
     await b.runtime.dispose()
   })
 
@@ -133,8 +134,9 @@ describe('ConversationController', () => {
     b.updateQueue.mockResolvedValueOnce({
       ok: false, error: new RemoteError('session/queue-item-not-found', 'claimed', { itemId: 'item-1' as MessageId }),
     } as never)
+    // The remove path rejects with the original failure, so its code stays distinguishable.
     await expect(b.scoped.updateQueue('item-3' as never, { kind: 'remove' }))
-      .rejects.toThrow('conversation.updateQueue failed: session/queue-item-not-found: claimed')
+      .rejects.toMatchObject({ code: 'session/queue-item-not-found', message: 'claimed' })
     await b.runtime.dispose()
   })
 

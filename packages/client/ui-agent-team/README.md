@@ -31,6 +31,8 @@ Turning off the menu switch requires confirmation after the Session records a mo
 
 Chat hides historical `/team on` and `/team off` receipts with pending or successful outcomes. Failures remain visible with a Users icon, a localized “Agent teamwork” title, and a localized failure prefix followed by the first nonempty line of the recorded reason without translation. Expanding the receipt shows the full original error. Unknown or missing arguments retain a visible receipt.
 
+Selection and disable-confirmation failures surface a localized safe summary from the shared `userErrorMessage` helper in [ui-primitives](../ui-primitives/README.md); raw exception text, codes, and details stay out of the presentation copy and remain available in session diagnostics.
+
 The [Web bundle](../../bundle/web-app/README.md) loads this package by default. The Web Client loader mounts the `/client` export; the root Host export is inert, and the package has no user configuration fields.
 
 ### Inspect the task board

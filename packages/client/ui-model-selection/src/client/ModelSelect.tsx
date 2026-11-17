@@ -37,7 +37,7 @@ import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconCloseFillRegular,
-  IconDataOutlineRegular, IconWarningOutlineRegular, Input, isMobileDevice, rankByName, StateDot, Tag, Toast,
+  IconDataOutlineRegular, IconWarningOutlineRegular, Input, isMobileDevice, rankByName, StateDot, Tag, Toast, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelLabelOwner, ModelSelectInjected } from './slots.ts'
@@ -358,7 +358,8 @@ export function ModelSelect(
       seq: toastSeq.current,
       text: error.code === 'session/writer-held'
         ? t('error.sessionInUse')
-        : t('error.action', { message: `${error.code}: ${error.message}` }),
+        // Hemi fork: the selection result already carries its code; unknown diagnostics use shared operation copy.
+        : t('error.action', { message: userErrorMessage(t, error) }),
     })
   }
 
@@ -549,13 +550,13 @@ export function ModelSelect(
               )}
               {state.error !== null && lastActionRef.current === 'load' && (
                 <div className={css.error}>
-                  <span>{t('error.action', { message: state.error })}</span>
+                  <span>{t('error.action', { message: userErrorMessage(t, state.error) })}</span>
                   <button type="button" className={css.retry} onClick={reload}>{t('retry')}</button>
                 </div>
               )}
               {state.failures.map(failure => (
                 <div className={css.warning} key={failure.id}>
-                  <span>{t('warning.groupLoad', { name: failure.id === 'deepseek-account' ? t('provider.account') : failure.name, message: failure.message })}</span>
+                  <span>{t('warning.groupLoad', { name: failure.id === 'deepseek-account' ? t('provider.account') : failure.name, message: userErrorMessage(t, failure) })}</span>
                   <button type="button" className={css.retry} onClick={reload}>{t('retry')}</button>
                 </div>
               ))}
@@ -620,7 +621,7 @@ export function ModelSelect(
             <>
               {state.error !== null && lastActionRef.current === 'load' && (
                 <div className={css.error}>
-                  <span>{t('error.action', { message: state.error })}</span>
+                  <span>{t('error.action', { message: userErrorMessage(t, state.error) })}</span>
                   <button type="button" className={css.retry} onClick={reload}>{t('action.reload')}</button>
                 </div>
               )}

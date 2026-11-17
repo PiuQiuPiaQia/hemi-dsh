@@ -1,8 +1,8 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`localizes every editor state and keeps provider/model ids unchanged 1`] = `"Model routingMain agentUsed by the conversation and any role that follows the main model.Main catalog modelProvider A · model/aReasoning effort: highRole agentsResearchRead sources and summarize findingsFollow main modelReviewAnalyze problems independently, compare approaches, and assess risksretired/modelremoved · retired/modelReasoning effort: lowNot in the current catalog. The saved route is retained until you replace it.ExecutionMake changes and verify resultsFollow main modelDesignDesign and implement the interfaceFollow main modelTo keep using the same current model, turn off automatic routing first.Could not save Main agent: network errorDone"`;
+exports[`localizes every editor state and keeps provider/model ids unchanged 1`] = `"Model routingMain agentUsed by the conversation and any role that follows the main model.Main catalog modelProvider A · model/aReasoning effort: highRole agentsResearchRead sources and summarize findingsFollow main modelReviewAnalyze problems independently, compare approaches, and assess risksretired/modelremoved · retired/modelReasoning effort: lowNot in the current catalog. The saved route is retained until you replace it.ExecutionMake changes and verify resultsFollow main modelDesignDesign and implement the interfaceFollow main modelTo keep using the same current model, turn off automatic routing first.Could not save Main agent: The outcome could not be confirmed. Check the current state before trying again.Done"`;
 
-exports[`localizes every editor state and keeps provider/model ids unchanged 2`] = `"模型路由主智能体主对话和跟随主模型的角色使用此型号Main catalog modelProvider A · model/a推理强度：high角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由主智能体保存失败：network error完成"`;
+exports[`localizes every editor state and keeps provider/model ids unchanged 2`] = `"模型路由主智能体主对话和跟随主模型的角色使用此型号Main catalog modelProvider A · model/a推理强度：high角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由主智能体保存失败：无法确认操作结果，请先核对当前状态，再决定是否重试完成"`;
 
 exports[`makes empty visible 1`] = `"模型路由暂无可用模型，请在“设置 → 模型”中添加后重新加载重新加载目录主智能体主对话和跟随主模型的角色使用此型号model/aprovider/a · model/a推理强度：high当前目录中找不到此型号，原配置已保留，选择新模型后才会替换角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由完成"`;
 
@@ -10,7 +10,7 @@ exports[`makes loading visible 1`] = `"模型路由完成"`;
 
 exports[`makes partial visible 1`] = `"模型路由部分模型目录加载失败：Down provider重新加载目录主智能体主对话和跟随主模型的角色使用此型号Main catalog modelProvider A · model/a推理强度：high角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由完成"`;
 
-exports[`makes saveError visible 1`] = `"模型路由主智能体主对话和跟随主模型的角色使用此型号Main catalog modelProvider A · model/a推理强度：high角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由主智能体保存失败：offline完成"`;
+exports[`makes saveError visible 1`] = `"模型路由主智能体主对话和跟随主模型的角色使用此型号Main catalog modelProvider A · model/a推理强度：high角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由主智能体保存失败：无法确认操作结果，请先核对当前状态，再决定是否重试完成"`;
 
 exports[`makes saveRefused visible 1`] = `"模型路由主智能体主对话和跟随主模型的角色使用此型号Main catalog modelProvider A · model/a推理强度：high角色智能体研究阅读资料并汇总结论跟随主模型评审独立分析问题、比较方案并评估风险retired/modelremoved · retired/model推理强度：low当前目录中找不到此型号，原配置已保留，选择新模型后才会替换执行完成改动并验证结果跟随主模型设计设计并实现用户界面跟随主模型要固定使用当前同一型号，请先关闭自动路由研究保存失败，设置可能已变化，请重试完成"`;
 

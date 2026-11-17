@@ -8,6 +8,7 @@ import { allowAllAccess, bindSnapshotSelector, RemoteError } from '@deepseek-ai/
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { PermissionRow, type PermissionRowProps } from '../src/client/PermissionRow.tsx'
 import { zh } from '../src/client/locales.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { PermissionPresetSettingsController } from '../src/client/settings-store.ts'
 
@@ -54,7 +55,8 @@ function ok<T>(value: T) {
   return { ok: true as const, value }
 }
 
-const dictionary: Record<string, string> = zh
+// The seat's key domain is permission ∪ common; the lookup mirrors the runtime chain with real common copy.
+const dictionary: Record<string, string> = { ...commonZh, ...zh }
 const t: PermissionRowProps['t'] = key => dictionary[key] ?? key
 type AttentionSnapshot = Parameters<Parameters<PermissionRowProps['useSessionStatus']>[0]>[0]
 const noAttention: AttentionSnapshot = new Map()
@@ -176,6 +178,10 @@ describe('PermissionRow', () => {
     const button = await screen.findByRole('button', { name: '仅可查看' })
     fireEvent.click(button)
     fireEvent.click(screen.getByRole('menuitem', { name: '工作区内修改' }))
-    expect((await screen.findByRole('alert')).textContent).toBe('changed elsewhere')
+    // Hemi fork: the write failure stays contained and shows the shared safe summary, never the conflict text.
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(commonZh['uiError.unknown'])
+    expect(alert.textContent).not.toContain('changed elsewhere')
+    expect(alert.textContent).not.toContain('settings/conflict')
   })
 })

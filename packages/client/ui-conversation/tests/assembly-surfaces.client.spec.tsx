@@ -242,7 +242,9 @@ describe('prompt rejection through the assembled composer', () => {
       }
     })
     const alert = await view.findByRole('alert')
-    expect(alert.textContent).toContain('prompt rejected before acceptance (session/agent-busy)')
+    // The assembled composer reports the shared safe summary; the raw wire diagnostic stays off the DOM.
+    expect(alert.textContent).toContain('uiError.unknown')
+    expect(alert.textContent).not.toContain('prompt rejected before acceptance')
     await waitFor(() => {
       expect(shell.snapshot.draft).toBe('do not lose this')
     })

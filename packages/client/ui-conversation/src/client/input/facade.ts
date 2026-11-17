@@ -42,6 +42,9 @@ export interface PopupDismissFace {
 export interface SessionInputDeps {
   /** Session-scope ctx handed to claim.submit transactions. */
   actx: Context
+  // Hemi fork: operation copy is injected so exception data does not become machine notices.
+  /** Localized safe summary for an unexpected operation failure; diagnostics stay on the original error. */
+  describeFailure(failure: unknown): string
   /** Snapshot the Session facts before asynchronous command arbitration. */
   submissionState?: () => MessageSubmissionState
   /** Notify one ordinary message attempt before reference serialization. */
@@ -112,11 +115,6 @@ function projectionContentChanged(prev: EditorProjection, next: EditorProjection
     const old = prev.occurrences[i]
     return old === undefined || old.occurrenceId !== occ.occurrenceId || old.invalid !== occ.invalid
   })
-}
-
-/** Message of a failure surfaced as a composer notice. */
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 const EMPTY_QUEUE: InboxState['next-turn'] = []
@@ -777,7 +775,7 @@ export class SessionInputShell implements SessionInput {
   /** Settle a send that ended without a Host outcome; the draft stays for correction. */
   private failSink(attempt: SubmitAttempt, error: unknown): void {
     if (this.dead(attempt)) return
-    this.dispatchRun(({ type: 'sink-settled', attempt, ok: false, message: errorText(error) }))
+    this.dispatchRun(({ type: 'sink-settled', attempt, ok: false, message: this.deps.describeFailure(error) }))
   }
 
   /** Enter adjudication: poll the session controller; failure = notice + draft retained (never a silent downgrade). */
@@ -795,7 +793,7 @@ export class SessionInputShell implements SessionInput {
       },
       (error: unknown) => {
         if (this.dead(attempt)) return
-        const message = error instanceof Error ? error.message : String(error)
+        const message = this.deps.describeFailure(error)
         this.dispatchRun(({ type: 'adjudication-failed', attempt, message }))
       },
     )
@@ -834,7 +832,7 @@ export class SessionInputShell implements SessionInput {
         },
         (error: unknown) => {
           if (this.dead(attempt)) return
-          const message = error instanceof Error ? error.message : String(error)
+          const message = this.deps.describeFailure(error)
           this.dispatchRun(({
             type: 'submit-settled', attempt, ok: false,
             command: this.projection.command, message,

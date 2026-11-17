@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { UserFacingError, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SelectOption } from '../src/client/contract.ts'
 import type { PopupSpec, TokenSegment } from '../src/client/popup.ts'
 import { filterOptions, PopupSelectController } from '../src/client/popup.ts'
@@ -37,7 +38,9 @@ function spec(overrides: Partial<PopupSpec<Ctx>> = {}): PopupSpec<Ctx> {
 function makeDeps(consumeResult = true) {
   const consume = vi.fn((_segment: TokenSegment) => consumeResult)
   const focusComposer = vi.fn()
-  return { consume, focusComposer }
+  // The runtime's voice (service.ts): the shared safe reporter over an identity locale.
+  const describeFailure = vi.fn((failure: unknown) => userErrorMessage(key => key, failure))
+  return { consume, focusComposer, describeFailure }
 }
 
 async function readyPopup(overrides: Partial<PopupSpec<Ctx>> = {}, deps = makeDeps()) {
@@ -188,7 +191,7 @@ describe('open and options load', () => {
     await Promise.resolve()
     popup.setSearch('da')
     // The failure landed before setSearch (readyPopup awaited); search must survive it and retry.
-    expect(popup.state.getSnapshot()).toMatchObject({ open: true, status: 'failed', error: 'directory down', search: 'da' })
+    expect(popup.state.getSnapshot()).toMatchObject({ open: true, status: 'failed', error: 'uiError.unknown', search: 'da' })
     popup.retry()
     expect(popup.state.getSnapshot()).toMatchObject({ status: 'pending', error: null })
     await Promise.resolve()
@@ -353,12 +356,36 @@ describe('select', () => {
     popup.move(1)
     await popup.select(1)
     expect(popup.state.getSnapshot()).toMatchObject({
-      open: true, status: 'ready', submitting: false, error: 'host rejected', search: 'a', active: 1,
+      open: true, status: 'ready', submitting: false, error: 'uiError.unknown', search: 'a', active: 1,
     })
+    expect(deps.describeFailure).toHaveBeenCalledExactlyOnceWith(expect.any(Error))
     expect(deps.consume).not.toHaveBeenCalled()
     await popup.select(1) // retry = selecting again
     expect(deps.consume).toHaveBeenCalledExactlyOnceWith(SEGMENT)
     expect(popup.state.getSnapshot().open).toBe(false)
+  })
+
+  it('a raw diagnostic rejection never enters the error strip; only the safe summary does', async () => {
+    const diagnostic = new Error('<error>PUT /private/key.txt token=secret</error>')
+    const deps = makeDeps()
+    const { popup } = await readyPopup({ onSelect: () => Promise.reject(diagnostic) }, deps)
+    await popup.select(0)
+    expect(popup.state.getSnapshot().error).toBe('uiError.unknown')
+    expect(deps.describeFailure).toHaveBeenCalledExactlyOnceWith(diagnostic)
+    // The retained failure keeps its diagnostics for the console, never the shell state.
+    expect(diagnostic.message).toContain('/private/key.txt')
+  })
+
+  it('a UserFacingError keeps its explicit advice in the error strip instead of the generic summary', async () => {
+    const cause = new Error('handler refused')
+    const advice = new UserFacingError('当前命令不支持附件，请先移除图片', { cause })
+    const deps = makeDeps()
+    const { popup } = await readyPopup({ onSelect: () => Promise.reject(advice) }, deps)
+    await popup.select(0)
+    expect(popup.state.getSnapshot().error).toBe('当前命令不支持附件，请先移除图片')
+    // The generic summary never replaces explicit business advice.
+    expect(popup.state.getSnapshot().error).not.toBe('uiError.unknown')
+    expect(advice.cause).toBe(cause)
   })
 
   it('ignores selects while closed, pending, failed, or out of filtered range', async () => {

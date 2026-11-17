@@ -4,9 +4,10 @@
  * through the `hemiBackup` Remote namespace.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Switch, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { BackupSetView, BackupStateView, RestorePreview } from './types.ts'
+import type { BackupFailureCode, BackupOperationResult, BackupProgress, BackupSetView, BackupStateView, RestoreApplyResult, RestorePreview } from './types.ts'
+import type { BackupLocaleKey } from './locales.ts'
 import css from './BackupSection.module.css'
 
 /** Target editor draft; the password is sent only when filled in. */
@@ -34,17 +35,17 @@ export interface BackupSectionInjected {
   /** Save schedule preferences. */
   saveSchedule: (schedule: { enabled: boolean; interval: 'daily' | 'weekly' }, keep: number) => Promise<BackupStateView>
   /** Probe a target draft without saving it. */
-  testConnection: (target: TargetDraft) => Promise<{ ok: boolean; message?: string }>
+  testConnection: (target: TargetDraft) => Promise<BackupOperationResult>
   /** Run one backup now. */
-  runNow: () => Promise<{ ok: boolean; message?: string }>
+  runNow: () => Promise<BackupOperationResult>
   /** List backup sets on the configured target. */
   listBackups: () => Promise<readonly BackupSetView[]>
   /** Delete one backup set. */
-  deleteSet: (name: string) => Promise<{ ok: boolean; message?: string }>
+  deleteSet: (name: string) => Promise<BackupOperationResult>
   /** Stage one set and return the restore preview. */
-  restorePrepare: (name: string) => Promise<{ ok: boolean; preview?: RestorePreview; message?: string }>
+  restorePrepare: (name: string) => Promise<BackupOperationResult & { preview?: RestorePreview }>
   /** Apply the staged restore. */
-  restoreApply: () => Promise<{ ok: boolean; message?: string }>
+  restoreApply: () => Promise<RestoreApplyResult>
   /** Discard the staged restore. */
   restoreCancel: () => Promise<{ ok: boolean }>
 }
@@ -55,6 +56,30 @@ export type BackupSectionProps = PropsRuntime<'settings.section'>
   & InjectFace<BackupSectionInjected>
 
 type Busy = 'load' | 'target' | 'test' | 'run' | 'schedule' | 'list' | 'delete' | 'prepare' | 'apply' | null
+type Notice = { ok: boolean; text: string }
+
+/** Business-specific failures keep owner copy; the generic FAILED outcome falls back to the shared summary. */
+const failureKeys: Record<Exclude<BackupFailureCode, 'FAILED'>, BackupLocaleKey> = {
+  BUSY: 'errorBusy',
+  NO_TARGET: 'errorNoTarget',
+  NO_RESTORE: 'errorNoRestore',
+  INVALID_NAME: 'errorInvalidName',
+  NO_PASSWORD: 'errorNoPassword',
+  AUTH_FAILED: 'errorAuth',
+  NOT_FOUND: 'errorNotFound',
+  REQUEST_FAILED: 'errorRequest',
+  FORBIDDEN: 'errorForbidden',
+  TRAFFIC_EXHAUSTED: 'errorTraffic',
+  PARTIAL_RESTORE: 'errorPartialRestore',
+}
+
+const progressKeys: Record<BackupProgress['phase'], BackupLocaleKey> = {
+  pack: 'progressPack',
+  upload: 'progressUpload',
+  prune: 'progressPrune',
+  done: 'lastRunOk',
+  error: 'lastRunFailed',
+}
 
 const formatBytes = (bytes: number | null | undefined): string => {
   if (bytes === null || bytes === undefined) return ''
@@ -96,7 +121,7 @@ export function BackupSection(props: BackupSectionProps) {
   const [keep, setKeep] = useState('5')
   const [sets, setSets] = useState<readonly BackupSetView[]>([])
   const [busy, setBusy] = useState<Busy>('load')
-  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
   const [restore, setRestore] = useState<{ name: string; preview: RestorePreview } | null>(null)
   const alive = useRef(true)
 
@@ -132,7 +157,7 @@ export function BackupSection(props: BackupSectionProps) {
         await refresh()
         await refreshList()
       } catch (error) {
-        if (alive.current) setNotice({ ok: false, text: error instanceof Error ? error.message : String(error) })
+        if (alive.current) setNotice({ ok: false, text: userErrorMessage(t, error) })
       } finally {
         if (alive.current) setBusy(null)
       }
@@ -174,12 +199,16 @@ export function BackupSection(props: BackupSectionProps) {
     try {
       await action()
     } catch (error) {
-      setNotice({ ok: false, text: error instanceof Error ? error.message : String(error) })
+      // An apply rejection leaves the staged restore uncertain; the other actions commit nothing.
+      setNotice({ ok: false, text: mark === 'apply' ? t('errorPartialRestore') : userErrorMessage(t, error) })
     } finally {
       setBusy(null)
     }
   }
 
+  const failureText = (result: BackupOperationResult): string =>
+    result.code === undefined || result.code === 'FAILED' ? userErrorMessage(t, result) : t(failureKeys[result.code])
+  const noticeText = notice === null ? '' : notice.text
   const lastRun = state?.settings.lastRun ?? null
   const hasTarget = state?.settings.target != null
 
@@ -198,7 +227,7 @@ export function BackupSection(props: BackupSectionProps) {
               ? (hasTarget ? t('lastRunNone') : '')
               : lastRun.ok
                 ? `${t('lastRunOk')} · ${formatTime(lastRun.at)} · ${formatBytes(lastRun.packedBytes)}`
-                : `${t('lastRunFailed')} · ${formatTime(lastRun.at)} · ${lastRun.message ?? ''}`}
+                : `${t('lastRunFailed')} · ${formatTime(lastRun.at)} · ${failureText(lastRun)}`}
           </span>
         </div>
 
@@ -258,7 +287,7 @@ export function BackupSection(props: BackupSectionProps) {
         <div className={css.actions}>
           <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void guard('test', async () => {
             const result = await testConnection(draft)
-            setNotice({ ok: result.ok, text: result.ok ? t('testOk') : result.message ?? t('saveFailed') })
+            setNotice({ ok: result.ok, text: result.ok ? t('testOk') : failureText(result) })
           })}>
             {busy === 'test' ? t('testing') : t('test')}
           </Button>
@@ -272,7 +301,7 @@ export function BackupSection(props: BackupSectionProps) {
           </Button>
           <Button variant="primary" size="sm" disabled={busy !== null || !hasTarget} onClick={() => void guard('run', async () => {
             const result = await runNow()
-            setNotice({ ok: result.ok, text: result.ok ? t('saved') : result.message ?? t('saveFailed') })
+            setNotice({ ok: result.ok, text: result.ok ? t('saved') : failureText(result) })
             await refresh()
             await refreshList()
           })}>
@@ -360,7 +389,7 @@ export function BackupSection(props: BackupSectionProps) {
                         onClick={() => void guard('prepare', async () => {
                           const result = await restorePrepare(set.name)
                           if (result.ok && result.preview !== undefined) setRestore({ name: set.name, preview: result.preview })
-                          else setNotice({ ok: false, text: result.message ?? t('applyFailed') })
+                          else setNotice({ ok: false, text: failureText(result) })
                         })}
                       >
                         {busy === 'prepare' ? t('preparing') : t('restore')}
@@ -372,7 +401,8 @@ export function BackupSection(props: BackupSectionProps) {
                         onClick={() => void guard('delete', async () => {
                           if (!window.confirm(t('deleteConfirm'))) return
                           const result = await deleteSet(set.name)
-                          setNotice({ ok: result.ok, text: result.ok ? '' : result.message ?? t('saveFailed') })
+                          setNotice({ ok: result.ok, text: result.ok ? '' : failureText(result) })
+                          if (!result.ok) return
                           await refreshList()
                         })}
                       >
@@ -407,7 +437,10 @@ export function BackupSection(props: BackupSectionProps) {
             </Button>
             <Button variant="primary" size="sm" disabled={busy !== null} onClick={() => void guard('apply', async () => {
               const result = await restoreApply()
-              setNotice({ ok: result.ok, text: result.ok ? t('applied') : result.message ?? t('applyFailed') })
+              const text = result.ok ? t('applied') : failureText(result)
+              const location = result.code === 'PARTIAL_RESTORE' && result.safeCopyRoot !== undefined
+                ? ` ${t('safeCopyLocation')} ${result.safeCopyRoot}` : ''
+              setNotice({ ok: result.ok, text: text + location })
               setRestore(null)
             })}>
               {busy === 'apply' ? t('applying') : t('apply')}
@@ -416,8 +449,8 @@ export function BackupSection(props: BackupSectionProps) {
         </div>
       ) : null}
 
-      {notice !== null && notice.text !== '' ? <p className={notice.ok ? css.noticeOk : css.noticeBad} role="status">{notice.text}</p> : null}
-      {state?.progress != null && state.isRunning ? <p className={css.help} role="status">{state.progress.detail ?? state.progress.phase}</p> : null}
+      {notice !== null && noticeText !== '' ? <p className={notice.ok ? css.noticeOk : css.noticeBad} role="status">{noticeText}</p> : null}
+      {state?.progress != null && state.isRunning ? <p className={css.help} role="status">{t(progressKeys[state.progress.phase])}</p> : null}
     </section>
   )
 }

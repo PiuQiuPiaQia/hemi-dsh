@@ -12,6 +12,10 @@ import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button, focusWithoutRing, IconFolderCloseRegular, IconGlobeOutlineRegular, IconPlusOutlineRegular, Menu, Modal, type MenuEntry,
+  // Hemi fork: adoption failures show the shared safe summary (userErrorMessage)
+  // rather than the raw Host diagnostic; the flow-reported onError copy is the
+  // occupant's own already-localized text and renders unchanged.
+  userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   WorkspaceId, WorkspaceSnapshot, WorkspaceView,
@@ -172,7 +176,7 @@ export function WorkspacePickFlow({
       setFlowOpen(false)
       onPick(workspace.workspaceId)
     }).catch((reason: unknown) => {
-      setModalError(reason instanceof Error ? reason.message : String(reason))
+      setModalError(userErrorMessage(t, reason))
       setFlowOpen(false)
       setErrorOpen(true)
     })

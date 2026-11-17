@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, within } from '@testing-library/react'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
-import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { failureLine } from '../src/client/workspace-tree.ts'
 import type { DirLevel } from '../src/client/store.ts'
@@ -295,7 +295,7 @@ describe('FilesBody', () => {
 })
 
 describe('failureLine', () => {
-  const t = makeTranslate(zh)
+  const t = makeTranslate(zh, commonZh)
 
   it('names each directory failure', () => {
     expect(failureLine(t, new RemoteError('workspace-file/not-found', 'x', { path: 'p' }))).toBe(zh['error.notFound'])
@@ -305,9 +305,10 @@ describe('failureLine', () => {
       .toBe(zh['error.notDirectory'])
   })
 
-  it('carries an unclassified failure\'s own message', () => {
-    const failure = { code: 'remote/transport', message: 'socket closed' } as unknown as RemoteFailure
-    expect(failureLine(t, failure)).toBe('读取失败：socket closed')
+  it('replaces carrier and unclassified failures with the shared safe summary', () => {
+    const failure = new RemoteError('gateway/internal', '<error>/private/secret path</error>\n    at list (/host/dir.js:3:1)', {})
+    expect(failureLine(t, failure)).toBe(commonZh['uiError.unknown'])
+    expect(failureLine(t, new RemoteError('gateway/cancelled', 'aborted', {}))).toBe(commonZh['uiError.cancelled'])
   })
 })
 

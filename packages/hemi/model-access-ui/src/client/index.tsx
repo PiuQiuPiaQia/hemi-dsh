@@ -29,13 +29,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services needed to register the section and its Remote contribution. */
 export const inject = ['slots', 'locale', 'remote']
 
+/** Unwrap one Remote result envelope or rethrow its typed failure (code and details survive). */
 async function unwrap<T>(request: Promise<RemoteResult<T>>): Promise<T> {
-  const result = await request
-  if (!result.ok) throw new Error(result.error.message)
-  return result.value
-}
-
-async function unwrapVvcode<T>(request: Promise<RemoteResult<T>>): Promise<T> {
   const result = await request
   if (!result.ok) throw result.error
   return result.value
@@ -79,9 +74,9 @@ function register(ctx: Context): void {
     subscriptionCandidates: (provider, signal) => unwrap(remote.subscriptionCandidates(provider, signal)),
     subscriptionModels: (provider, signal) => unwrap(remote.subscriptionModels(provider, signal)),
     changeSubscriptionModel: (provider, model, add) => unwrap(remote.changeSubscriptionModel(provider, model, add)),
-    vvcodeUsage: signal => unwrapVvcode(remote.vvcodeUsage(signal)),
-    vvcodeDirectory: signal => unwrapVvcode(remote.vvcodeDirectory(signal)),
-    saveVvcodeModels: (selections, signal) => unwrapVvcode(remote.saveVvcodeModels(selections, signal)),
+    vvcodeUsage: signal => unwrap(remote.vvcodeUsage(signal)),
+    vvcodeDirectory: signal => unwrap(remote.vvcodeDirectory(signal)),
+    saveVvcodeModels: (selections, signal) => unwrap(remote.saveVvcodeModels(selections, signal)),
     subscriptions: () => unwrap(remote.subscriptions()),
     state: () => unwrap(remote.state()),
     start: provider => unwrap(remote.start(provider)),

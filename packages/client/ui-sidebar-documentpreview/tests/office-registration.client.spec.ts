@@ -6,6 +6,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-office-to-pdf/remote'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { UserFacingError } from '@deepseek-ai/dsh-client-ui-primitives'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { DocumentPreviewRegistry } from '../src/client/document/registry.ts'
 import { apply } from '../src/client/office/index.ts'
 import { officeFace } from '../src/client/office/face.ts'
@@ -45,9 +47,12 @@ it('retains Office view state across remounts and releases it on tab close or pl
     expect(h.instance.getSnapshot().byTab[first]).toBeUndefined()
     h.instance.actions.loading(second, 1)
     h.injected.retainTab(second, retained.signal)
-    const message = documentEn['error.unavailable'].replace('{message}', 'conversion stopped')
-    expect(h.describeFailure(new RemoteError('gateway/internal', 'conversion stopped', {}))).toBe(message)
-    expect(h.describeFailure({ message: 'conversion stopped' })).toBe(message)
+    // Declared Remote failures show the shared safe summary; the registration's
+    // own localized refusals keep their copy.
+    expect(h.describeFailure(new RemoteError('gateway/internal', '<error>/private/path</error>', {})))
+      .toBe(commonEn['uiError.unknown'])
+    expect(h.describeUnexpectedFailure(new Error('conversion stopped'))).toBe(commonEn['uiError.unknown'])
+    expect(h.describeUnexpectedFailure(new UserFacingError(en.busy))).toBe(en.busy)
     await h.close()
     expect(h.instance.getSnapshot().byTab[second]).toBeUndefined()
   } finally { closed.abort(); retained.abort(); await h.close() }
@@ -57,7 +62,8 @@ async function harness(config: Partial<Config['office']> = {}, missing?: 'remote
   const ctx = new Context()
   const registry = new DocumentPreviewRegistry()
   const removeLocale = vi.fn()
-  const locale = { register: vi.fn(() => removeLocale), bind: (name: string) => name === 'sidebarDocumentPreview' ? makeTranslate(documentEn) : makeTranslate(en) }
+  const locale = { register: vi.fn(() => removeLocale), bind: (name: string) => name === 'sidebarDocumentPreview'
+    ? makeTranslate(documentEn, commonEn) : makeTranslate(en) }
   const render = vi.fn<ClientRemote['officeToPdf']['render']>().mockResolvedValue(converted)
   const rendererGeneration = vi.fn<ClientRemote['officeToPdf']['generation']>().mockResolvedValue({ ok: true, value: generation })
   const stat = vi.fn<ClientRemote['workspaceFiles']['stat']>().mockResolvedValue({ ok: true, value: source })
@@ -80,8 +86,9 @@ async function harness(config: Partial<Config['office']> = {}, missing?: 'remote
   const entry = recorded.find(entry => entry.component === OfficeBody)!.options
   const instance = entry.store.create()
   const injected = entry.inject(file.sessionId, instance.actions)
-  const [read, describeFailure] = vi.mocked(officeFace).mock.calls.at(-1)!
-  return { ctx, registry, instance, injected, describeFailure, recorded, locale, removeLocale, render, rendererGeneration,
+  const [read, describeFailure, describeUnexpectedFailure] = vi.mocked(officeFace).mock.calls.at(-1)!
+  return { ctx, registry, instance, injected, describeFailure, describeUnexpectedFailure,
+    recorded, locale, removeLocale, render, rendererGeneration,
     stat, readBytes, register, removeNotice,
     read: (signal = new AbortController().signal, path = file.path) => read({ ...file, path }, signal),
     close: () => fiber.dispose(),

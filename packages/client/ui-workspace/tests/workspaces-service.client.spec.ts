@@ -17,6 +17,7 @@ import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LayoutController } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import type { DraftInitializationOptions, SessionInputResolver } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { RowToast } from '../src/client/contract/slots.ts'
 import { DirectoryBrowseError, UiWorkspaceService } from '../src/client/navigation.ts'
@@ -284,6 +285,10 @@ function bench(options: BenchOptions = {}) {
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('en')
   ctx.effect(() => locale.register('workspace', { en, zh }))
+  // The shared operation-error copy lives in the common namespace the locale
+  // plugin registers in production; the summaries these specs assert resolve
+  // through the same chain.
+  ctx.effect(() => locale.register('common', 'en', commonEn))
   ctx.provide('locale', locale)
   const requestDraftInitialization = vi.fn<SessionInputResolver['requestDraftInitialization']>(() => 'applied')
   if (options.conversation !== false) ctx.provide('conversation', { input: { requestDraftInitialization } })
@@ -729,20 +734,22 @@ describe('UiWorkspaceService', () => {
     await vi.waitFor(() => {
       expect(b.notify).toHaveBeenCalledExactlyOnceWith({
         kind: 'createFailed',
-        message: 'agent-preset/invalid: agent-presets: preset "broken" failed to mount: row "workflow-ptc" names a plugin that cannot be resolved',
+        // Hemi fork: the notice carries the shared safe summary; the Host
+        // refusal diagnostic stays on the console warning below.
+        message: commonEn['uiError.unknown'],
       })
     })
     expect(warning).toHaveBeenCalledExactlyOnceWith('new session failed:', refused)
     expect(b.sessions.retain).not.toHaveBeenCalled()
 
     // The hero picker reaches the same creation through openWorkspace; a
-    // failure that is not a Host refusal keeps its own message.
+    // failure that is not a Host refusal reports the same safe summary.
     b.sessions.create.mockRejectedValueOnce(new Error('create failed'))
     await expect(b.uiWorkspace.openWorkspace(wid('a'))).rejects.toThrow('create failed')
-    expect(b.notify).toHaveBeenLastCalledWith({ kind: 'createFailed', message: 'create failed' })
+    expect(b.notify).toHaveBeenLastCalledWith({ kind: 'createFailed', message: commonEn['uiError.unknown'] })
     b.sessions.create.mockRejectedValueOnce('rejected without an Error')
     await expect(b.uiWorkspace.openWorkspace(wid('a'))).rejects.toBe('rejected without an Error')
-    expect(b.notify).toHaveBeenLastCalledWith({ kind: 'createFailed', message: 'rejected without an Error' })
+    expect(b.notify).toHaveBeenLastCalledWith({ kind: 'createFailed', message: commonEn['uiError.unknown'] })
     expect(b.notify).toHaveBeenCalledTimes(3)
   })
 
@@ -991,7 +998,7 @@ describe('UiWorkspaceService', () => {
       await expect(lastOpening(opening)).rejects.toThrow('unknown workspace missing')
 
       expect(b.notify).toHaveBeenCalledExactlyOnceWith({
-        kind: 'createFailed', message: 'uiWorkspace.connectWorkspace: unknown workspace missing',
+        kind: 'createFailed', message: commonEn['uiError.unknown'],
       })
       expect(warning).toHaveBeenCalledExactlyOnceWith('new session failed:', expect.any(Error))
       expect(b.requestDraftInitialization).not.toHaveBeenCalled()
@@ -1366,7 +1373,9 @@ describe('UiWorkspaceService', () => {
     created.reject(new Error('creation refused'))
 
     await vi.waitFor(() => {
-      expect(b.notify).toHaveBeenCalledExactlyOnceWith({ kind: 'createFailed', message: 'creation refused' })
+      expect(b.notify).toHaveBeenCalledExactlyOnceWith({
+        kind: 'createFailed', message: commonEn['uiError.unknown'],
+      })
     })
     expect(b.sessions.create).toHaveBeenCalledTimes(2)
     expect(b.sessions.retain).not.toHaveBeenCalled()
@@ -1553,7 +1562,11 @@ describe('UiWorkspaceService', () => {
     b.directoryPicker.onPick = () => Promise.resolve({
       ok: false, error: new RemoteError('gateway/internal', 'no chooser', {}),
     })
-    await expect(b.uiWorkspace.pickDirectory()).rejects.toThrow('directory picker failed: no chooser')
+    // Hemi fork: the pick refusal reaches presenters structured, so they can
+    // classify it; the wrapped message wrapper is gone.
+    await expect(b.uiWorkspace.pickDirectory()).rejects.toMatchObject({
+      isDSHRemoteError: true, code: 'gateway/internal',
+    })
     b.directoryPicker.onList = () => Promise.resolve({
       ok: false, error: new RemoteError('directory-picker/unreadable', 'denied', { path: '/private' }),
     })

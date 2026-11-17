@@ -128,7 +128,8 @@ export function apply(ctx: ClientContext): void {
         }
         const result = await skills.list({ sessionId }, abort.signal)
         abort.signal.throwIfAborted()
-        if (!result.ok) throw new Error(`skills/list failed: ${result.error.code}: ${result.error.message}`)
+        // Hemi fork: catalog admission errors keep their identity for the shared command/composer reporter.
+        if (!result.ok) throw result.error
         return result.value.skills
       })
     })()

@@ -39,7 +39,7 @@ A review without a logged invocation also opens automatically. Its complete text
 
 ### Failures
 
-Admission failures (`matched: false`, business errors, transport faults) surface as an inline error and the chip stays until the projection confirms the exit.
+Admission failures (`matched: false`, business errors, transport faults) surface as an inline error and the chip stays until the projection confirms the exit. Both the exit outcome and a failed plan read show the shared safe operation summary from the common locale; the command failure's message, code, and any rejection text stay off the surface and remain on the error for diagnosis. Plan reads keep their two per-code lines — invalid address and not found.
 
 -----
 

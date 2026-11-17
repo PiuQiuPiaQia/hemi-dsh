@@ -1,6 +1,6 @@
 /** PDF page presentation; binary content and tab information come from the document owner. */
 import { useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react'
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { DocumentPreviewProps } from '../document/contract.ts'
@@ -206,8 +206,15 @@ function PdfPage({ document, page, requested: initiallyRequested, onVisible, sig
   </div>
 }
 
+/**
+ * One line per failure the renderer names itself; everything else — PDF.js
+ * diagnostics included — reaches the reader only as the shared safe summary.
+ */
 function failureText(error: unknown, t: PropsLocale<'sidebarPdf'>['t']): string {
   if (error instanceof PdfWorkerFailure) return t('workerFailed')
   if (error instanceof Error && error.name === 'PasswordException') return t('password')
-  return t('failed', { message: error instanceof Error ? error.message : String(error) })
+  // Hemi fork: the unclassified fallback replaces the failure's own message,
+  // which can carry document URLs or parser internals, with the shared safe
+  // summary.
+  return userErrorMessage(t, error)
 }

@@ -31,12 +31,15 @@ export interface OfficeLoadInjected {
 /**
  * Bind Office reads to store actions without exposing Remote work to the component.
  * @param read - authorized conversion reader, including Client cache reuse.
- * @param describeFailure - localized conversion or source-access failure text.
+ * @param describeFailure - localized conversion or source-access copy for a declared Remote failure.
+ * @param describeUnexpectedFailure - safe localized copy for a rejected read, including explicit UI refusals.
  * @returns Slot inject factory; the file address supplies the read's Session authority.
  */
 export function officeFace(
   read: ReadOfficeDocument,
-  describeFailure: (failure: RemoteFailure | { readonly message: string }) => string,
+  describeFailure: (failure: RemoteFailure) => string,
+  // Hemi fork: rejected reads have no declared Remote payload; they use the generic safe presenter.
+  describeUnexpectedFailure: (failure: unknown) => string,
 ): (sessionId: SessionId, actions: BoundActions<OfficeStore>) => OfficeLoadInjected {
   return (_sessionId, actions) => ({
     load: (tabId, revision, file, signal, loaded, failed) => {
@@ -53,9 +56,7 @@ export function officeFace(
         }
       }, (error: unknown) => {
         if (!signal.aborted) {
-          actions.failed(tabId, revision, {
-            code: 'gateway/internal', message: describeFailure({ message: error instanceof Error ? error.message : String(error) }),
-          })
+          actions.failed(tabId, revision, { code: 'gateway/internal', message: describeUnexpectedFailure(error) })
           failed()
         }
       })

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { AgentPresetSectionController } from '../src/client/section-store.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -29,12 +30,14 @@ describe('the preset roster', () => {
     await Promise.all([controller.load(), controller.load()])
     expect(remote.agentPresets.list).toHaveBeenCalledOnce()
     expect(state()).toMatchObject({ status: 'ready', rows: [{ id: 'standard', isDefault: true }], view: null })
-    remote.agentPresets.list.mockRejectedValueOnce(new Error('offline'))
+    remote.agentPresets.list.mockRejectedValueOnce(new Error('offline <trace><path>/var/log/dsh/presets.log</path><token>tok-4a5b6c</token></trace>'))
     await controller.load()
-    expect(state()).toMatchObject({ status: 'error', error: 'offline' })
-    remote.agentPresets.list.mockResolvedValueOnce({ ok: false, error: { message: 'refused' } } as never)
+    expect(state()).toMatchObject({ status: 'error', error: 'offline <trace><path>/var/log/dsh/presets.log</path><token>tok-4a5b6c</token></trace>' })
+    // Hemi fork: the structured carrier failure is retained by identity; its message lands in state for diagnostics.
+    const refused = new RemoteError('gateway/internal', 'refused', {})
+    remote.agentPresets.list.mockResolvedValueOnce({ ok: false, error: refused } as never)
     await controller.load()
-    expect(state().error).toBe('refused')
+    expect(state().error).toBe(refused.message)
     remote.agentPresets.list.mockRejectedValueOnce('gone')
     await controller.load()
     expect(state().error).toBe('gone')
@@ -50,7 +53,7 @@ describe('the preset roster', () => {
     remote.agentPresets.read.mockResolvedValueOnce({ ok: true, value: { agentPreset: 'mine', content: '[]\n' } } as never)
     await controller.view('mine')
     expect(state().view).toEqual({ id: 'mine', title: 'mine', content: '[]\n' })
-    remote.agentPresets.read.mockResolvedValueOnce({ ok: false, error: { message: 'Unknown agent preset: gone' } } as never)
+    remote.agentPresets.read.mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', 'Unknown agent preset: gone', {}) } as never)
     await controller.view('gone')
     expect(state()).toMatchObject({ view: null, error: 'Unknown agent preset: gone' })
     remote.agentPresets.read.mockRejectedValueOnce(new Error('offline'))

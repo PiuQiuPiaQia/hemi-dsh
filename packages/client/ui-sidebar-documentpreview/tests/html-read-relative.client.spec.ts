@@ -40,8 +40,10 @@ describe('HTML relative file reader', () => {
     })
     const addResource = vi.fn()
     const signal = new AbortController().signal
+    // The declared failure is rethrown whole: the packed-packing catch ignores
+    // it, and the code survives for the shared failure display.
     await expect(createReadHtmlRelative(readRelated, ADDRESS, signal, addResource)('linked/../missing.css', signal))
-      .rejects.toThrow('Missing dependency')
+      .rejects.toMatchObject({ code: 'workspace-file/not-found', message: 'Missing dependency' })
     expect(addResource).toHaveBeenCalledExactlyOnceWith(sessionFileAddress('html', path))
   })
 
@@ -51,7 +53,8 @@ describe('HTML relative file reader', () => {
     })
     const addResource = vi.fn()
     const signal = new AbortController().signal
-    await expect(createReadHtmlRelative(readRelated, ADDRESS, signal, addResource)('asset.css', signal)).rejects.toThrow('Read failed')
+    await expect(createReadHtmlRelative(readRelated, ADDRESS, signal, addResource)('asset.css', signal))
+      .rejects.toMatchObject({ code: 'gateway/internal' })
     expect(addResource).not.toHaveBeenCalled()
   })
 

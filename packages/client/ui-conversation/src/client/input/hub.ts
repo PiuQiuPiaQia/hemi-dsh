@@ -13,6 +13,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { ModelSelectionProjection } from '@deepseek-ai/dsh-agent/types'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
@@ -102,6 +103,8 @@ export class InputHub implements SessionInputResolver {
     const { session, ctx: actx } = binding
     const shell = new SessionInputShell({
       actx,
+      // Hemi fork: the hub supplies safe localized operation copy while the machine remains presentation-independent.
+      describeFailure: failure => userErrorMessage(this.t, failure),
       submissionState: () => {
         const state = session.getSnapshot()
         const model = session.projections.faceOf('modelSelection').getSnapshot() as ModelSelectionProjection | undefined

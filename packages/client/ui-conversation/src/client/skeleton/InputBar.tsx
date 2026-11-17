@@ -17,7 +17,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
 import clsx from 'clsx'
 import {
-  focusWithoutRing, IconPlusOutlineMedium, IconTriangleRightFillRegular, IconWarningOutlineRegular, isMobileDevice, Toast, Tooltip,
+  focusWithoutRing, IconPlusOutlineMedium, IconTriangleRightFillRegular, IconWarningOutlineRegular,
+  isMobileDevice, Toast, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -127,7 +128,7 @@ export const InputBar = memo(function InputBar({
   // is still pending, and a transient banner is its only surface. Attachment
   // rejections show product copy keyed by the wire reason — whichever domain
   // refused them. Writer contention has localized recovery guidance; other
-  // failures retain the diagnostic message and code.
+  // failures use the shared safe summary.
   useEffect(() => {
     if (promptError === null) return
     const { error } = promptError
@@ -140,9 +141,10 @@ export const InputBar = memo(function InputBar({
       showToast(t('error.sessionInUse'))
       return
     }
+    // Hemi fork: the composer owns admission notices; shared copy hides diagnostics without changing transcript failures.
     showToast(error.code === 'session/attachment-invalid' || error.code === 'subagent/attachment-invalid'
       ? attachmentErrorText(t, error.details.reason, imageLimits)
-      : `${error.message} (${error.code})`)
+      : userErrorMessage(t, error))
   }, [promptError, showToast, t, imageLimits])
   useEffect(() => {
     if (notice?.level === 'error') showToast(notice.text)

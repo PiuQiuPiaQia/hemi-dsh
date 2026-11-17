@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  Button, IconBrowseOutlineRegular, IconPlusOutlineRegular, Modal, Tag, Tooltip,
+  Button, IconBrowseOutlineRegular, IconPlusOutlineRegular, Modal, Tag, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -101,7 +101,8 @@ export function AgentPresetSection({
   return <section className={css.section}>
     <h2 className={css.title}>{t('nav')}</h2>
     <p className={css.intro}>{t('sectionIntro')}</p>
-    {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
+    {/* Hemi fork: composition contents stay readable; operation diagnostics use the common safe summary. */}
+    {state.error === null ? null : <p className={css.error} role="alert">{userErrorMessage(t, state.error)}</p>}
     {([true, false] as const).map((builtIn) => {
       // Hemi fork: the default is a main-session choice.
       const rows = state.rows.filter(row => !row.subagentOnly && isBuiltInPreset(row) === builtIn

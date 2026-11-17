@@ -16,18 +16,19 @@ function directory(models: () => Promise<unknown>): ModelCatalogDirectory {
 }
 
 describe('ModelCatalogDirectory', () => {
-  it('shares one failing request, exposes the RPC error, and permits a retry', async () => {
+  it('shares one failing request, exposes the original Remote failure, and permits a retry', async () => {
+    const failure = new RemoteError('gateway/internal', 'catalog offline', {})
     const models = vi.fn()
-      .mockResolvedValueOnce({
-        ok: false, error: new RemoteError('gateway/internal', 'catalog offline', {}),
-      })
+      .mockResolvedValueOnce({ ok: false, error: failure })
       .mockResolvedValueOnce({ ok: true, value: catalog('recovered') })
     const subject = directory(models)
 
     const first = subject.load()
     expect(subject.load()).toBe(first)
-    await expect(first).rejects.toThrow('gateway/internal: catalog offline')
-    expect(subject.store.getSnapshot()).toMatchObject({ status: 'error', error: 'gateway/internal: catalog offline' })
+    // Hemi fork: the carrier failure propagates unchanged so entries classify by code, never by parsing diagnostics.
+    await expect(first).rejects.toBe(failure)
+    // The store may keep the diagnostic message for logs; presentation copy never renders it.
+    expect(subject.store.getSnapshot()).toMatchObject({ status: 'error', error: failure.message })
     await expect(subject.load()).resolves.toEqual(catalog('recovered'))
     expect(models).toHaveBeenCalledTimes(2)
   })

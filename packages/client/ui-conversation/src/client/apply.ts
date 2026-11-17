@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { ISessions, SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
-import { IconPaperclipOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPaperclipOutlineRegular, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore, type BoundActions } from '@deepseek-ai/dsh-client-store'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -540,7 +540,8 @@ export function apply(ctx: Context, config: Config = Config({})): void {
             return null
           } catch (error: unknown) {
             if (error instanceof UnsupportedImageMediaTypeError) return t('image.unsupportedType')
-            return error instanceof Error ? error.message : String(error)
+            // Hemi fork: file-intake failures reach the composer through this callback, not a separate presentation slot.
+            return userErrorMessage(t, error)
           }
         },
         removeAttachment: (id) => {

@@ -2605,7 +2605,7 @@ describe('WorkspaceBrowser', () => {
     fireEvent.compositionEnd(input)
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(renameWorkspace).toHaveBeenCalledWith(wid('alpha'), 'Renamed')
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('rename conflict') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     // The dialog stays for retry; typing clears the error; Cancel closes.
     fireEvent.change(input, { target: { value: 'Renamed2' } })
     expect(screen.queryByRole('alert')).toBeNull()
@@ -2613,7 +2613,7 @@ describe('WorkspaceBrowser', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('reports non-Error rename failures as text', async () => {
+  it('reports non-Error rename failures through the shared safe summary', async () => {
     const renameWorkspace = vi.fn(async () => { throw 'denied' })
     const browser = mount({
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
@@ -2622,7 +2622,7 @@ describe('WorkspaceBrowser', () => {
     browser.openDialog(wid('alpha'), 'Alpha', 'rename')
     fireEvent.change(screen.getByLabelText('工作区名称'), { target: { value: 'Other' } })
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
   })
 
   it('confirms Workspace deletion, explains retention, and blocks duplicate submission', async () => {
@@ -2668,10 +2668,10 @@ describe('WorkspaceBrowser', () => {
     })
     browser.openDialog(wid('alpha'), 'Alpha', 'delete')
     fireEvent.click(screen.getByRole('button', { name: '删除工作区' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('storage unavailable') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     expect(screen.getByRole('dialog', { name: '删除工作区' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '删除工作区' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(screen.queryByRole('dialog', { name: '删除工作区' })).toBeNull()
   })

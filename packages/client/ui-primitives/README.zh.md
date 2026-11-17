@@ -35,6 +35,11 @@ kind: "package-library"
 
 只要 Web 客户端需要标准控件或 agent 输出渲染器，就用这些原子组件拼装功能 UI。它们只经 React 渲染，并从主题取得 `--dsw-*` 设计 token，因此无需导入主题或 slot 系统即可适配任意插件。
 
+<a id="operation-error-summaries"></a>
+### 操作错误摘要
+
+在处理功能专属错误码与部分完成的影响后，使用 `userErrorMessage(t, failure)`。该函数把已识别的 Remote 载体错误码映射为共享本地化文案，不读取诊断消息、响应正文或原因链。未知失败提示用户先核对当前状态再决定是否重试；原始错误保持不变，供诊断使用。对于界面主动生成的明确拒绝，`UserFacingError(localizedSummary, { cause })` 让处理建议穿过异步报告层后仍保留；绝不能用服务端或异常文本构造它。不要将这项展示兜底用于模型或工具输出、文档正文或显式开发者诊断。
+
 <a id="component-catalog"></a>
 ### 组件目录
 

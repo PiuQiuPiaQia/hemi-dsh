@@ -43,6 +43,11 @@ export const en = {
   'json.label': 'JSON',
   'markdown.footnotes': 'Footnotes',
   'markdown.truncatedCharacters': '… truncated at {total} characters',
+  // Hemi fork: shared operation-error copy belongs to the existing common dictionary, not individual pages.
+  'uiError.unknown': 'The outcome could not be confirmed. Check the current state before trying again.',
+  'uiError.cancelled': 'The operation was cancelled. Check the current state.',
+  'uiError.invalidInput': 'The request was not accepted. Check your input and try again.',
+  'uiError.unavailable': 'The service is unavailable. Check the connection or try again later.',
   'number.thousand': '{value}K',
   'number.million': '{value}M',
 } satisfies Record<CommonKey, string>

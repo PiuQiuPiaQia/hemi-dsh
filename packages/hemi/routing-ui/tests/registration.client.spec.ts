@@ -2,6 +2,8 @@ import { Context } from '@deepseek-ai/cordis'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { RemoteError, stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import type { InvocationDescriptor, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -41,7 +43,10 @@ const routingContribution = { package: '@fixture/routing', descriptors: [modeDes
 async function bench() {
   const ctx = new Context()
   onTestFinished(() => ctx.fiber.dispose())
-  ctx.provide('locale', new LocaleRuntime(ctx))
+  const locale = new LocaleRuntime(ctx)
+  // Production always has the shared vocabulary registered; the mount binds against it.
+  locale.register('common', { zh: commonZh, en: commonEn })
+  ctx.provide('locale', locale)
   await ctx.plugin(SlotRegistry).await()
   const form = stubConfigForm<RoutingConfig>()
   form.publish({ status: 'ready', writable: true, revision: 1, value: { main: null, roles: {} } })
@@ -147,8 +152,10 @@ it('binds enable/disable commands to the originating Session and propagates refu
   expect(b.setEnabled).toHaveBeenLastCalledWith('first', true)
   await expect(second.setEnabled(false)).resolves.toBeNull()
   expect(b.setEnabled).toHaveBeenLastCalledWith('second', false)
-  b.setEnabled.mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', 'offline', {}) })
-  await expect(first.setEnabled(true)).resolves.toBe('offline')
+  const failure = new RemoteError('gateway/internal', 'offline', {})
+  b.setEnabled.mockResolvedValueOnce({ ok: false, error: failure })
+  // The Client face rebuilds the failure; the typed code and diagnostic still cross untouched.
+  await expect(first.setEnabled(true)).resolves.toMatchObject({ code: 'gateway/internal', message: 'offline' })
   expect(b.setEnabled).toHaveBeenLastCalledWith('first', true)
 })
 
@@ -161,7 +168,10 @@ it('surfaces catalog remote failures through the editor’s retry state', async 
   const settingsValue: object = b.ctx.slots.entries('settings.models.footer')[0]!.inject!()
   const settings = settingsValue as RoutingSettingsEntryInjected
   settings.openConfiguration()
-  await vi.waitFor(() => { expect(dialog.hooks.routingCatalog.getSnapshot()).toMatchObject({ status: 'failed', error: 'offline' }) })
+  await vi.waitFor(() => {
+    expect(dialog.hooks.routingCatalog.getSnapshot())
+      .toMatchObject({ status: 'failed', error: commonEn['uiError.unknown'] })
+  })
   dialog.refreshCatalog()
   await vi.waitFor(() => { expect(dialog.hooks.routingCatalog.getSnapshot().status).toBe('ready') })
 })

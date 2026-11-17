@@ -1,8 +1,9 @@
 /** Session-owned automatic-routing switch inside the native model menu. */
 import { useId, useState } from 'react'
-import { Button, IconCheckOutlineRegular, IconSettingsOutlineRegular, StateDot, Switch, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconCheckOutlineRegular, IconSettingsOutlineRegular, StateDot, Switch, Tooltip, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { RoutingConfig } from './types.ts'
@@ -12,8 +13,8 @@ import css from './RoutingModeToggle.module.css'
 /** Narrow commands and settings observation for one Session. */
 export interface RoutingModeInjected {
   hooks: { routingSettings: HostObservable<ConfigFormSnapshot<RoutingConfig>> }
-  /** Null means accepted; failures remain owned by the model menu. */
-  setEnabled: (enabled: boolean) => Promise<string | null>
+  /** Null means accepted; the typed failure remains owned by the model menu. */
+  setEnabled: (enabled: boolean) => Promise<RemoteFailure | null>
   /** Open the shared editor after the owner has dismissed its menu. */
   openConfiguration: () => void
 }
@@ -62,7 +63,7 @@ export function RoutingModeChoice(props: RoutingModeChoiceProps) {
         onClick={() => {
           selectAlternative(async () => {
             const failure = await setEnabled(true)
-            return failure === null ? null : t('modeFailed', { message: failure })
+            return failure === null ? null : t('modeFailed', { message: userErrorMessage(t, failure) })
           })
         }}>
         <span className={css.copy}>
@@ -93,9 +94,9 @@ function RootRoutingModeToggle({
     if (locked || pending || !settings.writable || (enabled && !hasMain)) return
     setPending(true)
     void setEnabled(enabled).then((failure) => {
-      if (failure !== null) reportFailure(t('modeFailed', { message: failure }))
+      if (failure !== null) reportFailure(t('modeFailed', { message: userErrorMessage(t, failure) }))
     }, (error: unknown) => {
-      reportFailure(t('modeFailed', { message: error instanceof Error ? error.message : String(error) }))
+      reportFailure(t('modeFailed', { message: userErrorMessage(t, error) }))
     }).finally(() => { setPending(false) })
   }
   return (

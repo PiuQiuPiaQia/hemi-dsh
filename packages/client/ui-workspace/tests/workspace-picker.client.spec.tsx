@@ -301,14 +301,14 @@ describe('WorkspacePicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('reports a non-Error adoption failure in the folder-error surface', async () => {
+  it('reports a non-Error adoption failure as the shared safe summary in the folder-error surface', async () => {
     const b = mount([workspace('alpha', 'Alpha')], vi.fn(async () => { throw 'permission denied' }))
     chooseAdd()
     await act(async () => { b.probe.owner!.onPicked('/one/project') })
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: '无法打开文件夹' })).toBeTruthy()
     })
-    expect(screen.getByRole('alert').textContent).toBe('permission denied')
+    expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown'])
     expect(b.probe.owner!.open).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: '重新选择' }))
     expect(b.probe.owner!.open).toBe(true)

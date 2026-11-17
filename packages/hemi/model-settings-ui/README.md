@@ -30,7 +30,7 @@ The Desktop introduction uses the existing `settings.onboarding` coordinator and
 
 #### What the model sees
 
-The page delegates explicit model tests to the `model-settings` Host service and route editing to the routing settings service.
+The page delegates explicit model tests to the `model-settings` Host service and route editing to the routing settings service. Rejected calls propagate the typed Remote failure (code and details) to the connection editor, which owns the localized notice. Rejected calls propagate the typed Remote failure (code and details) to the connection editor, which owns the localized notice.
 
 #### Token effect
 

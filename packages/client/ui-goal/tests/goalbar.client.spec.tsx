@@ -223,10 +223,12 @@ describe('GoalBar', () => {
     expect(screen.getByText('受阻的目标').closest('[title]')).toBeNull()
   })
 
-  it('keeps the edit draft open and reports a failed save', async () => {
+  it('keeps the edit draft open and reports a failed save with the shared safe summary', async () => {
     const actions = makeActions()
     actions.onEdit.mockResolvedValue({
-      ok: false, error: new RemoteError('session/agent-busy', 'stale revision', { reason: 'stale revision' }),
+      ok: false, error: new RemoteError('session/agent-busy',
+        'stale revision <env><path>/Users/zhang/.dsh/credentials.json</path><token>sk-0123456789abcdef</token></env>',
+        { reason: 'stale revision' }),
     })
     render(<GoalBar goal={makeGoal()} {...actions} t={t} />)
     fireEvent.click(screen.getByRole('button', { name: '编辑目标' }))
@@ -234,23 +236,38 @@ describe('GoalBar', () => {
     fireEvent.change(box, { target: { value: 'retry this draft' } })
     fireEvent.click(screen.getByRole('button', { name: '保存目标' }))
 
-    expect((await screen.findByRole('alert')).textContent).toBe('stale revision (session/agent-busy)')
+    const alert = await screen.findByRole('alert')
+    // Hemi fork: the strip shows the shared safe summary; message, code, and raw diagnostics never reach copy.
+    expect(alert.textContent).toBe(commonZh['uiError.unknown'])
+    expect(alert.textContent).not.toContain('stale revision')
+    expect(alert.textContent).not.toContain('session/agent-busy')
+    expect(alert.textContent).not.toContain('/Users/zhang')
+    expect(alert.textContent).not.toContain('sk-0123456789abcdef')
     expect(screen.getByRole('textbox', { name: '目标内容' })).toHaveProperty('value', 'retry this draft')
   })
 
   it('reports resume and clear failures without hiding the goal', async () => {
     const actions = makeActions()
-    actions.onResume.mockResolvedValue({ ok: false, error: new RemoteError('gateway/internal', 'resume failed', {}) })
+    actions.onResume.mockResolvedValue({
+      ok: false, error: new RemoteError('gateway/internal', 'resume failed <token>tok-9f8e7d6c5b4a</token>', {}),
+    })
     const { rerender } = render(<GoalBar goal={makeGoal({ phase: 'paused' })} {...actions} t={t} />)
     fireEvent.click(screen.getByRole('button', { name: '恢复目标' }))
-    expect((await screen.findByRole('alert')).textContent).toBe('resume failed (gateway/internal)')
+    const resumeAlert = await screen.findByRole('alert')
+    expect(resumeAlert.textContent).toBe(commonZh['uiError.unknown'])
+    expect(resumeAlert.textContent).not.toContain('resume failed')
+    expect(resumeAlert.textContent).not.toContain('gateway/internal')
+    expect(resumeAlert.textContent).not.toContain('tok-9f8e7d6c5b4a')
 
     actions.onClear.mockResolvedValue({
-      ok: false, error: new RemoteError('session/agent-busy', 'clear failed', { reason: 'clear failed' }),
+      ok: false, error: new RemoteError('session/agent-busy', 'clear failed /sessions/root.jsonl', { reason: 'clear failed' }),
     })
     rerender(<GoalBar goal={makeGoal()} {...actions} t={t} />)
     fireEvent.click(screen.getByRole('button', { name: '清除目标' }))
-    expect((await screen.findByRole('alert')).textContent).toBe('clear failed (session/agent-busy)')
+    const clearAlert = await screen.findByRole('alert')
+    expect(clearAlert.textContent).toBe(commonZh['uiError.unknown'])
+    expect(clearAlert.textContent).not.toContain('clear failed')
+    expect(clearAlert.textContent).not.toContain('/sessions/root.jsonl')
     expect(screen.getByText('Ship the redesign')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '清除目标' }))
     await waitFor(() => { expect(actions.onClear).toHaveBeenCalledTimes(2) })

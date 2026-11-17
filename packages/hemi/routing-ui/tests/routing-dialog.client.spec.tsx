@@ -5,11 +5,16 @@ import { bindSnapshotSelector, contextMenuHook, makeTranslate, stubConfigForm } 
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { RoutingDialog, type RoutingDialogProps } from '../src/client/RoutingDialog.tsx'
 import { RoutingSettingsEntry } from '../src/client/RoutingSettingsEntry.tsx'
 import type { RoutingConfig, RoutingCatalog, RoutingWrite } from '../src/client/types.ts'
 import { createRoutingEditor } from '../src/client/editor-state.ts'
 import { en, zh } from '../src/client/locales.ts'
+
+/** Store failures publish the shared summary, so fixtures feed real localized copy instead of raw text. */
+const unknownSummary = commonZh['uiError.unknown']
 
 const main = { provider: 'provider/a', model: 'model/a', reasoningEffort: 'high' }
 const alternative = { provider: 'provider/a', model: 'model/b' }
@@ -51,7 +56,7 @@ function props(options: {
     useRoutingCatalog: bindSnapshotSelector(catalog),
     useRoutingWrite: bindSnapshotSelector(write),
     saveRoute: vi.fn(), refreshCatalog: vi.fn(), closeConfiguration: vi.fn(),
-    t: makeTranslate(options.dictionary ?? zh),
+    t: makeTranslate(options.dictionary ?? zh, options.dictionary === en ? commonEn : commonZh),
   } as RoutingDialogProps
 }
 
@@ -106,7 +111,8 @@ it('retains the effort when reselecting the same catalog model', async () => {
 it('displays saved values only after the Host mirror accepts a field change', async () => {
   const form = stubConfigForm<RoutingConfig>()
   form.publish({ status: 'ready', writable: true, revision: 1, value: initial })
-  const editor = createRoutingEditor(form.scope, async () => ({ default: main, routableProviders: ['provider/a'], groups, failures: [] }))
+  const editor = createRoutingEditor(form.scope,
+    async () => ({ default: main, routableProviders: ['provider/a'], groups, failures: [] }), makeTranslate(zh, commonZh))
   onTestFinished(() => editor.dispose())
   editor.injected.refreshCatalog()
   await vi.waitFor(() => { expect(editor.injected.hooks.routingCatalog.getSnapshot().status).toBe('ready') })
@@ -135,13 +141,13 @@ it('displays saved values only after the Host mirror accepts a field change', as
 it.each(['readOnly', 'saving', 'catalogFailed'] as const)('blocks model changes while %s', (state) => {
   const p = props(state === 'readOnly' ? { settings: { writable: false } }
     : state === 'saving' ? { write: { status: 'saving', field: 'main' } }
-      : { catalog: { status: 'failed', error: 'offline' } })
+      : { catalog: { status: 'failed', error: unknownSummary } })
   render(<RoutingDialog {...p} />)
   const buttons = screen.getAllByRole('button', { name: /^(主智能体|研究|评审|执行|设计)：/ })
   expect(buttons.every(button => button.hasAttribute('disabled'))).toBe(true)
   if (state === 'readOnly') expect(screen.getByText('当前设置仅可查看')).toBeTruthy()
   if (state === 'catalogFailed') {
-    expect(screen.getByRole('alert').textContent).toContain('模型目录加载失败：offline')
+    expect(screen.getByRole('alert').textContent).toContain(`模型目录加载失败：${unknownSummary}`)
     fireEvent.click(screen.getByRole('button', { name: '重新加载目录' }))
     expect(p.refreshCatalog).toHaveBeenCalledOnce()
   }
@@ -154,7 +160,7 @@ it.each(['loading', 'unavailable', 'empty', 'partial', 'saveRefused', 'saveError
       : state === 'empty' ? { catalog: { groups: [] } }
         : state === 'partial' ? { catalog: { failures: [{ id: 'down', name: 'Down provider', message: 'offline' }] } }
           : state === 'saveRefused' ? { write: { status: 'failed', field: 'explorer', message: null } }
-            : { write: { status: 'failed', field: 'main', message: 'offline' } })
+            : { write: { status: 'failed', field: 'main', message: unknownSummary } })
   render(<RoutingDialog {...p} />)
   expect(screen.getByRole('dialog').textContent).toMatchSnapshot()
   if (state === 'loading') expect(screen.getByRole('status', { name: '正在加载模型路由' })).toBeTruthy()
@@ -194,7 +200,8 @@ it('keeps the Models settings footer as a launcher, not a second editor', () => 
 })
 
 it.each([en, zh])('localizes every editor state and keeps provider/model ids unchanged', (dictionary) => {
-  render(<RoutingDialog {...props({ dictionary, write: { status: 'failed', field: 'main', message: 'network error' } })} />)
+  const summary = (dictionary === zh ? commonZh : commonEn)['uiError.unknown']
+  render(<RoutingDialog {...props({ dictionary, write: { status: 'failed', field: 'main', message: summary } })} />)
   expect(screen.getByRole('dialog', { name: dictionary.title }).textContent).toMatchSnapshot()
   expect(screen.getByText('removed · retired/model')).toBeTruthy()
 })

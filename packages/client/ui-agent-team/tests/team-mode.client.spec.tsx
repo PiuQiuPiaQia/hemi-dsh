@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TeamModeToggle, type TeamModeToggleProps } from '../src/client/TeamModeToggle.tsx'
 import { de, en, es, fr, ja, pt, ru, zh } from '../src/client/locales.ts'
 
@@ -21,7 +22,7 @@ function props(enabled: boolean | undefined, selectTeamMode = vi.fn(async () => 
       ? requestedModel === 'loading' ? undefined : { lastUsed: requestedModel ? { provider: 'mock', model: 'mock' } : null, next: { provider: 'mock', model: 'mock' } }
       : enabled === undefined ? undefined : { enabled, tasks: [] },
     locked: false, dismiss: vi.fn(), reportFailure: vi.fn(), selectTeamMode, requestDisableConfirmation: vi.fn(),
-    t: makeTranslate(zh),
+    t: makeTranslate(zh, commonZh),
   } as TeamModeToggleProps
 }
 
@@ -42,14 +43,24 @@ it('renders only available mode and waits for persisted state before displaying 
 })
 
 it.each(['returned', 'error', 'string'])('reports rejected mode writes through the menu host (%s)', async (failure) => {
+  const raw = 'offline <stream><path>/Users/zhang/.dsh/team.lock</path><token>tok-9f8e7d6c</token></stream>'
   const p = props(false, vi.fn(async () => {
-    if (failure === 'error') throw new Error('offline')
-    if (failure === 'string') throw 'offline'
+    if (failure === 'error') throw new Error(raw)
+    if (failure === 'string') throw raw
     return 'offline'
   }))
   render(<TeamModeToggle {...p} />)
   await act(async () => { fireEvent.click(screen.getByRole('switch')) })
-  expect(p.reportFailure).toHaveBeenCalledWith(expect.stringContaining('offline'))
+  // Hemi fork: returned strings are already-localized injection results; unexpected throws use the shared safe summary.
+  expect(p.reportFailure).toHaveBeenCalledWith(failure === 'returned'
+    ? expect.stringContaining('offline')
+    : p.t('mode.failed', { message: commonZh['uiError.unknown'] }))
+  if (failure !== 'returned') {
+    const reported = vi.mocked(p.reportFailure).mock.calls[0]?.[0]
+    expect(reported).not.toContain('offline')
+    expect(reported).not.toContain('/Users/zhang')
+    expect(reported).not.toContain('tok-9f8e7d6c')
+  }
   expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
 })
 

@@ -1,0 +1,7 @@
+- dialog "重命名工作区":
+  - heading "重命名工作区" [level=2]
+  - button "关闭"
+  - textbox "工作区名称": rename-errors-zh-renamed
+  - alert: 无法确认操作结果，请先核对当前状态，再决定是否重试
+  - button "取消"
+  - button "重命名"

@@ -46,7 +46,8 @@ export class AgentPresetSectionController {
   private async readRoster(): Promise<void> {
     try {
       const result = await this.ctx.remote.agentPresets.list()
-      if (!result.ok) throw new Error(result.error.message)
+      // Hemi fork: retain structured read failures for diagnostics and shared UI reporting.
+      if (!result.ok) throw result.error
       this.set({ status: 'ready', error: null, rows: result.value.presets })
     } catch (error) { this.set({ status: 'error', error: message(error) }) }
   }
@@ -61,7 +62,8 @@ export class AgentPresetSectionController {
     try {
       const result = await this.ctx.remote.agentPresets.read(id)
       if (request !== this.viewRequest) return
-      if (!result.ok) throw new Error(result.error.message)
+      // Hemi fork: retain structured read failures for diagnostics and shared UI reporting.
+      if (!result.ok) throw result.error
       const { name, content } = result.value
       this.set({ view: { id, title: name ?? id, content } })
     } catch (error) { if (request === this.viewRequest) this.set({ error: message(error) }) }

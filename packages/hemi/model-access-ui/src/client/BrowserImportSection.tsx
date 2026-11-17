@@ -124,7 +124,7 @@ export function BrowserImportSection({ bridge, t, open, onClose, onImported }: P
         setLoaded(true)
       }
       if (!result.ok) setError(result.code === 'LOGIN_REQUIRED' ? t('browserLoginRequired')
-        : result.code === 'CATALOG_UNAVAILABLE' ? t('fetchModelsFailed') : result.message ?? t('failed'))
+        : result.code === 'CATALOG_UNAVAILABLE' ? t('fetchModelsFailed') : t('failed'))
       if (result.ok && action === 'getState') setStatusUnavailable(false)
     } catch {
       if (mounted.current) {
@@ -156,7 +156,12 @@ export function BrowserImportSection({ bridge, t, open, onClose, onImported }: P
   const step = phase === undefined || ['opening', 'login'].includes(phase) ? 0 : ['discovering', 'selecting'].includes(phase) ? 1 : 2
   const login = state?.phase === 'login' ? state : null
   const showStart = terminal(state?.phase) && state?.phase !== 'success'
-  const stateError = state?.error?.code === 'OPEN_SITE' ? t('browserOpenFailed') : state?.error?.message
+  // Failed-phase banners map known codes to their standing advice; other codes never show the raw message.
+  const failure = state?.error ?? null
+  const stateError = failure === null ? ''
+    : failure.code === 'OPEN_SITE' ? t('browserOpenFailed')
+      : failure.code === 'LOGIN_REQUIRED' ? t('browserLoginRequired')
+        : failure.code === 'CATALOG_UNAVAILABLE' ? t('fetchModelsFailed') : t('failed')
   const errorMessage = error || stateError || (statusUnavailable ? t('browserStatusFailed') : '')
   const status = state?.control === 'paused' ? 'browserPaused'
     : state?.phase === 'cancelling' ? 'browserCancelling'

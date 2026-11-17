@@ -39,11 +39,14 @@ export function createReadHtmlRelative(
     const file = hostFileOf(address)
     const result = await readRelated(address, path, combined)
     combined.throwIfAborted()
+    // Hemi fork: the declared Host failure is rethrown whole, keeping its
+    // code; unwrapping it into a message Error would drop the classification
+    // the shared failure display relies on.
     if (!result.ok) {
       if ('path' in result.error.details && typeof result.error.details.path === 'string') {
         addResource(sessionFileAddress(file.sessionId, result.error.details.path))
       }
-      throw new Error(result.error.message)
+      throw result.error
     }
     addResource(sessionFileAddress(file.sessionId, result.value.absolutePath))
     return result.value

@@ -1,11 +1,14 @@
 /** Editor-owned catalog loading and revision-fenced, single-field route writes. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ConfiguredRoleRoutes, LegacyRoleFor } from '@deepseek-ai/dsh-hemi-routing/client'
 import type {
   Route, RoutingCatalog, RoutingConfig, RoutingEditorInjected, RoutingField, RoutingRole, RoutingWrite,
 } from './types.ts'
+import type { NS } from './locales.ts'
 
 /** Every preset role, in display order; the settings section renders the same order. */
 const ROLE_IDS: readonly RoutingRole[] = ['explorer', 'oracle', 'fixer', 'designer']
@@ -48,11 +51,15 @@ export const ROUTING_NS = 'hemi-routing-settings'
  * Own the editor's asynchronous operations without copying the settings mirror.
  * Role writes replace the latest role map under its exact revision, so a stale
  * editor cannot overwrite another accepted change or clear an untouched route.
+ * Failures publish the shared safe summary instead of a raw diagnostic message.
  * @param form - Shared Host-resolved settings form and serialized mutation queue.
  * @param fetchCatalog - Existing Session Remote catalog operation.
+ * @param t - Typed routing dictionary, including the shared common vocabulary.
  * @returns the editor's injectable reads/actions and asynchronous teardown.
  */
-export function createRoutingEditor(form: ConfigForm<RoutingConfig>, fetchCatalog: () => Promise<ModelCatalog>): {
+export function createRoutingEditor(form: ConfigForm<RoutingConfig>, fetchCatalog: () => Promise<ModelCatalog>,
+  t: PropsLocale<typeof NS>['t'],
+): {
   injected: RoutingEditorInjected
   dispose(): Promise<void>
 } {
@@ -67,7 +74,7 @@ export function createRoutingEditor(form: ConfigForm<RoutingConfig>, fetchCatalo
     catalogOperation = Promise.resolve().then(fetchCatalog).then((value) => {
       if (!disposed) catalog.set({ status: 'ready', groups: value.groups, failures: value.failures, error: null })
     }, (error: unknown) => {
-      if (!disposed) catalog.set({ ...catalog.getSnapshot(), status: 'failed', error: error instanceof Error ? error.message : String(error) })
+      if (!disposed) catalog.set({ ...catalog.getSnapshot(), status: 'failed', error: userErrorMessage(t, error) })
     }).finally(() => { catalogOperation = undefined })
     // A refresh over held groups stays readable: the spinner belongs only to the first load.
     const held = catalog.getSnapshot()
@@ -94,7 +101,7 @@ export function createRoutingEditor(form: ConfigForm<RoutingConfig>, fetchCatalo
     writeOperation = Promise.resolve().then(() => form.mutate([mutation], snapshot.revision)).then((ok) => {
       if (!disposed) write.set(ok ? { status: 'saved', field } : { status: 'failed', field, message: null })
     }, (error: unknown) => {
-      if (!disposed) write.set({ status: 'failed', field, message: error instanceof Error ? error.message : String(error) })
+      if (!disposed) write.set({ status: 'failed', field, message: userErrorMessage(t, error) })
     }).finally(() => { writeOperation = undefined })
     write.set({ status: 'saving', field })
   }

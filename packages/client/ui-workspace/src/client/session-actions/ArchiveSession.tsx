@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-jobs/view'
 import type {} from '@deepseek-ai/dsh-schedule/client'
 import type {} from '@deepseek-ai/dsh-subagent/client'
 import {
-  Button, IconArchiveOutlineRegular, IconUnarchiveOutlineRegular, Modal, Tooltip,
+  Button, IconArchiveOutlineRegular, IconUnarchiveOutlineRegular, Modal, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   ArchiveSessionInjected, SessionArchiveConfirmInjected, SessionArchiveConfirmProps, SessionArchiveConfirmRequest,
@@ -87,7 +87,9 @@ function ArchiveConfirmForm({ request, stopAndArchiveSession, onSettle, t }: {
       onSettle()
     }).catch((reason: unknown) => {
       setArchiving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      // Hemi fork: the dialog shows the shared safe summary, never the raw
+      // failure text; the reason stays whole for console diagnostics.
+      setError(userErrorMessage(t, reason))
     })
   }
   return (

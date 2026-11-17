@@ -2,11 +2,12 @@
  * The failure line one Remote code deserves.
  *
  * Kept apart from the component so the mapping is testable on its own. Codes
- * this reader does not name fall to the generic line carrying the carrier's
- * message.
+ * this reader does not name fall to the shared safe operation summary, never
+ * to the carrier's own message.
  */
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Render a byte count the way a person reads one. */
 function humanBytes(bytes: number): string {
@@ -28,9 +29,11 @@ export function failureLine(t: TranslateNS<'sidebarDocumentPreview'>, failure: R
       return t('error.tooLarge', { limit: humanBytes(failure.details.limit) })
     case 'workspace-file/not-text': return t('error.notText')
     case 'workspace-file/not-regular-file': return t('error.notRegularFile')
-    // Carrier and unclassified host failures reach the reader as themselves:
-    // this panel knows nothing useful to add to a transport-level message.
-    default: return t('error.unavailable', { message: failure.message })
+    // Hemi fork: carrier and unclassified host failures show the shared safe
+    // summary, because their diagnostic message can carry paths, response
+    // bodies, or stack text; the failure object stays on the store for
+    // developer diagnosis.
+    default: return userErrorMessage(t, failure)
   }
 }
 

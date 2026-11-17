@@ -197,6 +197,10 @@ const themeContribution = (over: Partial<CommandContribution> = {}): CommandCont
 const req = (query: string, position: 'leading' | 'inline' = 'leading') =>
   ({ query, position, drilled: false, signal: new AbortController().signal })
 
+/** The attachment refusal rides a UserFacingError so safe reporters keep the localized advice. */
+const userFacingRefusal = (command: string) =>
+  ({ name: 'UserFacingError', summary: `command:notice.attachmentsUnsupported{"command":"${command}"}` })
+
 describe('registration', () => {
   it('reports missing initialization dependencies', () => {
     const missingLocale = new Context()
@@ -728,7 +732,9 @@ describe('matchEnter (enter column)', () => {
     const { source } = await bench({
       commands: () => Promise.reject(new Error('warmup boom')),
     })
-    await expect(source.matchEnter!(proj('s1'), '/goal', signal(), { attachments: 0 })).rejects.toThrow('warmup boom')
+    // The carrier failure travels verbatim: typed code preserved for safe caller-side reporting.
+    await expect(source.matchEnter!(proj('s1'), '/goal', signal(), { attachments: 0 }))
+      .rejects.toMatchObject({ code: 'gateway/internal', message: 'warmup boom' })
   })
 
   it('matchClaim waits for a cold catalog and answers only the space column claim without acting', async () => {
@@ -756,7 +762,9 @@ describe('matchEnter (enter column)', () => {
     const { source } = await bench({
       commands: () => Promise.reject(new Error('warmup boom')),
     })
-    await expect(source.matchClaim!(proj('s1'), '/goal', signal())).rejects.toThrow('warmup boom')
+    // The carrier failure travels verbatim: typed code preserved for safe caller-side reporting.
+    await expect(source.matchClaim!(proj('s1'), '/goal', signal()))
+      .rejects.toMatchObject({ code: 'gateway/internal', message: 'warmup boom' })
   })
 
   it('leadingInput claims args-tolerant (bare and with trailing text)', async () => {
@@ -822,7 +830,7 @@ describe('matchEnter envelope policy (images)', () => {
     const { source, warm } = await bench({ commands: () => Promise.resolve({ commands: IMG_CMDS }) })
     await warm(proj('s1'))
     await expect(source.matchEnter!(proj('s1'), '/goal ship', signal(), { attachments: 1 }))
-      .rejects.toThrow('command:notice.attachmentsUnsupported{"command":"goal"}')
+      .rejects.toMatchObject(userFacingRefusal('goal'))
     const outcome = await source.matchEnter!(proj('s1'), '/vision what is this', signal(), { attachments: 1 })
     if (outcome === undefined || outcome === 'handled' || !('claim' in outcome)) throw new Error('expected claim')
     expect(outcome.claim.token).toBe('/vision ')
@@ -836,9 +844,9 @@ describe('matchEnter envelope policy (images)', () => {
     const scope = mint('s1')
     await warm(proj('s1'))
     await expect(source.matchEnter!(proj('s1'), '/theme', signal(), { attachments: 1 }))
-      .rejects.toThrow('command:notice.attachmentsUnsupported{"command":"theme"}')
+      .rejects.toMatchObject(userFacingRefusal('theme'))
     await expect(source.matchEnter!(proj('s1'), '/plan', signal(), { attachments: 2 }))
-      .rejects.toThrow('command:notice.attachmentsUnsupported{"command":"plan"}')
+      .rejects.toMatchObject(userFacingRefusal('plan'))
     expect(command.popupFor(scope.ctx).state.getSnapshot().open).toBe(false)
   })
 
@@ -846,7 +854,7 @@ describe('matchEnter envelope policy (images)', () => {
     const { source, warm, executeCalls } = await bench()
     await warm(proj('s1'))
     await expect(source.matchEnter!(proj('s1'), '/plan', signal(), { attachments: 1 }))
-      .rejects.toThrow('command:notice.attachmentsUnsupported{"command":"plan"}')
+      .rejects.toMatchObject(userFacingRefusal('plan'))
     expect(executeCalls).toEqual([])
   })
 
@@ -965,13 +973,22 @@ describe('detached admission notices', () => {
     mode = 'reject'
     menuPick(source, 'plan', proj('s1'))
     await flush()
-    // A dead Remote call and a rejected one now read alike: both arrive as a
-    // failed result, so the notice names the endpoint either way.
-    expect(notices).toEqual([{
-      scope: sid('s1'),
-      level: 'error',
-      text: 'command.execute failed: gateway/internal: network down',
-    }])
+    // The shared safe reporter voices the admission failure; the wire diagnostic stays off the notice.
+    expect(notices).toEqual([{ scope: sid('s1'), level: 'error', text: 'command:uiError.unknown' }])
+    expect(notices[0]?.text).not.toContain('network down')
+  })
+
+  it('an admission rejection carrying XML/path diagnostics notices only the safe summary', async () => {
+    const { source, mint, warm, notices } = await bench({
+      execute: () => Promise.reject(new Error('<error>POST /gateway/commands token=secret</error>')),
+    })
+    mint('s1')
+    await warm(proj('s1'))
+    menuPick(source, 'plan', proj('s1'))
+    await flush()
+    expect(notices).toEqual([{ scope: sid('s1'), level: 'error', text: 'command:uiError.unknown' }])
+    expect(notices[0]?.text).not.toContain('/gateway/commands')
+    expect(notices[0]?.text).not.toContain('token=secret')
   })
 
   it('a torn-down scope drops the failure notice', async () => {
@@ -993,7 +1010,8 @@ describe('detached admission notices', () => {
     vi.spyOn(b.ctx.remote.commands, 'execute').mockRejectedValue('carrier stopped')
     menuPick(b.source, 'plan', proj('s1'))
     await flush()
-    expect(b.notices).toEqual([{ scope: sid('s1'), level: 'error', text: 'carrier stopped' }])
+    // A non-Remote carrier rejection still reads as the safe summary.
+    expect(b.notices).toEqual([{ scope: sid('s1'), level: 'error', text: 'command:uiError.unknown' }])
     b.notices.length = 0
     b.removeConversation()
     menuPick(b.source, 'plan', proj('s1'))

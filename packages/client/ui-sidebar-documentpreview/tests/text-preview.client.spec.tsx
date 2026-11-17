@@ -229,7 +229,8 @@ describe('TextPreview — pages', () => {
     await settle()
     const failed = view.container.querySelector('[data-textpreview-failed]')
     expect(failed?.getAttribute('data-textpreview-failed')).toBe('gateway/internal')
-    expect(view.container.textContent).toContain('error.unavailable(message=boom)')
+    expect(view.container.textContent).toContain('uiError.unknown')
+    expect(view.container.textContent).not.toContain('boom')
     // Nothing read yet: the failure stands as the body, under the file's type sheet.
     expect(failed?.querySelector('svg')).not.toBeNull()
     expect(view.container.querySelector('[data-textpreview-more]')).toBeNull()

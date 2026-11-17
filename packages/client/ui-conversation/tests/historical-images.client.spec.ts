@@ -69,14 +69,12 @@ describe('HistoricalImageCache', () => {
   it('revokes a seeded preview when canonical bytes cannot be read', async () => {
     const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined)
     try {
+      const missing = new RemoteError('session/attachment-invalid', 'missing', { reason: 'missing' })
       const runtime = await SlotTestRuntime.create()
       const sessionId = await runtime.sessions.add({
         id: 's1',
         session: {
-          readAttachment: () => Promise.resolve({
-            ok: false,
-            error: new RemoteError('session/attachment-invalid', 'missing', { reason: 'missing' }),
-          } as never),
+          readAttachment: () => Promise.resolve({ ok: false, error: missing } as never),
         },
       })
       const reference = runtime.sessions.retain(sessionId)
@@ -87,7 +85,8 @@ describe('HistoricalImageCache', () => {
       } as const
 
       expect(cache.seed(sessionId, attachment, 'blob:seeded')).toBe(true)
-      await expect(cache.resolve(sessionId, attachment)).rejects.toThrow('attachment-invalid: missing')
+      // The read failure rejects with its original identity, so the code and details stay distinguishable.
+      await expect(cache.resolve(sessionId, attachment)).rejects.toBe(missing)
       expect(cache.peek(sessionId, attachment)).toBeUndefined()
       expect(revoked).toHaveBeenCalledWith('blob:seeded')
       reference.release()

@@ -41,9 +41,10 @@ function ModelSettingsPage({ actions, renderFactorySlot, renderSlot, t }: PropsR
 /** Services used to bind the settings contribution and the probe operations. */
 export const inject = ['slots', 'locale', 'remote']
 
+/** Unwrap one Remote result envelope or rethrow its typed failure (code and details survive). */
 async function unwrap<T>(response: Promise<RemoteResult<T>>): Promise<T> {
   const result = await response
-  if (!result.ok) throw new Error(result.error.message)
+  if (!result.ok) throw result.error
   return result.value
 }
 

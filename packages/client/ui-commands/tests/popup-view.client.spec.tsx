@@ -18,11 +18,15 @@ import type { PopupSpec, TokenSegment } from '../src/client/popup.ts'
 import { PopupSelectController } from '../src/client/popup.ts'
 import { PopupSelectView } from '../src/client/PopupSelectView.tsx'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { UserFacingError, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { zh } from '../src/client/locales.ts'
 
 // The framework-injected t seat, stubbed over the zh dictionaries (the default locale).
 const t: Parameters<typeof PopupSelectView>[0]['t'] = makeTranslate(zh, commonZh)
+
+// The runtime's voice (service.ts): localized safe operation copy for settlement failures.
+const describeFailure = (failure: unknown): string => userErrorMessage(t, failure)
 
 // jsdom has no scrollIntoView; the view calls it on the highlighted row.
 const scrollIntoView = vi.fn()
@@ -66,7 +70,7 @@ function spec(overrides: Partial<PopupSpec<string>> = {}): PopupSpec<string> {
 async function mountOpen(overrides: Partial<PopupSpec<string>> = {}, consumeResult = true) {
   const consume = vi.fn((_segment: TokenSegment) => consumeResult)
   const focusComposer = vi.fn()
-  const popup = new PopupSelectController<string>({ consume, focusComposer })
+  const popup = new PopupSelectController<string>({ consume, focusComposer, describeFailure })
   const view = render(<PopupSelectView popup={popup} t={t} />)
   await act(async () => {
     popup.open('theme', spec(overrides), 'ctx-A', SEGMENT)
@@ -130,7 +134,7 @@ describe('PopupSelectView', () => {
   })
 
   it('renders null while closed, opens with focus in the search input', async () => {
-    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {} })
+    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {}, describeFailure })
     const view = render(<PopupSelectView popup={popup} t={t} />)
     expect(view.container.childElementCount).toBe(0)
     await act(async () => {
@@ -232,7 +236,7 @@ describe('PopupSelectView', () => {
   })
 
   it('Tab stays the browser\'s while the rows are still loading: no pick, no escape', async () => {
-    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {} })
+    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {}, describeFailure })
     render(<PopupSelectView popup={popup} t={t} />)
     await act(async () => { popup.open('theme', spec({ options: () => new Promise(() => {}) }), 'ctx-A', SEGMENT) })
     const search = screen.getByRole('textbox', { name: '筛选选项' })
@@ -243,7 +247,7 @@ describe('PopupSelectView', () => {
   })
 
   it('Tab stays the browser\'s on a failed load, so the retry stays reachable', async () => {
-    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {} })
+    const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {}, describeFailure })
     render(<PopupSelectView popup={popup} t={t} />)
     await act(async () => {
       popup.open('theme', spec({ options: () => Promise.reject(new Error('directory down')) }), 'ctx-A', SEGMENT)
@@ -356,7 +360,9 @@ describe('PopupSelectView', () => {
         return attempts === 1 ? Promise.reject(new Error('directory down')) : Promise.resolve(OPTIONS)
       },
     })
-    expect(screen.getByRole('alert').textContent).toContain('directory down')
+    // The safe summary announces the failure; the raw diagnostic never reaches the strip.
+    expect(screen.getByRole('alert').textContent).toContain(commonZh['uiError.unknown'])
+    expect(screen.getByRole('alert').textContent).not.toContain('directory down')
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '重试' }))
       await Promise.resolve()
@@ -368,10 +374,19 @@ describe('PopupSelectView', () => {
   it('an onSelect failure keeps the shell open with the error strip and no retry button (re-select is the retry)', async () => {
     const { search, consume } = await mountOpen({ onSelect: () => Promise.reject(new Error('host rejected')) })
     await act(async () => { fireEvent.keyDown(search, { key: 'Enter' }) })
-    expect(screen.getByRole('alert').textContent).toContain('host rejected')
+    expect(screen.getByRole('alert').textContent).toContain(commonZh['uiError.unknown'])
+    expect(screen.getByRole('alert').textContent).not.toContain('host rejected')
     expect(screen.queryByRole('button', { name: '重试' })).toBeNull()
     expect(consume).not.toHaveBeenCalled()
     expect(screen.getAllByRole('option').length).toBe(3)
+  })
+
+  it('a UserFacingError renders its explicit advice instead of the generic summary', async () => {
+    const advice = new UserFacingError('当前命令不支持附件，请先移除图片', { cause: new Error('wire') })
+    await mountOpen({ onSelect: () => Promise.reject(advice) })
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox', { name: '筛选选项' }), { key: 'Enter' }) })
+    expect(screen.getByRole('alert').textContent).toBe('当前命令不支持附件，请先移除图片')
+    expect(screen.queryByRole('button', { name: '重试' })).toBeNull()
   })
 
   it('Escape dismisses and restores composer focus', async () => {

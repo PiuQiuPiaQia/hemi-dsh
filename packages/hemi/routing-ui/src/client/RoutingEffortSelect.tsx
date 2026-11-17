@@ -2,8 +2,9 @@
 import type {} from './model-picker/slots.ts'
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
-import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconChevronDownOutlineRegular, Menu, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { HemiRoutingEffort } from '@deepseek-ai/dsh-hemi-routing/client'
 import type { RoutingConfig } from './types.ts'
@@ -13,8 +14,8 @@ import css from './model-picker/ModelSelect.module.css'
 /** Saved settings and command supplied by the routing registration. */
 export interface RoutingEffortInjected {
   hooks: { routingSettings: HostObservable<ConfigFormSnapshot<RoutingConfig>> }
-  /** Save the choice without changing automatic routing mode. */
-  setEffort: (effort: HemiRoutingEffort) => Promise<string | null>
+  /** Save the choice without changing automatic routing mode; null means accepted. */
+  setEffort: (effort: HemiRoutingEffort) => Promise<RemoteFailure | null>
 }
 
 /** Rendered routing effort bindings, including the model-menu owner's failure surface. */
@@ -44,9 +45,9 @@ export function RoutingEffortSelect({ sessionId, locked, reportFailure, useRouti
     try {
       const failure = await setEffort(next)
       if (failure === null) setOpen(false)
-      else reportFailure(t('effort.failed', { message: failure }))
+      else reportFailure(t('effort.failed', { message: userErrorMessage(t, failure) }))
     } catch (error) {
-      reportFailure(t('effort.failed', { message: error instanceof Error ? error.message : String(error) }))
+      reportFailure(t('effort.failed', { message: userErrorMessage(t, error) }))
     } finally {
       choosing.current = false
       setPending(false)

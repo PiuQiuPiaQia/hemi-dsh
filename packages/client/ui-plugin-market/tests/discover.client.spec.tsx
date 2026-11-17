@@ -9,12 +9,19 @@ import { DiscoverSection, type DiscoverSectionProps } from '../src/client/Discov
 import type { DetailsState, DiscoverState, ListingState } from '../src/client/market-store.ts'
 import { INITIAL_QUERY, type DiscoverQuery } from '../src/client/presentation.ts'
 import { en, zh, type PluginMarketLocaleKey } from '../src/client/locales.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 
 afterEach(cleanup)
 
 function translator(dictionary: Record<PluginMarketLocaleKey, string>): DiscoverSectionProps['t'] {
+  // The seat's key domain is market ∪ common; the fallback mirrors the runtime chain with real common copy.
+  const fallback: Record<string, string> = dictionary === en ? commonEn : commonZh
   return ((key: PluginMarketLocaleKey, params?: Record<string, string>): string =>
-    Object.entries(params ?? {}).reduce<string>((text, [name, value]) => text.replaceAll(`{${name}}`, value), dictionary[key])) as DiscoverSectionProps['t']
+    Object.entries(params ?? {}).reduce<string>(
+      (text, [name, value]) => text.replaceAll(`{${name}}`, value),
+      dictionary[key] ?? fallback[key] ?? key,
+    )) as DiscoverSectionProps['t']
 }
 
 const A = 'https://a.example/index.json'
@@ -425,12 +432,19 @@ describe('DiscoverSection', () => {
   })
 
   it('manages sources in a dialog with the trust notice and each refusal', () => {
-    const { actions, set } = renderTab({ editing: true, draft: 'https://c.example/index.json', indexes: [{ url: A, title: LISTING.title }, { url: B, error: 'HTTP 404' }] })
+    const { actions, set } = renderTab({
+      editing: true, draft: 'https://c.example/index.json',
+      indexes: [{ url: A, title: LISTING.title }, { url: B, error: 'HTTP 404 <trace><path>/var/log/dsh/market-index.log</path><token>tok-5d6e7f</token></trace>' }],
+    })
     const dialog = within(screen.getByRole('dialog', { name: en.sourcesTitle }))
     expect(dialog.getByText(en.sourcesTrust)).toBeTruthy()
     expect(dialog.getByText('Alpha index')).toBeTruthy()
     expect(dialog.getByText(B)).toBeTruthy()
-    expect(dialog.getByText('HTTP 404')).toBeTruthy()
+    // Hemi fork: an index read failure shows the shared safe summary; the raw response line stays out of copy.
+    expect(dialog.getByText(commonEn['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('dialog').textContent).not.toContain('HTTP 404')
+    expect(screen.getByRole('dialog').textContent).not.toContain('/var/log/dsh')
+    expect(screen.getByRole('dialog').textContent).not.toContain('tok-5d6e7f')
     fireEvent.click(dialog.getByRole('button', { name: `Remove ${B}` }))
     expect(actions.removeSource).toHaveBeenCalledWith(B)
     fireEvent.change(dialog.getByRole('textbox', { name: en.sourceUrl }), { target: { value: 'x' } })

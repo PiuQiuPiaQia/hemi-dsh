@@ -17,6 +17,7 @@ vi.mock('../src/client/pdf/runtime.ts', () => ({ openPdf: engine.open }))
 vi.mock('../src/client/pdf/document.ts', () => ({ renderPdfPage: engine.render }))
 import { PdfBody, type PdfBodyProps } from '../src/client/pdf/pdf.tsx'
 import { createPdfStore, type PdfState } from '../src/client/pdf/store.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { en } from '../src/client/pdf/locales.ts'
 import { LoadingIndicator } from '../src/client/LoadingIndicator.tsx'
 import { PdfWorkerFailure } from '../src/client/pdf/errors.ts'
@@ -93,8 +94,8 @@ function harness() {
       resourceAddress: 'dsh-resource://file/session/s/report.pdf',
       content: kind === 'bytes' ? { kind, data: bytes } : { kind, text: '', pages: [], eof: true }, wrap: false,
       useTabInfo: () => ({ tab: { id: tabId, signal: controller.signal } }),
-      useStore, actions: instance.actions, retainTab: vi.fn(), t: makeTranslate(en),
-    } as unknown as PdfBodyProps
+      useStore, actions: instance.actions, retainTab: vi.fn(), t: makeTranslate(en, commonEn),
+    } as PdfBodyProps
     return <PdfBody {...props} loading={<LoadingIndicator label={en.loading} />} scrollportRef={scrollportRef}
       ZoomViewport={ZoomViewport} zoomSurfaceClass={zoomSurfaceClass} />
   }
@@ -343,7 +344,7 @@ describe('PDF body', () => {
     const h = harness()
     render(<h.View />)
     await act(async () => { loads[0]!.deferred.reject(new Error('invalid PDF')) })
-    expect(screen.getByRole('alert').textContent).toContain('Cannot display PDF: invalid PDF')
+    expect(screen.getByRole('alert').textContent).toContain(commonEn['uiError.unknown'])
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await act(async () => { loads[1]!.deferred.resolve(documentOf(1)) })
     expect(screen.queryByRole('alert')).toBeNull()
@@ -427,7 +428,7 @@ describe('PDF body', () => {
     const h = harness()
     render(<h.View />)
     await act(async () => { loads[0]!.deferred.resolve(documentOf(1)) })
-    expect(screen.getByRole('alert').textContent).toContain('Cannot display PDF: foreign rendering failure')
+    expect(screen.getByRole('alert').textContent).toContain(commonEn['uiError.unknown'])
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await act(async () => {})
     expect(screen.queryByRole('alert')).toBeNull()
@@ -443,7 +444,7 @@ describe('PDF body', () => {
     await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 2 }) })
     expect(canvas.width).toBe(100)
     expect(screen.getByRole('img')).toBe(canvas)
-    expect(screen.getByRole('alert').textContent).toContain('PDF canvas has no 2D context')
+    expect(screen.getByRole('alert').textContent).toContain(commonEn['uiError.unknown'])
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await act(async () => {})
     expect(canvas.width).toBe(200)

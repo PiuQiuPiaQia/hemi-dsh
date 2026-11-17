@@ -1,0 +1,7 @@
+- dialog "Rename workspace":
+  - heading "Rename workspace" [level=2]
+  - button "Close"
+  - textbox "Workspace name": rename-errors-en-renamed
+  - alert: The outcome could not be confirmed. Check the current state before trying again.
+  - button "Cancel"
+  - button "Rename"

@@ -4,11 +4,13 @@
  * accepted prompt.
  */
 import { describe, expect, it, vi } from 'vitest'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '@deepseek-ai/cordis'
 import type { InputTriggerController, SubmitOutcome, PickOutcome } from '../src/client/contract/input.ts'
 import { SessionInputShell } from '../src/client/input/facade.ts'
 import type { DraftAttachmentId } from '../src/client/contract/input.ts'
 
+const describeFailure = (failure: unknown): string => userErrorMessage(key => key, failure)
 const mention = '@[Research](dsh-session:InNvdXJjZSI)'
 const spacedMention = '@[Research notes](dsh-session:InNvdXJjZSI)'
 const commandAttachments = {
@@ -35,7 +37,7 @@ function chip(shell: SessionInputShell): void {
 describe('reference submission', () => {
   it('mirrors canonical reference text so a persisted draft remains resolvable after remount', async () => {
     const mirror = vi.fn()
-    const first = new SessionInputShell({
+    const first = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: vi.fn(),
       commandAttachments,
@@ -59,7 +61,7 @@ describe('reference submission', () => {
     expect(mirror).toHaveBeenLastCalledWith(`${spacedMention} `)
 
     const sink = vi.fn(() => Promise.resolve<SubmitOutcome>({ kind: 'success' }))
-    const restored = new SessionInputShell({
+    const restored = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: sink,
       commandAttachments,
@@ -86,7 +88,7 @@ describe('reference submission', () => {
       track: vi.fn(),
       lexicon: { getSnapshot: () => new Map(), subscribe: () => () => {} },
     } as unknown as InputTriggerController
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       inputTriggers: () => inputTriggers,
       defaultSink: sink,
@@ -131,7 +133,7 @@ describe('reference submission', () => {
       track: vi.fn(),
       lexicon: { getSnapshot: () => new Map(), subscribe: () => () => {} },
     } as unknown as InputTriggerController
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       inputTriggers: () => inputTriggers,
       defaultSink: sink,
@@ -148,13 +150,13 @@ describe('reference submission', () => {
     expect(shell.snapshot.occurrences).toHaveLength(1)
     expect(shell.notices.getSnapshot()).toMatchObject({
       level: 'error',
-      text: 'reference codec unavailable',
+      text: 'uiError.unknown',
     })
   })
 
   it('aborts Host-side preparation when the input shell is disposed', () => {
     let signal: AbortSignal | undefined
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: (_text, _imageIds, _mode, received) => {
         signal = received
@@ -173,7 +175,7 @@ describe('reference submission', () => {
   })
 
   it('retains a rejected default message without duplicating its prompt error notice', async () => {
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: () => Promise.resolve({ kind: 'error' }),
       commandAttachments,
@@ -190,7 +192,7 @@ describe('reference submission', () => {
   it('sends one message at a time and ignores Enter while the Host decides', async () => {
     const settlements: Array<(outcome: SubmitOutcome) => void> = []
     const sink = vi.fn(() => new Promise<SubmitOutcome>((resolve) => { settlements.push(resolve) }))
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: sink,
       commandAttachments,
@@ -213,7 +215,7 @@ describe('submit transaction hardening', () => {
     const submitted = vi.fn()
     let settle!: (outcome: SubmitOutcome) => void
     const sink = vi.fn(() => new Promise<SubmitOutcome>((resolve) => { settle = resolve }))
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: sink,
       commandAttachments,
@@ -239,7 +241,7 @@ describe('submit transaction hardening', () => {
 
   it('retains an image-only rejection without duplicating its prompt error notice', async () => {
     const sink = vi.fn(() => Promise.resolve<SubmitOutcome>({ kind: 'error' }))
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: sink,
       commandAttachments,
@@ -256,7 +258,7 @@ describe('submit transaction hardening', () => {
   it('aborts an unsettled image-only send and returns its image id at disposal', () => {
     let signal: AbortSignal | undefined
     const imageId = 'img-flight' as DraftAttachmentId
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       defaultSink: (_text, _ids, _mode, received) => {
         signal = received
@@ -274,7 +276,7 @@ describe('submit transaction hardening', () => {
   it('re-tracks at the caret when an insert-text splice lands (directory descent reopens the menu)', () => {
     const track = vi.fn()
     const lexicon = { getSnapshot: () => new Map(), subscribe: () => () => {} }
-    const shell = new SessionInputShell({
+    const shell = new SessionInputShell({ describeFailure,
       actx: {} as Context,
       inputTriggers: () => ({ track, lexicon } as unknown as InputTriggerController),
       defaultSink: vi.fn(),
@@ -294,7 +296,7 @@ describe('submit transaction hardening', () => {
 it('captures click and Enter submission intent before async admission, excluding empty submits', async () => {
   const report = vi.fn()
   const submissionState = vi.fn(() => ({ runMode: 'default' as const, running: false, newSession: false }))
-  const shell = new SessionInputShell({ actx: {} as Context, defaultSink: async () => ({ kind: 'success' }), commandAttachments, submissionState, messageSubmitted: report })
+  const shell = new SessionInputShell({ describeFailure, actx: {} as Context, defaultSink: async () => ({ kind: 'success' }), commandAttachments, submissionState, messageSubmitted: report })
   try {
     shell.submit('queue', 'click')
     expect(submissionState).not.toHaveBeenCalled()
@@ -313,7 +315,7 @@ it('captures click and Enter submission intent before async admission, excluding
 it.each(['capture', 'report'])('analytics %s failure does not interrupt a message', async (stage) => {
   const sink = vi.fn(async (): Promise<SubmitOutcome> => ({ kind: 'success' }))
   const fail = () => { throw new Error('analytics unavailable') }
-  const shell = new SessionInputShell({ actx: {} as Context, defaultSink: sink, commandAttachments,
+  const shell = new SessionInputShell({ describeFailure, actx: {} as Context, defaultSink: sink, commandAttachments,
     ...stage === 'capture' ? { submissionState: fail } : { messageSubmitted: fail } })
   try {
     shell.setDraft('message')
@@ -338,7 +340,7 @@ it.each(['handled', 'claim', 'message'] as const)('counts only a message after a
     adjudicate: () => pending.promise,
     resolveClaim: () => Promise.resolve(undefined),
   }
-  const shell = new SessionInputShell({ actx: {} as Context, inputTriggers: () => inputTriggers,
+  const shell = new SessionInputShell({ describeFailure, actx: {} as Context, inputTriggers: () => inputTriggers,
     submissionState, messageSubmitted: report, defaultSink: sink, commandAttachments })
   try {
     shell.setDraft('/compact')
@@ -365,7 +367,7 @@ it('retains occurrence time and Session facts across arbitration and failed send
   let running = true
   let now = 100
   const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
-  const shell = new SessionInputShell({ actx: {} as Context, commandAttachments,
+  const shell = new SessionInputShell({ describeFailure, actx: {} as Context, commandAttachments,
     submissionState: () => Object.freeze({ runMode: running ? 'plan' : 'default', running, newSession: false }),
     messageSubmitted: submitted,
     inputTriggers: () => ({
@@ -402,4 +404,22 @@ it('retains occurrence time and Session facts across arbitration and failed send
     shell.dispose()
     clock.mockRestore()
   }
+})
+
+it('keeps the draft and reports a safe summary when a send rejects with raw diagnostics', async () => {
+  const failure = new Error('<error>PUT /private/key.txt token=secret</error>')
+  const describe = vi.fn(describeFailure)
+  const shell = new SessionInputShell({
+    actx: {} as Context, describeFailure: describe, commandAttachments,
+    defaultSink: () => Promise.reject(failure),
+  })
+  try {
+    shell.setDraft('keep this draft')
+    shell.submit()
+    await vi.waitFor(() => { expect(shell.notices.getSnapshot()?.text).toBe('uiError.unknown') })
+    expect(shell.snapshot.draft).toBe('keep this draft')
+    expect(shell.snapshot.phase).toBe('plain')
+    expect(describe).toHaveBeenCalledWith(failure)
+    expect(failure.message).toContain('/private/key.txt')
+  } finally { shell.dispose() }
 })

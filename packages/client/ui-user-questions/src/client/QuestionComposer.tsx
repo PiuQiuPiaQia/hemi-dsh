@@ -6,7 +6,7 @@ import clsx from 'clsx'
 import {
   Button, IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronLeftOutlineRegular,
   IconChevronRightOutlineRegular, IconChevronUpOutlineRegular, IconCloseOutlineRegular,
-  IconEditOutlineRegular, MarkdownText, Tooltip,
+  IconEditOutlineRegular, MarkdownText, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { planReviewOf, type QuestionAnswer, type QuestionCardSnapshot, type QuestionComposerProps } from './contract/slots.ts'
 import type { PendingQuestion } from './contract/slots.ts'
@@ -17,8 +17,7 @@ import css from './QuestionComposer.module.css'
 /**
  * Displayed feedback: validation feedback is stored as a dictionary KEY and
  * translated at render, so already-shown feedback follows a locale switch;
- * runtime failure messages (finished strings from the wire) pass through
- * verbatim.
+ * operation failures use localized safe summaries rather than wire diagnostics.
  */
 type Feedback = { key: 'error.incomplete' | 'error.unanswered' | 'error.unavailable' | 'error.resubmit' | 'status.sent' } | { text: string }
 
@@ -340,7 +339,8 @@ function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: Questi
       .catch((cause: unknown) => {
         sentVia.current = null
         setBusy(null)
-        setError({ text: cause instanceof Error ? cause.message : String(cause) })
+        // Hemi fork: answer and dismissal errors share safe UI copy; the question and reply content stay verbatim.
+        setError({ text: userErrorMessage(t, cause) })
       })
   }
 
@@ -411,7 +411,8 @@ function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: Questi
       .catch((cause: unknown) => {
         sentVia.current = null
         setBusy(null)
-        setError({ text: cause instanceof Error ? cause.message : String(cause) })
+        // Hemi fork: answer and dismissal errors share safe UI copy; the question and reply content stay verbatim.
+        setError({ text: userErrorMessage(t, cause) })
       })
   }
 

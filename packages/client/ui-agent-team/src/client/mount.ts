@@ -9,6 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { TeamDisableConfirmation, type TeamDisableConfirmationInjected, type TeamDisableRequest } from './TeamDisableConfirmation.tsx'
 import { TeamModeToggle, type TeamModeToggleInjected } from './TeamModeToggle.tsx'
@@ -41,7 +42,8 @@ export function registerAgentTeamUi(ctx: ClientContext): void {
       const disableRequest = createSnapshotStore<TeamDisableRequest | null>(null)
       const selectTeamMode = async (sessionId: SessionId, enabled: boolean): Promise<string | null> => {
         const response = await scope.remote.agentTeams.setEnabled(sessionId, enabled)
-        return response.ok ? null : response.error.message
+        // Hemi fork: both menu and confirmation consume localized summaries from this shared operation adapter.
+        return response.ok ? null : userErrorMessage(scope.locale.bind(NS), response.error)
       }
       yield () => { disableRequest.set(null) }
       yield scope.slots.register({

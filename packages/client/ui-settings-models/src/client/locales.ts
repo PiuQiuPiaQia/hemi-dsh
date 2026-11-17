@@ -1,5 +1,12 @@
 /** Copy dictionaries for the Models settings section. */
 
+/**
+ * The locale namespace this plugin registers (`settings.models`), named once
+ * here so the plugin body, the page store, and the Host operations bind the
+ * same translator.
+ */
+export const MODELS_SECTION_NS = 'settings.models'
+
 /** English strings (the key-set source of truth for this pair). */
 export const en = {
   nav: 'Models',

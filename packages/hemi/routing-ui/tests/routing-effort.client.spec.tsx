@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { RoutingEffortSelect, type RoutingEffortProps } from '../src/client/RoutingEffortSelect.tsx'
 import { zh } from '../src/client/locales.ts'
 
@@ -13,7 +15,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 function bindings(): RoutingEffortProps {
   return {
-    sessionId: SessionId('root'), locked: false, reportFailure: vi.fn(), t: makeTranslate(zh),
+    sessionId: SessionId('root'), locked: false, reportFailure: vi.fn(), t: makeTranslate(zh, commonZh),
     useRoutingSettings: select => select({ status: 'ready', writable: true, revision: 1, base: {}, user: {},
       value: { main: null, roles: {}, sessionModes: { root: true }, sessionEfforts: { root: 'medium', other: 'low' } },
     }), setEffort: vi.fn(async () => null),
@@ -44,14 +46,15 @@ it('resubmits the current level as an explicit preference for new conversations'
   expect(screen.queryByRole('menu')).toBeNull()
 })
 
-it('retains the accepted level and reports a rejected save', async () => {
+it('retains the accepted level and reports a rejected save through the shared summary', async () => {
   const props = bindings()
-  props.setEffort = vi.fn(async () => 'offline')
+  props.setEffort = vi.fn(async () => new RemoteError('gateway/service-unavailable', 'private upstream detail', { endpoint: 'hemiRoutingSettings/setReasoningEffort' }))
   render(<RoutingEffortSelect {...props} />)
   fireEvent.click(screen.getByRole('button', { name: '推理强度' }))
   await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: '低' })) })
   expect(screen.getByRole('button', { name: '推理强度' }).textContent).toBe('中')
-  expect(props.reportFailure).toHaveBeenCalledWith('推理强度保存失败：offline')
+  expect(props.reportFailure).toHaveBeenCalledWith(`推理强度保存失败：${commonZh['uiError.unavailable']}`)
+  expect(props.reportFailure).not.toHaveBeenCalledWith(expect.stringContaining('private upstream detail'))
 })
 
 it('uses the routing default for a different conversation and disables locked controls', () => {

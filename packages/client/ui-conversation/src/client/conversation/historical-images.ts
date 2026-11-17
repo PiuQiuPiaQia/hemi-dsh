@@ -107,7 +107,8 @@ export class HistoricalImageCache {
   ): Promise<string> {
     return entry.binding.session.readAttachment(attachment)
       .then((result) => {
-        if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+        // Hemi fork: preserve attachment-read failure metadata for the receiving presenter.
+        if (!result.ok) throw result.error
         this.assertLive(key, entry)
         let url: string
         if (typeof URL.createObjectURL !== 'function') {

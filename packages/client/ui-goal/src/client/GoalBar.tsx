@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GoalActivation, GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
 import {
   IconCheckOutlineRegular, IconCloseOutlineRegular, IconEditOutlineRegular, IconGoalOutlineRegular,
-  IconPauseOutlineRegular, IconPlayOutlineRegular, IconTrashOutlineRegular, InlineEditor, Tooltip,
+  IconPauseOutlineRegular, IconPlayOutlineRegular, IconTrashOutlineRegular, InlineEditor, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GoalActionResult, GoalBarActions, GoalBarInjected } from './slots.ts'
@@ -66,9 +66,10 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
     const result = await action()
     pendingRef.current = false
     setPending(false)
-    if (!result.ok) setActionError(`${result.error.message} (${result.error.code})`)
+    // Hemi fork: this action owns its inline notice; diagnostic text is not presentation copy.
+    if (!result.ok) setActionError(userErrorMessage(t, result.error))
     return result
-  }, [])
+  }, [t])
 
   const handleEdit = useCallback(async () => {
     const trimmed = draft.trim()

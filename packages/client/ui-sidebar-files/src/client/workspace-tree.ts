@@ -13,6 +13,7 @@ import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TreeDirectoryState, TreeEntry } from './FileTree.tsx'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './locales.ts'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { childPath, type FilesTreeState } from './store.ts'
 
 /**
@@ -26,9 +27,11 @@ export function failureLine(t: TranslateNS<'sidebarFiles'>, failure: RemoteFailu
     case 'workspace-file/not-found': return t('error.notFound')
     case 'workspace-file/outside-workspace': return t('error.outsideWorkspace')
     case 'workspace-file/not-directory': return t('error.notDirectory')
-    // Carrier and unclassified host failures reach the reader as themselves:
-    // this tree knows nothing useful to add to a transport-level message.
-    default: return t('error.unavailable', { message: failure.message })
+    // Hemi fork: carrier and unclassified host failures show the shared safe
+    // summary, because their diagnostic message can carry paths or stack text
+    // that must not reach the tree; the failure object stays on the store for
+    // developer diagnosis.
+    default: return userErrorMessage(t, failure)
   }
 }
 

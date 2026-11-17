@@ -41,6 +41,11 @@ export const zh = {
   'json.label': 'JSON',
   'markdown.footnotes': '脚注',
   'markdown.truncatedCharacters': '… 已截断，共 {total} 字符',
+  // Hemi fork: shared operation-error copy belongs to the existing common dictionary, not individual pages.
+  'uiError.unknown': '无法确认操作结果，请先核对当前状态，再决定是否重试',
+  'uiError.cancelled': '操作已取消，请核对当前状态',
+  'uiError.invalidInput': '请求未被接受，请检查输入内容后重试',
+  'uiError.unavailable': '服务暂不可用，请检查连接或稍后重试',
   'number.thousand': '{value}K',
   'number.million': '{value}M',
 } satisfies Record<string, string>

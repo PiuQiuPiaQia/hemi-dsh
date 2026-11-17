@@ -59,6 +59,8 @@ Popup selection panels fill the composer overlay's width, matching the slash men
 
 Each command-directory fetch requires an existing retained Client Session and waits for its initial history open to succeed before sending `commands.list`. A temporary `commandCatalog` reference holds that Session until the fetch settles. An unretained Session or a failed open rejects without sending the RPC, so background catalog refreshes do not reopen closed Sessions. A reloaded draft that opens with a claimed command rebuilds the claim through the `matchClaim` hook, which awaits the same directory and answers only a `leadingInput` claim without invoking or executing anything.
 
+Failure reporting keeps the original failure and renders safe copy: `commands.list`/`commands.execute` and directory-warmup rejections throw the original failure unchanged (typed `code`, `cause` intact); popup settlements and detached admission failures render the shared `userErrorMessage` summary and never show raw server diagnostics; the localized `attachmentsUnsupported` refusal throws `UserFacingError` with the advice in its `summary`, so the generic summary fallback never replaces it.
+
 Popup selection uses the [standard menu inset and item radii](../../../docs/ui-radius.md#nested-hover).
 
 </details>

@@ -13,7 +13,9 @@ import type {
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { MODELS_SECTION_NS } from './locales.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 
 /**
@@ -103,9 +105,9 @@ export interface ProviderRow {
 /** Page snapshot. */
 export interface ModelsSettingsState {
   status: 'idle' | 'loading' | 'ready' | 'error'
-  /** Whole-load failure text; row-level write failures stay in the editor. */
+  /** Whole-load failure text (the shared safe summary); row-level write failures stay in the editor. */
   error: string | null
-  /** Credential enrichment failure; provider/settings rows remain usable. */
+  /** Credential enrichment failure (the shared safe summary); provider/settings rows remain usable. */
   credentialError: string | null
   /** Whether the settings provider accepts writes. */
   writable: boolean
@@ -206,6 +208,17 @@ export class ModelsSettingsStore {
   ) {}
 
   /**
+   * The load surfaces report the shared safe summary (`userErrorMessage`),
+   * never the Host diagnostic; last-good rows stay in the snapshot for the
+   * retry. Hemi fork: the raw failure reaches only console-level callers.
+   * @param failure - the caught directory, settings, or credential read failure.
+   * @returns the localized summary text for the snapshot.
+   */
+  private describeFailure(failure: unknown): string {
+    return userErrorMessage(this.ctx.locale.bind(MODELS_SECTION_NS), failure)
+  }
+
+  /**
    * Refresh the whole page snapshot: the provider directory and the mirror's
    * settings answer in parallel, then one batched credential describe over
    * every referenced ref. Provider failure or absence of an initial settings
@@ -235,13 +248,13 @@ export class ModelsSettingsStore {
       this.describeFace.ensure(),
     ])
     if (generation !== this.generation) return
-    if (!registered.ok) { this.failLoad(registered.error.message); return }
-    if (!declared.ok) { this.failLoad(declared.error.message); return }
+    if (!registered.ok) { this.failLoad(this.describeFailure(registered.error)); return }
+    if (!declared.ok) { this.failLoad(this.describeFailure(declared.error)); return }
     const mirrored = this.describeFace.getSnapshot()
     if (mirrored.view === undefined) {
       /* v8 ignore next -- SettingsDescribeFace.ensure settles with a view or the read's error */
       if (mirrored.error === null) throw new Error('settings describe settled with neither a view nor an error')
-      this.failLoad(mirrored.error)
+      this.failLoad(this.describeFailure(mirrored.error))
       return
     }
     const providers = joinProviderDirectory(registered.value, declared.value)
@@ -279,10 +292,11 @@ export class ModelsSettingsStore {
     for (let index = 0; index < refs.length; index += 64) {
       const response = await this.ctx.remote.credentials.describe(refs.slice(index, index + 64))
       // Credential state is an enrichment for the Models page: a failure
-      // degrades the badge instead of failing the load. The onboarding
-      // projection below retains the failure distinction.
+      // degrades the badge instead of failing the load, and reports the
+      // shared safe summary. The onboarding projection below keeps the
+      // failure distinction.
       if (response.ok) Object.assign(credentials, response.value)
-      else { credentialError = response.error.message; break }
+      else { credentialError = this.describeFailure(response.error); break }
     }
     if (generation !== this.generation) return
     this.store.update((s) => {
@@ -319,7 +333,7 @@ export class ModelsSettingsStore {
     for (const load of pending) settle(load)
   }
 
-  /** Publish the current joined read's failure text. */
+  /** Publish the current joined read's failure text (already the safe summary). */
   private failLoad(message: string): void {
     this.store.update((s) => {
       s.status = 'error'

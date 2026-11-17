@@ -358,7 +358,9 @@ describe('ModelSelect reasoning effort', () => {
     const select = vi.fn(async () => {
       const error = sessionInUse
         ? new RemoteError('session/writer-held', 'writer held', { sessionId: SessionId('owned') })
-        : new RemoteError('session/model-unavailable', 'session already contains images', { provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+        : new RemoteError('session/model-unavailable',
+          'session already contains images <frame><path>/sessions/root.jsonl</path><token>tok-9f8e7d6c</token></frame>',
+          { provider: 'deepseek-official', model: 'deepseek-v4-pro' })
       directory.set(state({ groups, status: 'error', error: 'unrelated catalog refresh' }))
       return { ok: false as const, error }
     })
@@ -379,9 +381,16 @@ describe('ModelSelect reasoning effort', () => {
     fireEvent.click(rejected)
     const toast = await screen.findByRole('alert')
     expect(document.activeElement).toBe(trigger)
+    // Hemi fork: held-writer guidance stays; every other failure uses the shared safe summary without raw diagnostics.
     expect(toast.textContent).toBe(sessionInUse
       ? zh['error.sessionInUse']
-      : '模型操作失败：session/model-unavailable: session already contains images')
+      : t('error.action', { message: commonZh['uiError.unknown'] }))
+    if (!sessionInUse) {
+      expect(toast.textContent).not.toContain('session already contains images')
+      expect(toast.textContent).not.toContain('session/model-unavailable')
+      expect(toast.textContent).not.toContain('/sessions/root.jsonl')
+      expect(toast.textContent).not.toContain('tok-9f8e7d6c')
+    }
     // The selection failure does not render the in-menu load strip (no Retry).
     expect(screen.queryByRole('button', { name: '重试' })).toBeNull()
     fireEvent.keyDown(trigger, { key: 'Tab' })

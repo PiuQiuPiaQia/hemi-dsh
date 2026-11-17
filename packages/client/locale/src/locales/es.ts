@@ -44,6 +44,11 @@ export const es = {
   'json.label': 'JSON',
   'markdown.footnotes': 'Notas a pie de página',
   'markdown.truncatedCharacters': '… truncado a {total} caracteres',
+  // Hemi fork: shared operation-error copy belongs to the existing common dictionary, not individual pages.
+  'uiError.unknown': 'No se pudo confirmar el resultado. Compruebe el estado actual antes de volver a intentarlo.',
+  'uiError.cancelled': 'La operación se canceló. Compruebe el estado actual.',
+  'uiError.invalidInput': 'La solicitud no se aceptó. Revise los datos e inténtelo de nuevo.',
+  'uiError.unavailable': 'El servicio no está disponible. Compruebe la conexión o inténtelo más tarde.',
   'number.thousand': '{value}K',
   'number.million': '{value}M',
 } satisfies Record<keyof typeof en, string>

@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  IconAgentPresetOutlineRegular, IconChevronDownOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
+  IconAgentPresetOutlineRegular, IconChevronDownOutlineRegular, IconWarningOutlineRegular, Menu, Toast, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -193,7 +193,8 @@ export function AgentPresetSeat({
             className={css.seat}
             aria-haspopup="menu"
             aria-expanded={open && options.length > 0}
-            title={(typeof state.error === 'object' ? state.error?.reason : state.error) ?? t('seatHint')}
+            // Hemi fork: roster and switch diagnostics are not tooltip copy; the seat owns their safe summary.
+            title={state.error === null ? t('seatHint') : userErrorMessage(t, state.error)}
             disabled={state.busy || options.length === 0}
             onClick={() => { setOpen(value => !value) }}
           >
@@ -206,7 +207,7 @@ export function AgentPresetSeat({
       {toast !== null && (
         <Toast
           key={toast.seq}
-          text={t('switchRefused', { name: presetDisplayText(toast.error.preset, t).name, reason: toast.error.reason })}
+          text={t('switchRefused', { name: presetDisplayText(toast.error.preset, t).name, reason: userErrorMessage(t, toast.error) })}
           icon={<IconWarningOutlineRegular />}
           holdMs={REFUSAL_HOLD_MS}
           // The composer card, which is the content column this chip sits

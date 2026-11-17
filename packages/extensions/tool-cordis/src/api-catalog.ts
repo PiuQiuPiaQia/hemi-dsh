@@ -1750,7 +1750,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: '@Remote async restoreApply(): Promise<RestoreApplyResult>',
         description: 'Apply the staged restore as a merge; displaced local files survive in a unique safe-copy directory under the Harness home. Existing Session generations remain in place; conflicting backup files are saved separately.',
         parameters: [],
-        returns: 'the merge counts and safe-copy location on success.',
+        returns: 'the merge counts and safe-copy location on success, or `PARTIAL_RESTORE` with the same safe-copy location when the merge failed partway.',
       },
       {
         signature: '@Remote restoreCancel(): Promise<BackupOperationResult>',
@@ -6292,12 +6292,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export class BackendRegistry {\n    register(name: string, backend: StorageBackend): () => void;\n    get(name: string): StorageBackend;\n    names(): string[];\n}',
   },
   {
+    name: 'BackupFailureCode',
+    declaration: 'export type BackupFailureCode = (typeof BACKUP_FAILURE_CODES)[number];',
+  },
+  {
     name: 'BackupLastRun',
-    declaration: 'export interface BackupLastRun {\n    readonly at: string;\n    readonly ok: boolean;\n    readonly trigger: \'manual\' | \'scheduled\';\n    readonly packedBytes?: number;\n    readonly files?: number;\n    readonly message?: string;\n}',
+    declaration: 'export interface BackupLastRun {\n    readonly at: string;\n    readonly ok: boolean;\n    readonly trigger: \'manual\' | \'scheduled\';\n    readonly packedBytes?: number;\n    readonly files?: number;\n    readonly message?: string;\n    readonly code?: BackupFailureCode;\n}',
   },
   {
     name: 'BackupOperationResult',
-    declaration: 'export interface BackupOperationResult {\n    readonly ok: boolean;\n    readonly code?: \'BUSY\' | \'NO_TARGET\' | \'NO_RESTORE\' | \'INVALID_NAME\' | \'FAILED\';\n    readonly message?: string;\n}',
+    declaration: 'export interface BackupOperationResult {\n    readonly ok: boolean;\n    readonly code?: BackupFailureCode;\n    readonly message?: string;\n}',
   },
   {
     name: 'BackupProgress',

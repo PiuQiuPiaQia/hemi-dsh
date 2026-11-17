@@ -15,7 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-user-questions/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-resources/client'
-import { extractMarkdownPlainText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { extractMarkdownPlainText, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { PlanCards, PlanReviewOpen, type PlanCardsInjected, type PlanOpenInjected, type PlanReviewOpenInjected } from './PlanCard.tsx'
 import { PlanPreview, PlanTitle } from './PlanPreview.tsx'
@@ -117,11 +117,13 @@ export function apply(ctx: ClientContext): void {
     name: 'conversation.input.plan',
     locale: NS,
     inject: (sessionId: SessionId): PlanChipInjected => ({
-      // Failure strings stay English (error-surface policy: not localized).
+      // Hemi fork: the exit outcome reaches the composer as the shared safe
+      // summary; the raw command failure and its code stay off the surface,
+      // and are still retained on the error for developer diagnosis.
       exitPlanMode: async () => {
         const result = await ctx.remote.commands.execute(sessionId, '/plan off', [])
-        if (!result.ok) return `${result.error.message} (${result.error.code})`
-        if (result.value === undefined) return 'unknown command: /plan off'
+        if (!result.ok) return userErrorMessage(t, result.error)
+        if (result.value === undefined) return t('uiError.unknown')
         return null
       },
     }),

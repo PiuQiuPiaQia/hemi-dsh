@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconCloseCircleFillRegular, IconPlanOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseCircleFillRegular, IconPlanOutlineRegular, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.plan seat and
 // its {locked} owner share).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -42,9 +42,11 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
       setLeaving(false)
       setError(failure)
     }, (reason: unknown) => {
+      // Hemi fork: a transport rejection of the exit itself shows the shared
+      // safe summary, never the rejection's own message.
       if (!aliveRef.current) return
       setLeaving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(userErrorMessage(t, reason))
     })
   }
 

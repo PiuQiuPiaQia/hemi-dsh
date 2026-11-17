@@ -1,7 +1,8 @@
 /** Page-store join: directory × namespaces × credentials, with last-good rows on failure. */
 import { describe, expect, it } from 'vitest'
 import type { RpcResponse } from '@deepseek-ai/dsh-api-remotes/client'
-import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { RemoteError, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { settingsSchema } from './settings-schema.client.ts'
 import { deriveKeyRef, joinProviderDirectory, ModelsSettingsStore, providerUsable } from '../src/client/store.ts'
@@ -157,7 +158,9 @@ function api(overrides: {
     },
   }
   // The page plugin's context, scripted down to the namespaces it reaches.
-  const ctx = { remote: face } as never
+  // Hemi fork: load refusals report the shared safe summary, so the script
+  // binds the common copy the production locale plugin registers.
+  const ctx = { remote: face, locale: { bind: () => makeTranslate(commonEn) } } as never
   return { ctx, face, mirror: new SettingsDescribeMirror(ctx), seenRefs }
 }
 
@@ -212,7 +215,7 @@ describe('ModelsSettingsStore', () => {
     await store.load()
     const state = store.store.getSnapshot()
     expect(state.status).toBe('ready')
-    expect(state.credentialError).toBe('no provider')
+    expect(state.credentialError).toBe(commonEn['uiError.unknown'])
     expect(state.rows.every(row => row.credential === undefined)).toBe(true)
   })
 
@@ -224,7 +227,7 @@ describe('ModelsSettingsStore', () => {
     const broken = api({ providers: () => Promise.resolve(fail('directory down')) })
     const failing = new ModelsSettingsStore(broken.ctx, settingsSchema, broken.mirror)
     await failing.load()
-    expect(failing.store.getSnapshot()).toMatchObject({ status: 'error', error: 'directory down' })
+    expect(failing.store.getSnapshot()).toMatchObject({ status: 'error', error: commonEn['uiError.unknown'] })
     // The first store's snapshot is untouched by the second's failure.
     expect(store.store.getSnapshot().status).toBe('ready')
   })
@@ -240,7 +243,7 @@ describe('ModelsSettingsStore', () => {
     await store.load()
 
     expect(store.store.getSnapshot()).toMatchObject({
-      status: 'error', error: 'configuration directory down',
+      status: 'error', error: commonEn['uiError.unknown'],
     })
   })
 
@@ -324,11 +327,11 @@ describe('ModelsSettingsStore', () => {
       await latest
       await new Promise<void>((resolve) => { setImmediate(resolve) })
       expect(obsoleteSettled).toBe(true)
-      expect(store.store.getSnapshot()).toMatchObject({ status: 'ready', credentialError: 'latest credentials unavailable' })
+      expect(store.store.getSnapshot()).toMatchObject({ status: 'ready', credentialError: commonEn['uiError.unknown'] })
       obsoleteRead.reject(new Error('obsolete transport unavailable'))
       await Promise.allSettled([obsoleteRead.promise])
       await new Promise<void>((resolve) => { setImmediate(resolve) })
-      expect(store.store.getSnapshot()).toMatchObject({ status: 'ready', credentialError: 'latest credentials unavailable' })
+      expect(store.store.getSnapshot()).toMatchObject({ status: 'ready', credentialError: commonEn['uiError.unknown'] })
     } finally {
       obsoleteRead.resolve(remoteOk({}))
       latestRead.resolve(remoteOk({}))
@@ -483,7 +486,7 @@ describe('edge joins', () => {
     })
     const store = new ModelsSettingsStore(ctx, settingsSchema, mirror)
     await store.load()
-    expect(store.store.getSnapshot()).toMatchObject({ status: 'error', error: 'settings down' })
+    expect(store.store.getSnapshot()).toMatchObject({ status: 'error', error: commonEn['uiError.unknown'] })
     await store.load()
     const state = store.store.getSnapshot()
     expect(state).toMatchObject({ status: 'ready', error: null, writable: true })

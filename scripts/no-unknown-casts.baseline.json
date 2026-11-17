@@ -547,7 +547,6 @@
     "41f50f1679049edf1f4a18e936df5a2ceb2de04f1e43a4fad07d8e93578d2cc6": 1,
     "53f1197af19938d444b06ebf666a8751240d0b5e5ea13edf6100316d1bc5ede2": 5,
     "9bb8efa3dd59e674ef31f5af43d4aac13ca59d96dd418fe3bf07199c8963c31c": 2,
-    "bd4e8147a13bee681bd192d1558f4a79de23d5edeafb616e8acccd725465ef98": 1,
     "e01c2c40d53d557b621628de47a0a6677e11b4f151fbefd865c97be99a7b6c48": 1,
     "e69e0ec4368790661e1f7cae5c2059f757c213f0ebb0bd40ec23af982bc73d20": 1
   },
@@ -607,8 +606,7 @@
     "fb9804cc2774409af6935d5a1369497b433c34cd9305cac88e3400eae0f70936": 1
   },
   "packages/client/ui-sidebar-documentpreview/tests/pdf-body.client.spec.tsx": {
-    "6061de0a1e01547eb1abf9d4e1b5fa79fda112fa35dda980775491123413dcce": 1,
-    "daaeb704a25654054557bac941f940572d4259209a3a942e3c361a1ff2804ca9": 1
+    "6061de0a1e01547eb1abf9d4e1b5fa79fda112fa35dda980775491123413dcce": 1
   },
   "packages/client/ui-sidebar-documentpreview/tests/pdf-document.client.spec.ts": {
     "09acce5c2c2785f021136cb1c978ffa5f510a8ef67fab5b0631c7827eef39e24": 1,
@@ -630,9 +628,6 @@
   },
   "packages/client/ui-sidebar-documentpreview/tests/text-title.client.spec.tsx": {
     "1bbd18e22567ce0529d02b770533f9bda84ff379b161dda8b9548053a18a0e97": 1
-  },
-  "packages/client/ui-sidebar-files/tests/files-body.client.spec.tsx": {
-    "833b36afd62ef374236ba0bf0ca7e1ec62eeb0c2a1ac44b823b7994167a167ce": 1
   },
   "packages/client/ui-sidebar-files/tests/files-title.client.spec.tsx": {
     "1bbd18e22567ce0529d02b770533f9bda84ff379b161dda8b9548053a18a0e97": 1

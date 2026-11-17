@@ -19,6 +19,7 @@ import {
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SubmitAttachment, SubmitOutcome } from '../src/client/contract/input.ts'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { DraftAttachmentId } from '../src/client/contract/input.ts'
@@ -26,6 +27,10 @@ import { SessionInputShell } from '../src/client/input/facade.ts'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
 import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
 import { zh } from '../src/client/locales.ts'
+
+// The hub's failure voice (hub.ts): safe localized copy, never raw diagnostics.
+const t = makeTranslate(zh, commonZh)
+const describeFailure = (failure: unknown): string => userErrorMessage(t, failure)
 
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
@@ -108,7 +113,7 @@ function bench(over?: {
   const sink = vi.fn(() => Promise.resolve<SubmitOutcome>({ kind: 'success' }))
   const serialize = vi.fn(over?.serialize ?? (() => Promise.resolve<readonly SubmitAttachment[]>([])))
   const release = vi.fn()
-  const shell = new SessionInputShell({ actx: SCTX, defaultSink: sink, commandAttachments: { serialize, release, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` } })
+  const shell = new SessionInputShell({ actx: SCTX, describeFailure, defaultSink: sink, commandAttachments: { serialize, release, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` } })
   const wiring = shell
   const view = mountBar(shell, over)
   const textarea = view.container.querySelector<HTMLDivElement>('[data-composer-input]')!
@@ -138,6 +143,7 @@ describe('matrix row: plain', () => {
     const subscribe = vi.fn(() => unsubscribe)
     const shell = new SessionInputShell({
       actx: SCTX,
+      describeFailure,
       defaultSink: () => Promise.resolve({ kind: 'success' }),
       inbox: { getSnapshot: () => undefined, subscribe },
       commandAttachments: {
@@ -264,7 +270,9 @@ describe('matrix row: claimed with attachments', () => {
     claim('/goal ', '目标', true)
     act(() => { shell.addAttachments([img]) })
     fireEvent.keyDown(textarea, { key: 'Enter' })
-    await vi.waitFor(() => { expect(view.getByText('附件已失效')).toBeTruthy() })
+    // The safe summary announces the failure; the raw diagnostic never reaches the DOM.
+    await vi.waitFor(() => { expect(view.getByText(commonZh['uiError.unknown'])).toBeTruthy() })
+    expect(view.queryByText('附件已失效')).toBeNull()
     expect(submit).not.toHaveBeenCalled()
     expect(shell.snapshot.attachmentIds).toEqual([img])
     expect(release).not.toHaveBeenCalled()
@@ -335,7 +343,7 @@ describe('matrix row: submitting', () => {
     act(() => { rejectSubmit(new Error('执行失败')) })
     await vi.waitFor(() => { expect(first.shell.snapshot.phase).toBe('claimed') })
     expect(first.shell.snapshot.draft).toBe('/goal ')
-    expect(first.view.getByText('执行失败')).toBeTruthy()
+    expect(first.view.getByText(commonZh['uiError.unknown'])).toBeTruthy()
     cleanup()
     // Drift: typing during flight wins; no restore, plain, notice only.
     const submit2 = vi.fn(() => new Promise<SubmitOutcome>((_res, rej) => { rejectSubmit = rej }))
@@ -347,7 +355,7 @@ describe('matrix row: submitting', () => {
     act(() => { rejectSubmit(new Error('晚到失败')) })
     await vi.waitFor(() => { expect(second.shell.snapshot.phase).toBe('plain') })
     expect(second.shell.snapshot.draft).toBe('用户飞行中打的新稿')
-    expect(second.view.getByText('晚到失败')).toBeTruthy()
+    expect(second.view.getByText(commonZh['uiError.unknown'])).toBeTruthy()
   })
 })
 

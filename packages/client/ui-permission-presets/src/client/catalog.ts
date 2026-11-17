@@ -133,7 +133,8 @@ export class PermissionCatalogDirectory {
     this.failure = new Error('permission catalog has no complete value')
     const operation = this.ctx.remote.permissionPresets.catalog()
       .then((result) => {
-        if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+        // Hemi fork: preserve the Remote failure for safe presentation and diagnostic consumers.
+        if (!result.ok) throw result.error
         if (!this.accepts(epoch, generationId)) return
         this.store.set({ value: result.value })
       })

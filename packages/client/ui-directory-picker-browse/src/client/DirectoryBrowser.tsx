@@ -38,7 +38,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconCheckOutlineRegular, IconChevronRightOutlineRegular, IconEditOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
-  IconPlusOutlineRegular, Modal,
+  IconPlusOutlineRegular, Modal, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
 import type { Translate } from '@deepseek-ai/dsh-client-locale/client'
@@ -51,14 +51,15 @@ export interface DirectoryBrowserProps {
   /**
    * List one directory level (absent path = the Host home directory); the
    * signal aborts a superseded scan on the wire. A rejection may carry
-   * `{ rpcError: { message: string } }`; the dialog prefers that Host
-   * business message over the ordinary Error text.
+   * `{ rpcError }` — the Host's declared failure — which the alert renders
+   * through the shared safe summary; the rejection itself is never shown.
    */
   listDirectory: (path?: string, signal?: AbortSignal) => Promise<DirectoryListing>
   /**
    * Create one child directory under an existing parent. A rejection may
-   * carry `{ rpcError: { message: string } }`; the dialog prefers that Host
-   * business message over the ordinary Error text.
+   * carry `{ rpcError }` — the Host's declared failure — which the alert
+   * renders through the shared safe summary; the rejection itself is never
+   * shown.
    */
   createDirectory: (path: string, name: string) => Promise<string>
   /** The operator confirmed a directory (the selection, else the listed level). */
@@ -71,14 +72,15 @@ export interface DirectoryBrowserProps {
   t: Translate
 }
 
-/** Failure text from the injected directory operation. */
-function failureText(error: unknown): string {
-  if (error !== null && typeof error === 'object' && 'rpcError' in error) {
-    const rpcError = error.rpcError
-    if (rpcError !== null && typeof rpcError === 'object' && 'message' in rpcError
-      && typeof rpcError.message === 'string') return rpcError.message
-  }
-  return error instanceof Error ? error.message : String(error)
+/**
+ * Safe alert text for one injected directory operation. Hemi fork: the Host's
+ * declared failure classifies through the shared helper, and every other
+ * rejection — its transport or Error text included — becomes the common
+ * unknown summary, so host paths and response text never reach the dialog.
+ */
+function failureText(error: unknown, t: Translate): string {
+  if (error instanceof Error && 'rpcError' in error) return userErrorMessage(t, error.rpcError)
+  return userErrorMessage(t, error)
 }
 
 /**
@@ -475,7 +477,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     }, (reason: unknown) => {
       if (seq !== requestSeq.current) return
       setLoading(false)
-      if (options.announce) setError(failureText(reason))
+      if (options.announce) setError(failureText(reason, t))
     })
   }, [launchListing, continueScan])
 
@@ -521,7 +523,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     }, (reason: unknown) => {
       if (seq !== requestSeq.current) return
       setLoading(false)
-      setError(failureText(reason))
+      setError(failureText(reason, t))
       // An unreadable selection cannot be the committing target while the
       // breadcrumb still names the level: fall back to the single pane.
       setSelected(null)
@@ -639,12 +641,12 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
         /* v8 ignore next -- same fence as navigate/select; the modal blocks superseding input */
         if (seq !== requestSeq.current) return
         setLoading(false)
-        setError(failureText(reason))
+        setError(failureText(reason, t))
       })
     }, (reason: unknown) => {
       if (generation !== openGeneration.current) return
       setCreatingFolder(false)
-      setCreateError(failureText(reason))
+      setCreateError(failureText(reason, t))
     })
   }
 

@@ -123,6 +123,7 @@ it('leaves trigger subscription to lifecycle activation rather than construction
   const resolve = vi.fn(() => triggers)
   const shell = new SessionInputShell({
     actx: b.binding.ctx,
+    describeFailure: () => 'safe failure',
     inputTriggers: resolve,
     defaultSink: () => Promise.resolve({ kind: 'success' }),
     commandAttachments: {

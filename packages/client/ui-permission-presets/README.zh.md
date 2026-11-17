@@ -37,7 +37,7 @@ kind: "package-reference"
 
 ### 设置行
 
-该行从宿主动态的 `defaultPreset` enum 推导选项，使用与当前会话选择器相同的本地化内置标签，并写入一条设置变更操作。`auto` 等仅限当前会话的 contribution 不会出现。该值只在之后创建会话时生效；改变它绝不会切换或改写当前会话。
+该行从宿主动态的 `defaultPreset` enum 推导选项，使用与当前会话选择器相同的本地化内置标签，并写入一条设置变更操作。`auto` 等仅限当前会话的 contribution 不会出现。该值只在之后创建会话时生效；改变它绝不会切换或改写当前会话。被拒绝的写入保留该行当前值，并显示 [ui-primitives](../ui-primitives/README.zh.md) 中共享 `userErrorMessage` helper 的本地化安全摘要；原始 Remote 失败以原始身份保留在诊断中，不进入设置行或选择器文案。
 
 -----
 

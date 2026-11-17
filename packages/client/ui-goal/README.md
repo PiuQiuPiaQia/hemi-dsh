@@ -33,7 +33,7 @@ Each durable `/goal` run projects as a right-aligned user-style bubble labeled `
 
 ### Failures
 
-A rejected mutation surfaces the Remote error inline on the strip; loading, absent, completed, and successfully cleared goals render nothing.
+A rejected mutation surfaces a localized safe summary from the shared `userErrorMessage` helper in [ui-primitives](../ui-primitives/README.md) inline on the strip; the Remote message, code, and details stay out of the presentation copy and remain available in session diagnostics. Loading, absent, completed, and successfully cleared goals render nothing.
 
 -----
 

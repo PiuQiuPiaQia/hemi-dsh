@@ -23,7 +23,7 @@ import type { ISessions, SessionBinding } from '@deepseek-ai/dsh-api-session-con
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
-import { rankByName } from '@deepseek-ai/dsh-client-ui-primitives'
+import { rankByName, UserFacingError, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   CandidateRequest, ClientSessionContext, CommandClaim, PickOutcome, InputTriggerCandidate, InputTriggerPick,
   SubmitAttachment, SubmitEnvelope, SubmitOutcome,
@@ -106,7 +106,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
           throw state.openError ?? new Error(`session "${sessionId}" is not open`)
         }
         const result = await ctx.remote.commands.list(sessionId)
-        if (!result.ok) throw new Error(`command.list failed: ${result.error.code}: ${result.error.message}`)
+        // Hemi fork: popup admission keeps the original failure for the shared safe reporter.
+        if (!result.ok) throw result.error
         return result.value
       })
     })
@@ -207,6 +208,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       }) === true,
       // The shell took the keyboard; the composer restores it, caret included.
       focusComposer: () => { binding.ctx.get('conversation')?.input.for(binding.ctx).focus() },
+      // Hemi fork: one runtime-owned formatter covers every popup contribution without importing feature presenters.
+      describeFailure: failure => userErrorMessage(this.t, failure),
     })
     popups.set(binding, controller)
     binding.ctx.effect(() => () => {
@@ -330,7 +333,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     const typedName = token.slice(1)
     if (typedName === '') return undefined
     const refuseAttachments = (): never => {
-      throw new Error(this.t('notice.attachmentsUnsupported', { command: typedName }))
+      // Hemi fork: explicit UI advice survives the generic exception fallback without treating diagnostics as copy.
+      throw new UserFacingError(this.t('notice.attachmentsUnsupported', { command: typedName }))
     }
     const contribution = this.live.contributions.get(typedName)
     if (contribution !== undefined && contribution.available(session)) {
@@ -421,7 +425,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     attachments: readonly SubmitAttachment[] = [],
   ): Promise<SubmitOutcome> {
     const result = await this.ctx.remote.commands.execute(session.sessionId, line, attachments)
-    if (!result.ok) throw new Error(`command.execute failed: ${result.error.code}: ${result.error.message}`)
+    // Hemi fork: command lifecycle output remains intact; admission failures retain code and cause for UI reporting.
+    if (!result.ok) throw result.error
     if (result.value === undefined) return { kind: 'error', text: `unknown or malformed command: ${line}` }
     this.notifyExecuted(session.sessionId, submittedCommandName(line), result.value.result)
     // A submission consumes its attachments only after handler success; an
@@ -470,7 +475,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
         if (outcome.kind === 'error') this.noticeFor(session.sessionId, 'error', outcome.text ?? `/${desc.name} failed`)
       },
       (error: unknown) => {
-        this.noticeFor(session.sessionId, 'error', error instanceof Error ? error.message : String(error))
+        // Hemi fork: detached admission errors share popup and composer summaries, not raw server messages.
+        this.noticeFor(session.sessionId, 'error', userErrorMessage(this.t, error))
       },
     )
   }

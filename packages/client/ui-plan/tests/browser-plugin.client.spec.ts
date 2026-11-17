@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { en as commonEn, zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/index.ts'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ChatSnapshot } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { EMPTY_CHAT_SNAPSHOT } from '../../ui-chat/src/client/contract/snapshot.ts'
@@ -68,7 +69,11 @@ async function bench() {
   const commandsRemote = { execute }
   ctx.provide('remote', { commands: commandsRemote })
   ctx.provide('remote.commands', commandsRemote)
-  ctx.provide('locale', new LocaleRuntime(ctx))
+  const locale = new LocaleRuntime(ctx)
+  // The shared operation-error vocabulary, registered by the locale plugin in
+  // production; the safe summaries resolve through it here.
+  locale.register('common', { en: commonEn, zh: commonZh })
+  ctx.provide('locale', locale)
   return { ctx, slots, execute, ...preview }
 }
 
@@ -179,17 +184,17 @@ describe('ui-plan browser apply', () => {
     await expect(injected.exitPlanMode()).resolves.toBeNull()
     expect(b.execute).toHaveBeenLastCalledWith(SID, '/plan off', [])
 
-    // Business failure folds to the composer-visible line: the generated method
-    // reports the RPC failure in its error branch.
+    // Business and transport failures fold to the composer-visible safe
+    // summary; the RPC failure's own words stay off the surface.
     b.execute.mockResolvedValueOnce({
       ok: false,
-      error: new RemoteError('session/not-found', 'gone', { sessionId: SID }),
+      error: new RemoteError('session/not-found', '<error>/private/path</error>', { sessionId: SID }),
     } as never)
-    await expect(injected.exitPlanMode()).resolves.toBe('gone (session/not-found)')
+    await expect(injected.exitPlanMode()).resolves.toBe(commonEn['uiError.unknown'])
 
     // Unmatched admission (plan-mode not composed host-side) is also a failure line.
     b.execute.mockResolvedValueOnce({ ok: true, value: undefined } as never)
-    await expect(injected.exitPlanMode()).resolves.toBe('unknown command: /plan off')
+    await expect(injected.exitPlanMode()).resolves.toBe(commonEn['uiError.unknown'])
 
     expect(b.events.entries().map(entry => entry.kind)).toEqual(['submitted-plan'])
     await fiber.dispose()

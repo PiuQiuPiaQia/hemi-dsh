@@ -152,7 +152,8 @@ Hemi backup orchestrator: settings, runs, retention, and staged restore, exposed
  * Apply the staged restore as a merge; displaced local files survive in a
  * unique safe-copy directory under the Harness home. Existing Session
  * generations remain in place; conflicting backup files are saved separately.
- * @returns the merge counts and safe-copy location on success.
+ * @returns the merge counts and safe-copy location on success, or
+ * `PARTIAL_RESTORE` with the same safe-copy location when the merge failed partway.
  */
 @Remote async restoreApply(): Promise<RestoreApplyResult>
 

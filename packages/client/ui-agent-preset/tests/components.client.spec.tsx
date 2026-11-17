@@ -19,6 +19,7 @@ import type { AgentPresetSeatProps } from '../src/client/AgentPresetSeat.tsx'
 import type { AgentPresetSettingsState } from '../src/client/settings-store.ts'
 import type { AgentPresetSeatState } from '../src/client/seat-store.ts'
 import { en } from '../src/client/locales.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 
 afterEach(cleanup)
 
@@ -41,9 +42,10 @@ const SEAT_READY: AgentPresetSeatState = {
 
 const useSessionRetainInfo = <Selected,>(selector: (value: undefined) => Selected): Selected => selector(undefined)
 
-/** The runtime's own `{name}` substitution, so a test reads the shown text. */
+/** The runtime's own `{name}` substitution over preset ∪ common copy, so a test reads the shown text. */
+const seatCopy: Record<string, string> = { ...commonEn, ...en }
 function translate(key: keyof typeof en, params?: Record<string, unknown>): string {
-  const template = en[key]
+  const template = seatCopy[key] ?? key
   return params === undefined
     ? template
     : template.replace(/\{(\w+)\}/g, (match, name: string) => name in params ? String(params[name]) : match)
@@ -225,9 +227,13 @@ describe('the new-session chip', () => {
   })
 
   it('shows a refused switch on the trigger', () => {
-    renderSeat({ error: 'session has already started' })
+    // Hemi fork: the trigger tooltip carries the shared safe summary, never the raw refusal text.
+    renderSeat({ error: 'session has already started <trace><path>/var/log/dsh/preset.log</path><token>tok-9a8b7c</token></trace>' })
 
-    expect(screen.getByRole('button').getAttribute('title')).toBe('session has already started')
+    expect(screen.getByRole('button').getAttribute('title')).toBe(commonEn['uiError.unknown'])
+    expect(screen.getByRole('button').getAttribute('title')).not.toContain('session has already started')
+    expect(screen.getByRole('button').getAttribute('title')).not.toContain('/var/log/dsh')
+    expect(screen.getByRole('button').getAttribute('title')).not.toContain('tok-9a8b7c')
   })
 
   it('renders nothing before the roster arrives or when there is none', () => {
@@ -256,23 +262,27 @@ describe('a refused switch', () => {
     // lifetime assertion below would wait out its real nine seconds.
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      const reason = 'failed to import loader entry live-on-mac (@deepseek-ai/dsh-also-gone)'
+      const reason = 'failed to import loader entry live-on-mac (@deepseek-ai/dsh-also-gone) <trace><path>/opt/dsh/lib/live.js:9</path><token>tok-4f2e1d</token></trace>'
       const actions = renderSeat({ current: '' }, undefined, undefined, false)
       const refusal = { preset: { id: 'cordis' }, reason }
       act(() => { actions.store.set({ ...actions.store.getSnapshot(), error: refusal }) })
 
       // The host refuses a mount discovery reported healthy, so this banner is
-      // the only place the cause appears — the chip has already reverted and
-      // the settings row shows the preset as fine.
+      // the only place the outcome appears — the chip has already reverted and
+      // the settings row shows the preset as fine. The banner names the preset
+      // and the shared safe summary; raw diagnostics never reach copy.
       const banner = screen.getByRole('alert')
-      expect(banner.textContent).toContain(reason)
+      expect(banner.textContent).toBe(translate('switchRefused', { name: en.presetCordisName, reason: commonEn['uiError.unknown'] }))
       expect(banner.textContent).toContain(en.presetCordisName)
+      expect(banner.textContent).not.toContain(reason)
+      expect(banner.textContent).not.toContain('/opt/dsh/lib')
+      expect(banner.textContent).not.toContain('tok-4f2e1d')
       expect(screen.queryByRole('button')).toBeNull()
 
       act(() => { vi.advanceTimersByTime(7000) })
       act(() => { actions.store.set({ ...actions.store.getSnapshot(), error: { ...refusal } }) })
       act(() => { vi.advanceTimersByTime(2001) })
-      expect(screen.getByRole('alert').textContent).toContain(reason)
+      expect(screen.getByRole('alert').textContent).toBe(translate('switchRefused', { name: en.presetCordisName, reason: commonEn['uiError.unknown'] }))
 
       // Transient by design: it holds long enough to read a cause that names
       // packages, then leaves rather than sitting over the screen.

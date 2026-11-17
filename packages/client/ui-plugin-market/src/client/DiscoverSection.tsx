@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Button, IconChevronDownOutlineRegular, IconPlusOutlineRegular, IconRefreshOutlineRegular, IconSearchOutlineRegular,
   IconSlidersTwoOutlineRegular, IconTrashOutlineRegular, IconWarningOutlineRegular, Input, Menu, Modal, Pill,
-  PluginArtworkDefault, StateDot, Tag, Tooltip,
+  PluginArtworkDefault, StateDot, Tag, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MarketCompatibility, MarketListingEntry, MarketListingVersion, MarketSearchResult, MarketSort } from '@deepseek-ai/dsh-api-remotes/client'
@@ -295,7 +295,8 @@ function SourcesDialog({ state, t, face }: {
                 <div className={css.main}>
                   <span className={css.strong}>{indexLabel(index, face.resolveText)}</span>
                   <span className={css.meta}>{index.url}</span>
-                  {index.error === undefined ? null : <span className={css.sourceError}>{index.error}</span>}
+                  {/* Hemi fork: index diagnostics stay on the read state; source rows show the shared safe summary. */}
+                  {index.error === undefined ? null : <span className={css.sourceError}>{userErrorMessage(t, index.error)}</span>}
                 </div>
                 <Tooltip label={t('removeSource')} side="bottom" portal delayMs={300}>
                   <Button variant="ghost" size="sm" icon={<IconTrashOutlineRegular size={13} />}

@@ -44,6 +44,11 @@ export const ru = {
   'json.label': 'JSON',
   'markdown.footnotes': 'Сноски',
   'markdown.truncatedCharacters': '… обрезано до {total} символов',
+  // Hemi fork: shared operation-error copy belongs to the existing common dictionary, not individual pages.
+  'uiError.unknown': 'Не удалось подтвердить результат. Проверьте текущее состояние перед повторной попыткой.',
+  'uiError.cancelled': 'Операция отменена. Проверьте текущее состояние.',
+  'uiError.invalidInput': 'Запрос не принят. Проверьте введённые данные и повторите попытку.',
+  'uiError.unavailable': 'Сервис недоступен. Проверьте соединение или повторите попытку позже.',
   'number.thousand': '{value}K',
   'number.million': '{value}M',
 } satisfies Record<keyof typeof en, string>

@@ -12,6 +12,7 @@ import {
   allowAllAccess, bindSnapshotSelector, makeTranslate, RemoteError, sessionSnapshot as sessionFixture,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
@@ -57,7 +58,7 @@ Range.prototype.getBoundingClientRect = () => ({
 
 function fakeWiring() {
   const sink = vi.fn(() => Promise.resolve({ kind: 'success' as const }))
-  const shell = new SessionInputShell({ actx: {} as Context, defaultSink: sink, commandAttachments: { serialize: () => Promise.resolve([]), release: () => {}, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` } })
+  const shell = new SessionInputShell({ actx: {} as Context, describeFailure, defaultSink: sink, commandAttachments: { serialize: () => Promise.resolve([]), release: () => {}, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` } })
   return { wiring: shell, sink, shell }
 }
 
@@ -95,6 +96,9 @@ beforeEach(() => {
 })
 
 const t: ConversationContentProps['t'] = makeTranslate(zh, commonZh)
+
+// The hub's failure voice (hub.ts): safe localized copy, never raw diagnostics.
+const describeFailure = (failure: unknown): string => userErrorMessage(t, failure)
 
 const sid = (id: string) => id as SessionId
 const wid = (id: string) => id as WorkspaceId
@@ -974,7 +978,8 @@ describe('ConversationRoot resident composer', () => {
     const b = mount(sessionSnapshotOf({
       promptError: { op: 'send', error: { code: 'offline', message: 'Message send failed' } as never },
     }))
-    expect(b.view.getByRole('alert').textContent).toContain('Message send failed (offline)')
+    // Unclassified failures share the safe summary; the diagnostic stays off the DOM.
+    expect(b.view.getByRole('alert').textContent).toContain(commonZh['uiError.unknown'])
     expect(b.view.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 

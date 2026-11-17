@@ -55,7 +55,8 @@ export class ModelCatalogDirectory {
     })
     const operation = this.ctx.remote.session.modelCatalog().then((response) => {
       if (!response.ok) {
-        throw new Error(`${response.error.code}: ${response.error.message}`)
+        // Hemi fork: preserve the carrier failure so each UI entry can classify it without parsing diagnostics.
+        throw response.error
       }
       if (generation === this.generation) {
         for (const group of response.value.groups) {

@@ -18,7 +18,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ComposerChainProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { PendingInteractionPublisher } from '@deepseek-ai/dsh-client-ui-session/client'
-import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteResult, TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 import type { AskUserQuestionItem, PendingUserQuestion, UserQuestionProjectionView } from '@deepseek-ai/dsh-user-questions/types'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -287,8 +287,9 @@ function publishContinuedQuestions(ctx: ClientContext, cards: QuestionCards): ()
   const sessions = ctx.sessions
   const stopProjections = new Map<SessionId, () => void>()
 
-  const unwrap = <T>(result: { ok: true; value: T } | { ok: false; error: { message: string } }): T => {
-    if (!result.ok) throw new Error(result.error.message)
+  const unwrap = <T>(result: RemoteResult<T>): T => {
+    // Hemi fork: answer presenters need the original error code and diagnostic cause, not an erased message.
+    if (!result.ok) throw result.error
     return result.value
   }
   const rpcFor = (sessionId: SessionId, callId: ToolCallId): QuestionRpcChannel => ({

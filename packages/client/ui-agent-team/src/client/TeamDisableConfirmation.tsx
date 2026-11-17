@@ -1,7 +1,7 @@
 /** Session-targeted confirmation that outlives the model menu which opened it. */
 import { useState } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { NS } from './locales.ts'
@@ -53,7 +53,8 @@ function DisableConfirmationForm({ sessionId, cancelDisable, disableTeam, t }: {
       if (failure === null) cancelDisable(sessionId)
       else setState({ kind: 'failed', message: failure })
     }, (error: unknown) => {
-      setState({ kind: 'failed', message: error instanceof Error ? error.message : String(error) })
+      // Hemi fork: the confirmation owns its failure notice and never exposes unexpected exception diagnostics.
+      setState({ kind: 'failed', message: userErrorMessage(t, error) })
     })
   }
   return (

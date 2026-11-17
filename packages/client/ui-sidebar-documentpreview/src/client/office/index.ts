@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-office-to-pdf/remote'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
+import { UserFacingError, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { failureLine } from '../failure-line.ts'
 import { documentTabInfoFactory } from '../document/contract.ts'
 import { en, ja, es, fr, de, ru, pt, zh, type OfficePreviewKey } from './locales.ts'
@@ -35,7 +36,7 @@ export function apply(ctx: Context, config: Config['office']): void {
   const t = ctx.locale.bind('sidebarOffice')
   const unavailable: ReadOfficeDocument = (_file, signal) => {
     signal.throwIfAborted()
-    return Promise.reject(new Error(t('unavailable')))
+    return Promise.reject(new UserFacingError(t('unavailable')))
   }
   let read = unavailable
   ctx.effect(() => ctx.documentPreviews.register({
@@ -49,9 +50,14 @@ export function apply(ctx: Context, config: Config['office']): void {
   }, OfficeFontAction)))
   const retainTab = retainDocumentTabs(ctx)
   const documentT = ctx.locale.bind('sidebarDocumentPreview')
+  // Hemi fork: declared Remote failures keep this reader's per-code lines, and
+  // the registration's own localized refusals stay intact through the shared
+  // helper; every other rejection — its transport text included — reaches the
+  // reader only as the safe common summary.
   const face = officeFace(
     (file, signal) => read(file, signal),
-    failure => 'code' in failure ? failureLine(documentT, failure) : documentT('error.unavailable', { message: failure.message }),
+    failure => failureLine(documentT, failure),
+    failure => userErrorMessage(documentT, failure),
   )
   ctx.effect(() => ctx.slots.inject('sidebar.right.tab.document', () => ctx.slots.register({
     name: 'sidebar.right.tab.document', key: id, locale: 'sidebarOffice', store,
@@ -73,7 +79,7 @@ export function apply(ctx: Context, config: Config['office']): void {
       const result = await scope.remote.officeToPdf.render(file.sessionId, file.path, priority, signal)
       signal.throwIfAborted()
       if (!result.ok && result.error.code === 'document-render/failed') {
-        throw new Error(t(conversionErrorKey(result.error.details.reason)), { cause: result.error })
+        throw new UserFacingError(t(conversionErrorKey(result.error.details.reason)), { cause: result.error })
       }
       return result
     }
@@ -87,7 +93,7 @@ export function apply(ctx: Context, config: Config['office']): void {
         const metadata = await scope.remote.workspaceFiles.stat(file.sessionId, file.path, signal)
         if (metadata.ok && (authorized.value.absolutePath !== metadata.value.absolutePath
           || authorized.value.version !== metadata.value.version)) {
-          throw new Error(t('changed'))
+          throw new UserFacingError(t('changed'))
         }
         return metadata
       },
@@ -95,16 +101,16 @@ export function apply(ctx: Context, config: Config['office']): void {
       async (signal) => {
         const result = await scope.remote.officeToPdf.generation(signal)
         signal.throwIfAborted()
-        if (!result.ok) throw new Error(t('unavailable'), { cause: result.error })
+        if (!result.ok) throw new UserFacingError(t('unavailable'), { cause: result.error })
         return result
-      }, () => new Error(t('busy')),
+      }, () => new UserFacingError(t('busy')),
     )
     let cache = createCache()
     const retired = new Set<Promise<void>>()
     read = async (file, signal) => {
       const result = await cache.read(file, signal)
       if (!result.ok && (result.error.code === 'gateway/invocation-unavailable' || result.error.code === 'gateway/service-unavailable')) {
-        throw new Error(t('unavailable'), { cause: result.error })
+        throw new UserFacingError(t('unavailable'), { cause: result.error })
       }
       return result
     }

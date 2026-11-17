@@ -1,7 +1,10 @@
 import { expect, it, onTestFinished, vi } from 'vitest'
-import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ModelCatalog } from '@deepseek-ai/dsh-api-session-controller/types'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { createRoutingEditor } from '../src/client/editor-state.ts'
+import { zh } from '../src/client/locales.ts'
 import type { RoutingConfig } from '../src/client/types.ts'
 
 const main = { provider: 'provider/a', model: 'model/a', reasoningEffort: 'high' }
@@ -18,7 +21,7 @@ const catalog: ModelCatalog = {
 function bench(load = vi.fn(async () => catalog)) {
   const form = stubConfigForm<RoutingConfig>()
   form.publish({ status: 'ready', writable: true, revision: 7, value: config })
-  const editor = createRoutingEditor(form.scope, load)
+  const editor = createRoutingEditor(form.scope, load, makeTranslate(zh, commonZh))
   onTestFinished(() => editor.dispose())
   return { form, editor, load, ...editor.injected }
 }
@@ -64,6 +67,9 @@ it('keeps saved values authoritative and prevents overlapping editor writes', as
   expect(b.hooks.routingSettings.getSnapshot().value?.main).toBeNull()
 })
 
+const unknownSummary = commonZh['uiError.unknown']
+const unavailableSummary = commonZh['uiError.unavailable']
+
 it.each(['refused', 'error', 'string'] as const)('retains configured routes when a save is %s', async (kind) => {
   const b = bench()
   if (kind === 'refused') b.form.mutate.mockResolvedValueOnce(false)
@@ -71,10 +77,19 @@ it.each(['refused', 'error', 'string'] as const)('retains configured routes when
   b.saveRoute('oracle', null)
   await vi.waitFor(() => {
     expect(b.hooks.routingWrite.getSnapshot()).toEqual({
-      status: 'failed', field: 'oracle', message: kind === 'refused' ? null : 'offline',
+      status: 'failed', field: 'oracle', message: kind === 'refused' ? null : unknownSummary,
     })
   })
   expect(b.form.scope.getSnapshot().value).toEqual(config)
+})
+
+it('publishes the carrier summary when a save rejects with a Remote failure', async () => {
+  const b = bench()
+  b.form.mutate.mockRejectedValueOnce(new RemoteError('gateway/service-unavailable', 'private upstream detail', { endpoint: 'settings/mutate' }))
+  b.saveRoute('main', null)
+  await vi.waitFor(() => {
+    expect(b.hooks.routingWrite.getSnapshot()).toEqual({ status: 'failed', field: 'main', message: unavailableSummary })
+  })
 })
 
 it.each(['loading', 'unavailable', 'readOnly', 'noRevision', 'noValue'] as const)('does not submit from %s settings', (kind) => {
@@ -106,10 +121,13 @@ it('deduplicates catalog reads and supports retries with visible partial failure
   await vi.waitFor(() => { expect(load).toHaveBeenCalledTimes(2) })
   load.mockRejectedValueOnce(new Error('catalog offline'))
   b.refreshCatalog()
-  await vi.waitFor(() => { expect(b.hooks.routingCatalog.getSnapshot()).toMatchObject({ status: 'failed', error: 'catalog offline', groups: catalog.groups }) })
+  await vi.waitFor(() => { expect(b.hooks.routingCatalog.getSnapshot()).toMatchObject({ status: 'failed', error: unknownSummary, groups: catalog.groups }) })
   load.mockRejectedValueOnce('still offline')
   b.refreshCatalog()
-  await vi.waitFor(() => { expect(b.hooks.routingCatalog.getSnapshot().error).toBe('still offline') })
+  await vi.waitFor(() => { expect(b.hooks.routingCatalog.getSnapshot().error).toBe(unknownSummary) })
+  load.mockRejectedValueOnce(new RemoteError('gateway/context-unavailable', 'private session detail', { endpoint: 'session/modelCatalog' }))
+  b.refreshCatalog()
+  await vi.waitFor(() => { expect(b.hooks.routingCatalog.getSnapshot().error).toBe(unavailableSummary) })
   load.mockResolvedValueOnce({ ...catalog, failures: [{ id: 'missing', name: 'Missing provider', message: 'offline' }] })
   b.refreshCatalog()
   await vi.waitFor(() => { expect(b.hooks.routingCatalog.getSnapshot()).toMatchObject({ status: 'ready', failures: [{ id: 'missing' }] }) })

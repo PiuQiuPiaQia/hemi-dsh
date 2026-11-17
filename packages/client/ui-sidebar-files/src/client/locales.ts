@@ -40,7 +40,6 @@ export const zh = {
   'error.notFound': '这个目录不在了。可能已被移动或删除。',
   'error.outsideWorkspace': '这个目录在工作区之外，侧栏不会读取它。',
   'error.notDirectory': '这不是一个目录。',
-  'error.unavailable': '读取失败：{message}',
 } satisfies Record<string, string>
 
 /** Files dictionary key union. */
@@ -68,7 +67,6 @@ export const en = {
   'error.notFound': 'That directory is gone. It may have been moved or deleted.',
   'error.outsideWorkspace': 'That directory is outside the workspace, so the sidebar will not read it.',
   'error.notDirectory': 'That is not a directory.',
-  'error.unavailable': 'Read failed: {message}',
 } satisfies Record<SidebarFilesKey, string>
 
 /** Japanese copy, checked against the English keys. */
@@ -93,7 +91,6 @@ export const ja = {
   'error.notFound': 'そのディレクトリは存在しません。移動または削除された可能性があります。',
   'error.outsideWorkspace': 'そのディレクトリはワークスペース外のため、サイドバーでは読み取りません。',
   'error.notDirectory': 'それはディレクトリではありません。',
-  'error.unavailable': '読み取りに失敗しました: {message}',
 } satisfies Record<keyof typeof en, string>
 
 /** Spanish dictionary, checked against the English keys. */
@@ -118,7 +115,6 @@ export const es = {
   'error.notFound': 'Ese directorio desapareció. Es posible que se haya movido o eliminado.',
   'error.outsideWorkspace': 'Ese directorio está fuera del espacio de trabajo, por lo que la barra lateral no lo leerá.',
   'error.notDirectory': 'Eso no es un directorio.',
-  'error.unavailable': 'Error de lectura: {message}',
 } satisfies Record<keyof typeof en, string>
 
 /** French dictionary, checked against the English keys. */
@@ -143,7 +139,6 @@ export const fr = {
   'error.notFound': 'Ce répertoire a disparu. Il a peut-être été déplacé ou supprimé.',
   'error.outsideWorkspace': 'Ce répertoire se trouve en dehors de l’espace de travail, donc la barre latérale ne le lira pas.',
   'error.notDirectory': "Ce n'est pas un répertoire.",
-  'error.unavailable': 'Échec de lecture : {message}',
 } satisfies Record<keyof typeof en, string>
 
 /** German dictionary, checked against the English keys. */
@@ -168,7 +163,6 @@ export const de = {
   'error.notFound': 'Dieses Verzeichnis ist weg. Möglicherweise wurde es verschoben oder gelöscht.',
   'error.outsideWorkspace': 'Dieses Verzeichnis liegt außerhalb des Arbeitsbereichs und wird daher von der Seitenleiste nicht gelesen.',
   'error.notDirectory': 'Das ist kein Verzeichnis.',
-  'error.unavailable': 'Lesen fehlgeschlagen: {message}',
 } satisfies Record<keyof typeof en, string>
 
 /** Russian dictionary, checked against the English keys. */
@@ -193,7 +187,6 @@ export const ru = {
   'error.notFound': 'Этот каталог исчез. Возможно, оно было перемещено или удалено.',
   'error.outsideWorkspace': 'Этот каталог находится за пределами рабочей области, поэтому боковая панель его не читает.',
   'error.notDirectory': 'Это не каталог.',
-  'error.unavailable': 'Не удалось прочитать: {message}.',
 } satisfies Record<keyof typeof en, string>
 
 /** Portuguese dictionary, checked against the English keys. */
@@ -218,5 +211,4 @@ export const pt = {
   'error.notFound': 'Esse diretório desapareceu. Pode ter sido movido ou excluído.',
   'error.outsideWorkspace': 'Esse diretório está fora da área de trabalho, portanto a barra lateral não o lerá.',
   'error.notDirectory': 'Isso não é um diretório.',
-  'error.unavailable': 'Falha na leitura: {message}',
 } satisfies Record<keyof typeof en, string>

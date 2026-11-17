@@ -2,8 +2,10 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { RemoteError, TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
+import { de, en, es, fr, ja, pt, ru, zh } from '@deepseek-ai/dsh-client-locale/src/locales/index.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { COMMON_NS, LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { TeamModeToggle, type TeamModeToggleInjected } from '../src/client/TeamModeToggle.tsx'
-import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { TeamBoard } from '../src/client/TeamBoard.tsx'
 import { TeamCommandRow } from '../src/client/TeamCommandRow.tsx'
@@ -14,7 +16,10 @@ import { apply as nodeApply } from '../src/index.ts'
 async function bench() {
   const ctx = new Context()
   onTestFinished(() => ctx.fiber.dispose())
-  ctx.provide('locale', new LocaleRuntime(ctx))
+  // Production boot registers the shared common vocabulary; the safe error helper resolves through it.
+  const locale = new LocaleRuntime(ctx)
+  locale.register(COMMON_NS, { zh, en, ja, es, fr, de, ru, pt })
+  ctx.provide('locale', locale)
   await ctx.plugin(SlotRegistry).await()
   const collapseHeader = ctx.slots.register({
     name: 'root',
@@ -84,7 +89,11 @@ describe('task-board browser plugin', () => {
     await expect(mode.selectTeamMode(false)).resolves.toBeNull()
     expect(setEnabled).toHaveBeenLastCalledWith('chosen-session', false)
     setEnabled.mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', 'connection failed', {}) })
-    await expect(mode.selectTeamMode(true)).resolves.toBe('connection failed')
+    // Hemi fork: the adapter returns the localized safe summary; the raw diagnostic never reaches presentation copy.
+    const summary = commonEn['uiError.unknown']
+    await expect(mode.selectTeamMode(true)).resolves.toBe(summary)
+    expect(summary).not.toContain('connection failed')
+    expect(summary).not.toContain('gateway/internal')
     const overlayEntry = () => b.ctx.slots.entries('shell.overlay').find(candidate => candidate.component === TeamDisableConfirmation)
     const overlayValue: object = overlayEntry()!.inject!()
     const overlay = overlayValue as TeamDisableConfirmationInjected

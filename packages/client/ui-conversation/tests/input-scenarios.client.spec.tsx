@@ -33,6 +33,7 @@ import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/c
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { DraftAttachmentId } from '../src/client/contract/input.ts'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SessionInputShell } from '../src/client/input/facade.ts'
 import { $replaceDetectSpanWithText } from '../src/client/input/editor/span-map.ts'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
@@ -122,6 +123,9 @@ const COMMANDS: FakeCommand[] = [
 
 const PNG: SubmitAttachment = { type: 'image', mediaType: 'image/png', data: 'AA==' }
 
+// The hub's failure voice (hub.ts): safe localized copy, never raw diagnostics.
+const describeFailure = (failure: unknown): string => userErrorMessage(makeTranslate(zh, commonZh), failure)
+
 /** Real scope bench: a Controller-owned Session scope + InputTriggerController + shell listeners. */
 async function scopedBench(register?: (inputTriggers: InputTriggerService) => void) {
   const runtime = await SlotTestRuntime.create()
@@ -140,7 +144,7 @@ async function scopedBench(register?: (inputTriggers: InputTriggerService) => vo
   const sink = vi.fn(() => Promise.resolve<SubmitOutcome>({ kind: 'success' }))
   const serialize = vi.fn((ids: readonly DraftAttachmentId[]) => Promise.resolve(ids.map(() => PNG)))
   const release = vi.fn()
-  const shell = new SessionInputShell({ actx, inputTriggers: () => controller, defaultSink: sink, commandAttachments: { serialize, release, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` } })
+  const shell = new SessionInputShell({ actx, describeFailure, inputTriggers: () => controller, defaultSink: sink, commandAttachments: { serialize, release, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` } })
   actx.effect(() => {
     shell.refreshLexiconSubscription()
     return () => { shell.dispose() }
@@ -634,7 +638,9 @@ describe('scenario I: unknown /xyz + enter', () => {
     })
     act(() => { b.shell.setDraft('/plan 上线') })
     fireEvent.keyDown(b.textarea, { key: 'Enter' })
-    await vi.waitFor(() => { expect(b.view.getByText('目录预热失败')).toBeTruthy() })
+    // The safe summary announces the failure; the raw diagnostic never reaches the DOM.
+    await vi.waitFor(() => { expect(b.view.getByText(commonZh['uiError.unknown'])).toBeTruthy() })
+    expect(b.view.queryByText('目录预热失败')).toBeNull()
     // Never a silent downgrade: draft retained, sink untouched.
     expect(b.shell.snapshot.draft).toBe('/plan 上线')
     expect(b.sink).not.toHaveBeenCalled()

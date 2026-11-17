@@ -9,7 +9,7 @@ import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconCloseFillRegular,
-  IconDataOutlineRegular, IconWarningOutlineRegular, Input, rankByName, StateDot, Tag, Toast,
+  IconDataOutlineRegular, IconWarningOutlineRegular, Input, rankByName, StateDot, Tag, Toast, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelLabelOwner, ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
@@ -269,7 +269,7 @@ export function HemiModelSelect(
       seq: toastSeq.current,
       text: error.code === 'session/writer-held'
         ? t('error.sessionInUse')
-        : t('error.action', { message: `${error.code}: ${error.message}` }),
+        : t('error.action', { message: userErrorMessage(t, error) }),
     })
   }
 
@@ -281,7 +281,7 @@ export function HemiModelSelect(
     target?.focus()
     choosing.current = true
     void select(selection).then((result) => { settleSelection(result, target) }, (error: unknown) => {
-      reportFailure(t('error.action', { message: error instanceof Error ? error.message : String(error) }))
+      reportFailure(t('error.action', { message: userErrorMessage(t, error) }))
     }).finally(() => { choosing.current = false })
   }
 
@@ -297,7 +297,7 @@ export function HemiModelSelect(
       if (failure === null) closeAfterSelection()
       else reportFailure(failure)
     }, (error: unknown) => {
-      if (rootRef.current !== null) reportFailure(t('error.action', { message: error instanceof Error ? error.message : String(error) }))
+      if (rootRef.current !== null) reportFailure(t('error.action', { message: userErrorMessage(t, error) }))
     }).finally(() => {
       choosing.current = false
       setAlternativePending(false)
@@ -482,7 +482,7 @@ export function HemiModelSelect(
           )}
           {state.failures.map(failure => (
             <div className={css.warning} key={failure.id}>
-              <span>{t('warning.groupLoad', { name: failure.id === 'deepseek-account' ? t('provider.account') : failure.name, message: failure.message })}</span>
+              <span>{t('warning.groupLoad', { name: failure.id === 'deepseek-account' ? t('provider.account') : failure.name, message: userErrorMessage(t, failure) })}</span>
               <button type="button" className={css.retry} onClick={reload}>{t('retry')}</button>
             </div>
           ))}

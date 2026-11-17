@@ -4,7 +4,8 @@ import { act, within, cleanup, fireEvent, render, screen, waitFor } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Schema from '@deepseek-ai/schemastery'
 import { Context } from '@deepseek-ai/cordis'
-import { bindSnapshotSelector, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { bindSnapshotSelector, makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { ModelsSection, providerCopy } from '../src/client/ModelsSection.tsx'
@@ -159,7 +160,9 @@ const contexts = new WeakMap<object, PageContext>()
 function ctxWith(face: object): PageContext {
   const existing = contexts.get(face)
   if (existing !== undefined) return existing
-  const ctx = Object.assign(new Context(), { remote: { ...face,
+  // Hemi fork: refusals report the shared safe summary, so the script binds
+  // the common copy the production locale plugin registers.
+  const ctx = Object.assign(new Context(), { locale: { bind: () => makeTranslate(commonEn) }, remote: { ...face,
     session: { initializeDefaultModel: async () => ({ ok: true, value: undefined }) },
   } })
   contexts.set(face, ctx)
@@ -752,7 +755,7 @@ describe('endpoint interrogation', () => {
 
     fireEvent.click(screen.getByText(en.fetchModels))
 
-    await screen.findByText(/answered 401; check the API key/)
+    await screen.findByText(commonEn['uiError.unknown'])
     // The failure is a detour, not a dead end: hand-entry is still offered.
     expect(screen.getByRole('button', { name: en.addModel })).toBeTruthy()
   })
@@ -1219,7 +1222,7 @@ describe('hand-declared providers', () => {
     fireEvent.click(screen.getByText(en.create))
 
     // The profile landed; only the key failed. The card says so and stays open.
-    await waitFor(() => { expect(screen.getByText('credential store is read-only')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText(commonEn['uiError.unknown'])).toBeTruthy() })
     expect(onClose).not.toHaveBeenCalled()
     expect(mutate).toHaveBeenCalledTimes(1)
     // The key is stored trimmed, matching the editor.
@@ -1251,7 +1254,7 @@ describe('hand-declared providers', () => {
     fireEvent.click(screen.getByRole('button', { name: en.addModel }))
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
     fireEvent.click(screen.getByText(en.create))
-    await waitFor(() => { expect(screen.getByText('nope')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText(commonEn['uiError.unknown'])).toBeTruthy() })
 
     // Walking away leaves a real provider behind; reporting no change would
     // leave the page without the row it now has.
@@ -1373,7 +1376,7 @@ describe('hand-declared providers', () => {
     fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'http://localhost:11434/v1' } })
     fireEvent.click(screen.getByText(en.fetchModels))
 
-    await screen.findByText('connection refused')
+    await screen.findByText(commonEn['uiError.unknown'])
     expect(screen.queryByText(en.customBaseUrlInvalid)).toBeNull()
   })
 
@@ -1504,7 +1507,7 @@ describe('hand-declared providers', () => {
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
     fireEvent.click(screen.getByText(en.create))
 
-    await screen.findByText('read-only settings')
+    await screen.findByText(commonEn['uiError.unknown'])
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -1533,7 +1536,7 @@ describe('hand-declared providers', () => {
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
     fireEvent.click(screen.getByText(en.create))
 
-    await screen.findByText('credential is read-only')
+    await screen.findByText(commonEn['uiError.unknown'])
     expect(onClose).not.toHaveBeenCalled()
   })
 

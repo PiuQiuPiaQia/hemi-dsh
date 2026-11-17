@@ -278,11 +278,12 @@ describe('candidates: sessionId addressing', () => {
   })
 
   it('rejects on a failed result (the slash shell owns the menu-side fold)', async () => {
-    const { source } = await bench(() => Promise.resolve({
-      ok: false, error: new RemoteError('gateway/internal', 'boom', {}),
-    }))
-    await expect(source.candidates(proj('s1'), req('co')))
-      .rejects.toThrow('skills/list failed: gateway/internal: boom')
+    const failure = new RemoteError('gateway/internal',
+      'boom <trace><path>/var/log/dsh/skills.log</path><token>tok-8e4f2a</token></trace>', {})
+    const { source } = await bench(() => Promise.resolve({ ok: false, error: failure }))
+    // Hemi fork: the carrier failure keeps its identity for the shared command/composer reporter.
+    await expect(source.candidates(proj('s1'), req('co'))).rejects.toBe(failure)
+    expect(failure.message).toContain('boom')
   })
 
   it('does not fetch Agent-bound skills for an addressed child', async () => {

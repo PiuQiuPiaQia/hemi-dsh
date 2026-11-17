@@ -4,9 +4,14 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import '../src/client/model-picker/slots.ts'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { RemoteError, type RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { RoutingModeChoice, RoutingModeToggle, type RoutingModeChoiceProps, type RoutingModeProps } from '../src/client/RoutingModeToggle.tsx'
 import { RoutingModelLabel, type RoutingLabelProps } from '../src/client/RoutingModelLabel.tsx'
 import { en, zh } from '../src/client/locales.ts'
+
+const unavailableSummary = commonZh['uiError.unavailable']
+const unknownSummary = commonZh['uiError.unknown']
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
@@ -23,7 +28,7 @@ function modeProps(enabled: boolean | null = false, child?: 'addressed' | 'liste
       value: { main: { provider: 'p', model: 'm' }, roles: {}, sessionModes: { root: enabled === true } },
     }),
     locked: false, dismiss: vi.fn(), reportFailure: vi.fn(), setEnabled: vi.fn(async () => null),
-    openConfiguration: vi.fn(), t: makeTranslate(zh),
+    openConfiguration: vi.fn(), t: makeTranslate(zh, commonZh),
   } as RoutingModeProps
 }
 
@@ -44,7 +49,7 @@ it('resubmits the selected automatic mode through the model-menu owner', async (
 })
 
 it('reads saved preferences rather than optimistic mode and disables while pending', async () => {
-  const operation = Promise.withResolvers<string | null>()
+  const operation = Promise.withResolvers<RemoteFailure | null>()
   const props = modeProps()
   props.setEnabled = vi.fn(() => operation.promise)
   const view = render(<RoutingModeToggle {...props} />)
@@ -67,12 +72,26 @@ it.each(['refused', 'error', 'string'] as const)('reports %s changes through the
   props.setEnabled = vi.fn(async () => {
     if (kind === 'error') throw new Error('offline')
     if (kind === 'string') throw 'offline'
-    return 'offline'
+    return new RemoteError('gateway/service-unavailable', 'offline', { endpoint: 'hemiRoutingSettings/setEnabled' })
   })
   render(<RoutingModeToggle {...props} />)
   await act(async () => { fireEvent.click(screen.getByRole('switch')) })
-  expect(props.reportFailure).toHaveBeenCalledWith('自动路由切换失败：offline')
+  const summary = kind === 'refused' ? unavailableSummary : unknownSummary
+  expect(props.reportFailure).toHaveBeenCalledWith(`自动路由切换失败：${summary}`)
+  expect(props.reportFailure).not.toHaveBeenCalledWith(expect.stringContaining('offline'))
   expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+})
+
+it('maps the alternative activation failure to the shared summary for the menu owner', async () => {
+  const props: RoutingModeChoiceProps = {
+    ...modeProps(false),
+    selectAlternative: vi.fn((activate: () => Promise<string | null>) => { void activate() }),
+    setEnabled: vi.fn(async () => new RemoteError('gateway/cancelled', 'op cancelled mid-flight', {})),
+  }
+  render(<RoutingModeChoice {...props} />)
+  await act(async () => { fireEvent.click(screen.getByRole('menuitemradio', { name: '自动路由' })) })
+  const activate = vi.mocked(props.selectAlternative).mock.calls[0]![0]
+  await expect(activate()).resolves.toBe(`自动路由切换失败：${commonZh['uiError.cancelled']}`)
 })
 
 it.each([false, true])('dismisses the menu before opening configuration, including locked composers (%s)', (locked) => {

@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  IconChevronDownOutlineRegular, Menu, RiskConfirmation,
+  IconChevronDownOutlineRegular, Menu, RiskConfirmation, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PermissionSettingsState } from './settings-store.ts'
 import type { PermissionSettingsKey } from './locales.ts'
@@ -61,7 +61,8 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
   const optionLabel = (option: PermissionSettingsState['options'][number]): string =>
     displayPermissionPreset(option.id, option.label, t)
   const label = selected !== undefined ? optionLabel(selected) : (busy ? t('loading') : t('unavailable'))
-  const description: string = state.error ?? t('description')
+  // Hemi fork: permission persistence diagnostics are retained by the controller, not exposed as row copy.
+  const description: string = state.error === null ? t('description') : userErrorMessage(t, state.error)
 
   return (
     <>

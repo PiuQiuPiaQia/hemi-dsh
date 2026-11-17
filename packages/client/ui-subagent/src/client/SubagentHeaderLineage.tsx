@@ -8,7 +8,7 @@ import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   IconChevronRightOutlineRegular, IconRefreshOutlineRegular, IconUsersOutlineRegular,
-  IconCheckOutlineRegular, MenuSurface, StateDot, Tooltip,
+  IconCheckOutlineRegular, MenuSurface, StateDot, Tooltip, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from './locales.ts'
@@ -263,7 +263,8 @@ function CatalogRows({
       )}
       {catalog.state === 'error' && (
         <div className={css.error}>
-          <span>{catalog.error?.message ?? t('load.error')}</span>
+          {/* Hemi fork: catalog reads share safe operation copy while recorded subagent output remains unchanged. */}
+          <span>{catalog.error === null ? t('load.error') : userErrorMessage(t, catalog.error)}</span>
           <button
             type="button"
             className={css.refresh}

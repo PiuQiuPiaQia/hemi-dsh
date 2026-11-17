@@ -39,6 +39,8 @@ kind: "package-reference"
 
 用已合并进 `LocaleNamespaceMap` 的命名空间调用 `ctx.locale.register(ns, { zh, en, ja })`；编译器会对照该命名空间的类型化键并集检查每个键，并要求两个基础 locale（`zh` 和 `en`）齐全。其他 locale id 为可选项，其字典同样按该命名空间的键检查。消费方通过 `ctx.locale.bind(ns)` 或框架注入的 `t` 席位翻译。UI 已挂载后再注册的字典无需重新挂载即可生效。翻译必须原样保留命名占位符、斜杠命令和 API 字段名；`pnpm run check:i18n` 检查仓库内的字典，并拒绝语言资源中的零宽空格（U+200B）和字节顺序标记（U+FEFF）。
 
+common 命名空间拥有 [`userErrorMessage`](../ui-primitives/README.zh.md#operation-error-summaries) 使用的 `uiError.*` 操作摘要。功能命名空间通过普通查找链继承这些键；业务专属的恢复建议仍归功能字典。
+
 ### 解析包文本
 
 使用 `ctx.locale.resolveText(text)` 解析 [`LocalizedText`](../../util/package-manifest/README.zh.md)，例如已安装插件的标题与描述。字面字符串原样返回。翻译映射使用小写语言 id，必须提供 `en` 回退值，并沿当前语言声明的回退链查找。它们不查询或注册命名空间字典。

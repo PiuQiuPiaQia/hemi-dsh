@@ -4,6 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import type { OwnerOf } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OfficeToPdfGeneration } from '@deepseek-ai/dsh-office-to-pdf/types'
 import type { DocumentPreviewDefinition } from '../src/client/document/registry.ts'
@@ -16,6 +18,8 @@ import { createOfficeStore, type OfficeState } from '../src/client/office/store.
 import type { ReadOfficeDocument } from '../src/client/office/cache.ts'
 import { en } from '../src/client/office/locales.ts'
 import { harness, ABSOLUTE_PATH, ADDRESS, TAB_ID, SESSION, settle } from './fixtures.client.ts'
+
+const describeUnexpectedFailure = (failure: unknown): string => userErrorMessage(makeTranslate(commonEn), failure)
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
@@ -109,7 +113,7 @@ function setup() {
   function useOffice<T>(selector: (state: OfficeState) => T): T {
     return selector(useSyncExternalStore(subscribe, snapshot))
   }
-  const injected = officeFace(read, error => error.message)(SESSION, office.actions)
+  const injected = officeFace(read, error => error.message, describeUnexpectedFailure)(SESSION, office.actions)
   let request: Extract<DocumentContent, { kind: 'renderer' }> | undefined
   const slots: TextPreviewProps['renderSlot'] = (key: string, input: unknown, options?: { hookContext?: unknown }) => {
     if (key === 'sidebar.right.tab.document.action') {
@@ -189,7 +193,7 @@ it.each(['declared', 'exception'] as const)('automatically retries a %s conversi
     })
     else h.pending[0]!.deferred.reject(new Error('Conversion failed'))
   })
-  expect(screen.getByText('Conversion failed')).toBeTruthy()
+  expect(screen.getByText(kind === 'declared' ? 'Conversion failed' : commonEn['uiError.unknown'])).toBeTruthy()
   expect(h.h.instance.getSnapshot().byTab[TAB_ID]?.loading).toBe(false)
   expect(h.read).toHaveBeenCalledTimes(1)
   act(() => {
@@ -230,13 +234,13 @@ it.each(['declared', 'exception', 'foreign'] as const)('shows %s conversion fail
     if (kind === 'declared') h.pending[0]!.deferred.resolve({ ok: false, error: new RemoteError('workspace-file/not-found', 'Missing file', { path: ABSOLUTE_PATH }) })
     else h.pending[0]!.deferred.reject(kind === 'exception' ? new Error('Conversion failed') : 'Conversion failed')
   })
-  expect(screen.getByText(kind === 'declared' ? 'Missing file' : 'Conversion failed')).toBeTruthy()
+  expect(screen.getByText(kind === 'declared' ? 'Missing file' : commonEn['uiError.unknown'])).toBeTruthy()
   const resource = h.h.useResource()
   h.h.useResource.mockReturnValue({ status: 'none', value: undefined, failure: undefined })
   mounted.rerender(<h.View />)
   fireEvent.click(screen.getByRole('button', { name: en.retry }))
   expect(h.read).toHaveBeenCalledTimes(1)
-  expect(screen.getByText(kind === 'declared' ? 'Missing file' : 'Conversion failed')).toBeTruthy()
+  expect(screen.getByText(kind === 'declared' ? 'Missing file' : commonEn['uiError.unknown'])).toBeTruthy()
   h.h.useResource.mockReturnValue(resource)
   mounted.rerender(<h.View />)
   fireEvent.click(screen.getByRole('button', { name: en.retry }))
@@ -298,7 +302,7 @@ it('isolates a replacement implementation with the same renderer-owned loading m
 it('starts no conversion or store write for an already closed request', () => {
   const read = vi.fn<ReadOfficeDocument>()
   const store = createOfficeStore().create()
-  const face = officeFace(read, error => error.message)(SESSION, store.actions)
+  const face = officeFace(read, error => error.message, describeUnexpectedFailure)(SESSION, store.actions)
   const controller = new AbortController()
   controller.abort()
   const loaded = vi.fn()

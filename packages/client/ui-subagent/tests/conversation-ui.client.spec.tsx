@@ -10,6 +10,7 @@ import type { SubagentAddress, SubagentCatalogEntry } from '@deepseek-ai/dsh-sub
 import type { TeamProjection, TeamTaskId, TeamTaskView } from '@deepseek-ai/dsh-agent-team/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import {
   SubagentCatalogAction, SubagentHeaderLineage,
   type SubagentCatalogActionProps, type SubagentHeaderLineageProps,
@@ -27,7 +28,8 @@ afterEach(() => {
 const PARENT = 'parent' as SessionId
 const CHILD = 'child' as SessionId
 const GRANDCHILD = 'grandchild' as SessionId
-const t: SubagentHeaderLineageProps['t'] = makeTranslate(zh)
+// Mirrors the real lookup chain (subagent namespace, then the shared common vocabulary).
+const t: SubagentHeaderLineageProps['t'] = makeTranslate(zh, commonZh)
 
 type HeaderCatalogProps = SubagentHeaderLineageProps
   & Pick<SubagentCatalogActionProps, 'useFooterAvailable' | 'renderSlot'>
@@ -1441,7 +1443,9 @@ describe('SubagentHeaderLineage', () => {
     }))
     render(<HeaderCatalog {...failed} />)
     hoverCatalog(screen.getByRole('button', { name: /0 个子智能体/ }))
-    expect(screen.getByText('index down')).toBeTruthy()
+    // The shared safe summary voices the catalog failure; the wire diagnostic never renders.
+    expect(screen.getByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.queryByText('index down')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /重试/ }))
     expect(failed.refreshProjection).toHaveBeenCalledWith(PARENT)
   })

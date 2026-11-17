@@ -2,6 +2,7 @@
 /** Structured draft import, persistence, and reference restoration through the real input shell. */
 import { setImmediate } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { $getRoot, $nodesOfType, REDO_COMMAND, UNDO_COMMAND } from 'lexical'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -48,6 +49,7 @@ function makeShell(overrides: Partial<SessionInputDeps> = {}): SessionInputShell
   onTestFinished(() => ctx.fiber.dispose())
   const shell = new SessionInputShell({
     actx: ctx,
+    describeFailure: failure => userErrorMessage(key => key, failure),
     defaultSink: () => Promise.resolve<SubmitOutcome>({ kind: 'success' }),
     commandAttachments: {
       serialize: () => Promise.resolve([]),
@@ -584,7 +586,8 @@ describe('draft documents in the input shell', () => {
       adjudication.reject(new Error('catalog unavailable'))
       await vi.waitFor(() => {
         expect(shell.snapshot.phase).toBe('plain')
-        expect(shell.notices.getSnapshot()?.text).toBe('catalog unavailable')
+        // Identity describeFailure: the notice carries the shared safe-summary key.
+        expect(shell.notices.getSnapshot()?.text).toBe('uiError.unknown')
       })
       expect(shell.draftSnapshot).toEqual(draft)
     } finally {
@@ -789,7 +792,8 @@ describe('draft documents in the input shell', () => {
 
         if (settlement === 'reject') {
           serialization.reject('reference unavailable')
-          await vi.waitFor(() => { expect(shell.notices.getSnapshot()?.text).toBe('reference unavailable') })
+          // Identity describeFailure: the notice carries the shared safe-summary key.
+          await vi.waitFor(() => { expect(shell.notices.getSnapshot()?.text).toBe('uiError.unknown') })
           expect(shell.draftSnapshot).toEqual(draft)
           expect(shell.snapshot.attachmentIds).toEqual([attachment])
           expect(write).toHaveBeenLastCalledWith(draft)

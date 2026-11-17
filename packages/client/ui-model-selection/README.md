@@ -57,7 +57,7 @@ Catalog availability does not block sending with a saved selection; request exec
 
 ### Selection failures
 
-When another writer owns the Session, model-selection failures tell the user to quit other running DSH instances and retry.
+When another writer owns the Session, model-selection failures tell the user to quit other running DSH instances and retry. That guidance is the only business-specific failure copy: every other rejected selection, catalog load, and provider-group failure surfaces a localized safe summary from the shared `userErrorMessage` helper in [ui-primitives](../ui-primitives/README.md); Remote messages, codes, and details stay out of the presentation copy and remain available in session diagnostics.
 
 The session-scoped `conversation.input.model.options` list slot appends controls below model and reasoning selection. Owner props expose `locked`, `reportFailure(message)`, and `dismiss()`, which closes the menu and synchronously focuses its trigger before another overlay opens; contributions read their own projections and supply narrow commands. Enabled switch buttons participate in the menu’s keyboard navigation.
 

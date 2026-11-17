@@ -910,7 +910,7 @@ describe('DirectoryBrowser', () => {
     // Submitting inside the debounce window holds the pending scan back.
     fireEvent.change(input, { target: { value: HARNESS } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('target unreadable') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
     // Correcting only the final segment leaves the directory part unchanged;
     // the edit must still release the hold and re-arm the wait.
     fireEvent.change(input, { target: { value: `${HARNESS}x` } })
@@ -1193,17 +1193,20 @@ describe('DirectoryBrowser', () => {
     const input = screen.getByLabelText('browser.editPath')
     fireEvent.change(input, { target: { value: '/nope' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('cannot list /nope') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
     expect(screen.getByLabelText('browser.editPath')).toBeTruthy()
     expect(screen.getByRole('listitem').textContent).toBe('Documents')
   })
 
-  it('folds non-typed failures into readable text (Error message, String otherwise)', async () => {
+  it('replaces Error and non-Error rejections with the shared safe summary', async () => {
     const b = mount({ listDirectory: vi.fn(async () => { throw new Error('socket down') }) })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('socket down') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
+    expect(screen.getByRole('alert').textContent).not.toContain('socket down')
     b.view.rerender(<DirectoryBrowser {...b.props} open={false} />)
-    const raw = mount({ listDirectory: vi.fn(async () => { throw 'raw failure' }) })
-    await waitFor(() => { expect(screen.getAllByRole('alert').at(-1)!.textContent).toBe('raw failure') })
+    const raw = mount({ listDirectory: vi.fn(async () => { throw '<error>/private/path</error>' }) })
+    const alert = await waitFor(() => screen.getAllByRole('alert').at(-1)!)
+    expect(alert.textContent).toBe('uiError.unknown')
+    expect(alert.textContent).not.toContain('/private/path')
     expect(raw.onOpen).not.toHaveBeenCalled()
   })
 
@@ -1290,7 +1293,8 @@ describe('DirectoryBrowser', () => {
       })
     })
     mount({ listDirectory })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('home unreadable') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
+    expect(screen.getByRole('alert').textContent).not.toContain('home unreadable')
     // With no listed level, typing an absolute path is the one way forward.
     fireEvent.click(screen.getByRole('button', { name: 'browser.editPath' }))
     const input = screen.getByLabelText('browser.editPath')
@@ -1304,12 +1308,12 @@ describe('DirectoryBrowser', () => {
     await waitFor(() => { expect(screen.getByText('harness')).toBeTruthy() })
   })
 
-  it('falls back to the thrown message for an invalid RPC error payload', async () => {
+  it('classifies a declared Host failure through the shared helper and falls back on a malformed payload', async () => {
     const listDirectory = vi.fn(async (): Promise<DirectoryListing> => {
       throw Object.assign(new Error('home unavailable'), { rpcError: null })
     })
     mount({ listDirectory })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('home unavailable') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
   })
 
   it('disables Open and New folder while a path draft is uncommitted', async () => {
@@ -1358,7 +1362,7 @@ describe('DirectoryBrowser', () => {
       throw new Error('denied')
     })
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: 'browser.home' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
     // Both panes survive the failure; the alert renders in the flow, not as a
     // third column competing for the fixed widths.
     expect(columns()).toHaveLength(2)
@@ -1465,7 +1469,7 @@ describe('DirectoryBrowser', () => {
       throw new Error('denied')
     })
     fireEvent.click(rowButton(screen.getByRole('listitem')))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
     // The breadcrumb names the level, so the level must be the committing
     // target: no half-selected two-pane state survives the failure.
     expect(columns()).toHaveLength(1)
@@ -1593,7 +1597,7 @@ describe('DirectoryBrowser', () => {
     expect(b.createDirectory).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'x' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('taken already') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
     fireEvent.keyDown(screen.getByLabelText('browser.folderName'), { key: 'Escape' })
     await waitFor(() => { expect(screen.queryByLabelText('browser.folderName')).toBeNull() })
 
@@ -1618,7 +1622,7 @@ describe('DirectoryBrowser', () => {
     const input = screen.getByLabelText('browser.folderName')
     fireEvent.change(input, { target: { value: 'fresh' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('level vanished') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('uiError.unknown') })
   })
 
   it('drops a stale child listing that resolves after a crumb jump', async () => {

@@ -296,9 +296,11 @@ describe('ensureReady (per key)', () => {
 
   it('rejects when the awaited pull fails (no silent downgrade)', async () => {
     const { dir, pull } = bench()
+    const warmup = new Error('warmup boom')
     const wait = dir.ensureReady(S1, signal())
-    pull(S1, 0).reject(new Error('warmup boom'))
-    await expect(wait).rejects.toThrow('command directory warmup failed: warmup boom')
+    pull(S1, 0).reject(warmup)
+    // The catalog owner rethrows the original failure; safe reporting stays with the caller.
+    await expect(wait).rejects.toBe(warmup)
   })
 
   it('retries from failed state with a fresh pull', async () => {

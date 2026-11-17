@@ -35,6 +35,8 @@ History rows without a stored title use the localized unnamed label (未命名 /
 
 Without hover, Workspace actions appear only while expanded, Session More buttons stay visible, and search-result actions remain visible. Toolbar tooltips render outside the sidebar so its drawer animation does not crop them. Search and rename inputs use 16px text with a coarse pointer; a fine pointer keeps their compact sizes.
 
+Operation failures in creation, directory selection, rename, archive, and removal use the shared safe error summary instead of raw Host diagnostics. A failed rename retains its draft, and failed removal retains the Workspace row; explicit localized preparation advice remains visible.
+
 ### Reordering and view options
 
 Pinned Sessions lead ordinary Sessions in both grouped and flat views. **Last updated** sorts each partition strictly by the latest user prompt or steer time, newest first; pin time does not affect it. **Manual** uses the relative positions in one complete Session sequence, including hidden archives. Returning to Last updated discards the manual layout, and entering Manual again freezes the then-current chronological order. The browser defaults to Last updated and remembers the selected mode across reloads.

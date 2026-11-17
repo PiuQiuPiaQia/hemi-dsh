@@ -1,6 +1,7 @@
 /** Client-safe view types shared by the backup section and its mount. */
 
 export type {
+  BackupFailureCode,
   BackupLastRun,
   BackupOperationResult,
   BackupProgress,

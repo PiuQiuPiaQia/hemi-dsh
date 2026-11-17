@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  Button, extractMarkdownPlainText, IconEditOutlineRegular, StateDot,
+  Button, extractMarkdownPlainText, IconEditOutlineRegular, StateDot, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
 import css from './PlanReviewPanel.module.css'
@@ -42,7 +42,8 @@ export function PlanReviewPanel({ pending, review, t, renderSlot }: PlanReviewPa
       })
       .catch((cause: unknown) => {
         setBusy(false)
-        setError(cause instanceof Error ? cause.message : String(cause))
+        // Hemi fork: only operation failures are summarized; the submitted plan text remains unchanged.
+        setError(userErrorMessage(t, cause))
       })
   }
   const decide = (label: string): void => {

@@ -27,7 +27,7 @@ import { WelcomeNoticeStore } from './welcome-store.ts'
 import { ModelsSettingsStore } from './store.ts'
 import { createModelsOperations } from './operations.ts'
 import { createSettingsSchemaOperations } from './schema-operations.ts'
-import { en, ja, es, fr, de, ru, pt, zh, type ModelsKey } from './locales.ts'
+import { en, ja, es, fr, de, ru, pt, zh, MODELS_SECTION_NS as NS, type ModelsKey } from './locales.ts'
 import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../onboarding-copy.ts'
 import { Config, ONBOARDING_CONFIG_GLOBAL } from '../onboarding-config.ts'
 
@@ -60,9 +60,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 function DefaultModelsPage({ renderFactorySlot }: PropsRenderFactories) {
   return renderFactorySlot('settings.models.editor', {})
 }
-
-/** Dictionary namespace owned by this plugin. */
-const NS = 'settings.models'
 
 export type {
   ModelsSettingsState, ProviderDirectoryEntry, ProviderRow,

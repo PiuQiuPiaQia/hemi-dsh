@@ -10,7 +10,11 @@ export type BackupLocaleKey = 'localPathHint' | 'webdavUrlHint'
   | 'scheduleTitle' | 'scheduleEnabled' | 'scheduleDaily' | 'scheduleWeekly' | 'keepCount' | 'keepHelp' | 'saveSchedule'
   | 'listTitle' | 'refresh' | 'refreshing' | 'listEmpty' | 'listConfigureFirst' | 'broken' | 'restore' | 'preparing' | 'delete' | 'deleting' | 'deleteConfirm' | 'cancel' | 'apply' | 'applying'
   | 'previewFiles' | 'previewSessions' | 'previewSkills' | 'previewNew' | 'previewIdentical' | 'previewConflicts' | 'previewSkipped' | 'mergeNote'
-  | 'applied' | 'applyFailed' | 'noRestore'
+  | 'applied' | 'applyFailed' | 'noRestore' | 'safeCopyLocation'
+  // Business failure copy; the generic FAILED outcome falls back to the shared common `uiError.*` summary.
+  | 'errorBusy' | 'errorNoTarget' | 'errorNoRestore' | 'errorInvalidName' | 'errorNoPassword'
+  | 'errorAuth' | 'errorNotFound' | 'errorRequest' | 'errorForbidden' | 'errorTraffic' | 'errorPartialRestore'
+  | 'progressPack' | 'progressUpload' | 'progressPrune'
 
 /** English copy. */
 export const en: Record<BackupLocaleKey, string> = {
@@ -75,6 +79,21 @@ export const en: Record<BackupLocaleKey, string> = {
   applied: 'Restored. Restart the app to take full effect.',
   applyFailed: 'Restore failed',
   noRestore: 'No restore is staged.',
+  safeCopyLocation: 'Safe copies:',
+  errorBusy: 'Wait for the backup to finish, or complete or cancel the staged restore, then try again.',
+  errorNoTarget: 'Configure a backup target first.',
+  errorNoRestore: 'No restore is staged. Select a backup again.',
+  errorInvalidName: 'The backup name is invalid. Refresh the list and try again.',
+  errorNoPassword: 'Enter and save a WebDAV application password.',
+  errorAuth: 'Check the account and application password, then try again.',
+  errorNotFound: 'The server address or backup directory was not found. Check the target settings.',
+  errorRequest: 'The cloud request failed. Check the network and service status, then try again.',
+  errorForbidden: 'The cloud service denied access. Check directory permissions and service restrictions.',
+  errorTraffic: 'The cloud service has insufficient transfer quota. Wait for it to reset or upgrade your plan, then try again.',
+  errorPartialRestore: 'The restore may be partially applied. Keep the original backup and local safe copies; check the restored data before retrying.',
+  progressPack: 'Preparing the backup…',
+  progressUpload: 'Uploading the backup…',
+  progressPrune: 'Removing older backups…',
 }
 
 /** 中文文案。 */
@@ -140,4 +159,19 @@ export const zh: Record<BackupLocaleKey, string> = {
   applied: '已恢复，重启应用后完全生效。',
   applyFailed: '恢复失败',
   noRestore: '没有正在进行的恢复。',
+  safeCopyLocation: '安全副本：',
+  errorBusy: '请等待备份结束，或完成、取消当前恢复后再试',
+  errorNoTarget: '请先配置备份目标',
+  errorNoRestore: '没有待恢复的备份，请重新选择',
+  errorInvalidName: '备份名称无效，请刷新列表后重试',
+  errorNoPassword: '请填写 WebDAV 应用密码并保存',
+  errorAuth: '账号或应用密码不正确，请检查后重试',
+  errorNotFound: '未找到云端地址或备份目录，请检查目标设置',
+  errorRequest: '云端请求失败，请检查网络和服务状态后重试',
+  errorForbidden: '云端拒绝访问，请检查目录权限或服务商限制',
+  errorTraffic: '云端可用流量不足，请等待额度恢复或升级云端套餐后重试',
+  errorPartialRestore: '恢复可能仅部分完成，请保留原备份与本机安全副本，检查恢复数据后再重试',
+  progressPack: '正在准备备份…',
+  progressUpload: '正在上传备份…',
+  progressPrune: '正在清理旧备份…',
 }

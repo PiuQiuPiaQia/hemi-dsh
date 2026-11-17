@@ -39,7 +39,7 @@ Backup targets, schedule, and retention are user settings owned by the service (
 ## Understand the implementation
 
 - `src/engine.ts` — collection whitelist (dual-root, prefix-labeled `dsh/` and `agents/` archive paths), streaming ustar+gzip packer with per-volume sha256 and GNU long-name support, incremental extractor, and the per-file restore authority (`decideRestoreAction`) shared by merge and preview. Snapshot defense cuts appended growth to the collected size and fails when a file rewrites shorter mid-pack; symlinked paths are never followed in either direction.
-- `src/webdav.ts` — the WebDAV operations the orchestrator needs (MKCOL/PUT/PROPFIND/DELETE/GET) over `fetch`, with typed `AUTH_FAILED` / `NOT_FOUND` / `REQUEST_FAILED` failures.
+- `src/webdav.ts` — the WebDAV operations the orchestrator needs (MKCOL/PUT/PROPFIND/DELETE/GET) over `fetch`, with typed `AUTH_FAILED` / `NOT_FOUND` / `REQUEST_FAILED` / `FORBIDDEN` / `TRAFFIC_EXHAUSTED` failures classified from the raw response: a 403 whose XML exception field is exactly `TrafficRateExhausted` is quota exhaustion, and any other 403 is authorization, never a password error.
 - `src/service.ts` — the `hemiBackup` Remote namespace: `getState`, `saveSettings`, `testConnection`, `runNow`, `listBackups`, `deleteSet`, `restorePrepare`, `restoreApply`, `restoreCancel`. The WebDAV application password is stored through the credential service (`HEMI_BACKUP_WEBDAV_PASSWORD`), never in the settings file; an hourly tick decides whether the schedule is due.
 
 Restore never replaces, renames, or deletes a file in an existing Session directory, and never adds another generation there. Identical backup files are skipped; differing or additional backup generations are saved under `restore-safety/restore-*/dsh/sessions/`. Missing Session directories are restored with exclusive file publication, so a competing writer's file cannot be overwritten. Other data retains the per-file merge policy. A failed merge can be partial; keep the original backup and the reported safe-copy directory before retrying.
@@ -52,6 +52,8 @@ Manifest fields and volume basenames are validated before local reads or WebDAV 
 ## Client interface
 
 `./client` exports the client-safe view types (`BackupStateView`, `BackupSetView`, `RestorePreview`, operation results); `./remote` carries the generated Typert client face used by `dsh-hemi-backup-ui`.
+
+Failures carry a stable `code` from the `BackupFailureCode` union on every operation result and on the persisted `lastRun`. Clients localize on `code` only and never display the raw diagnostic `message`. Records written before codes existed omit `lastRun.code`, and a persisted `code` outside the union is dropped at load.
 
 ## Model Experience
 

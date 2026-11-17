@@ -209,7 +209,8 @@ export class ConversationController extends Service implements IConversation {
   async send(text: string): Promise<void> {
     const session = this.scopedSession('send')
     const result = await session.prompt([{ type: 'text', text }], 'queue')
-    if (!result.ok) throw new Error(`conversation.send failed: ${result.error.code}: ${result.error.message}`)
+    // Hemi fork: keep the structured admission failure for the shared UI reporter instead of formatting diagnostics here.
+    if (!result.ok) throw result.error
   }
 
   /**
@@ -541,7 +542,8 @@ export class ConversationController extends Service implements IConversation {
         action.kind === 'steer'
         && (result.error.code === 'session/steer-unavailable' || result.error.code === 'session/queue-item-not-found')
       ) return
-      throw new Error(`conversation.updateQueue failed: ${result.error.code}: ${result.error.message}`)
+      // Hemi fork: queue presenters receive the original failure code rather than a diagnostic-only Error.
+      throw result.error
     }
   }
 
@@ -549,7 +551,8 @@ export class ConversationController extends Service implements IConversation {
   async cancel(): Promise<void> {
     const session = this.scopedSession('cancel')
     const result = await session.cancel()
-    if (!result.ok) throw new Error(`conversation.cancel failed: ${result.error.code}: ${result.error.message}`)
+    // Hemi fork: cancellation failures retain their identity for safe presentation and diagnostics.
+    if (!result.ok) throw result.error
   }
 
   /** Pull one older history page for the scoped Session. */

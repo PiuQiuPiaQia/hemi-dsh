@@ -5,7 +5,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Schema from '@deepseek-ai/schemastery'
 import { Context } from '@deepseek-ai/cordis'
-import { bindSnapshotSelector, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { bindSnapshotSelector, makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import type {
   CredentialInfo, RemoteResult, SettingsNamespaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
@@ -244,9 +245,11 @@ const contexts = new WeakMap<object, PageContext>()
 function ctxWith(face: object): PageContext {
   const existing = contexts.get(face)
   if (existing !== undefined) return existing
+  // Hemi fork: refusals report the shared safe summary, so the script binds
+  // the common copy the production locale plugin registers.
   const ctx = Object.assign(new Context(), { remote: { ...face,
     session: { initializeDefaultModel: async () => ({ ok: true, value: undefined }) },
-  } })
+  }, locale: { bind: () => makeTranslate(commonEn) } })
   contexts.set(face, ctx)
   return ctx
 }
@@ -422,7 +425,7 @@ describe('ModelsSection', () => {
     face.llm.listProviders.mockResolvedValueOnce(remoteFail('directory unavailable', 'gateway/internal'))
     await act(async () => { await controller.load() })
     expect(screen.queryByLabelText(en.keyInput)).toBeNull()
-    expect(screen.getByText(`${en.loadFailed}: directory unavailable`)).toBeTruthy()
+    expect(screen.getByText(`${en.loadFailed}: ${commonEn['uiError.unknown']}`)).toBeTruthy()
     const before = controller.store.getSnapshot().namespaces.get('llm-deepseek')!
     mirror.acceptView({
       ...before,
@@ -1530,7 +1533,7 @@ describe('ModelsSection', () => {
     await screen.findByLabelText(en.provider)
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.keyInput), { target: { value: 'sk-ant' } })
     fireEvent.click(screen.getByText(en.apply))
-    await screen.findByText('credential store unavailable')
+    await screen.findByText(commonEn['uiError.unknown'])
     expect(mutate).toHaveBeenCalledOnce()
     face.settings.describe.mockResolvedValue(remoteOk({
       writable: true,
@@ -1573,7 +1576,7 @@ describe('ModelsSection', () => {
     await screen.findByLabelText(en.provider)
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.keyInput), { target: { value: 'sk-x' } })
     fireEvent.click(screen.getByText(en.apply))
-    await screen.findByText(/unknown pi-ai provider/)
+    await screen.findByText(commonEn['uiError.unknown'])
     expect(set).not.toHaveBeenCalled()
   })
 
@@ -1614,7 +1617,7 @@ describe('ModelsSection', () => {
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
     fireEvent.click(screen.getByText(en.apply))
-    await screen.findByText('the host refused')
+    await screen.findByText(commonEn['uiError.unknown'])
     // Not stuck in `applying…`: the finally cleared busy, so Apply is live again.
     expect(screen.getByText(en.apply)).toBeTruthy()
   })
@@ -1628,7 +1631,7 @@ describe('ModelsSection', () => {
     const key = screen.getByLabelText<HTMLInputElement>(en.keyInput)
     fireEvent.change(key, { target: { value: 'sk-live' } })
     fireEvent.click(screen.getByText(en.apply))
-    await screen.findByText(/invalid document at \/home\/user\/\.dsh\/\.credentials\.yaml/)
+    await screen.findByText(commonEn['uiError.unknown'])
     expect(screen.queryByRole('status')).toBeNull()
   })
 
@@ -1713,9 +1716,9 @@ describe('ModelsSection', () => {
       t={t}
       renderSlot={() => null}
     />)
-    expect(screen.getByText(/directory down/)).toBeTruthy()
+    expect(screen.getByText(`${en.loadFailed}: ${commonEn['uiError.unknown']}`)).toBeTruthy()
     fireEvent.click(screen.getByText(en.retry))
-    await waitFor(() => { expect(screen.queryByText(/directory down/)).toBeNull() })
+    await waitFor(() => { expect(screen.queryByText(`${en.loadFailed}: ${commonEn['uiError.unknown']}`)).toBeNull() })
   })
 
   it('shows the read-only notice and disables mutations for a read-only provider', async () => {
@@ -2088,7 +2091,7 @@ describe('ModelsSection', () => {
       controller,
       { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
     )
-    expect(failure).toBe('read-only')
+    expect(failure).toBe(commonEn['uiError.unknown'])
     expect(controller.store.getSnapshot().rows).toBe(before)
   })
 
@@ -2101,7 +2104,7 @@ describe('ModelsSection', () => {
     const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
     const confirm = within(dialog).getByRole('button', { name: openaiCopy(en.deleteConfirm) })
     fireEvent.click(confirm)
-    await within(dialog).findByText('the host refused')
+    await within(dialog).findByText(commonEn['uiError.unknown'])
     expect(screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBe(dialog)
     expect(unset).toHaveBeenCalledOnce()
     expect(mutate).toHaveBeenCalledOnce()
@@ -2143,7 +2146,7 @@ describe('ModelsSection', () => {
         credentialRef: 'OPENAI_API_KEY',
       },
     )
-    expect(failure).toBe('credential is read-only')
+    expect(failure).toBe(commonEn['uiError.unknown'])
     expect(mutate).not.toHaveBeenCalled()
   })
 

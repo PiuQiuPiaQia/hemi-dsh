@@ -264,7 +264,7 @@ describe('SessionRenameDialog', () => {
     expect(renameSession).toHaveBeenCalledWith(sid('one'), 'New')
   })
 
-  it('keeps the dialog open with the rejection surfaced, clears it on edit, and reports a non-Error reason as text', async () => {
+  it('keeps the dialog open with the shared safe summary surfaced, clears it on edit, and treats a non-Error reason the same', async () => {
     const renameSession = vi.fn<SessionRenameDialogInjected['renameSession']>()
       .mockRejectedValueOnce(new Error('title write failed'))
       .mockRejectedValueOnce('denied')
@@ -273,13 +273,13 @@ describe('SessionRenameDialog', () => {
     const input = screen.getByLabelText<HTMLInputElement>('会话名称')
     fireEvent.change(input, { target: { value: 'New' } })
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('title write failed') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     expect(input.disabled).toBe(false)
     expect(settleSessionRename).not.toHaveBeenCalled()
     fireEvent.change(input, { target: { value: 'Newer' } })
     expect(screen.queryByRole('alert')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     expect(screen.getByRole('dialog', { name: '重命名会话' })).toBeTruthy()
   })
 
@@ -361,13 +361,13 @@ describe('SessionArchiveConfirmDialog', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('keeps the dialog open with a rejection surfaced, and Cancel settles without archiving', async () => {
+  it('keeps the dialog open with a rejection surfaced as the safe summary, and Cancel settles without archiving', async () => {
     const stopAndArchiveSession = vi.fn<SessionArchiveConfirmInjected['stopAndArchiveSession']>()
       .mockRejectedValueOnce(new Error('stop exploded'))
     const { settleSessionArchive, ask } = archiveDialog(stopAndArchiveSession)
     ask([{ kind: 'turn' }])
     fireEvent.click(screen.getByRole('button', { name: '停止并归档' }))
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('stop exploded') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     expect(settleSessionArchive).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(settleSessionArchive).toHaveBeenCalledOnce()
@@ -384,7 +384,7 @@ describe('SessionArchiveConfirmDialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(settleSessionArchive).not.toHaveBeenCalled()
     await act(async () => { pending.reject('plain failure') })
-    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('plain failure') })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe(commonZh['uiError.unknown']) })
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(settleSessionArchive).toHaveBeenCalledOnce()
   })
@@ -656,13 +656,15 @@ describe('RowActionToast', () => {
     }
   })
 
-  it('shows a refused creation with the Host reason and holds it as long as the archived notice', async () => {
+  it('shows a refused creation as the shared safe summary and holds it as long as the archived notice', async () => {
     const { dismissToast, notify } = await toastSurface()
     vi.useFakeTimers()
     try {
-      notify({ kind: 'createFailed', message: 'agent-preset/invalid: agent-presets: preset "broken" failed to mount' })
+      // Hemi fork: the notice's message slot now carries the shared summary
+      // the service computed through userErrorMessage, not the Host refusal.
+      notify({ kind: 'createFailed', message: commonZh['uiError.unknown'] })
       const alert = screen.getByRole('alert')
-      expect(alert.textContent).toBe('新建会话失败：agent-preset/invalid: agent-presets: preset "broken" failed to mount')
+      expect(alert.textContent).toBe(`新建会话失败：${commonZh['uiError.unknown']}`)
       expect(alert.querySelector('button')).toBeNull()
       act(() => { vi.advanceTimersByTime(4000) })
       expect(dismissToast).not.toHaveBeenCalled()

@@ -26,6 +26,8 @@ The package is wired into the web-app bundle as the browser `hemi-backup-ui` ent
 
 The WebDAV server address is prefilled with `https://dav.jianguoyun.com/dav/` (Nutstore). A saved WebDAV target keeps its configured address; the field remains editable.
 
+Failures show localized summaries and next steps, including insufficient cloud transfer quota. The page does not display raw server responses or diagnostic messages; generic FAILED outcomes and rejected calls show the shared common operation summary. A failed restore retains the partial-restore warning and the safe-copy location when available. A failed deletion keeps its row and recovery advice without automatically refreshing the list.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 

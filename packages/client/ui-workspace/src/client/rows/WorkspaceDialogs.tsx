@@ -1,6 +1,6 @@
 /** Workspace rename and removal dialogs, keyed by their captured request. */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { WorkspaceActionRequest, WorkspaceBrowserProps } from '../contract/slots.ts'
 import css from './WorkspaceBrowser.module.css'
@@ -41,7 +41,9 @@ export function WorkspaceDialogs({ request, workspaces, renameWorkspace, deleteW
       settleWorkspaceAction()
     }).catch((reason: unknown) => {
       setRenaming(false)
-      setRenameError(reason instanceof Error ? reason.message : String(reason))
+      // Hemi fork: the shared safe summary here; the local duplicate-title
+      // validation above stays the actionable copy it already is.
+      setRenameError(userErrorMessage(t, reason))
     })
   }
 
@@ -74,7 +76,8 @@ export function WorkspaceDialogs({ request, workspaces, renameWorkspace, deleteW
       setDeleteCommittedId(deleteTarget.workspaceId)
     }).catch((reason: unknown) => {
       setDeleting(false)
-      setDeleteError(reason instanceof Error ? reason.message : String(reason))
+      // Hemi fork: the shared safe summary; the Host diagnostic stays out of the dialog.
+      setDeleteError(userErrorMessage(t, reason))
     })
   }
 

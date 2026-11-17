@@ -3956,7 +3956,7 @@ describe('ChatView', () => {
     expect(h.openView).toHaveBeenCalledWith('trajectory', 'a')
   })
 
-  it('shows a Host open refusal with the reason and retries the same path', async () => {
+  it('shows a Host open refusal with the safe summary and retries the same path', async () => {
     const openFile = vi.fn<(path: string) => Promise<void>>()
       .mockRejectedValueOnce(new Error('xdg-open is not available'))
       .mockResolvedValueOnce(undefined)
@@ -3967,7 +3967,10 @@ describe('ChatView', () => {
     await waitFor(() => {
       expect(screen.getByRole('dialog', { name: '无法打开文件' })).toBeTruthy()
     })
-    expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain('xdg-open is not available')
+    // The shared safe summary voices the refusal; the raw diagnostic never reaches the dialog.
+    const refusal = screen.getByRole('dialog', { name: '无法打开文件' })
+    expect(refusal.textContent).toContain(commonZh['uiError.unknown'])
+    expect(refusal.textContent).not.toContain('xdg-open')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '重试' })) })
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull()
@@ -3985,14 +3988,15 @@ describe('ChatView', () => {
     render(<h.ChatView {...h.props} />)
     await act(async () => { h.toolOwners[0]!.openFile('notes.md') })
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain('permission denied')
+      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain(commonZh['uiError.unknown'])
     })
+    expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).not.toContain('permission denied')
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(openFile).toHaveBeenCalledTimes(1)
   })
 
-  it('substitutes the unknown-open copy when the Host refusal has no text', async () => {
+  it('reads the shared safe summary whatever text the Host refusal carries', async () => {
     const openFile = vi.fn<(path: string) => Promise<void>>()
       .mockRejectedValueOnce(new Error(''))
     const h = makeHarness({ nodes: [toolResult(3, 'a')] })
@@ -4000,8 +4004,30 @@ describe('ChatView', () => {
     render(<h.ChatView {...h.props} />)
     await act(async () => { h.toolOwners[0]!.openFile('empty.ts') })
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain('无法打开此文件')
+      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain(commonZh['uiError.unknown'])
     })
+  })
+
+  it('renders a safe summary for a refusal carrying XML/path diagnostics and keeps the retry usable', async () => {
+    const openFile = vi.fn<(path: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('<error>open /Users/zhang/private/key.txt token=secret failed</error>'))
+      .mockResolvedValueOnce(undefined)
+    const h = makeHarness({ nodes: [toolResult(3, 'a')] })
+    h.props.openFile = openFile
+    render(<h.ChatView {...h.props} />)
+    await act(async () => { h.toolOwners[0]!.openFile('src/secret.ts') })
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: '无法打开文件' })).toBeTruthy()
+    })
+    const refusal = screen.getByRole('dialog', { name: '无法打开文件' })
+    expect(refusal.textContent).toContain(commonZh['uiError.unknown'])
+    expect(refusal.textContent).not.toContain('/Users/zhang/private/key.txt')
+    expect(refusal.textContent).not.toContain('token=secret')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '重试' })) })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+    expect(openFile).toHaveBeenNthCalledWith(2, 'src/secret.ts')
   })
 
   it('ignores a Host refusal that settles after the dialog is dismissed', async () => {
@@ -4016,7 +4042,7 @@ describe('ChatView', () => {
     render(<h.ChatView {...h.props} />)
     await act(async () => { h.toolOwners[0]!.openFile('src/a.ts') })
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain('first refusal')
+      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain(commonZh['uiError.unknown'])
     })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '重试' })) })
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
@@ -4037,7 +4063,7 @@ describe('ChatView', () => {
     render(<h.ChatView {...h.props} />)
     await act(async () => { h.toolOwners[0]!.openFile('src/a.ts') })
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain('first refusal')
+      expect(screen.getByRole('dialog', { name: '无法打开文件' }).textContent).toContain(commonZh['uiError.unknown'])
     })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '重试' })) })
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
@@ -4596,9 +4622,16 @@ describe('ChatView', () => {
     const h = makeHarness({}, {
       openState: 'error',
       openError: { code: 'gateway/internal', message: 'boom' } as never,
+      hasMore: true,
     })
     const view = render(<h.ChatView {...h.props} />)
-    expect(view.getByText(/历史加载失败：boom/)).toBeTruthy()
+    // The shared safe summary voices the read failure; the wire diagnostic never renders.
+    expect(view.getByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(view.queryByText(/历史加载失败/)).toBeNull()
+    expect(view.queryByText(/boom/)).toBeNull()
+    // The read stays retryable beside the strip: the older-history pager keeps working.
+    fireEvent.click(view.getByText('加载更早'))
+    expect(h.loadOlder).toHaveBeenCalledTimes(1)
     const loading = makeHarness({}, { openState: 'loading' })
     const lv = render(<loading.ChatView {...loading.props} />)
     expect(lv.getByText('载入历史…')).toBeTruthy()

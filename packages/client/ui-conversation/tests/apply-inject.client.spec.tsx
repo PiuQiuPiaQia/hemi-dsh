@@ -280,7 +280,8 @@ describe('Conversation inject API', () => {
     await vi.waitFor(() => { expect(b.sessionFake.prompt).toHaveBeenCalledOnce(); expect(composer.keyboard!.snapshot.phase).toBe('plain') })
     expect(composer.keyboard!.snapshot.draft).toBe('')
     if (outcome === 'refused') expect(b.runtime.sessions.binding(ROOT)!.session.getSnapshot().promptError?.error.message).toBe('request refused')
-    else expect(composer.hooks.notices.getSnapshot()).toMatchObject({ level: 'error', text: 'connection lost' })
+    // The hub's shared describeFailure summarizes the throw; the raw diagnostic stays off the notice.
+    else expect(composer.hooks.notices.getSnapshot()).toMatchObject({ level: 'error', text: 'uiError.unknown' })
     composer.retry!(SessionSeq(5))
     await vi.waitFor(() => { expect(b.sessionFake.prompt).toHaveBeenCalledTimes(2) })
   })

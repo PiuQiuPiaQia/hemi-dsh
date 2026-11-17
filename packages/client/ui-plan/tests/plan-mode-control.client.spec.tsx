@@ -93,7 +93,7 @@ describe('PlanChip', () => {
   it('surfaces admission and transport failures while staying visible', async () => {
     const exitPlanMode = vi.fn()
       .mockResolvedValueOnce('host said no')
-      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('<error>/private/path</error> network down'))
       .mockRejectedValueOnce('socket closed')
     setup({ active: true, pending: false }, exitPlanMode)
     fireEvent.click(chip())
@@ -101,10 +101,10 @@ describe('PlanChip', () => {
     expect(chip()).toBeTruthy()
 
     fireEvent.click(chip())
-    expect(await screen.findByTitle('network down')).toBeTruthy()
+    expect(await screen.findByTitle(commonZh['uiError.unknown'])).toBeTruthy()
 
     fireEvent.click(chip())
-    expect(await screen.findByTitle('socket closed')).toBeTruthy()
+    expect(await screen.findByTitle(commonZh['uiError.unknown'])).toBeTruthy()
   })
 
   it('ignores in-flight fulfillment and rejection after unmount', () => {

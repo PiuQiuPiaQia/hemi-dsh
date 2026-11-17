@@ -59,6 +59,7 @@ function registerRouting(ctx: Context): void {
   const menuMode = new ModelMenuMode()
   mountModelPicker(ctx, menuMode)
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'hemi-routing-ui: dictionaries')
+  const t = ctx.locale.bind(NS)
   const turnUsage: TurnUsageInjected = {
     async loadChildUsage(sessionId, signal) {
       const response = await ctx.remote.session.projections({ sessionId }, signal)
@@ -76,7 +77,7 @@ function registerRouting(ctx: Context): void {
         hooks: { modelDirectory: scope.modelDirectories.directoryFor(sessionId).store },
         loadUsage: signal => loadConversationUsage(sessionId, async (id, readSignal) => {
           const result = await scope.remote.session.projections({ sessionId: id }, readSignal)
-          if (!result.ok) throw new Error(result.error.message)
+          if (!result.ok) throw result.error
           if (result.value?.kind !== 'sequenced' || result.value.values.hemiModelUsage === undefined) {
             throw new Error('Recorded model usage is unavailable')
           }
@@ -88,9 +89,9 @@ function registerRouting(ctx: Context): void {
   const form = ctx.configForms.get<RoutingConfig>(ROUTING_NS)
   const editor = createRoutingEditor(form, async () => {
     const response = await ctx.remote.session.modelCatalog()
-    if (!response.ok) throw new Error(response.error.message)
+    if (!response.ok) throw response.error
     return response.value
-  })
+  }, t)
   ctx.effect(() => () => editor.dispose(), 'hemi-routing-ui: editor operations')
   ctx.slots.inject('conversation.input.model.label', () => ctx.slots.register({
     name: 'conversation.input.model.label', locale: NS,
@@ -110,7 +111,7 @@ function registerRouting(ctx: Context): void {
       openConfiguration,
       setEnabled: async (enabled) => {
         const response = await ctx.remote.hemiRoutingSettings.setEnabled(sessionId, enabled)
-        return response.ok ? null : response.error.message
+        return response.ok ? null : response.error
       },
     })
     yield () => { routingOpen.set(false) }
@@ -141,7 +142,7 @@ function registerRouting(ctx: Context): void {
         hooks: { routingSettings: form },
         setEffort: async (effort) => {
           const response = await ctx.remote.hemiRoutingSettings.setReasoningEffort(sessionId, effort)
-          return response.ok ? null : response.error.message
+          return response.ok ? null : response.error
         },
       }),
     }, RoutingEffortSelect))

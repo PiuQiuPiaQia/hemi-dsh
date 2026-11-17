@@ -44,6 +44,11 @@ export const de = {
   'json.label': 'JSON',
   'markdown.footnotes': 'Fußnoten',
   'markdown.truncatedCharacters': '… nach {total} Zeichen abgeschnitten',
+  // Hemi fork: shared operation-error copy belongs to the existing common dictionary, not individual pages.
+  'uiError.unknown': 'Das Ergebnis konnte nicht bestätigt werden. Prüfen Sie den aktuellen Zustand, bevor Sie es erneut versuchen.',
+  'uiError.cancelled': 'Der Vorgang wurde abgebrochen. Prüfen Sie den aktuellen Zustand.',
+  'uiError.invalidInput': 'Die Anfrage wurde nicht angenommen. Prüfen Sie Ihre Eingabe und versuchen Sie es erneut.',
+  'uiError.unavailable': 'Der Dienst ist nicht verfügbar. Prüfen Sie die Verbindung oder versuchen Sie es später erneut.',
   'number.thousand': '{value}K',
   'number.million': '{value}M',
 } satisfies Record<keyof typeof en, string>

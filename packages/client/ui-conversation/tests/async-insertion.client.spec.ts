@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest'
 import { SessionInputShell } from '../src/client/input/facade.ts'
 
 function shell(): SessionInputShell {
-  return new SessionInputShell({ actx: new Context(), defaultSink: vi.fn(), commandAttachments: {
+  return new SessionInputShell({ actx: new Context(), describeFailure: () => 'safe failure', defaultSink: vi.fn(), commandAttachments: {
     serialize: async () => [], release: () => {}, unsupportedNotice: () => '',
   } })
 }

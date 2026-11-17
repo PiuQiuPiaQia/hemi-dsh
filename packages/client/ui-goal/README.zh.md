@@ -33,7 +33,7 @@ Web GUI 的 goal 界面同时显示持久 goal 状态及当前的进程本地激
 
 ### 失败
 
-被拒绝的变更会把 Remote 错误内联呈现到条带上；加载中、无目标、已完成与成功清除的目标一律不渲染。
+被拒绝的变更会在条带上内联呈现 [ui-primitives](../ui-primitives/README.zh.md) 中共享 `userErrorMessage` helper 的本地化安全摘要；Remote 的 message、code 与 details 不进入展示文案，仍保留在会话诊断中。加载中、无目标、已完成与成功清除的目标一律不渲染。
 
 -----
 

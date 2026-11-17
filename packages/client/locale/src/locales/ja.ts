@@ -44,6 +44,11 @@ export const ja = {
   'json.label': 'JSON',
   'markdown.footnotes': '脚注',
   'markdown.truncatedCharacters': '… {total}文字で切り捨て',
+  // Hemi fork: shared operation-error copy belongs to the existing common dictionary, not individual pages.
+  'uiError.unknown': '操作結果を確認できません。現在の状態を確認してから再試行してください。',
+  'uiError.cancelled': '操作はキャンセルされました。現在の状態を確認してください。',
+  'uiError.invalidInput': 'リクエストは受け付けられませんでした。入力内容を確認して再試行してください。',
+  'uiError.unavailable': 'サービスを利用できません。接続を確認するか、後でもう一度お試しください。',
   'number.thousand': '{value}K',
   'number.million': '{value}M',
 } satisfies Record<keyof typeof en, string>

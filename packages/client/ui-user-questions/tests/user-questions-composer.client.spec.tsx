@@ -570,16 +570,20 @@ describe('QuestionComposer', () => {
   it('surfaces cancellation failures and re-arms the controls', async () => {
     const { carrier, dismiss } = wait()
     dismiss
-      .mockRejectedValueOnce(new Error('第一次取消失败'))
+      .mockRejectedValueOnce(new Error('第一次取消失败 <trace><path>/var/log/dsh/questions.log</path><token>tok-4d5e6f</token></trace>'))
       .mockRejectedValueOnce(new Error('第二次取消失败'))
     render(<QuestionComposer matched={carrier} {...kit} />)
 
     fireEvent.click(screen.getByRole('button', { name: '放弃整组问题' }))
-    expect(await screen.findByText('第一次取消失败')).toBeTruthy()
+    // Hemi fork: dismissal failures share the safe summary; raw cause text never reaches copy.
+    expect(await screen.findByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('status').textContent).not.toContain('第一次取消失败')
+    expect(screen.getByRole('status').textContent).not.toContain('tok-4d5e6f')
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '跳过' }).disabled).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: '放弃整组问题' }))
-    expect(await screen.findByText('第二次取消失败')).toBeTruthy()
+    expect(await screen.findByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('status').textContent).not.toContain('第二次取消失败')
   })
 
   it('surfaces answer rejection and resets local drafts for a different request', async () => {
@@ -590,7 +594,7 @@ describe('QuestionComposer', () => {
     expect(screen.getByText('2 / 3')).toBeTruthy()
     const second = wait()
     second.answer
-      .mockRejectedValueOnce(new Error('网络中断'))
+      .mockRejectedValueOnce(new Error('网络中断 <trace><path>/var/log/dsh/questions.log</path><token>tok-7a8b9c</token></trace>'))
       .mockRejectedValueOnce('字符串错误')
     view.rerender(<QuestionComposer matched={second.carrier} {...kit} />)
     expect(screen.getByRole('radio', { name: /研究潜力型/ }).getAttribute('aria-checked')).toBe('false')
@@ -606,11 +610,15 @@ describe('QuestionComposer', () => {
       { id: 'detail', selected: [], custom: 'x' },
       { id: 'signals', selected: ['系统设计'] },
     ]))
-    expect(await screen.findByText('网络中断')).toBeTruthy()
+    expect(await screen.findByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('status').textContent).not.toContain('网络中断')
+    expect(screen.getByRole('status').textContent).not.toContain('tok-7a8b9c')
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '提交' }).disabled).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: '提交' }))
-    expect(await screen.findByText('字符串错误')).toBeTruthy()
+    // A non-Error rejection shows the same safe summary, not the stringified value.
+    expect(await screen.findByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('status').textContent).not.toContain('字符串错误')
   })
 
   it('renders chrome copy through the English dictionary', () => {
@@ -894,7 +902,8 @@ describe('timed card', () => {
     const carrier = new PendingQuestion(SID, TIMED, ToolCallId('ask-retry'))
     const answer = vi.fn(async () => true)
     const hide = vi.fn()
-    answer.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('a reply is already queued for this question'))
+    answer.mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error('a reply is already queued for this question <trace><path>/var/log/dsh/answers.log</path><token>tok-2e3f4a</token></trace>'))
     carrier.attachRpc({ answer })
     carrier.attachSeat({ hide })
     carrier.setState('continued')
@@ -907,7 +916,10 @@ describe('timed card', () => {
     expect(screen.queryByText(zh['status.sent'])).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '提交' }))
-    expect(await screen.findByText('a reply is already queued for this question')).toBeTruthy()
+    // Hemi fork: the duplicate-reply rejection shows the shared safe summary; raw cause text never reaches copy.
+    expect(await screen.findByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('status').textContent).not.toContain('already queued')
+    expect(screen.getByRole('status').textContent).not.toContain('tok-2e3f4a')
     expect(answer).toHaveBeenCalledTimes(2)
     fireEvent.click(screen.getByRole('button', { name: '提交' }))
     await vi.waitFor(() => { expect(answer).toHaveBeenCalledTimes(3) })

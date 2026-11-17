@@ -20,6 +20,7 @@ function bench(quoteInsertionAllowed?: () => boolean) {
   const sink = vi.fn(() => Promise.resolve<SubmitOutcome>({ kind: 'success' }))
   const shell = new SessionInputShell({
     actx: {} as Context,
+    describeFailure: () => 'safe failure',
     defaultSink: sink,
     commandAttachments: {
       serialize: () => Promise.resolve([]),

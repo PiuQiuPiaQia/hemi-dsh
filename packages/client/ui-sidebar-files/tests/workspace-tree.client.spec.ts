@@ -1,11 +1,12 @@
 /** The workspace navigator's listed levels as the file tree's entries and directory states. */
 import { describe, expect, it } from 'vitest'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { zh } from '../src/client/locales.ts'
 import type { FilesTreeState } from '../src/client/store.ts'
 import { parentOf, treeRootOf, workspaceDirectories, workspaceEntries } from '../src/client/workspace-tree.ts'
 
-const t = makeTranslate(zh)
+const t = makeTranslate(zh, commonZh)
 
 /** A tree at `root` with `src` listed below it. */
 function listed(root: string): FilesTreeState {
@@ -59,6 +60,22 @@ describe('workspaceDirectories', () => {
       '/r/b': { loading: true },
       '/r/c': { failure: zh['error.notFound'] },
       '/r/d': {},
+    })
+  })
+
+  it('replaces carrier and unclassified failures with the shared safe summary', () => {
+    const hostile = '<error>/private/secret path</error>\n    at readDir (/host/list.js:12:9)'
+    const states = workspaceDirectories({
+      root: '/r',
+      expanded: ['/r/a', '/r/b'],
+      levels: {
+        '/r/a': { kind: 'failed', failure: new RemoteError('gateway/internal', hostile, {}) },
+        '/r/b': { kind: 'failed', failure: new RemoteError('gateway/cancelled', hostile, {}) },
+      },
+    }, t)
+    expect(states).toEqual({
+      '/r/a': { failure: commonZh['uiError.unknown'] },
+      '/r/b': { failure: commonZh['uiError.cancelled'] },
     })
   })
 })

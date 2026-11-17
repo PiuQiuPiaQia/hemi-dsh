@@ -52,6 +52,9 @@ export interface PopupSelectDeps {
   consume(segment: TokenSegment): boolean
   /** Return focus to the session composer (successful settle and Escape close paths). */
   focusComposer(): void
+  // Hemi fork: the popup owns settlement display, while its runtime supplies localized safe operation copy.
+  /** Summarize an unexpected operation failure without exposing diagnostics. */
+  describeFailure(failure: unknown): string
 }
 
 /** Popup shell state (the shell component renders from here; closed = render null). */
@@ -138,11 +141,6 @@ interface OpenBinding<TCtx> {
   readonly abort: AbortController
 }
 
-/** The shell's error-strip line for a settlement failure. */
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
 /**
  * Headless controller of one session's popupSelect shell. Late settlements
  * lose their write rights through binding identity: dismiss/dispose/reopen
@@ -188,7 +186,7 @@ export class PopupSelectController<TCtx = unknown> {
       (error: unknown) => {
         if (this.binding !== binding) return
         console.error(`[ui-commands] popupSelect options failed for /${binding.command}:`, error)
-        this.state.set({ ...this.state.getSnapshot(), status: 'failed', options: [], active: 0, error: errorText(error) })
+        this.state.set({ ...this.state.getSnapshot(), status: 'failed', options: [], active: 0, error: this.deps.describeFailure(error) })
       },
     )
   }
@@ -298,7 +296,7 @@ export class PopupSelectController<TCtx = unknown> {
     } catch (error) {
       console.error(`[ui-commands] popupSelect onSelect failed for /${binding.command}:`, error)
       if (this.binding !== binding) return // dismissed/reopened/disposed while onSelect flew
-      this.state.set({ ...this.state.getSnapshot(), submitting: false, error: errorText(error) })
+      this.state.set({ ...this.state.getSnapshot(), submitting: false, error: this.deps.describeFailure(error) })
       return
     }
     if (this.binding !== binding) return // late success: no state write, no consumption

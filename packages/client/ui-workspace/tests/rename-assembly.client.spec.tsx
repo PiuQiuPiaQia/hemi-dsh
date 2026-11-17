@@ -23,6 +23,7 @@ import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { RemoteError, SlotTestRuntime, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { SECTION_HOOK_CONTEXT, SECTION_INJECT } from './section-scroller.client.ts'
@@ -47,6 +48,10 @@ async function createRuntime(): Promise<SlotTestRuntime> {
   const directoryPicker = {}
   runtime.remote.provideNamespaces({ directoryPicker })
   const locale = new LocaleRuntime(runtime.ctx)
+  // The shared operation-error copy lives in the common namespace the locale
+  // plugin registers in production; the summary the failure case asserts
+  // resolves through the same chain.
+  locale.register('common', 'zh', commonZh)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   await runtime.mount({ inject: [...injectMenus], apply: applyMenus })
@@ -225,9 +230,9 @@ describe('session rename through the assembled browser', () => {
     fireEvent.click(view.getByRole('button', { name: '重命名' }))
 
     // Failure: the injected hop rethrows the business error; the dialog
-    // stays open with the alert and the row keeps its title.
+    // stays open with the shared safe summary and the row keeps its title.
     const alert = await view.findByRole('alert')
-    expect(alert.textContent).toContain('title write failed')
+    expect(alert.textContent).toContain(commonZh['uiError.unknown'])
     expect(view.getByLabelText('会话名称')).toBeTruthy()
     expect(view.getByText('旧标题')).toBeTruthy()
     await runtime.dispose()

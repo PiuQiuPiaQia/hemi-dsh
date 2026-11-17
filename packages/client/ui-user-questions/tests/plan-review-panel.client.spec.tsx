@@ -362,27 +362,33 @@ describe('PlanReviewPanel', () => {
 
   it('re-arms the actions and says why when the decision does not land', async () => {
     const { carrier, answer } = wait()
-    answer.mockRejectedValue(new Error('question response rejected: not-pending'))
+    answer.mockRejectedValue(new Error('question response rejected: not-pending <trace><path>/var/log/dsh/questions.log</path><token>tok-1b2c3d</token></trace>'))
     render(<QuestionComposer matched={carrier} {...kit} />)
 
     fireEvent.click(screen.getByRole('button', { name: zh['plan.approve'] }))
-    const failure = await screen.findByText('question response rejected: not-pending')
+    // Hemi fork: the decision failure shows the shared safe summary; raw cause text never reaches copy.
+    const failure = await screen.findByText(commonZh['uiError.unknown'])
     expect(failure.getAttribute('role')).toBe('status')
+    expect(screen.getByRole('status').textContent).not.toContain('not-pending')
+    expect(screen.getByRole('status').textContent).not.toContain('/var/log/dsh')
+    expect(screen.getByRole('status').textContent).not.toContain('tok-1b2c3d')
     // Re-armed for the retry: a lost click must not leave a dead card.
     expect(screen.getByRole('button', { name: zh['plan.approve'] }).hasAttribute('disabled')).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: zh['plan.approve'] }))
     expect(answer).toHaveBeenCalledTimes(2)
   })
 
-  it('reports a non-Error transport failure as its stringified value', async () => {
+  it('reports a non-Error transport failure through the shared safe summary', async () => {
     // A non-Error rejection is the case under test: a carrier can reject with
-    // anything, and the panel must still show the user something.
+    // anything, and the panel must still show the user the safe summary.
     const { carrier, cancel } = wait()
-    cancel.mockRejectedValue('socket gone')
+    cancel.mockRejectedValue('socket gone <trace><path>/var/log/dsh/transport.log</path><token>tok-9f1e2d</token></trace>')
     render(<QuestionComposer matched={carrier} {...kit} />)
 
     fireEvent.click(screen.getByRole('button', { name: zh['plan.discuss'] }))
-    expect(await screen.findByText('socket gone')).toBeTruthy()
+    expect(await screen.findByText(commonZh['uiError.unknown'])).toBeTruthy()
+    expect(screen.getByRole('status').textContent).not.toContain('socket gone')
+    expect(screen.getByRole('status').textContent).not.toContain('tok-9f1e2d')
   })
 
   it('carries the same decision surface in English', () => {

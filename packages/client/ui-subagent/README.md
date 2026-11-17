@@ -65,7 +65,7 @@ The header lineage renderer reads `projectionsBySession` through the standard `u
 
 Each header entry declares a footer slot below its tree. Optional UI contributes there within the same scroll container; the catalog owns opening and dismissal. CSS anchors keep the panel attached to its trigger within layout-viewport size limits. Browser zoom and panning move it with the page, so it may extend beyond the visual viewport. Internal scrolling, hover behavior, pinned opening, and focus restoration remain independent.
 
-Opening a catalog dropdown does not request its root catalog. Child-catalog expansion and failed-read retries call `refreshProjection`; shared projection-value changes update the display automatically.
+Opening a catalog dropdown does not request its root catalog. Child-catalog expansion and failed-read retries call `refreshProjection`; shared projection-value changes update the display automatically. A failed catalog read reports the shared safe operation summary instead of the raw provider message, with the retry still available.
 
 Breadcrumb addresses derive from the Provider-bound Session address, loaded parent catalogs, or already-listed subagent lineage, including never-selected ancestors.
 

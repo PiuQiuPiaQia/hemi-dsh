@@ -14,6 +14,7 @@ import type {
 // Type-only: pulls the `agentPreset` Session projection value into this program.
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { UserFacingError, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type {
   IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
@@ -314,7 +315,15 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     } catch (error: unknown) {
       // Reported here, not in connectWorkspace: startup restoration calls that
       // directly and stays console-only.
-      if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+      // Hemi fork: the toast carries the shared safe summary, never the Host
+      // diagnostic (see userErrorMessage); the console.warn below keeps the
+      // full reason for diagnostics.
+      if (!navigation.aborted) {
+        this.notify({
+          kind: 'createFailed',
+          message: userErrorMessage(this.ctx.locale.bind('workspace'), sessionCreateErrorOf(error)?.rpcError ?? error),
+        })
+      }
       throw error
     }
     if (navigation.aborted) return
@@ -376,7 +385,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   private draftPreparationFailed(): never {
     const message = this.ctx.locale.bind('workspace')('draft.initializationFailed')
     this.notify({ kind: 'createFailed', message })
-    throw new Error(message)
+    // Hemi fork: the copy is already the localized summary, so it crosses the
+    // throw as a user-facing error; shared formatters pass it through and the
+    // cause chain stays for diagnostics.
+    throw new UserFacingError(message)
   }
 
   async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
@@ -404,7 +416,9 @@ class UiWorkspaceService extends Service implements UiWorkspace {
 
   async pickDirectory(): Promise<string | null> {
     const result = await this.directoryPicker.pick()
-    if (!result.ok) throw new Error(`directory picker failed: ${result.error.message}`)
+    // Hemi fork: the structured failure reaches presenters unchanged, which
+    // classify it through userErrorMessage instead of reading message here.
+    if (!result.ok) throw result.error
     return result.value
   }
 
@@ -561,16 +575,6 @@ class UiWorkspaceService extends Service implements UiWorkspace {
  */
 function sessionCreateErrorOf(error: unknown): SessionCreateError | undefined {
   return error instanceof Error && error.name === 'SessionCreateError' ? error as SessionCreateError : undefined
-}
-
-/**
- * The words a failed Session creation is reported in: a Host refusal keeps its
- * stable code and message; any other failure keeps its own message.
- */
-function creationFailureMessage(error: unknown): string {
-  const refused = sessionCreateErrorOf(error)
-  if (refused !== undefined) return `${refused.rpcError.code}: ${refused.rpcError.message}`
-  return error instanceof Error ? error.message : String(error)
 }
 
 /** Stable tie-breaking follows Host Workspace order. */

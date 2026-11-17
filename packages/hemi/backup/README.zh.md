@@ -39,7 +39,7 @@ kind: "package-reference"
 ## 理解实现
 
 - `src/engine.ts` —— 双根白名单收集（归档路径带 `dsh/`、`agents/` 根标签前缀）、流式 ustar+gzip 打包（逐卷 sha256、GNU 长名支持）、增量解包器，以及合并与预估共用的逐文件恢复判定（`decideRestoreAction`）。快照防御把收集后的追加按收集尺寸截断、文件中途变短则失败；两个方向都不跟随符号链接。
-- `src/webdav.ts` —— 编排所需的 WebDAV 操作（MKCOL/PUT/PROPFIND/DELETE/GET），基于 `fetch`，带类型化的 `AUTH_FAILED` / `NOT_FOUND` / `REQUEST_FAILED` 失败。
+- `src/webdav.ts` —— 编排所需的 WebDAV 操作（MKCOL/PUT/PROPFIND/DELETE/GET），基于 `fetch`，失败按原始响应分类为 `AUTH_FAILED` / `NOT_FOUND` / `REQUEST_FAILED` / `FORBIDDEN` / `TRAFFIC_EXHAUSTED`：XML exception 字段恰为 `TrafficRateExhausted` 的 403 是配额耗尽，其余 403 是授权问题，不当成密码错误。
 - `src/service.ts` —— `hemiBackup` Remote 命名空间：`getState`、`saveSettings`、`testConnection`、`runNow`、`listBackups`、`deleteSet`、`restorePrepare`、`restoreApply`、`restoreCancel`。WebDAV 应用密码经凭据服务存储（`HEMI_BACKUP_WEBDAV_PASSWORD`），绝不进设置文件；每小时一次 tick 判断定时是否到期。
 
 恢复不会替换、重命名或删除已有 Session 目录内的文件，也不会向其中增加其他代际。相同的备份文件跳过，不同或额外的备份代际存入 `restore-safety/restore-*/dsh/sessions/`。缺失的 Session 目录通过排他文件发布恢复，避免覆盖并发写入方的文件。其他数据沿用逐文件合并策略。合并失败可能已完成部分操作；重试前请保留原备份与报告中的安全副本目录。
@@ -52,6 +52,8 @@ kind: "package-reference"
 ## 客户端接口
 
 `./client` 导出客户端安全的视图类型（`BackupStateView`、`BackupSetView`、`RestorePreview` 及各操作结果）；`./remote` 携带 `dsh-hemi-backup-ui` 使用的生成版 Typert 客户端面。
+
+失败带有来自 `BackupFailureCode` 联合类型的稳定 `code`，出现在每个操作结果与持久化的 `lastRun` 上。客户端仅按 `code` 本地化，绝不直接展示原始诊断 `message`。早于该机制的记录没有 `lastRun.code`，加载时白名单之外的 `code` 也会被移除。
 
 ## 模型体验
 

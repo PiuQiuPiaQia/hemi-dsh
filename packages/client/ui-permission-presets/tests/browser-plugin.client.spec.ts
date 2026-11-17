@@ -12,9 +12,11 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
+import { RemoteError, TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import { remoteDefaultResponses } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/remote-default-responses.ts'
 import { RemoteMock } from '@deepseek-ai/dsh-remote-mock'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { apply as settingsApply, inject as settingsInject } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { CommandDecoration, PopupSelectSpec } from '@deepseek-ai/dsh-client-ui-commands/client'
 import { PopupSelectController } from '@deepseek-ai/dsh-client-ui-commands/client'
@@ -56,14 +58,13 @@ async function bench() {
   let catalog = CATALOG
   let catalogCalls = 0
   let catalogFailure: string | undefined
+  let lastCatalogFailure: RemoteError | undefined
   const permissionPresets = {
     catalog: () => {
       catalogCalls += 1
       if (catalogFailure !== undefined) {
-        return Promise.resolve({
-          ok: false as const,
-          error: { code: 'gateway/internal', message: catalogFailure },
-        })
+        lastCatalogFailure = new RemoteError('gateway/internal', catalogFailure, {})
+        return Promise.resolve({ ok: false as const, error: lastCatalogFailure })
       }
       return Promise.resolve({ ok: true as const, value: catalog })
     },
@@ -90,6 +91,8 @@ async function bench() {
   const shell = new PopupSelectController<{ sessionId: SessionId }>({
     consume: () => true,
     focusComposer: () => {},
+    // The production reporter folds failures through the shared safe summary.
+    describeFailure: failure => userErrorMessage(key => commonEn[key], failure),
   })
   ctx.provide('commandUi', {
     decorate(c: CommandDecoration) {
@@ -103,7 +106,7 @@ async function bench() {
   })
   const values = new Map<SessionId, PermissionSelection>()
   const commands: string[] = []
-  let commandResult: { ok: boolean; matched?: boolean } = { ok: true, matched: true }
+  let commandResult: { ok: boolean; matched?: boolean; error?: RemoteError<'gateway/internal'> } = { ok: true, matched: true }
   const session = (id: SessionId) => ({
     projections: {
       faceOf: (key: string) => ({
@@ -115,7 +118,7 @@ async function bench() {
       commands.push(line)
       return Promise.resolve(commandResult.ok
         ? { ok: true as const, value: { matched: commandResult.matched ?? true } }
-        : { ok: false as const, error: { code: 'gateway/internal', message: 'boom' } })
+        : { ok: false as const, error: commandResult.error ?? new RemoteError('gateway/internal', 'boom', {}) })
     },
   })
   ctx.provide('sessions', {
@@ -131,8 +134,12 @@ async function bench() {
       catalog = value
       remote.emit('permission-presets/catalog-changed', [])
     },
-    setCatalogFailure: (message: string | undefined) => { catalogFailure = message },
-    setResult: (r: { ok: boolean; matched?: boolean }) => { commandResult = r },
+    setCatalogFailure: (message: string | undefined) => {
+      catalogFailure = message
+      if (message === undefined) lastCatalogFailure = undefined
+    },
+    lastCatalogFailure: () => lastCatalogFailure,
+    setResult: (r: { ok: boolean; matched?: boolean; error?: RemoteError<'gateway/internal'> }) => { commandResult = r },
     decoration: () => decoration,
     shell: () => shell,
     openShell: (): PopupSelectController<{ sessionId: SessionId }> => {
@@ -258,11 +265,16 @@ describe('ui-permission browser plugin', () => {
     const c = b.decoration()!
     const proj = { sessionId: sid('s1') }
     b.values.set(sid('s1'), { currentValue: 'workspace-write' })
-    b.setCatalogFailure('catalog read failed')
+    b.setCatalogFailure('catalog read failed <trace><path>/var/log/dsh/permissions.log</path><token>tok-2b4d6f</token></trace>')
     b.setCatalog(CATALOG)
 
-    await expect(b.popup().options(proj, new AbortController().signal))
-      .rejects.toThrow('catalog read failed')
+    const optionsOutcome = await b.popup().options(proj, new AbortController().signal)
+      .then(() => null, (error: unknown) => error)
+    // Hemi fork: the original RemoteError surfaces by identity, so the reporter classifies it without parsing text.
+    const failure = b.lastCatalogFailure()!
+    expect(optionsOutcome).toBe(failure)
+    expect(failure).toMatchObject({ isDSHRemoteError: true, code: 'gateway/internal' })
+    expect(failure.message).toContain('catalog read failed')
     // The failed read clears the catalog. The command stays available so the
     // picker keeps its own retry entry, and a later open re-reads the catalog.
     expect(c.available(proj)).toBe(true)
@@ -276,14 +288,18 @@ describe('ui-permission browser plugin', () => {
   it('keeps the open picker and its retry through the real popup shell after a failed read', async () => {
     const b = await bench()
     b.values.set(sid('s1'), { currentValue: 'workspace-write' })
-    b.setCatalogFailure('catalog read failed')
+    b.setCatalogFailure('catalog read failed <trace><path>/var/log/dsh/permissions.log</path><token>tok-2b4d6f</token></trace>')
     b.setCatalog(CATALOG)
 
     const shell = b.openShell()
     await vi.waitFor(() => { expect(shell.state.getSnapshot().status).toBe('failed') })
     const failed = shell.state.getSnapshot()
     expect(failed.open).toBe(true)
-    expect(failed.error).toBe('gateway/internal: catalog read failed')
+    // Hemi fork: the shared reporter shows the safe summary; raw response text never reaches the shell.
+    expect(failed.error).toBe(commonEn['uiError.unknown'])
+    expect(failed.error).not.toContain('catalog read failed')
+    expect(failed.error).not.toContain('/var/log/dsh')
+    expect(failed.error).not.toContain('tok-2b4d6f')
 
     b.setCatalogFailure(undefined)
     shell.retry()
@@ -318,8 +334,10 @@ describe('ui-permission browser plugin', () => {
     b.values.set(sid('s1'), { currentValue: 'workspace-write' })
     await b.popup().onSelect({ id: 'danger-full-access', label: 'danger-full-access' }, proj)
     expect(b.commands).toEqual(['/permission danger-full-access'])
-    b.setResult({ ok: false })
-    await expect(b.popup().onSelect({ id: 'read-only', label: 'read-only' }, proj)).rejects.toThrow(/permission switch failed/)
+    const refusal = new RemoteError('gateway/internal', 'boom <trace><path>/var/log/dsh/command.log</path><token>tok-7c1d2e</token></trace>', {})
+    b.setResult({ ok: false, error: refusal })
+    // Hemi fork: the original carrier failure propagates by identity, not a `permission switch failed:` prefix.
+    await expect(b.popup().onSelect({ id: 'read-only', label: 'read-only' }, proj)).rejects.toBe(refusal)
     b.setResult({ ok: true, matched: false })
     await expect(b.popup().onSelect({ id: 'read-only', label: 'read-only' }, proj)).rejects.toThrow(/no \/permission command/)
     // An unmaterialized session throws before any submit.

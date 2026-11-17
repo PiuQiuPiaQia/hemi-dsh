@@ -32,7 +32,7 @@ Desktop 引导复用已有的 `settings.onboarding` 协调器与共享弹窗的�
 
 #### 模型看到的内容
 
-The page delegates explicit model tests to the `model-settings` Host service and route editing to the routing settings service.
+本页面把显式的模型测试委托给 `model-settings` 宿主服务，把路由编辑委托给路由设置服务。被拒绝的调用把带类型的 Remote 失败（代码与详情）传递给连接编辑器，由其负责本地化提示。
 
 #### Token 影响
 

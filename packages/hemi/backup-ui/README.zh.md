@@ -26,6 +26,8 @@ kind: "package-reference"
 
 WebDAV 服务器地址预填为坚果云地址 `https://dav.jianguoyun.com/dav/`。已保存的 WebDAV 目标保留其配置地址；该字段仍可编辑。
 
+失败时显示本地化摘要和处理建议，包括云端流量额度不足。页面不展示原始服务端响应或诊断消息；通用 FAILED 结果和被拒绝的调用显示共享的 common 操作摘要。恢复失败保留可能部分完成的警告，并在可用时展示安全副本位置。删除失败保留原行和处理建议，不自动刷新列表。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

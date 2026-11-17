@@ -28,7 +28,6 @@ export const zh = {
   'error.tooLarge': '单页内容超过 {limit} 上限，无法读取',
   'error.notText': '该格式文件暂时无法预览',
   'error.notRegularFile': '该路径不是普通文件，没有可显示的内容',
-  'error.unavailable': '读取失败：{message}',
   retry: '重试',
 } satisfies Record<string, string>
 
@@ -57,7 +56,6 @@ export const en = {
   'error.tooLarge': 'This page exceeds the {limit} limit and cannot be read.',
   'error.notText': 'Preview is not available for this file type yet.',
   'error.notRegularFile': 'Not a regular file, nothing to display.',
-  'error.unavailable': 'Read failed: {message}',
   retry: 'Retry',
 } satisfies Record<SidebarDocumentPreviewKey, string>
 
@@ -83,7 +81,6 @@ export const ja = {
   'error.tooLarge': 'このページは {limit} の上限を超えているため読み込めません。',
   'error.notText': 'このファイル形式のプレビューはまだ利用できません。',
   'error.notRegularFile': '通常のファイルではないため、表示する内容がありません。',
-  'error.unavailable': '読み込みに失敗しました: {message}',
   'retry': '再試行',
 } satisfies Record<keyof typeof en, string>
 
@@ -109,7 +106,6 @@ export const es = {
   'error.tooLarge': 'Esta página excede el límite {limit} y no se puede leer.',
   'error.notText': 'La vista previa aún no está disponible para este tipo de archivo.',
   'error.notRegularFile': 'No es un archivo normal, no hay nada que mostrar.',
-  'error.unavailable': 'Error de lectura: {message}',
   retry: 'Reintentar',
 } satisfies Record<keyof typeof en, string>
 
@@ -135,7 +131,6 @@ export const fr = {
   'error.tooLarge': 'Cette page dépasse la limite {limit} et ne peut pas être lue.',
   'error.notText': "L'aperçu n'est pas encore disponible pour ce type de fichier.",
   'error.notRegularFile': "Ce n'est pas un fichier normal, rien à afficher.",
-  'error.unavailable': 'Échec de lecture : {message}',
   retry: 'Réessayer',
 } satisfies Record<keyof typeof en, string>
 
@@ -161,7 +156,6 @@ export const de = {
   'error.tooLarge': 'Diese Seite überschreitet das {limit}-Limit und kann nicht gelesen werden.',
   'error.notText': 'Für diesen Dateityp ist noch keine Vorschau verfügbar.',
   'error.notRegularFile': 'Keine normale Datei, nichts zum Anzeigen.',
-  'error.unavailable': 'Lesen fehlgeschlagen: {message}',
   retry: 'Erneut versuchen',
 } satisfies Record<keyof typeof en, string>
 
@@ -187,7 +181,6 @@ export const ru = {
   'error.tooLarge': 'Эта страница превышает лимит {limit} и не может быть прочитана.',
   'error.notText': 'Предварительный просмотр для этого типа файлов пока недоступен.',
   'error.notRegularFile': 'Не обычный файл, отображать нечего.',
-  'error.unavailable': 'Не удалось прочитать: {message}.',
   retry: 'Повторить',
 } satisfies Record<keyof typeof en, string>
 
@@ -213,6 +206,5 @@ export const pt = {
   'error.tooLarge': 'Esta página excede o limite de {limit} e não pode ser lida.',
   'error.notText': 'A visualização ainda não está disponível para este tipo de arquivo.',
   'error.notRegularFile': 'Não é um arquivo normal, nada para exibir.',
-  'error.unavailable': 'Falha na leitura: {message}',
   retry: 'Tentar novamente',
 } satisfies Record<keyof typeof en, string>

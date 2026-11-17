@@ -4,6 +4,7 @@ import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import {
   TeamDisableConfirmation, type TeamDisableConfirmationProps, type TeamDisableRequest,
 } from '../src/client/TeamDisableConfirmation.tsx'
@@ -21,7 +22,7 @@ function props(
   const useDisableRequest: TeamDisableConfirmationProps['useDisableRequest'] = select => select(request)
   const cancelDisable = vi.fn<TeamDisableConfirmationProps['cancelDisable']>()
   return {
-    props: { useDisableRequest, cancelDisable, disableTeam, t: makeTranslate(zh) } as TeamDisableConfirmationProps,
+    props: { useDisableRequest, cancelDisable, disableTeam, t: makeTranslate(zh, commonZh) } as TeamDisableConfirmationProps,
     cancelDisable,
     disableTeam,
   }
@@ -100,23 +101,32 @@ it('disables the originating Session once and blocks cancellation until success'
 })
 
 it.each(['returned', 'error', 'string'] as const)('keeps a %s failure visible and allows retry', async (failure) => {
+  const raw = 'offline <stream><path>/Users/zhang/.dsh/team.lock</path><token>tok-9f8e7d6c</token></stream>'
   const result = pendingDisable()
   const disableTeam = vi.fn<TeamDisableConfirmationProps['disableTeam']>()
     .mockImplementationOnce(async () => {
-      if (failure === 'error') throw new Error('offline')
-      if (failure === 'string') throw 'offline'
+      if (failure === 'error') throw new Error(raw)
+      if (failure === 'string') throw raw
       return 'offline'
     })
     .mockImplementationOnce(() => result.promise)
   const input = props({ sessionId: ORIGINAL }, disableTeam)
   const view = render(<TeamDisableConfirmation {...input.props} />)
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: zh['disable.confirm'] })) })
-  expect(screen.getByRole('alert').textContent).toBe(input.props.t('mode.failed', { message: 'offline' }))
+  // Hemi fork: returned strings are already-localized injection results; unexpected throws use the shared safe summary.
+  const summary = failure === 'returned' ? 'offline' : commonZh['uiError.unknown']
+  const alert = screen.getByRole('alert')
+  expect(alert.textContent).toBe(input.props.t('mode.failed', { message: summary }))
+  if (failure !== 'returned') {
+    expect(alert.textContent).not.toContain('offline')
+    expect(alert.textContent).not.toContain('/Users/zhang')
+    expect(alert.textContent).not.toContain('tok-9f8e7d6c')
+  }
   expect(input.cancelDisable).not.toHaveBeenCalled()
   expect(screen.getByRole('button', { name: zh['disable.cancel'] }).hasAttribute('disabled')).toBe(false)
   expect(screen.getByRole('button', { name: zh['disable.confirm'] }).hasAttribute('disabled')).toBe(false)
   view.rerender(<TeamDisableConfirmation {...input.props} useDisableRequest={select => select({ sessionId: ORIGINAL })} />)
-  expect(screen.getByRole('alert').textContent).toContain('offline')
+  expect(screen.getByRole('alert').textContent).toContain(summary)
   fireEvent.click(screen.getByRole('button', { name: zh['disable.confirm'] }))
   expect(disableTeam.mock.calls).toEqual([[ORIGINAL], [ORIGINAL]])
   expect(screen.queryByRole('alert')).toBeNull()

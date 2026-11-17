@@ -331,14 +331,17 @@ describe('plan entry points and document', () => {
     expect(screen.getByRole('status').textContent).toBe(dictionary['preview.loading'])
     view.rerender(<PlanPreview {...{ ...props, useResource: () => ({ status: 'none' }) } as unknown as Parameters<typeof PlanPreview>[0]} />)
     expect(screen.getByRole('status').textContent).toBe(dictionary['preview.unavailable'])
-    for (const [code, message] of [
-      ['plan/invalid-address', dictionary['preview.invalidAddress']],
-      ['plan/not-found', dictionary['preview.notFound']],
-      ['plan/read-failed', 'connection lost'],
-      ['session/not-found', 'connection lost'],
+    for (const [failure, line] of [
+      [{ code: 'plan/invalid-address', message: 'connection lost' }, dictionary['preview.invalidAddress']],
+      [{ code: 'plan/not-found', message: 'connection lost' }, dictionary['preview.notFound']],
+      [{ code: 'plan/read-failed', message: 'connection lost' }, commonEn['uiError.unknown']],
+      [{ code: 'session/not-found', message: '<error>/private/path</error>' }, commonEn['uiError.unknown']],
+      [{ code: 'gateway/cancelled', message: 'cancelled', isDSHRemoteError: true }, commonEn['uiError.cancelled']],
     ] as const) {
-      view.rerender(<PlanPreview {...{ ...props, useResource: () => ({ status: 'failed', failure: { code, message: 'connection lost' } }) } as unknown as Parameters<typeof PlanPreview>[0]} />)
-      expect(screen.getByRole('status').textContent).toBe(dictionary['preview.failed'] + message)
+      view.rerender(<PlanPreview {...{ ...props, useResource: () => ({ status: 'failed', failure }) } as Parameters<typeof PlanPreview>[0]} />)
+      expect(screen.getByRole('status').textContent).toBe(dictionary['preview.failed'] + line)
+      expect(screen.getByRole('status').textContent).not.toContain('connection lost')
+      expect(screen.getByRole('status').textContent).not.toContain('/private/path')
     }
   })
 })

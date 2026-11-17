@@ -52,7 +52,7 @@ const stuckState: BrowserImportState = { operationId: 'op-9', revision: 3, phase
   cleanupPending: { siteOrigin: site, tokenName: 'stuck-token', tokenId: 7 }, can: {} }
 
 const failedState: BrowserImportState = { ...loginState(4), operationId: 'op-7', revision: 4, phase: 'failed',
-  error: { code: 'login-timeout', message: 'Sign-in timed out', retryTarget: 'login' }, can: { retry: true, cancel: true } }
+  error: { code: 'login-timeout', message: 'POST /api/login HTTP 502 <html>private-server-detail</html>', retryTarget: 'login' }, can: { retry: true, cancel: true } }
 
 /** Stateful desktop coordinator double: getState reflects the current state every command produced. */
 function desktopCoordinator(initial: BrowserImportState | null = null) {
@@ -312,7 +312,7 @@ it('keeps pause and resume on the native commands', async () => {
   expect(invokeCalls(desktop, 'resume')).toEqual([['resume', { operationId: 'op-1', revision: 2 }]])
 })
 
-it('reports a failed step and retries it through the native command', async () => {
+it('reports a failed step through the safe summary and retries it through the native command', async () => {
   const translate = makeTranslate(zh)
   const desktop = desktopCoordinator(failedState)
   mountPage(translate, actions(), desktop)
@@ -320,7 +320,8 @@ it('reports a failed step and retries it through the native command', async () =
   await openApiPanel(translate)
   fireEvent.click(screen.getByRole('button', { name: translate('connectNewApi') }))
   const dialog = screen.getByRole('dialog', { name: translate('newApiSetup') })
-  expect(await within(dialog).findByRole('alert')).toHaveProperty('textContent', 'Sign-in timed out')
+  expect(await within(dialog).findByRole('alert')).toHaveProperty('textContent', translate('failed'))
+  expect(dialog.textContent).not.toContain('private-server-detail')
   expect(currentStep(stepList(dialog, translate))).toBe(0)
   fireEvent.click(within(dialog).getByRole('button', { name: translate('retryImport') }))
   await act(async () => {})
@@ -328,6 +329,44 @@ it('reports a failed step and retries it through the native command', async () =
   expect(within(dialog).getByRole('button', { name: translate('checkBrowserLogin') })).toBeTruthy()
   expect(currentStep(stepList(dialog, translate))).toBe(0)
   expect(invokeCalls(desktop, 'retry')).toEqual([['retry', { target: 'login', operationId: 'op-7', revision: 4 }]])
+})
+
+it.each<{
+  code: string
+  message: string
+  advice: keyof typeof en
+}>([
+  { code: 'OPEN_SITE', message: 'http://site/login refused: <html>private-page-detail</html>', advice: 'browserOpenFailed' },
+  { code: 'LOGIN_REQUIRED', message: '站点要求重新登录', advice: 'browserLoginRequired' },
+  { code: 'CATALOG_UNAVAILABLE', message: 'GET /api/group HTTP 502 private-upstream-detail', advice: 'fetchModelsFailed' },
+])('keeps the standing $code advice instead of the coordinator message', async ({ code, message, advice }) => {
+  const translate = makeTranslate(zh)
+  const desktop = desktopCoordinator({ ...failedState, error: { code, message, retryTarget: 'login' } })
+  mountPage(translate, actions(), desktop)
+  await act(async () => {})
+  await openApiPanel(translate)
+  fireEvent.click(screen.getByRole('button', { name: translate('connectNewApi') }))
+  const dialog = screen.getByRole('dialog', { name: translate('newApiSetup') })
+  expect(await within(dialog).findByRole('alert')).toHaveProperty('textContent', translate(advice))
+  expect(dialog.textContent).not.toContain(message)
+  expect(screen.getByRole('button', { name: translate('retryImport') })).toBeTruthy()
+})
+
+it('maps a command failure with an unknown code to the safe summary without its diagnostic body', async () => {
+  const translate = makeTranslate(zh)
+  const desktop = desktopCoordinator(loginState())
+  const commands = desktop.invoke.getMockImplementation()!
+  desktop.invoke.mockImplementation(async (action, payload) => action === 'checkLogin'
+    ? { ok: false, code: 'CHECK_TIMEOUT', message: 'token sk-private-detail expired <d:error/>' }
+    : commands(action, payload))
+  mountPage(translate, actions(), desktop)
+  await act(async () => {})
+  await openApiPanel(translate)
+  fireEvent.click(screen.getByRole('button', { name: translate('connectNewApi') }))
+  const dialog = screen.getByRole('dialog', { name: translate('newApiSetup') })
+  fireEvent.click(await within(dialog).findByRole('button', { name: translate('checkBrowserLogin') }))
+  expect(await within(dialog).findByRole('alert')).toHaveProperty('textContent', translate('failed'))
+  expect(dialog.textContent).not.toContain('sk-private-detail')
 })
 
 it('surfaces a pending cleanup and resumes the recorded import', async () => {

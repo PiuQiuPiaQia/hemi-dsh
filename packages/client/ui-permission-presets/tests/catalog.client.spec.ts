@@ -120,15 +120,17 @@ describe('PermissionCatalogDirectory', () => {
     const ctx = new Context()
     installConnection(ctx, 1)
     let response: 'success' | 'rpc-failure' | 'throw' = 'success'
+    // Wire failures are real Error instances; the domain code rides the object because it is undeclared in the shared map.
+    const rpcFailure = Object.assign(
+      new Error('catalog unavailable <trace><path>/var/log/dsh/permissions.log</path><token>tok-3c2b1a</token></trace>'),
+      { code: 'catalog/unavailable', details: {} },
+    )
     const remote = new TestRemote(ctx, {
       permissionPresets: {
         catalog() {
           if (response === 'success') return Promise.resolve({ ok: true as const, value: FIRST })
           if (response === 'rpc-failure') {
-            return Promise.resolve({
-              ok: false as const,
-              error: { code: 'catalog/unavailable', message: 'catalog unavailable', details: {} },
-            })
+            return Promise.resolve({ ok: false as const, error: rpcFailure })
           }
           // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- non-Error Remote rejection is the scenario.
           return Promise.reject('raw catalog failure')
@@ -139,7 +141,10 @@ describe('PermissionCatalogDirectory', () => {
     await expect(directory.load()).resolves.toEqual(FIRST)
     response = 'rpc-failure'
     remote.emit('permission-presets/catalog-changed', [])
-    await expect(directory.load()).rejects.toThrow('catalog/unavailable: catalog unavailable')
+    // Hemi fork: the carrier failure propagates by identity — no `code: message` prefix is concatenated anymore.
+    await expect(directory.load()).rejects.toBe(rpcFailure)
+    expect(rpcFailure.code).toBe('catalog/unavailable')
+    expect(rpcFailure.message).toContain('catalog unavailable')
     expect(directory.store.getSnapshot()).toEqual({ value: null })
 
     response = 'success'
@@ -293,17 +298,17 @@ describe('PermissionCatalogDirectory', () => {
   it('surfaces a first-read RPC failure when no complete catalog exists', async () => {
     const ctx = new Context()
     installConnection(ctx, 1)
+    const failure = Object.assign(new Error('missing catalog'), { code: 'catalog/missing', details: {} })
     new TestRemote(ctx, {
       permissionPresets: {
-        catalog: () => Promise.resolve({
-          ok: false as const,
-          error: { code: 'catalog/missing', message: 'missing catalog', details: {} },
-        }),
+        catalog: () => Promise.resolve({ ok: false as const, error: failure }),
       },
     })
     const directory = new PermissionCatalogDirectory(ctx)
 
-    await expect(directory.load()).rejects.toThrow('catalog/missing: missing catalog')
+    // Hemi fork: identity, not a concatenated prefix — consumers classify by code without parsing text.
+    await expect(directory.load()).rejects.toBe(failure)
+    expect(failure.code).toBe('catalog/missing')
     directory.dispose()
   })
 })

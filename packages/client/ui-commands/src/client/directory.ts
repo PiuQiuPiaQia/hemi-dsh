@@ -140,7 +140,8 @@ export class CommandDirectory {
       if (entry.state !== 'pending') void this.refresh(sessionId)
       await settled(entry, signal)
       if (entry.state === 'failed') {
-        throw new Error(`command directory warmup failed: ${entry.lastError instanceof Error ? entry.lastError.message : String(entry.lastError)}`)
+        // Hemi fork: the catalog owner retains the original failure for safe caller-side reporting.
+        throw entry.lastError
       }
       // Still pending (the awaited pull was superseded) → wait for the winner.
     }

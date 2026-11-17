@@ -8,8 +8,10 @@ import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { AgentPresetSection, type AgentPresetSectionProps } from '../src/client/AgentPresetSection.tsx'
 import type { AgentPresetSectionState } from '../src/client/section-store.ts'
 import { en } from '../src/client/locales.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers() })
-const translations: ReadonlyMap<string, string> = new Map(Object.entries(en))
+// The seat's key domain is preset ∪ common; the lookup mirrors the runtime chain with real common copy.
+const translations: ReadonlyMap<string, string> = new Map(Object.entries({ ...commonEn, ...en }))
 function unusedHook(): never {
   throw new Error('This section does not read global slot sources')
 }
@@ -179,7 +181,11 @@ it('shows roster errors without hiding the roster', () => {
     { id: 'broken', isDefault: false, broken: 'Missing plugin' },
     { id: 'mine', name: 'Mine', isDefault: false },
   ] })
-  expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual(['Roster stale', 'Missing plugin'])
+  // Hemi fork: the operation box shows the shared safe summary; per-row preset diagnostics stay verbatim.
+  expect(screen.getAllByRole('alert').map(node => node.textContent)).toEqual([
+    commonEn['uiError.unknown'], 'Missing plugin',
+  ])
+  expect(screen.getAllByRole('alert').map(node => node.textContent).join('\n')).not.toContain('Roster stale')
   fireEvent.click(screen.getByRole('button', { name: `${en.setDefault}: Mine` }))
   expect(actions.makeDefault).toHaveBeenCalledWith('mine')
 })

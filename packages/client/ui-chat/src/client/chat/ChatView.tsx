@@ -8,7 +8,7 @@ import type {
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import {
-  Button, IconChevronDownOutlineRegular, MarkdownDelegateProvider, Modal, type MarkdownMenuTarget,
+  Button, IconChevronDownOutlineRegular, MarkdownDelegateProvider, Modal, userErrorMessage, type MarkdownMenuTarget,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { isAtOrOutside } from '../contract/group-tree.ts'
 import type { ChatFlowHookContext, ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
@@ -19,12 +19,6 @@ import { useTextInteraction } from './text-interaction.ts'
 import { useChatScroll } from './use-chat-scroll.ts'
 import { fileMediaUrl, resolveWorkspacePath, sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import css from './ChatView.module.css'
-
-/** Host/OS refusal text for the file-open dialog; empty throws keep a locale fallback. */
-function openFailureMessage(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message === '' ? fallback : message
-}
 
 /**
  * Durable input identities suppress matching echoes in the same render.
@@ -144,10 +138,8 @@ export function ChatView({
         if (id !== fileOpenRequest.current) return
         setFileOpenError({
           path,
-          message: openFailureMessage(
-            error,
-            t('fileOpen.unknown'),
-          ),
+          // Hemi fork: file-open errors are operation notices, separate from recorded model and tool failures.
+          message: userErrorMessage(t, error),
         })
         setFileOpenBusy(false)
       },
@@ -233,7 +225,8 @@ export function ChatView({
             {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
             {openState === 'error' && openError !== null && (
               <div className={css.openError}>
-                {t('chat.loadError', { message: openError.message, code: openError.code })}
+                {/* Hemi fork: history-read diagnostics are not transcript content or user-facing summaries. */}
+                {userErrorMessage(t, openError)}
               </div>
             )}
             {hasMore && (

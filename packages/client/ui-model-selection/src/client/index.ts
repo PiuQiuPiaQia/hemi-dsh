@@ -22,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconDataOutlineRegular, UserFacingError, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
 import type { ModelSelectInjected } from './slots.ts'
@@ -70,7 +70,8 @@ function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>): Sel
     rows.push({
       id: `failure/${failure.id}`,
       label: failure.id === 'deepseek-account' ? t('provider.account') : failure.name,
-      detail: t('option.loadError', { message: failure.message }),
+      // Hemi fork: popup catalog failures share the same safe summary as the composer menu.
+      detail: t('option.loadError', { message: userErrorMessage(t, failure) }),
     })
   }
   return rows
@@ -158,7 +159,7 @@ export function apply(ctx: ClientContext): void {
           }
           const result = await directory.select(selection)
           if (!result.ok) {
-            if (result.error.code === 'session/writer-held') throw new Error(t('error.sessionInUse'))
+            if (result.error.code === 'session/writer-held') throw new UserFacingError(t('error.sessionInUse'), { cause: result.error })
             throw result.error
           }
         },

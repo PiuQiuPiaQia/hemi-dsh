@@ -27,7 +27,7 @@ import {
   readManifest,
   type BackupManifest,
 } from './engine.ts'
-import { createWebdavClient, type WebdavClient } from './webdav.ts'
+import { createWebdavClient, WebdavError, type WebdavClient } from './webdav.ts'
 
 /** Credential reference holding the WebDAV application password. */
 const WEBDAV_PASSWORD_REF = credentialRef('HEMI_BACKUP_WEBDAV_PASSWORD')
@@ -72,6 +72,26 @@ export interface BackupSettings {
   readonly lastRun: BackupLastRun | null
 }
 
+const BACKUP_FAILURE_CODES = [
+  'BUSY', 'NO_TARGET', 'NO_RESTORE', 'INVALID_NAME', 'NO_PASSWORD', 'FAILED',
+  'AUTH_FAILED', 'NOT_FOUND', 'REQUEST_FAILED', 'FORBIDDEN', 'TRAFFIC_EXHAUSTED', 'PARTIAL_RESTORE',
+] as const
+
+/** Stable codes for localized failure reports; `message` is diagnostic-only. */
+export type BackupFailureCode = (typeof BACKUP_FAILURE_CODES)[number]
+
+/** Whether one unvalidated persisted value is a stable failure code. */
+function isFailureCode(value: unknown): value is BackupFailureCode {
+  return BACKUP_FAILURE_CODES.some(code => code === value)
+}
+
+/** Preserve the last-run record but omit unknown persisted failure codes. */
+function normalizeLastRun(raw: BackupLastRun | null): BackupLastRun | null {
+  if (raw === null || raw.code === undefined || isFailureCode(raw.code)) return raw
+  const { code: _code, ...rest } = raw
+  return rest
+}
+
 /** One finished or failed run attempt. */
 export interface BackupLastRun {
   /** ISO completion time. */
@@ -84,8 +104,10 @@ export interface BackupLastRun {
   readonly packedBytes?: number
   /** Archived file count on success. */
   readonly files?: number
-  /** Failure message on error. */
+  /** Failure message on error; diagnostic-only, clients localize on `code`. */
   readonly message?: string
+  /** Stable failure code on error; records written before codes existed omit it. */
+  readonly code?: BackupFailureCode
 }
 
 /** Client-safe settings view: the password reduces to its presence. */
@@ -147,7 +169,7 @@ export interface RunManifestSummary {
 /** Stable outcome shape for operations that only succeed or explain themselves. */
 export interface BackupOperationResult {
   readonly ok: boolean
-  readonly code?: 'BUSY' | 'NO_TARGET' | 'NO_RESTORE' | 'INVALID_NAME' | 'FAILED'
+  readonly code?: BackupFailureCode
   readonly message?: string
 }
 
@@ -193,7 +215,7 @@ function normalizeSettings(raw: unknown): BackupSettings {
     target,
     schedule: { enabled:  scheduleSource.enabled, interval },
     keep: Math.min(Math.max(Number(source.keep) || 5, 1), 50),
-    lastRun: source.lastRun ?? null,
+    lastRun: normalizeLastRun(source.lastRun ?? null),
   }
 }
 
@@ -266,6 +288,16 @@ export default class HemiBackupService extends TypertRemoteService {
   /** The freshly saved password, kept in memory so a credential-file write that lags never breaks the next run. */
   private pendingPassword: string | undefined
 
+  /**
+   * Map one caught failure to its stable code: WebDAV codes pass through, the
+   * no-password RemoteError becomes `NO_PASSWORD`, and plain errors stay `FAILED`.
+   */
+  private failureCodeOf(error: unknown): BackupFailureCode {
+    if (error instanceof WebdavError) return error.code
+    if (error instanceof RemoteError && error.code === 'hemi-backup/no-password') return 'NO_PASSWORD'
+    return 'FAILED'
+  }
+
   private tmpRoot(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'hemi-backup-run-'))
   }
@@ -337,14 +369,14 @@ export default class HemiBackupService extends TypertRemoteService {
       }
     }
     const password = spec.password ?? this.pendingPassword ?? await this.storedPassword()
-    if (password === undefined) return { ok: false, code: 'FAILED', message: 'no WebDAV application password is stored' }
+    if (password === undefined || password === '') return { ok: false, code: 'NO_PASSWORD', message: 'no WebDAV application password is stored' }
     const client = createWebdavClient({ baseUrl: spec.url, username: spec.username, password })
     const result = await client.testConnection()
-    if (!result.ok) return { ok: false, code: 'FAILED', message: result.message }
+    if (!result.ok) return { ok: false, code: result.code, message: result.message }
     try {
       await client.ensureDir(spec.remoteDir === '' ? DEFAULT_REMOTE_DIR : spec.remoteDir)
     } catch (error) {
-      return { ok: false, code: 'FAILED', message: error instanceof Error ? error.message : String(error) }
+      return { ok: false, code: this.failureCodeOf(error), message: error instanceof Error ? error.message : String(error) }
     }
     return { ok: true }
   }
@@ -450,11 +482,12 @@ export default class HemiBackupService extends TypertRemoteService {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.settings = { ...this.loadSettings(), lastRun: { at: new Date().toISOString(), ok: false, trigger, message } }
+      const code = this.failureCodeOf(error)
+      this.settings = { ...this.loadSettings(), lastRun: { at: new Date().toISOString(), ok: false, trigger, message, code } }
       this.persistSettings()
       report({ phase: 'error', detail: message })
       this.ctx.logger.warn(`hemi-backup: run failed: ${message}`)
-      return { ok: false, code: 'FAILED', message }
+      return { ok: false, code, message }
     } finally {
       this.running = false
     }
@@ -510,7 +543,7 @@ export default class HemiBackupService extends TypertRemoteService {
       await (await this.clientFor(target)).deleteFile(`${target.remoteDir}/${setName}`)
       return { ok: true }
     } catch (error) {
-      return { ok: false, code: 'FAILED', message: error instanceof Error ? error.message : String(error) }
+      return { ok: false, code: this.failureCodeOf(error), message: error instanceof Error ? error.message : String(error) }
     }
   }
 
@@ -554,7 +587,7 @@ export default class HemiBackupService extends TypertRemoteService {
       }
     } catch (error) {
       fs.rmSync(stagingDir, { recursive: true, force: true })
-      return { ok: false, code: 'FAILED', message: error instanceof Error ? error.message : String(error) }
+      return { ok: false, code: this.failureCodeOf(error), message: error instanceof Error ? error.message : String(error) }
     } finally {
       this.running = false
       fs.rmSync(tmp, { recursive: true, force: true })
@@ -565,7 +598,8 @@ export default class HemiBackupService extends TypertRemoteService {
    * Apply the staged restore as a merge; displaced local files survive in a
    * unique safe-copy directory under the Harness home. Existing Session
    * generations remain in place; conflicting backup files are saved separately.
-   * @returns the merge counts and safe-copy location on success.
+   * @returns the merge counts and safe-copy location on success, or
+   * `PARTIAL_RESTORE` with the same safe-copy location when the merge failed partway.
    */
   @Remote
   async restoreApply(): Promise<RestoreApplyResult> {
@@ -581,7 +615,7 @@ export default class HemiBackupService extends TypertRemoteService {
       return { ok: true, stats, safeCopyRoot }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      return { ok: false, code: 'FAILED', message: `Restore may be partially applied. Keep ${safeCopyRoot} and the original backup before retrying. ${message}`, safeCopyRoot }
+      return { ok: false, code: 'PARTIAL_RESTORE', message: `Restore may be partially applied. Keep ${safeCopyRoot} and the original backup before retrying. ${message}`, safeCopyRoot }
     } finally {
       fs.rmSync(staged.stagingDir, { recursive: true, force: true })
       this.currentRestore = null

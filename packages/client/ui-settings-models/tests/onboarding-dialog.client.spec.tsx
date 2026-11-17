@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
+import { contextMenuHook, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 /** First-run DeepSeek prompt behavior over the shared Models join. */
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -137,7 +138,12 @@ function harness(options: {
     },
   }
   // The page plugin's context, scripted down to the namespaces it reaches.
-  const ctx = { remote: { ...face, session: { initializeDefaultModel: async () => ({ ok: true, value: undefined }) } } } as never
+  // Hemi fork: refusals report the shared safe summary, so the script binds
+  // the common copy the production locale plugin registers.
+  const ctx = {
+    locale: { bind: () => makeTranslate(commonEn) },
+    remote: { ...face, session: { initializeDefaultModel: async () => ({ ok: true, value: undefined }) } },
+  } as never
   const operations = createModelsOperations(ctx)
   const controller = new ModelsSettingsStore(ctx, settingsSchema, new SettingsDescribeMirror(ctx))
   const openSection = vi.fn()
@@ -216,7 +222,8 @@ describe('DeepSeekOnboardingDialog', () => {
 
   it('keeps the modal open and reports a refused credential write', async () => {
     for (const [options, message] of [
-      [{ setFailure: 'credential was rejected' }, 'credential was rejected'],
+      // Hemi fork: the card reports the shared safe summary for the refusal.
+      [{ setFailure: 'credential was rejected' }, commonEn['uiError.unknown']],
     ] as const) {
       const h = harness(options)
       const view = render(<DeepSeekOnboardingDialog {...h.props} />)

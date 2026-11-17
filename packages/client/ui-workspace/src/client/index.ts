@@ -138,7 +138,9 @@ export function apply(ctx: Context): void {
 
   const searchSessions: WorkspaceBrowserInjected['searchSessions'] = async (query, signal) => {
     const result = await sessions.search(query, signal)
-    if (!result.ok) throw new Error(result.error.message)
+    // Hemi fork: the structured failure reaches presenters unchanged, which
+    // classify it through userErrorMessage instead of reading message here.
+    if (!result.ok) throw result.error
     return result.value
   }
 
@@ -191,7 +193,9 @@ export function apply(ctx: Context): void {
       { source: 'workspaceOperation' },
       reference => reference.binding.session.rename(title),
     )
-    if (!result.ok) throw new Error(result.error.message)
+    // Hemi fork: same unwrap discipline as the search hop above — presenters
+    // classify the structured failure through userErrorMessage.
+    if (!result.ok) throw result.error
   }
   const pinInjected = (): PinSessionInjected => ({
     hooks: { pinned: pinnedSet, archived: archivedSet },

@@ -1,7 +1,7 @@
 /** Session-owned Agent Teams selection in the model and reasoning menu. */
 
 import { useState } from 'react'
-import { Button, IconInfoOutlineRegular, Switch, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconInfoOutlineRegular, Switch, Tooltip, userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-agent-team/client'
@@ -11,7 +11,7 @@ import css from './TeamModeToggle.module.css'
 
 /** Session selection callbacks supplied by the Client plugin. */
 export interface TeamModeToggleInjected {
-  /** Save the selection; null means success, otherwise the string describes the failure. */
+  /** Save the selection; null means success, otherwise return a localized safe failure summary. */
   selectTeamMode: (enabled: boolean) => Promise<string | null>
   /** Open a Session-targeted confirmation outside this menu. */
   requestDisableConfirmation: () => void
@@ -51,7 +51,8 @@ function RootTeamModeToggle({
     void selectTeamMode(enabled).then((failure) => {
       if (failure !== null) reportFailure(t('mode.failed', { message: failure }))
     }, (error: unknown) => {
-      reportFailure(t('mode.failed', { message: error instanceof Error ? error.message : String(error) }))
+      // Hemi fork: unexpected selection errors use the same safe summary as the operation adapter.
+      reportFailure(t('mode.failed', { message: userErrorMessage(t, error) }))
     }).finally(() => { setPending(false) })
   }
   return (

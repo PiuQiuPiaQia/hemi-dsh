@@ -8,16 +8,16 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-hemi-backup/client'
 import { BackupSection, type BackupSectionInjected, type TargetDraft } from './BackupSection.tsx'
 import { en, zh, type BackupLocaleKey } from './locales.ts'
-import type { BackupSetView, BackupStateView, RestorePreview } from './types.ts'
+import type { BackupOperationResult, BackupSetView, BackupStateView, RestoreApplyResult, RestorePreview } from './types.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { 'hemi-backup': BackupLocaleKey }
 }
 
-/** Unwrap one Remote result envelope or rethrow its error. */
+/** Unwrap one Remote result envelope or rethrow its typed failure (code and details survive). */
 async function unwrap<T>(call: Promise<RemoteResult<T>>): Promise<T> {
   const result = await call
-  if (!result.ok) throw new Error(result.error.message)
+  if (!result.ok) throw result.error
   return result.value
 }
 
@@ -78,15 +78,15 @@ function registerBackup(ctx: Context): void {
           ...draft.password !== '' ? { password: draft.password } : {},
         })),
         saveSchedule: (schedule, keep) => unwrap<BackupStateView>(remote.saveSettings({ schedule, keep })),
-        testConnection: async draft => unwrap<{ ok: boolean; message?: string }>(remote.testConnection({
+        testConnection: async draft => unwrap<BackupOperationResult>(remote.testConnection({
           ...toTarget(draft),
           ...draft.password !== '' ? { password: draft.password } : {},
         })),
-        runNow: () => unwrap<{ ok: boolean; message?: string }>(remote.runNow()),
+        runNow: () => unwrap<BackupOperationResult>(remote.runNow()),
         listBackups: () => unwrap<readonly BackupSetView[]>(remote.listBackups()),
-        deleteSet: name => unwrap<{ ok: boolean; message?: string }>(remote.deleteSet(name)),
-        restorePrepare: name => unwrap<{ ok: boolean; preview?: RestorePreview; message?: string }>(remote.restorePrepare(name)),
-        restoreApply: () => unwrap<{ ok: boolean; message?: string }>(remote.restoreApply()),
+        deleteSet: name => unwrap<BackupOperationResult>(remote.deleteSet(name)),
+        restorePrepare: name => unwrap<BackupOperationResult & { preview?: RestorePreview }>(remote.restorePrepare(name)),
+        restoreApply: () => unwrap<RestoreApplyResult>(remote.restoreApply()),
         restoreCancel: () => unwrap<{ ok: boolean }>(remote.restoreCancel()),
       }
     },

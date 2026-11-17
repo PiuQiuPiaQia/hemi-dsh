@@ -10,6 +10,7 @@ import { contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
 // the shell (jsdom's beforeinput lacks the ranges Lexical needs).
 
 import * as uiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
+import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import './control-row-dom.ts'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
@@ -132,6 +133,8 @@ function bench(over?: BenchOptions) {
     signal: AbortSignal,
   ) => Promise<SubmitOutcome>>(() => Promise.resolve({ kind: 'success' }))
   const lex = over?.lexicon
+  // The hub's failure voice (hub.ts): safe localized copy through the same t seat the bar renders.
+  const t = over?.t ?? makeTranslate(zh, commonZh)
   const session = createSnapshotStore<SessionSnapshot>(snapshotOf({
     running: over?.running ?? false,
     subagent: over?.subagent ?? null,
@@ -141,6 +144,7 @@ function bench(over?: BenchOptions) {
   type ShellDeps = ConstructorParameters<typeof SessionInputShell>[0]
   const shell = new SessionInputShell({
     actx: SCTX,
+    describeFailure: failure => userErrorMessage(t, failure),
     defaultSink: sink,
     commandAttachments: { serialize: () => Promise.resolve([]), release: () => {}, unsupportedNotice: (token: string) => `${token.trim()} attachments-unsupported` },
     inbox: createSnapshotStore<InboxState>({
@@ -227,7 +231,7 @@ function bench(over?: BenchOptions) {
     useMenuLauncher: bindSnapshotSelector(menuLauncher),
     stop,
     // Mirrors the real lookup chain (conversation namespace, then common).
-    t: over?.t ?? makeTranslate(zh, commonZh),
+    t,
     renderSlot,
     variant: over?.variant ?? 'composer',
     ...(over?.inert === true ? { disabled: true } : {}),
@@ -685,7 +689,7 @@ describe('image draft rail', () => {
     expect(result.view.getByRole('alert').textContent).toContain('只有桌面端支持添加文件夹')
   })
 
-  it('announces server attachment rejections as product copy, other codes as developer text', () => {
+  it('announces server attachment rejections as product copy, other codes as the safe summary', () => {
     const attachmentError = (reason: string): SessionSnapshot['promptError'] => ({
       op: 'send',
       error: new RemoteError('session/attachment-invalid', 'raw wire text', { reason }),
@@ -710,7 +714,9 @@ describe('image draft rail', () => {
     const other = bench({
       promptError: { op: 'send', error: new RemoteError('gateway/internal', 'boom', {}) },
     })
-    expect(other.view.getByRole('alert').textContent).toContain('boom (gateway/internal)')
+    // Unclassified gateway failures share the safe summary; the diagnostic stays off the DOM.
+    expect(other.view.getByRole('alert').textContent).toContain(commonZh['uiError.unknown'])
+    expect(other.view.getByRole('alert').textContent).not.toContain('boom')
   })
 
   it('marks the attachment slot unavailable while the composer is locked', () => {
@@ -2055,8 +2061,10 @@ describe('strips and variants', () => {
         promptError: { op: 'send', error: new RemoteError('session/agent-busy', 'boom', { reason: 'boom' }) },
       })
       // The toast body-portals (transformed ancestors must not trap it), so
-      // queries go through the view's document-bound helpers.
-      expect(send.view.getByRole('alert').textContent).toContain('boom (session/agent-busy)')
+      // queries go through the view's document-bound helpers. Domain codes
+      // share the safe summary; the diagnostic stays off the DOM.
+      expect(send.view.getByRole('alert').textContent).toContain(commonZh['uiError.unknown'])
+      expect(send.view.getByRole('alert').textContent).not.toContain('boom')
       expect(send.view.queryByRole('button', { name: 'Retry' })).toBeNull()
       act(() => { vi.advanceTimersByTime(4000) })
       expect(send.view.queryByRole('alert')).toBeNull()

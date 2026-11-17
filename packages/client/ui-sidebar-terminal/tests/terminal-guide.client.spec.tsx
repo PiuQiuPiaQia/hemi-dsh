@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
+import { contextMenuHook, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 /** Guide shell discovery, direct launch and cancellation stay within the entry lifetime. */
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import type { GlobalStandardProps, SessionStandardProps } from '@deepseek-ai/dsh
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PaneId, TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { ShortcutCommandId, ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { TerminalGuide, type TerminalGuideProps } from '../src/client/TerminalGuide.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -47,7 +48,7 @@ function mount(description: string | undefined = en.description, shortcut?: Guid
   const props: TerminalGuideProps = {
     ...standard,
     useShortcuts: <T,>(selector: (entries: readonly ShortcutCatalogEntry[]) => T): T => selector(shortcuts),
-    entryId: 'new', kind: 'terminal', title: en.new, description, t: makeTranslate(en),
+    entryId: 'new', kind: 'terminal', title: en.new, description, t: makeTranslate(en, commonEn),
     useTabInfo: () => ({ sidebar: { expanded: true, fullscreen: false }, panel: { id: 'pane-guide' as PaneId, isFloating: false },
       tab: { id: 'tab-guide' as TabId, kind: 'guide', contentId: 'sidebar://guide', title: 'Start',
         visible: true, signal: new AbortController().signal,
@@ -117,11 +118,15 @@ it('loads on demand, remembers a selected shell before opening, and cancels on m
   expect(h.loadShells.mock.calls[1]![0].aborted).toBe(true)
 })
 
-it.each([new Error('offline'), 'offline'])('offers an in-place retry after discovery fails: %s', async (error) => {
+it.each([
+  [new Error('<error>/private/path</error> offline'), commonEn['uiError.unknown']],
+  [new RemoteError('gateway/cancelled', 'discovery cancelled', {}), commonEn['uiError.cancelled']],
+] as const)('offers an in-place retry after discovery fails, without the failure text: %s', async (error, summary) => {
   const h = mount()
   h.loadShells.mockRejectedValueOnce(error)
   h.open()
-  await h.view.findByText('Terminal error: offline')
+  await h.view.findByText(en.failed.replace('{message}', summary))
+  expect(h.view.queryByText(/offline|discovery cancelled|private path/u)).toBeNull()
   fireEvent.click(h.view.getByRole('menuitem', { name: en.retry }))
   await h.view.findByRole('menuitem', { name: 'bash' })
   expect(h.loadShells).toHaveBeenCalledTimes(2)

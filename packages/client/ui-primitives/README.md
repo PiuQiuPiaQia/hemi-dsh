@@ -35,6 +35,11 @@ This package is a Web-shell build input. Its static ESM retains third-party impo
 
 Compose feature UI from these atoms whenever the web client needs a standard control or an agent-output renderer. They render through React only and take `--dsw-*` design tokens from the theme, so they fit any plugin without importing the theme or the slot system.
 
+<a id="operation-error-summaries"></a>
+### Operation-error summaries
+
+Use `userErrorMessage(t, failure)` after handling feature-specific error codes and partial effects. The function maps recognized Remote carrier codes to shared locale copy and never reads diagnostic messages, response bodies, or causes. Unknown failures ask the user to check current state before retrying; the original failure remains unchanged for diagnostics. For an explicit UI-authored refusal, `UserFacingError(localizedSummary, { cause })` preserves that advice across an asynchronous reporting layer; never construct it from server or exception text. Do not apply this presentation fallback to model or tool output, document content, or explicit developer diagnostics.
+
 <a id="component-catalog"></a>
 ### Component catalog
 

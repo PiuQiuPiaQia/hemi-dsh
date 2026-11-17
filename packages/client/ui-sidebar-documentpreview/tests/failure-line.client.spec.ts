@@ -1,7 +1,9 @@
 /**
- * One sentence per endpoint code, and the transport's own words for anything else.
+ * One sentence per endpoint code; carrier and unclassified failures share the
+ * safe operation summary and never show their own message.
  */
 import { describe, expect, it } from 'vitest'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 // The namespace declaration `TranslateNS<'sidebarDocumentPreview'>` resolves against.
@@ -29,8 +31,11 @@ describe('failureLine', () => {
     expect(failureLine(t, failure('workspace-file/too-large', { limit: 3 * 1024 * 1024 }))).toBe('error.tooLarge(limit=3 MB)')
   })
 
-  it('passes any other failure through in its own words', () => {
-    expect(failureLine(t, failure('gateway/internal', {}, 'socket closed'))).toBe('error.unavailable(message=socket closed)')
+  it('replaces carrier and unclassified failures with the shared safe summary', () => {
+    expect(failureLine(t, new RemoteError('gateway/internal', 'socket closed', {}))).toBe('uiError.unknown')
+    expect(failureLine(t, new RemoteError('gateway/cancelled', 'socket closed', {}))).toBe('uiError.cancelled')
+    expect(failureLine(t, failure('someday/a-new-code', {}, '<error>/private/path</error>')))
+      .toBe('uiError.unknown')
   })
 })
 

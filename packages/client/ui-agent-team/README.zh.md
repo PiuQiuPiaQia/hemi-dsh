@@ -31,6 +31,8 @@ kind: "package-reference"
 
 Chat 隐藏历史 `/team on` 和 `/team off` 记录中尚未完成或执行成功的回执。失败回执仍显示 Users 图标、本地化的“智能体团队协作”标题，以及本地化的失败前缀和已记录原因的首个非空行，不翻译原因原文。展开回执可查看完整原始错误。参数无法识别或缺失时仍显示回执。
 
+选择与停用确认失败呈现 [ui-primitives](../ui-primitives/README.zh.md) 中共享 `userErrorMessage` helper 的本地化安全摘要；原始异常文本、code 与 details 不进入展示文案，仍保留在会话诊断中。
+
 [Web bundle](../../bundle/web-app/README.zh.md) 默认加载本包。Web Client loader 挂载 `/client` export；root Host export 不执行行为，本包也没有用户配置字段。
 
 ### 查看任务板

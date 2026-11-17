@@ -33,7 +33,7 @@ DeepSeek Account appears first and DeepSeek second in the provider list; third-p
 
 Open the Models page from the Settings navigation to see every configured provider as a row. A whole-section provider whose key is not configured anywhere renders as its open setup card instead, but only in the first-run posture and only until the user closes that card. Each card kind owns its own open state, so closing one never discards a draft in another.
 
-A provider with a stored catalog error remains visible with its diagnostic and edit/delete actions. Add actions are offered only for registered settings namespaces, so an unavailable namespace cannot leave a button that opens no editor. A rejected save leaves the editor open and displays the Host diagnostic.
+A provider with a stored catalog error remains visible with its configuration diagnostic and edit/delete actions. Add actions are offered only for registered settings namespaces, so an unavailable namespace cannot leave a button that opens no editor. A rejected save leaves the editor open; operation failures use the shared safe summary, while settings conflicts retain their refresh guidance and field-validation feedback remains specific.
 
 After Apply closes an editor, its saved status appears when the current provider, settings, and credential snapshot is ready. Opening any row's editor, adding a provider, and opening a removal confirmation wait for that refresh. A newly opened Models section, or one retrying after a page-load failure, waits for a ready snapshot before mounting editors. A background refresh preserves an open draft while its editor remains mounted; a failed page load or provider removal can close it.
 
