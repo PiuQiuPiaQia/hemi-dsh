@@ -25,7 +25,7 @@ DeepSeek 账号目录查询委托给已注册的 `deepseek-account` 适配器，
 
 导入的 API 和 VVCode 模型按完整模型 ID 继承名称、输入类型、token 容量和推理能力，不依赖连接的提供方名称。显式 `catalogProvider` 选择能力来源；自动匹配存在歧义时保留连接默认值。模型显式覆盖优先。能力继承不会替换连接的接口地址、鉴权或请求头，继承的输出容量也不会设置请求输出上限。已有连接使用相同解析，无需重写已保存设置。
 
-其他订阅型号在每次打开或刷新时重新请求服务端，查询失败不会用内置目录替代。Codex 使用登录账号的 `/backend-api/codex/models` 接口，Claude 和 Copilot 请求各自的鉴权型号接口。GLM 通过 `/api/v1/client/configs` 和公共 CDN 读取官方在线 ZCode Coding Plan 目录；这是公布的个人／团队套餐目录，不是逐账号权益校验。公共目录请求不携带账号凭据。响应不兼容或服务不可用时保留已有型号选择。`subscriptionDiscovery` 可配置请求时限、目录数量上限和外部 Codex／ZCode 客户端版本。
+其他订阅型号在每次打开或刷新时重新请求服务端，查询失败不会用内置目录替代。Codex 使用登录账号的 `/backend-api/codex/models` 接口，Claude 和 Copilot 请求各自的鉴权型号接口。GLM 通过 `/api/v1/client/configs` 和公共 CDN 读取官方在线 ZCode Coding Plan 目录；这是公布的个人／团队套餐目录，不是逐账号权益校验。公共目录请求不携带账号凭据。响应不兼容或服务不可用时保留已有型号选择。`subscriptionDiscovery` 可配置请求时限、目录数量上限和外部 Codex／ZCode 客户端版本。Codex 目录请求以 `subscriptionDiscovery.codexClientVersion` 声明客户端版本，后端会略过最低客户端版本高于该值的模型。
 
 桌面端 New API 导入根据站点声明选择模型的请求协议；同时声明 OpenAI Chat Completions 和 Anthropic Messages 时，优先使用前者。保存前使用新令牌验证所选协议。
 

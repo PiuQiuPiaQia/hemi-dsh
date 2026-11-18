@@ -101,7 +101,8 @@ export default class HemiModelAccess extends TypertRemoteService {
     subscriptionDiscovery: z.object({
       timeoutMs: z.number().step(1).min(1).default(30_000),
       maxModels: z.number().step(1).min(1).default(500),
-      codexClientVersion: z.string().default('0.164.0'),
+      // The Codex backend omits models whose minimal client version exceeds this claim; keep the default at a current official release.
+      codexClientVersion: z.string().default('0.169.0'),
       zcodeAppVersion: z.string().default('3.17.2'),
     }),
   })

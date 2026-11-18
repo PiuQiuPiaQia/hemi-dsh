@@ -299,6 +299,11 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 - 验证：8 项欢迎页／加载文案测试、无 DeepSeek 账号插件的真实 Loader／浏览器快照重放、定向 lint、8 项 `build:artifacts` 和随后两项 Host／Client `build:check` 通过；移除无用依赖后再次完成 10 项完整构建检查。43 项 `doc-sync`、包依赖检查和依赖目录检查通过。浏览器检查 1280×820、1024×660、600×600、360×640 下的整页覆盖、按钮位置和溢出，并检查浅深色截图；原生开发实例已加载新版，保留在欢迎页。未替换已安装应用。
 - 合并上游时对照原生 Welcome 的字体、布局、按钮尺寸和主题令牌；若原生提供可配置的纯展示欢迎组件，再以该组件替换 Hemi 内的样式适配。
 
+## 2026-11-18 · Codex 订阅拉取客户端版本默认值提升
+
+- `packages/hemi/model-access` 的 `subscriptionDiscovery.codexClientVersion` 默认值从 `0.164.0` 提升到 `0.169.0`。Codex 目录接口按 `minimal_client_version` 过滤响应：实测同一账号 `client_version=0.164.0`／`0.165.0` 返回 10 个模型且不含 `gpt-6.2-sol`／`gpt-6.2-astra`，`0.169.0` 返回 12 个模型且二者在列（`gpt-6.2-sol` 声明 `minimal_client_version: 0.166.0`）。该字段继续可由 cordis.yml 覆盖，不改变请求实现、凭据或已保存型号。README 双语补充过滤语义并重录配对，配置目录从声明重新生成。
+- 验证：订阅单元 8 项与 model-access 全包 235 项测试通过；`gen-config-catalog` 重新生成并通过 `--check`；`build:artifacts` 与随后 `build:check` 通过。合并上游时核对官方 Codex CLI 的发版节奏，保持该默认值不低于最新官方版本，避免新模型因版本门控不可见。
+
 Hemi 黑白波浪 H 的源图由皮肤插件拥有，桌面与 Web 分发资源由 `customizations/release/render-artwork.mjs` 生成。builder 与 Web 构建通过窄适配选择资源，未启用 Hemi 发行身份时保留上游资源。侧栏、首页沿用已有品牌插槽；`ui-chat` 只新增通用运行图案插槽，不改变计时或播报。`client/locale` 在用户参数插值前按构建标题替换字典中的产品专名，不修改用户内容。Desktop 组合停用上游反馈、日志上报及相关入口；Hemi Host 插件提供被记录的产品提示身份，桌面启动适配提供请求归属环境设置。数据目录、应用 ID、更新地址和签名身份不变。合并上游时核对插槽卸载、字典与用户文本隔离、上报器缺席、资源构建选择和旧偏好路径。
 
 上述分发接线保留在 `apps/desktop/scripts/electron-builder-config.mjs`、`package-target.ts` 和 `apps/web/vite.config.ts`；通用扩展保留在 `client/locale/src/client/index.ts`、`client/ui-chat/src/client/` 与 `llm/llm/src/attribution.ts`。`scripts/check-workspace-constraints.ts` 仅允许 Hemi 资源目录和 preload 所需的单个 CSS 源文件，并拒绝缺失资源或额外源码；Host/Client 测试归属由各自 tsconfig 显式声明。

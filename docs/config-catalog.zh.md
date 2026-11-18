@@ -1718,7 +1718,7 @@ export interface SubscriptionDiscoveryConfig {
   timeoutMs: number
   /** Maximum number of model entries accepted from a provider. */
   maxModels: number
-  /** Codex client version sent to its model catalog endpoint. */
+  /** Codex client version sent to its model catalog endpoint; the backend omits models whose minimal client version exceeds this claim. */
   codexClientVersion: string
   /** ZCode version sent when downloading the current Coding Plan catalog. */
   zcodeAppVersion: string

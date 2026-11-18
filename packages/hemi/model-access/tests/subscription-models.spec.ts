@@ -9,7 +9,7 @@ vi.mock('@deepseek-ai/dsh-llm-pi-ai', async original => ({
 }))
 
 const config: SubscriptionDiscoveryConfig = {
-  timeoutMs: 30000, maxModels: 500, codexClientVersion: '0.164.0', zcodeAppVersion: '3.17.2',
+  timeoutMs: 30000, maxModels: 500, codexClientVersion: '0.169.0', zcodeAppVersion: '3.17.2',
 }
 
 function requestUrl(value: Parameters<typeof globalThis.fetch>[0] | undefined): string {
@@ -41,7 +41,7 @@ it('fetches Codex on every call and rejects an outage without returning its prev
     .rejects.toMatchObject({ code: 'hemi/subscription-discovery-failed' })
   expect(fetch).toHaveBeenCalledTimes(3)
   for (const [url, init] of fetch.mock.calls) {
-    expect(requestUrl(url)).toBe('https://chatgpt.com/backend-api/codex/models?client_version=0.164.0')
+    expect(requestUrl(url)).toBe('https://chatgpt.com/backend-api/codex/models?client_version=0.169.0')
     expect(init?.cache).toBe('no-store')
     expect(new Headers(init?.headers).get('chatgpt-account-id')).toBe('test-account')
   }
