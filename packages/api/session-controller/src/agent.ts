@@ -1,5 +1,6 @@
 /** Agent activation, composition, and initial model route owned by API Session. */
 
+import type {} from '@deepseek-ai/dsh-fs'
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
@@ -351,6 +352,9 @@ export class ApiSessionAgentController {
       throw new ApiSessionSubagentOwnership(sessionId)
     }
     if (live !== undefined) {
+      if (!await this.namesDirectory(live.session.header.cwd, request.cwd)) {
+        throw new ApiSessionCwdConflict(live.id, request.cwd, live.session.header.cwd)
+      }
       this.assertPlacement(live.id, live.session.header, request)
       const composition = await this.composeAgent(request.agentPreset, 'create')
       return await this.reuseLive(live, request, composition) ?? this.createMinted(request.cwd, composition, request.executionTarget)
@@ -367,6 +371,9 @@ export class ApiSessionAgentController {
       using observed = observation
       if (hasApiSessionSubagentOwner({ header: observed.header })) {
         throw new ApiSessionSubagentOwnership(sessionId)
+      }
+      if (!await this.namesDirectory(observed.header.cwd, request.cwd)) {
+        throw new ApiSessionCwdConflict(sessionId, request.cwd, observed.header.cwd)
       }
       this.assertPlacement(sessionId, observed.header, request)
       reusable = request.reusable(sessionId) && !observed.events.some(event => event.type === 'turn/start')
@@ -441,11 +448,12 @@ export class ApiSessionAgentController {
   }
 
   private assertPlacement(sessionId: SessionId, header: SessionHeader, request: ApiSessionCreateRequest): void {
-    if (header.cwd !== request.cwd) throw new ApiSessionCwdConflict(sessionId, request.cwd, header.cwd)
+    // Hemi fork: reuse must also match the header's frozen execution target, not only the directory;
+    // directory naming is owned by namesDirectory (canonical spelling).
     if (header.executionTarget?.provider !== request.executionTarget?.provider
       || header.executionTarget?.id !== request.executionTarget?.id) {
       throw new RemoteError('session/conflict', `session "${sessionId}" belongs to a different execution environment`, {
-        sessionId, requestedCwd: request.cwd, existingCwd: header.cwd,
+        sessionId, requestedCwd: request.cwd, ...header.cwd === undefined ? {} : { existingCwd: header.cwd },
       })
     }
   }
@@ -469,12 +477,26 @@ export class ApiSessionAgentController {
       sessionId,
       agentOptions: this.agentOptions(),
       meta: {
-        cwd,
+        cwd: await this.canonical(cwd),
         ...executionTarget === undefined ? {} : { executionTarget },
         ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
       },
       setup: composition.setup,
     })).agent
+  }
+
+  /** The canonical spelling of a project directory, which new headers record; see SessionHeader.cwd. */
+  private async canonical(cwd: string): Promise<string> {
+    const fs = this.ctx.get('fs')
+    return fs === undefined ? cwd : fs.processPath(await fs.resolve(cwd))
+  }
+
+  /**
+   * Whether a request names the directory a Session header records: by the recorded spelling, or by a
+   * spelling such as a symlink whose canonical form the header records.
+   */
+  private async namesDirectory(recorded: string | undefined, requested: string): Promise<boolean> {
+    return recorded === requested || (recorded !== undefined && recorded === await this.canonical(requested))
   }
 
   private agentOptions(): AgentOptions {

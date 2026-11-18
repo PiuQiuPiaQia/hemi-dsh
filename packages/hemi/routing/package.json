@@ -57,7 +57,8 @@
     "lib/typert.host.js",
     "lib/typert.host.d.ts",
     "lib/typert.remote-client.js",
-    "lib/typert.remote-client.d.ts"
+    "lib/typert.remote-client.d.ts",
+    "lib/typert.remote-client.d.ts.map"
   ],
   "dsh": null,
   "license": "MIT",
@@ -96,6 +97,6 @@
     "@deepseek-ai/dsh-tool-subagent": "workspace:*"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   }
 }

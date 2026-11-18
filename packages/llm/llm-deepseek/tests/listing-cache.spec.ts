@@ -8,6 +8,11 @@ import type { ModelListing } from '../src/listing.ts'
 
 afterEach(() => { vi.useRealTimers() })
 
+/** Header the fixture route sends its credential under. */
+const TOKEN_HEADER = 'x-test-token'
+const headersOf = (token: string | undefined): Readonly<Record<string, string>> | undefined =>
+  token === undefined ? undefined : { [TOKEN_HEADER]: token }
+
 const listing = (...ids: string[]): ModelListing => ({
   skipped: 0,
   entries: ids.map(id => ({ id, requirement: { kind: 'none' }, capabilities: { usable: true, facts: { inputModalities: ['text'] } } })),
@@ -16,20 +21,20 @@ const listing = (...ids: string[]): ModelListing => ({
 function harness(timeoutMs = 60_000, honorsAbort = true) {
   let clock = 0
   let token: string | undefined = 'token-a'
-  const loads: Array<{ token: string; signal: AbortSignal; settle: PromiseWithResolvers<ModelListing> }> = []
+  const loads: Array<{ token: string | undefined; signal: AbortSignal; settle: PromiseWithResolvers<ModelListing> }> = []
   const info = vi.fn()
   const warn = vi.fn()
   const changed = vi.fn()
   const settings: { -readonly [K in keyof ListingSettings]: ListingSettings[K] } = { url: 'https://api.example/models', timeoutMs, maxAgeMs: 100 }
   const resolveSettings = vi.fn<() => ListingSettings | undefined>(() => settings)
-  const resolveCredential = vi.fn(() => Promise.resolve(token))
+  const resolveCredential = vi.fn(() => Promise.resolve(headersOf(token)))
   const cache = new ModelListingCache({
     settings: resolveSettings,
     credential: resolveCredential,
-    load: (_url, value, signal) => {
+    load: (_url, headers, signal) => {
       const settle = Promise.withResolvers<ModelListing>()
       if (honorsAbort) signal.addEventListener('abort', () => { settle.reject(signal.reason) }, { once: true })
-      loads.push({ token: value, signal, settle })
+      loads.push({ token: headers[TOKEN_HEADER], signal, settle })
       return settle.promise
     },
     now: () => clock,
@@ -374,7 +379,7 @@ it('retains badges on credential lookup failures, reports the streak once, and r
   expect(catalog.current().listing).toEqual(badgedListing('New'))
   expect(changed).toHaveBeenCalledTimes(1)
   expect(warn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('check listing configuration and credentials'))
-  resolveCredential.mockResolvedValue('token-a')
+  resolveCredential.mockResolvedValue(headersOf('token-a'))
   advance(100)
   await vi.advanceTimersByTimeAsync(100)
   loads[1]!.settle.resolve(badgedListing('Back'))
@@ -390,7 +395,7 @@ it.each(['resolve', 'reject'] as const)('awaits a pending automatic credential l
   await flush()
   loads[0]!.settle.resolve(listing('a'))
   await first
-  const credential = Promise.withResolvers<string | undefined>()
+  const credential = Promise.withResolvers<Readonly<Record<string, string>> | undefined>()
   resolveCredential.mockReturnValue(credential.promise)
   advance(100)
   await vi.advanceTimersByTimeAsync(100)
@@ -398,7 +403,7 @@ it.each(['resolve', 'reject'] as const)('awaits a pending automatic credential l
   const disposal = catalog.dispose().then(() => { disposed = true })
   await flush()
   expect(disposed).toBe(false)
-  if (outcome === 'resolve') credential.resolve('token-a')
+  if (outcome === 'resolve') credential.resolve(headersOf('token-a'))
   else credential.reject(new Error('lookup failed'))
   await disposal
   expect(loads).toHaveLength(1)
@@ -465,12 +470,12 @@ it('reports signed-out reloads and rejects reloads superseded by disposal or inv
 
 it('does not start a reload after disposal during its credential lookup', async () => {
   const { catalog, loads, resolveCredential, flush } = harness()
-  const token = Promise.withResolvers<string | undefined>()
+  const token = Promise.withResolvers<ReturnType<typeof headersOf>>()
   resolveCredential.mockReturnValue(token.promise)
   const read = expect(catalog.reload()).rejects.toMatchObject({ name: 'AbortError' })
   await flush()
   await catalog.dispose()
-  token.resolve('old-token')
+  token.resolve(headersOf('old-token'))
   await read
   expect(loads).toHaveLength(0)
 })

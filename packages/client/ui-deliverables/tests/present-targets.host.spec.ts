@@ -9,7 +9,6 @@ import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import SessionController from '@deepseek-ai/dsh-api-session-controller'
 import { WorkspaceFiles } from '@deepseek-ai/dsh-api-workspace-files'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
-import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { registerPresentOpen } from '../src/present-open.ts'
 
@@ -30,7 +29,10 @@ async function fixture(route: 'present' | 'changes', cold: boolean) {
   ctx.provide('sessionQuery', { readEvent: async () => ({ session: session.header,
     target: { type: 'deliverables/presented', data: { turn: 1, callId: 'delivery', files: [{ path: file }] } } }) } as never)
   ctx.provide('workspaceChanges', { summary: () => ({ cwd: root, files: [{ path: file }] }) } as never)
-  new WorkspaceFiles(ctx, { maxBytes: 1024, maxFileBytes: 1024, maxLines: 100, maxEntries: 100 })
+  new WorkspaceFiles(ctx, {
+    maxBytes: 1024, maxFileBytes: 1024, maxLines: 100, maxEntries: 100,
+    search: { maxResults: 100, maxEntries: 1000, graceMs: 3000, timeoutMs: 30000, stderrMaxBytes: 65536 },
+  })
   const openPath = vi.fn(async () => {})
   const revealPath = vi.fn(async () => {})
   const fileApplications = vi.fn(async () => [])
@@ -51,7 +53,7 @@ async function fixture(route: 'present' | 'changes', cold: boolean) {
   const acquire = vi.fn(async () => ({ realm: Symbol('remote'), signal: new AbortController().signal,
     bind: (base: Context) => base.isolate('fs', label), close }))
   ctx.effect(() => ctx.sessions.registerExecutionProvider(target.provider, { acquire }))
-  const connection = new HostConnectionService(ctx, [], {} as BrowserAuth)
+  const connection = new HostConnectionService(ctx, [])
   registerPresentOpen(ctx)
   const handler = connection.createSharedFetchHandler('/api')
   const call = (action: 'open' | 'reveal' | 'applications') => handler.fetch(new Request(

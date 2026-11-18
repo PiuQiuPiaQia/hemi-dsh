@@ -14,7 +14,9 @@ import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry from '@deepseek-ai/dsh-tools'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import { FILE_REFERENCE_PROMPT, FileReferenceEnvironmentUnsupportedError } from '@deepseek-ai/dsh-file-reference'
-import LocalFileReferenceService, { WorkspaceFileSearch } from '../src/index.ts'
+import LocalFileReferenceService from '../src/index.ts'
+import { WorkspaceFileSearch } from '../src/search.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
 
 const roots: string[] = []
 
@@ -160,7 +162,7 @@ describe('LocalFileReferenceService', () => {
     expect(invalidate).toHaveBeenCalledOnce()
     ctx.emit('session/event', agent.session, { type: 'assistant/message', seq: 0, data: {} } as never)
     expect(invalidate).toHaveBeenCalledOnce()
-    const orphan = ctx.sessions.create(SessionId('file-reference-orphan'))
+    const orphan = ctx.sessions.create(brandString<SessionId>('file-reference-orphan'))
     ctx.emit('session/event', orphan, { type: 'tool/result', seq: 0, data: {} } as never)
     expect(invalidate).toHaveBeenCalledOnce()
 

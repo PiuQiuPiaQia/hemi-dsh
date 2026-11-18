@@ -32,8 +32,6 @@ export const Config = z.object({
   showLauncher: ContactConfigFields.showLauncher,
   contactFormUrl: ContactConfigFields.contactFormUrl,
   contactSource: ContactConfigFields.contactSource,
-  bonusAckRetryDelayMs: ContactConfigFields.bonusAckRetryDelayMs,
-  bonusAckRetryMaxDelayMs: ContactConfigFields.bonusAckRetryMaxDelayMs,
   version: OnboardingSettingsFields.version.volatile(),
   step: OnboardingSettingsFields.step.volatile(),
   purpose: OnboardingSettingsFields.purpose.volatile(),
@@ -57,7 +55,6 @@ export function apply(ctx: Context, config: Config): void {
       desktopOnboarding: config.desktopOnboarding, initializeDefaultModel: config.initializeDefaultModel, nativeSignIn: config.nativeSignIn,
       showSettingsSection: config.showSettingsSection, showLauncher: config.showLauncher,
       contactFormUrl: config.contactFormUrl, contactSource: config.contactSource,
-      bonusAckRetryDelayMs: config.bonusAckRetryDelayMs, bonusAckRetryMaxDelayMs: config.bonusAckRetryMaxDelayMs,
     } satisfies ContactConfig })
   })
 }

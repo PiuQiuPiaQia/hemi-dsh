@@ -44,8 +44,8 @@ describe('docked composer seat styles', () => {
   })
 })
 
-it('lets themes pair the send foreground with its fill while keeping native white by default', () => {
-  expect(rule(inputBarCss, '.primary')).toContain('color: var(--dsh-composer-primary-foreground, #fff)')
+it('pairs the send foreground with its fill through the shared on-color token', () => {
+  expect(rule(inputBarCss, '.primary')).toContain('color: var(--dsw-alias-label-on-color)')
   expect(rule(inputBarCss, '.primary')).toContain('background: var(--dsw-alias-button-info-fill)')
 })
 

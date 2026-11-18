@@ -1,5 +1,5 @@
 /** Resolve the required policy service from the same deployment as updater publication. */
-import { resolveDesktopAutoUpdateEnvironment } from './desktop-auto-update-environment.mjs'
+import { resolveDesktopAutoUpdateEnvironment } from '@deepseek-ai/dsh-desktop-publisher/desktop-auto-update-environment.mjs'
 // Hemi fork: only an explicitly configured GitHub package can omit the DSH policy service.
 import { resolveHemiGitHubDistribution } from '@deepseek-ai/dsh-hemi-customizations/github-distribution'
 

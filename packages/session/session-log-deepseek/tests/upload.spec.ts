@@ -3,7 +3,7 @@ import { Context, LoggerLevel } from '@deepseek-ai/cordis'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   Session,
-  SessionId,
+  type SessionId,
   SessionLogOffset,
   SessionSeq,
   type CreateSessionOptions,
@@ -18,6 +18,7 @@ import { createDeveloperMessage, createAssistantMessage, createSystemMessage, cr
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import * as SessionLogDeepSeek from '../src/index.ts'
 import type { DeepSeekSessionLogExtension, DeepSeekSessionLogWireEvent, DeepSeekSessionLogWireSurfaceOp } from '../src/types.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
 
 const contexts: Context[] = []
 const SIGNAL = new AbortController().signal
@@ -45,7 +46,7 @@ async function harness(
   const options = seed === undefined
     ? undefined
     : { seed, ...creation }
-  const session = ctx.sessions.create(SessionId(id), options)
+  const session = ctx.sessions.create(brandString<SessionId>(id), options)
   return { ctx, session, disposeUpload: () => upload.dispose() }
 }
 
@@ -170,7 +171,7 @@ describe('incremental DeepSeek session-log upload', () => {
     await ctx.plugin(SessionStore)
     await ctx.plugin(DeepSeekLlmApiExtensionRegistry)
     await ctx.plugin(SessionLogDeepSeek, { enabled: false })
-    const session = ctx.sessions.create(SessionId('explicit-off'))
+    const session = ctx.sessions.create(brandString<SessionId>('explicit-off'))
     session.append('turn/start', { turn: 1 })
 
     const prepared = await ctx.deepseekLlmApiExtensions.prepare({
@@ -234,7 +235,7 @@ describe('incremental DeepSeek session-log upload', () => {
   })
 
   it('uploads a migrated V3 log from the beginning before resuming current-generation acknowledgements', async () => {
-    const id = SessionId('migrated-v3-delivery')
+    const id = brandString<SessionId>('migrated-v3-delivery')
     const reader = createSessionFormatCatalogWithChildren([]).createRestore({
       type: 'session', version: 3, id, createdAt: 1, isSeeded: false, delegationDepth: 0,
     }, { recovery: 'strict', validation: 'current' })
@@ -277,7 +278,7 @@ describe('incremental DeepSeek session-log upload', () => {
   })
 
   it('folds only events appended after the cached acceptance scan', () => {
-    const id = SessionId('incremental-fold')
+    const id = brandString<SessionId>('incremental-fold')
     const events: SessionEvent[] = [
       { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
       {
@@ -326,19 +327,16 @@ describe('incremental DeepSeek session-log upload', () => {
   })
 
   it('rejects a missing event below the captured Session length', () => {
-    const session = {
-      id: SessionId('missing-event'),
-      header: { version: SESSION_FORMAT_VERSION },
-      seq: SessionLogOffset(1),
-      eventAt: () => undefined,
-    } as unknown as Session
+    const session = Session.create(brandString<SessionId>('missing-event'))
+    session.append('turn/start', { turn: 1 })
+    vi.spyOn(session, 'eventAt').mockReturnValue(undefined)
 
     expect(() => SessionLogDeepSeek.acceptedThrough(session))
       .toThrow('session-log-deepseek: missing event 0 below captured length 1')
   })
 
   it('ignores another format generation before interpreting its frozen sequence', () => {
-    const id = SessionId('migrated-generation')
+    const id = brandString<SessionId>('migrated-generation')
     const events = [
       { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
       {
@@ -370,7 +368,7 @@ describe('incremental DeepSeek session-log upload', () => {
   })
 
   it.each([-1, -0, 0.5])('rejects malformed acceptance format version %s', (sessionFormatVersion) => {
-    const id = SessionId(`malformed-format-${sessionFormatVersion}`)
+    const id = brandString<SessionId>(`malformed-format-${sessionFormatVersion}`)
     const events = [{
       type: 'session-log-deepseek/delivery-accepted',
       seq: SessionSeq(0),
@@ -550,7 +548,7 @@ describe('incremental DeepSeek session-log upload', () => {
       inheritedEventCount: SessionLogOffset(seed.length),
       meta: {
         cwd: '/wire-workspace',
-        parentSession: SessionId('wire-parent'),
+        parentSession: brandString<SessionId>('wire-parent'),
         isSeeded: true,
         origin: 'subagent',
         delegationDepth: 1,
@@ -652,12 +650,12 @@ describe('incremental DeepSeek session-log upload', () => {
         sessionFormatVersion: SESSION_FORMAT_VERSION,
       },
     }] as unknown as SessionEvent[]
-    const session = Session.create(SessionId('malformed'), malformed)
+    const session = Session.create(brandString<SessionId>('malformed'), malformed)
     expect(() => SessionLogDeepSeek.acceptedThrough(session)).toThrow(/malformed acceptance watermark/)
   })
 
   it('rejects a negative persisted acceptance watermark before comparing it', () => {
-    const id = SessionId('negative-watermark')
+    const id = brandString<SessionId>('negative-watermark')
     const events = [{
       type: 'session-log-deepseek/delivery-accepted',
       seq: SessionSeq(0),

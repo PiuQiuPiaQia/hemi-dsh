@@ -80,7 +80,7 @@ const CLASSIC_OVERRIDES: ThemeTokenOverrides = {
   '--dsw-specific-bubble-highlight': { light: 'var(--dsw-static-neutral-bluish-200)', dark: 'var(--dsw-static-neutral-bluish-750)' },
   '--dsw-alias-button-info-fill': { light: 'var(--dsw-alias-label-primary)', dark: 'var(--dsw-alias-label-primary)' },
   '--dsw-alias-button-info-hover': { light: 'var(--dsw-alias-button-primary-hover)', dark: 'var(--dsw-alias-button-primary-hover)' },
-  '--dsh-composer-primary-foreground': { light: 'var(--dsw-alias-label-primary-foreground)', dark: 'var(--dsw-alias-label-primary-foreground)' },
+  '--dsw-alias-label-on-color': { light: 'var(--dsw-alias-label-primary-foreground)', dark: 'var(--dsw-alias-label-primary-foreground)' },
 }
 
 const CLASSIC: HemiSkin = {

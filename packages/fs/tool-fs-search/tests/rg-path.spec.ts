@@ -9,8 +9,9 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
-import type { ToolExecution } from '@deepseek-ai/dsh-tools'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ToolExecution, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import { resolveRgPath, runRipgrep } from '@deepseek-ai/dsh-tool-fs-search'
 
 // Any access to the mocked module's surface throws — the shape a missing
@@ -26,9 +27,15 @@ describe('lazy packaged-ripgrep resolution', () => {
     const ctx = new Context()
     await ctx.plugin(LocalSubprocessRuntime)
     onTestFinished(() => ctx.fiber.dispose())
-    const callId = ToolCallId('missing-platform-package')
-    const exec: ToolExecution = { signal: new AbortController().signal, name: 'glob', callId, rootCallId: callId,
-      token: Symbol('missing-platform-package') as ToolExecution['token'], arguments: {} }
+    const callId = brandString<ToolCallId>('missing-platform-package')
+    const exec: ToolExecution = {
+      signal: new AbortController().signal,
+      name: 'glob',
+      arguments: {},
+      callId,
+      rootCallId: callId,
+      token: Symbol('missing-platform-package') as ToolExecutionToken,
+    }
     const spawn = vi.spyOn(ctx.subprocess, 'spawn')
     const search = runRipgrep(ctx, exec, 'glob', ['--files'], 1_000_000, 3_000, 64 * 1024)
     await expect(search).rejects.toMatchObject({ name: 'SearchError', code: 'SEARCH_FAILED' })

@@ -7,7 +7,7 @@ import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime
 import { userErrorMessage } from '@deepseek-ai/dsh-client-ui-primitives'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import type { OwnerOf } from '@deepseek-ai/dsh-client-ui-slots'
-import type { OfficeToPdfGeneration } from '@deepseek-ai/dsh-office-to-pdf/types'
+import type { OfficeKitGeneration } from '@deepseek-ai/dsh-office-kit/types'
 import type { DocumentPreviewDefinition } from '../src/client/document/registry.ts'
 import type { DocumentContent } from '../src/client/document/contract.ts'
 import { TextPreview, type TextPreviewProps } from '../src/client/TextPreview.tsx'
@@ -90,7 +90,7 @@ const definition: DocumentPreviewDefinition = {
 type Result = Awaited<ReturnType<ReadOfficeDocument>>
 const result = (version = 'v1', missingFonts: readonly string[] = []): Result => ({ ok: true, value: {
   absolutePath: ABSOLUTE_PATH, version, data: new TextEncoder().encode(`PDF ${version}`),
-  offset: 0, eof: true, missingFonts, generation: 'engine' as OfficeToPdfGeneration,
+  offset: 0, eof: true, missingFonts, generation: 'engine' as OfficeKitGeneration,
 } })
 
 function setup() {

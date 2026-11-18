@@ -71,7 +71,7 @@ function createProfile(providers: Record<string, unknown>, subscriptionModels: R
   const profile: ProfileContext = {
     name: 'test', startedBundles: ['test-disconnect-bundle'], dir,
     patchPath: join(dir, 'cordis.patch.yml'), installAnchor: join(home, 'package.json'),
-    cwd: home, home, overlays: [], telemetryDisabledEnv: undefined,
+    cwd: home, home, overlayPaths: [], telemetryDisabledEnv: undefined,
   }
   return { profile, patchPath: join(dir, 'cordis.patch.yml') }
 }

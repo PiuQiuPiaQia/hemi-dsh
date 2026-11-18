@@ -4,10 +4,10 @@ import { describe, expect, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionReference } from '../src/client/contract/sessions.ts'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
-import { LlmAttemptId } from '@deepseek-ai/dsh-llm'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { LlmAttemptId } from '@deepseek-ai/dsh-llm'
 import { RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import { SESSION_FORMAT_VERSION, SessionSeq, type SessionExecutionTarget } from '@deepseek-ai/dsh-session/types'
-import { brandString } from '@deepseek-ai/dsh-brand'
 import { ok, streamHandle, type RemoteMock } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import { ClientSessions, SessionCreateError, SessionForkError } from '../src/client/sessions/service.ts'
@@ -237,7 +237,7 @@ describe('scope tree', () => {
     await vi.waitFor(() => {
       expect(binding.session.getSnapshot().openState).toBe('open')
     })
-    const attemptId = LlmAttemptId('web-live-attempt')
+    const attemptId = brandString<LlmAttemptId>('web-live-attempt')
     const durableMessage = {
       type: 'event' as const,
       event: {
@@ -314,7 +314,7 @@ describe('scope tree', () => {
 
   it('replaces an active assistant baseline on reconnect without duplicate chunks', async ({ bench }) => {
     const b = bench()
-    const attemptId = LlmAttemptId('reconnect-attempt')
+    const attemptId = brandString<LlmAttemptId>('reconnect-attempt')
     let records: SessionHistoryRecord[] = []
     let assistantStreamBaseline: SessionAssistantStreamBaseline = {
       revision: 2,
@@ -361,7 +361,7 @@ describe('scope tree', () => {
 
   it('stages a post-opening assistant settlement behind its exact active attempt', async ({ bench }) => {
     const b = bench()
-    const attemptId = LlmAttemptId('reconnect-settlement-attempt')
+    const attemptId = brandString<LlmAttemptId>('reconnect-settlement-attempt')
     const priorMessage = {
       type: 'event' as const,
       event: {
@@ -453,7 +453,7 @@ describe('scope tree', () => {
 
   it('replaces an invalid settlement with the authoritative post-end baseline', async ({ bench }) => {
     const b = bench()
-    const attemptId = LlmAttemptId('reconnect-end-index-attempt')
+    const attemptId = brandString<LlmAttemptId>('reconnect-end-index-attempt')
     const prior = {
       type: 'event' as const,
       event: { type: 'turn/start', seq: 0, time: 19, data: { turn: 1 } },

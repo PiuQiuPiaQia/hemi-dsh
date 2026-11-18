@@ -1,8 +1,8 @@
 // Hemi fork: alternate account pages can hide native navigation without disabling shared account operations.
-/** Public account presentation, contact and bonus notice options shared by Host and Client. */
+/** Public account UI and contact options shared by Host and Client. */
 import z from '@deepseek-ai/schemastery'
 
-/** Questionnaire destination and bonus notice timings shared by Host and Client. */
+/** Questionnaire destination shared by Host and Client. */
 export interface ContactConfig {
   /** Register the account-owned Desktop introduction. */
   desktopOnboarding: boolean
@@ -18,10 +18,6 @@ export interface ContactConfig {
   contactFormUrl: string
   /** Questionnaire source option; empty until Harness is supported by the form. */
   contactSource: string
-  /** First delay before retrying a failed bonus acknowledgement. */
-  bonusAckRetryDelayMs: number
-  /** Ceiling for the acknowledgement retry backoff. */
-  bonusAckRetryMaxDelayMs: number
 }
 /** Validate public questionnaire options. */
 export const ContactConfigFields = {
@@ -33,8 +29,6 @@ export const ContactConfigFields = {
   showLauncher: z.boolean().default(true),
   contactFormUrl: z.string().pattern(/^https:\/\/[^/\s]+\//).default('https://trtgsjkv6r.feishu.cn/share/base/form/shrcnlCoGElW7MQznGy9r3YYXcg?hide_uid=1&hide_device_info=1&hide_harness_version=1'),
   contactSource: z.string().default(''),
-  bonusAckRetryDelayMs: z.number().min(1).default(1_000),
-  bonusAckRetryMaxDelayMs: z.number().min(1).default(60_000),
 }
 /** Validate public questionnaire options. */
 export const ContactConfig: z<Partial<ContactConfig>, ContactConfig> = z.object(ContactConfigFields)

@@ -99,8 +99,10 @@ export function AgentPresetSection({
       </button>
     )
   return <section className={css.section}>
-    <h2 className={css.title}>{t('nav')}</h2>
-    <p className={css.intro}>{t('sectionIntro')}</p>
+    <div className={css.sectionHeader}>
+      <h2 className={css.title}>{t('nav')}</h2>
+      <p className={css.intro}>{t('sectionIntro')}</p>
+    </div>
     {/* Hemi fork: composition contents stay readable; operation diagnostics use the common safe summary. */}
     {state.error === null ? null : <p className={css.error} role="alert">{userErrorMessage(t, state.error)}</p>}
     {([true, false] as const).map((builtIn) => {

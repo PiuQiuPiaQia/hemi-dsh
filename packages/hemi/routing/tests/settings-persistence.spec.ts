@@ -66,7 +66,7 @@ function createProfile(
     installAnchor: join(home, 'package.json'),
     cwd: home,
     home,
-    overlays: [],
+    overlayPaths: [],
     telemetryDisabledEnv: undefined,
   }
   return { profile, readPatch: () => readFile(profile.patchPath, 'utf8') }

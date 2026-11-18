@@ -31,7 +31,7 @@ export type RoutingModeProps = PropsRuntime<'conversation.input.model.options'>
 export function RoutingModeToggle(props: RoutingModeProps) {
   const addressedChild = props.useSession(snapshot => snapshot.subagent !== null)
   const listedChild = props.useSessions(state => state.byId[props.sessionId]?.origin === 'subagent')
-  if (props.flatMenu || addressedChild || listedChild) return null
+  if (addressedChild || listedChild) return null
   return <RootRoutingModeToggle {...props} />
 }
 

@@ -19,8 +19,6 @@ Hemi 不再提供自研记忆工具、设置编辑器、记忆上下文、压缩
 
 SSH 会话断线提示归 [ssh-servers-ui](packages/hemi/ssh-servers-ui/README.zh.md)，复用输入区插槽和普通消息发送流程。[Session Controller](packages/api/session-controller/src/index.ts) 在显式执行目标分离后用持久化 header 确认目录成员身份，客户端保留摘要原有的 Agent 可用性。执行 provider 以通用错误类型报告连接失败，Session Controller 将其映射到现有的执行环境不可用错误。现有移除通知无法表达历史仍可读，也无法传递执行连接失败。合并上游时核对断线时保留历史和草稿、重连仍使用同一执行目标，以及真正移除会话时侧栏正常更新。
 
-会话“标记为未读”入口归 [session-unread-ui](packages/hemi/session-unread-ui/README.zh.md)，使用已有会话上下文菜单注册，不修改原生菜单组件。[UiSession](packages/client/ui-session/src/client/index.ts) 只增加通用手动未读接口与重新进入主视图时的确认逻辑，因为已有完成提醒状态没有外部写入入口；手动标记不切换会话、不修改 Host 会话记录，也不改变运行或待交互状态。[会话树投影](packages/client/ui-workspace/src/client/tree.ts)和[状态文案](packages/client/ui-workspace/src/client/rows/Rows.tsx)保留手动来源，使同一个提醒点对手动标记显示“未读”，对自动完成仍显示“已完成”，避免把未完成会话误报为完成。验证由所属状态测试、菜单注册测试和[真实浏览器场景](apps/web/tests/hemi-session-unread.e2e.ts)覆盖。合并上游时核对手动提醒与自动完成提醒互不干扰、当前会话的标记能保留到下一次进入，以及卸载后菜单撤回；上游提供等价入口后评估移除窄扩展。
-
 桌面「保持电脑运行」开关归 [DesktopKeepAwake](apps/desktop/src/keep-awake.ts) 与 [通用设置行](packages/client/ui-settings-general/src/client/DesktopKeepAwakeRow.tsx)。[主进程](apps/desktop/src/main.ts)在启动读取偏好时载入单个 `prevent-app-suspension` 电源断言，[设置文件](apps/desktop/src/settings-file.ts)为 `keepAwake.enabled` 增加独立校验的 loose 节；[IPC](apps/desktop/src/ipc.ts) 与 [preload](apps/desktop/src/preload-app.ts) 按既有 updates 通道三件套暴露读取、写入与变更。上游主进程、设置文件与 preload 原无电源断言入口，因此保留窄接入，不复制 Electron powerSaveBlocker 状态。开关默认关闭，缺字段或无效字段时保持关闭并显示读取错误，写入失败状态不变；屏幕熄灭、合盖与手动睡眠不受影响。验证由 keep-awake、settings-file、preload、main-startup 单测与[真实浏览器场景](apps/web/tests/desktop-keep-awake.e2e.ts)覆盖。合并上游时核对启动载入顺序、IPC 通道名、loose 校验语义与 UI 失败提示。
 
 发布校验保留上游 `V17` 日志锚点及 Web `cordis` 预设 ID 的语义，[rescope 校验](scripts/rescope-vendor.ts)不将产品数据当作包名，也不放宽模块导入重置。SSH provider 随默认 Desktop 工作区使用，不再登记为非默认可选包；遥测 exporter 仍按默认禁用行登记为可选，不改变隐私行为。[发布文件约束](scripts/check-workspace-constraints.ts)闭合 SSH 密码共享块与八语言元数据，Hemi 定制包仅发布实际运行的 release adapter，不携带需要仓库源码的图形生成器。合并上游时核对日志锚点、预设 ID、默认组合可达性及发布闭包，不能通过启用遥测或跳过检查来消除校验错误。SSH 密码夹具仅使用 `ssh2` 的纯 JavaScript 实现，其可选原生加速与 CPU 探测构建在 pnpm 中明确禁用，严格依赖构建策略保持开启。
@@ -45,7 +43,7 @@ SSH 连接、helper 配置及不可变目录目标快照归 [ssh-servers](packag
 
 [shell 环境](packages/shell/shell-env/src/index.ts)按通用目标引用省略部署 Host 的 home/profile 目录变量，不猜远端替代值。[沙箱策略](packages/sandbox/sandbox-policy/src/index.ts)保持单一投影归属，显式目标不继承部署额外可写根，无 Agent 调用使用 provider 已验证的目标目录；[sandbox 定义](packages/sandbox/sandbox/src/index.ts)、[Bash](packages/shell/bash-sandbox/src/index.ts)和 [PTC](packages/ptc-runtime/ptc-runtime-node/src/execution.ts)传递同一组通用目标坐标。SSH 的 [FS](packages/ssh/fs-ssh/src/index.ts)每个修改操作及 [sandbox](packages/ssh/sandbox-ssh/src/index.ts)包装操作拒绝附带默认环境额外根的策略，包括调用方提供与批准重试的策略。连接与池保留实际目标身份，池键包含目标 id，避免不同引用共享错误元数据。[subprocess 定义](packages/subprocess/subprocess/src/index.ts)接受普通命令或随包资源：本地 provider 求值惰性本地定位函数并验证可执行性，SSH provider 只解析远端逻辑命令；[搜索](packages/fs/tool-fs-search/src/search-core.ts)不再把 Host rg 路径作为远端 argv。合并上游时核对同机打包资源、远端 PATH 缺失拒绝、目录与权限命名空间、无 Agent 调用、只读批准升级及原有默认部署行为。
 
-[文件预览](packages/api/workspace-files/src/index.ts)从同一 Session header 保留根目录与执行引用；进程内 `WorkspaceFileScope` 的执行字段必填，默认环境显式为 undefined，避免直接调用方丢失身份。读取持有对应租约至 I/O 结束，变更流持有至 watcher 关闭；不支持远端 watch 时明确拒绝而非监听 Host。[Office 源读取](packages/document/office-to-pdf/src/index.ts)在共享转换真正调用延迟 reader 时取得执行租约，不随首个界面等待方提前释放。[媒体及文件原生交接](packages/api/session-controller/src/file-system.ts)与[目录应用启动](packages/host/open-in-app/src/directory.ts)携带 Session／Workspace 身份、以实时或冷 header 选择文件系统；媒体重定向与缓存 URL 保留 Session，原生交接要求真实 Host 映射。[文件交付操作](packages/client/ui-deliverables/src/present-open.ts)也保留事件所属 Session，不以同名 Host 文件验证。只有明确不带作用域的 Host 下载文件保留原生打开语义。[本地文件建议](packages/context/file-reference-local/src/index.ts)在显式目标上拒绝本机目录索引；[建议菜单](packages/client/ui-input-trigger/src/core/menu.ts)保留失败分组并显示可继续手动输入的本地化提示，不伪装为空目录。合并上游时核对所有 scope 构造点、HTTP owner 准入、冷态与离线读取、共享 Office 等待方取消、真实 Host 映射及原有本地打开行为。
+[文件预览](packages/api/workspace-files/src/index.ts)从同一 Session header 保留根目录与执行引用；进程内 `WorkspaceFileScope` 的执行字段必填，默认环境显式为 undefined，避免直接调用方丢失身份。读取持有对应租约至 I/O 结束，变更流持有至 watcher 关闭；不支持远端 watch 时明确拒绝而非监听 Host。[Office 源读取](packages/document/office-kit/src/index.ts)在共享转换真正调用延迟 reader 时取得执行租约，不随首个界面等待方提前释放；显式目标的渲染不触碰 Host 文件系统。[媒体及文件原生交接](packages/api/session-controller/src/file-system.ts)与[目录应用启动](packages/host/open-in-app/src/directory.ts)携带 Session／Workspace 身份、以实时或冷 header 选择文件系统；媒体重定向与缓存 URL 保留 Session，原生交接要求真实 Host 映射。[文件交付操作](packages/client/ui-deliverables/src/present-open.ts)也保留事件所属 Session，不以同名 Host 文件验证。只有明确不带作用域的 Host 下载文件保留原生打开语义。[本地文件建议](packages/context/file-reference-local/src/index.ts)在显式目标上拒绝本机目录索引；[建议菜单](packages/client/ui-input-trigger/src/core/menu.ts)保留失败分组并显示可继续手动输入的本地化提示，不伪装为空目录。合并上游时核对所有 scope 构造点、HTTP owner 准入、冷态与离线读取、共享 Office 等待方取消、真实 Host 映射及原有本地打开行为。
 
 功能与组件优先放入 `packages/hemi/` 的所属插件。非插件的 Electron 适配集中在 `packages/hemi/customizations/`，桌面壳通过包入口导入；皮肤继续由 `packages/client/ui-hemi-skins/` 插件提供，默认经典使用随浅深色切换的黑白配色，不显示人物背景，保留其他皮肤和有效的已保存选择；独立安装层保留在 `plugins/`。详见[目录规则](packages/hemi/README.md)。
 
@@ -93,7 +91,6 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 
 | 上游文件或模块 | 保留修改的背景 | 合并上游时核对 |
 | --- | --- | --- |
-| `client/ui-settings-account` | 设置从账号菜单移出，改为账号行末尾的独立齿轮按钮（含折叠栏纵向堆叠与本地化提示），菜单保留意见反馈与登录/退出 | 上游恢复菜单项时齿轮按钮与测试/快照同步取舍 |
 | `client/ui-model-selection` | 通用 `showComposer` 开关、模型标签与工具选项类型；无需导入 Hemi 组件或保存 Hemi 模式 | 默认原生菜单、关闭后 `/model` 与目录仍可用、Hemi 菜单接管与卸载 |
 | `client/ui-chat` | 回合用量增加可替换插槽；原生面板保留为 fallback | 插槽声明与渲染一致，无插件时使用原生面板 |
 | `client/ui-settings-models`、`ui-settings-general` | 复用原生供应商编辑器并替换导航，避免重复入口 | 编辑器工厂、默认入口开关、导航与页面选择相同优先级 |
@@ -109,12 +106,18 @@ Hemi 在角色配置中为侦察、分析、执行、设计声明 `subagentOnly`
 | 桌面 `scripts/dev`、`development-app` | 开发壳加载本次构建并固定 runtime；隔离同步目录元数据，拒绝复用失效签名 | 开发入口刷新与打包入口不混用 |
 | `scripts/check-workspace-constraints` | Hemi 包使用 fork 源码地址；Electron 适配保持私有，单独声明构建入口的发布文件 | 不改变其他 DSH 包的仓库和发布规则 |
 | bundle、preset、依赖清单、tsconfig | 装配插件、角色和构建依赖；客户端源码别名确保真实组合测试不依赖已构建包 | 插件行可解析，独立安装层与内置组合不重复注册 |
-| `client/ui-primitives`（Toast.module.css）、`client/ui-attachment`（DropOverlay.module.css） | 两个纯视觉覆盖层（顶部公告条、全屏拖入遮罩）门户到 body 后被壳的 darwin `body > :not(#root)` no-drag 规则收集，在展示期间抹掉标题栏拖拽与原生双击最大化；各加 `-webkit-app-region: initial !important` 退出收集（同 ui-hemi-skins Backdrop 先例），pointer-events 与按钮可点性不变 | 壳规则或覆盖层退出先例改变时同步三处声明与对应 CSS 断言测试；确认 toast 动作按钮与拖入事件仍可达 |
+| `client/ui-primitives`（Toast.module.css）、`client/ui-attachment`（DropOverlay.module.css） | 两个纯视觉覆盖层（顶部公告条、全屏拖入遮罩）门户到 body 后被壳的 darwin `body > :not(#root)` no-drag 规则收集，在展示期间抹掉标题栏拖拽与原生双击最大化；各加 `-webkit-app-region: initial !important` 退出收集（同 ui-hemi-skins Backdrop 先例），pointer-events 与按钮可点性不变 | 上游 rc.4 重构为 universal initial 复位加 `data-window-drag` 显式声明，但 `body > :not(#root)` 的 no-drag 收集仍在，两处退出声明保留；收集规则再变时同步退出声明与对应 CSS 断言测试；确认 toast 动作按钮与拖入事件仍可达 |
 | `client/ui-conversation`（ConversationRoot.module.css） | 会话操作区容器的 macOS `no-drag` 同时排除了「标准模式」等静态标签和空白。布局容器归会话顶栏，现有插槽只能更换区内内容，因此在原样式中移除容器的排除规则，复用壳的控件排除规则，并禁用会话顶栏的文字选中 | 检查操作区空白及静态标签的原生双击，保留按钮点击。`window-drag-coverage.e2e.ts` 的 14 项浏览器回归通过，包含双击不选中文字、拖拽范围及控件命中 |
-| `client/ui-conversation`（InputBar.module.css） | 发送箭头原为固定白色，现有主题只能改变填充，无法安全使用深色模式的白底；增加通用 `--dsh-composer-primary-foreground`，缺省仍为白色。黑白配色与前景值归 `ui-hemi-skins`，不改变发送行为 | 核对无插件与彩色皮肤保留原生前景、经典亮暗配对可读，以及切换皮肤时清除旧覆盖；上游提供等价主题变量后移除本地接入。验证包括 20 项定向测试、3 项真实 Web 只读回放、亮暗截图和发送按钮对比度、完整产物构建及随后 Host／Client 聚合类型检查；未更新安装版应用 |
-| `client/web`（base.css） | macOS Electron 刷新拖拽区域时，body 的 `no-drag` 会继承到应用布局。外壳拥有刷新标记和 `#root`，因此在外壳样式中清除该继承值 | 检查刷新标记存在时 `#root` 的计算值为 `none`、标记行保留拖拽、浮层仍接收点击。最终产物的 3 项定向浏览器回归及外壳样式测试通过，隔离的 Electron 开发窗口使用同一条样式验证了原生双击 |
 
 `core/session/src/known-event-types.ts`、持久化与配置目录、客户端插槽目录由生成器维护；出现 Hemi 名称是源声明的生成结果，不手写删改。相关测试与预期输出跟随所属行为维护。未涉及本次收拢的其他工作区改动保持原状。
+
+## 2026-11-18 · 合并上游 DSH 0.2.2-rc.4
+
+- 合并上游 DSH 0.2.2-rc.2…rc.4（tag dsh-v0.2.2-rc.2 至 dsh-v0.2.2-rc.4，2178 提交）。211 处冲突全部解决：源码按并集保留 Hemi 窄接入（执行域租约、`ignorable` 事件标记、displayTitle 投影、共享安全摘要、Codex 传输诊断、按 Agent 上下文选择 fs 等）；生成目录先取上游，待 `gen-client-catalog` 等重新生成后由生成器恢复 Hemi 条目。
+- 退役（上游提供等价机制后移除窄接入）：会话手动未读（上游 `ui-session-status` 提供 `sessionStatus/mark` 菜单项、Host 共享已读状态、toggle 与权限检查；删除 `packages/hemi/session-unread-ui`、`ui-session` 手动未读接口与专属 e2e；行为差异：上游统一 completionUnread 语义，不再区分手动标记与自动完成文案）、`ui-settings-account` 齿轮按钮（上游恢复菜单 Settings 项）、InputBar 前景变量（上游 `--dsw-alias-label-on-color` 等价；`ui-hemi-skins` 经典皮肤覆盖改指该 token，发版前需真实浏览器复核经典亮暗配对）、`client/web` base.css 拖拽复位（上游 universal initial 复位更严格）、`flatMenu` 槽位、`publicationSourceAllowlist`、Office 资产准备与 desktop-host Office 引擎（上游 office-kit 自解析加侧车构建）。
+- 迁移：office-to-pdf 并入上游 office-kit。上游延迟 reader 直连 Host fs；本补丁移植进 office-kit 的 reader（显式目标不触碰 Host 文件系统、租约覆盖整个懒读取），外层授权继续走 `workspaceFiles`。
+- 文档与预算：architecture.md 的执行 provider 句迁回 agent-loop README（英中同步），architecture 回到上游文本；根 `AGENTS.md` 上限 2080→2095（fork standing order 一行，上游自身已零余量）；生成物文档取上游过渡，待生成器与 doc-sync 收敛；`ui-session` README 手动未读段删除，配对 1384 项复查通过。
+- 合并核对新增：`files-body` 上游「未分类失败透传消息」用例与共享安全摘要规则互斥，未并入；`ui-sidebar-files` 的 `error.unavailable` 键暂无消费者（保留观察）；`desktop-policy-environment.mjs` 允许 undefined 返回，上游新调用方需容忍。本次合入的类型检查、build 与 doc-sync 在合并提交后执行。
 
 ## 2026-11-05 · 覆盖层退出拖拽收集（Toast / DropOverlay）
 

@@ -1,6 +1,7 @@
 /** Electron Node-mode child lifecycle for the shared Web application. */
 
 import { spawn, type ChildProcess } from 'node:child_process'
+import { DesktopParentAuthentication } from './parent-authentication.ts'
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
@@ -73,6 +74,18 @@ export const QUIT_INSPECTION_DEADLINE_MS = 2_000
 const MAX_HOST_DIAGNOSTIC_CHARS = 64 * 1024
 const runIdSchema = z.uuid()
 
+function isOwnedHostUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && url.hostname === '127.0.0.1' && url.username === '' && url.password === ''
+      && url.pathname === '/' && url.search === '' && url.hash === ''
+  } catch (_invalidUrl) {
+    return false
+  }
+}
+
 function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
   if (typeof message !== 'object' || message === null || !('type' in message)) return false
   const candidate = message as Record<string, unknown>
@@ -83,7 +96,7 @@ function isDesktopHostEvent(message: unknown): message is DesktopHostEvent {
       return true
     case 'ready':
       // Hemi fork: startup policy crosses private process IPC and must be validated.
-      return typeof candidate.url === 'string' && (candidate.startup === undefined
+      return isOwnedHostUrl(candidate.url) && (candidate.startup === undefined
         || z.object({ mode: z.literal('workspace'), localePreference: z.string().nullable() }).safeParse(candidate.startup).success)
     case 'boot-injections':
       return Number.isSafeInteger(candidate.requestId) && Array.isArray(candidate.injections)
@@ -140,11 +153,13 @@ async function exitsWithin(exit: Promise<void>, milliseconds: number): Promise<b
   }
 }
 
-/** Browser authentication URL reported by the running Web application. */
+/** Host readiness plus the parent-owned credential used only by the main process. */
 export interface DesktopHostReady {
   readonly startup?: DesktopStartupOptions
   readonly url: string
   readonly injections?: readonly unknown[] | undefined
+  /** Cookie header for the owned Host; synthesized locally and never received from the renderer. */
+  readonly authenticationCookie: string
 }
 
 /** The child has exited, but task teardown did not finish successfully. */
@@ -174,6 +189,7 @@ export class DesktopHostFatalError extends Error {
 
 /** One Web backend running under the Electron executable in Node mode. */
 export class DesktopHostProcess {
+  readonly #authentication = new DesktopParentAuthentication()
   private runId: PluginOperationRunId | undefined
   private child: ChildProcess | undefined
   private readyResolve!: (ready: DesktopHostReady) => void
@@ -200,8 +216,7 @@ export class DesktopHostProcess {
    * @param inspectPort - Optional loopback inspector port for workspace development.
    * @param environment - Environment inherited by the Host and its plugin subprocesses.
    * @param onFailure - Receives the first unexpected child failure, including after readiness.
-   * @param primaryRuntime - Optional bundled dependency payload; when supplied, missing sibling
-   *   `office-skills` resources fail Host startup.
+   * @param primaryRuntime - Optional bundled dependency payload; the Host exposes it to its profile as `DSH_PRIMARY_RUNTIME`.
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
    * @param onPluginOperation - Optional diagnostic sink; malformed records are ignored without failing the Host.
@@ -233,7 +248,8 @@ export class DesktopHostProcess {
       entry,
       this.runtimeDir,
       this.projectDir,
-      this.primaryRuntime ?? join(this.runtimeDir, '..', 'runtime', 'primary-runtime'),
+      // Empty asks the Host for the payload beside its runtime directory, so that layout has one owner.
+      this.primaryRuntime ?? '',
       ...this.packageManager === undefined ? [] : [this.packageManager.pnpm, this.packageManager.nodeBin],
     ], {
       cwd: this.projectDir,
@@ -261,8 +277,28 @@ export class DesktopHostProcess {
         child.kill('SIGTERM')
         return
       }
-      if (message.type === 'starting') this.runId = message.runId
-      else if (message.type === 'ready') this.readyResolve({ url: message.url, injections: message.injections, ...message.startup === undefined ? {} : { startup: message.startup } })
+      if (message.type === 'starting') {
+        if (this.runId === undefined && !this.failureReported && !this.stopping) {
+          this.runId = message.runId
+          void this.#authentication.deliver(child).catch((error: unknown) => {
+            this.fail(error instanceof Error ? error : new Error(String(error)))
+            child.kill('SIGTERM')
+          })
+        }
+      }
+      else if (message.type === 'ready') {
+        void this.#authentication.readyCookie().then((authenticationCookie) => {
+          if (this.failureReported || this.stopping) return
+          // Hemi fork: forward the optional startup policy with the ready envelope.
+          this.readyResolve({
+            url: message.url, injections: message.injections, authenticationCookie,
+            ...message.startup === undefined ? {} : { startup: message.startup },
+          })
+        }, (error: unknown) => {
+          this.fail(error instanceof Error ? error : new Error(String(error)))
+          child.kill('SIGTERM')
+        })
+      }
       else if (message.type === 'platform-session') this.onPlatformSession?.(message.session)
       else if (message.type === 'shutdown-complete') {
         if (this.stopping) this.shutdownCompleted = true

@@ -72,7 +72,10 @@ async function fixture() {
   })
   const scope: WorkspaceFileScope = { sessionId: SessionId('targeted'), workspaceRoot: namespace, executionTarget: reference }
   await ctx.plugin(TypertRegistry)
-  await ctx.plugin(WorkspaceFiles, { maxBytes: 1024, maxFileBytes: 1024, maxLines: 100, maxEntries: 100 })
+  await ctx.plugin(WorkspaceFiles, {
+    maxBytes: 1024, maxFileBytes: 1024, maxLines: 100, maxEntries: 100,
+    search: { maxResults: 100, maxEntries: 1000, graceMs: 3000, timeoutMs: 30000, stderrMaxBytes: 65536 },
+  })
   const files = ctx.get('workspaceFiles')!
   const hostResolve = vi.spyOn(ctx.fs, 'resolve')
   return { ctx, remote, scope, files, closed, withdraw, hostResolve, namespace }

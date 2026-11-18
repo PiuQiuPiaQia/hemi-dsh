@@ -9,8 +9,9 @@ import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconCloseFillRegular,
-  IconDataOutlineRegular, IconWarningOutlineRegular, Input, rankByName, StateDot, Tag, Toast, userErrorMessage,
+  IconDataOutlineRegular, IconWarningOutlineRegular, Input, StateDot, Tag, Toast, userErrorMessage,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { TextSearchIndex } from '@deepseek-ai/dsh-util-text-search'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelLabelOwner, ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import css from './ModelSelect.module.css'
@@ -95,9 +96,12 @@ export function HemiModelSelect(
       } satisfies ModelSelection,
     }))), [groups])
   const showSearch = choices.length > 4
-  const filteredGroups = useMemo(() => groups.map(group => ({
-    ...group, models: rankByName(group.models, showSearch ? query.trim() : ''),
-  })).filter(group => group.models.length > 0), [groups, query, showSearch])
+  const groupIndexes = useMemo(() => groups.map(group => ({
+    group, index: new TextSearchIndex(group.models, model => ({ fuzzy: [model.name, model.id], substring: [model.description] })),
+  })), [groups])
+  const filteredGroups = useMemo(() => groupIndexes.map(({ group, index }) => ({
+    ...group, models: index.search(showSearch ? query.trim() : ''),
+  })).filter(group => group.models.length > 0), [groupIndexes, query, showSearch])
   const visibleModels = useMemo(() => filteredGroups.flatMap(group => group.models.map(model => ({
     provider: group.id, model: model.id,
   }))), [filteredGroups])
@@ -538,9 +542,8 @@ export function HemiModelSelect(
               <div className={css.empty} role="status">{t(choices.length === 0 ? 'empty.models' : 'search.empty')}</div>
             )}
           </div>
-          <div className={clsx(flat.utilities, 'scrollable')}>
-            {renderSlot('conversation.input.model.options', { ...optionOwner, flatMenu: true })}
-          </div>
+          {/* Hemi fork: the alternative row owns routing in this menu, so the options slot
+              (and with it the native-menu routing toggle) stays native-menu-only. */}
         </MenuSurface>,
         document.body,
       )}

@@ -72,7 +72,6 @@
     "release/web.mjs",
     "release/*.d.mts",
     "release/*.cer",
-    "src/desktop-startup.css",
     "artwork",
     "lib/types/**/*.d.ts"
   ],
