@@ -395,13 +395,14 @@ actor AXWorker {
                 } else {
                     try ax().requireEnabled(selected)
                 }
-                // Hemi fork: copy actor-isolated tuple fields into locals so the accessibilityBounds
-                // closure does not capture actor-isolated state (Swift 6.0 strict concurrency on Xcode 16.4).
-                let enclosingElement = enclosing.element
-                let enclosingWindowID = enclosing.id
+                // Hemi fork: AXUIElement is non-Sendable and self-isolated here; Swift 6.0 (Xcode 16.4)
+                // rejects sending it into the actor-isolated accessibilityBounds closure. The element is
+                // read-only for this bounds query and the worker serializes all AX access, so the copy
+                // is safe; newer Swift accepts it without the annotation.
+                nonisolated(unsafe) let enclosingElement = enclosing.element
                 elementWindow = enclosingElement
                 guard let bounds = try ax().bounds(selected), bounds.width > 0, bounds.height > 0 else { throw NativeFailure(code: "NATIVE_ERROR", message: "Element has no pointer bounds") }
-                window = try WindowGeometry.resolve(owner: identity, windowID: enclosingWindowID) { try ax().bounds(enclosingElement) }
+                window = try WindowGeometry.resolve(owner: identity, windowID: enclosing.id) { try ax().bounds(enclosingElement) }
                 point = WindowPoint(x: bounds.x + bounds.width / 2 - window.bounds.x, y: bounds.y + bounds.height / 2 - window.bounds.y)
             } else {
                 let id = try params.windowID()
