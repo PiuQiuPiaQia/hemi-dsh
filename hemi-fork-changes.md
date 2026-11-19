@@ -316,3 +316,16 @@ Hemi 黑白波浪 H 的源图由皮肤插件拥有，桌面与 Web 分发资源�
 反馈入口回归使用 Web scaffold 的显式 `profile.name: desktop` 执行真实分发条件，不以覆盖层强制停用被测行；覆盖消息好／差评、会话更多菜单、输入框加号菜单及 `/feedback` 候选缺席，同时验证本地日志下载和 Markdown 复制入口保留。当前安装版仍需通过后续打包安装更新，源码测试不代表运行中的客户端已更新。
 
 Hemi 侧栏名称由皮肤插件展示为 Hemi 与黑底白字 `dsh` 标签，标签复用原生 `Tag` 并在插件内等比例缩至标准标签的 50%，不改变共享标签尺寸。空图案占用者抑制原生侧栏 Logo 回退，插件样式按品牌插槽与侧栏切换按钮移除图案占位，并在折叠时保留原生展开图标；首页中部保留 Hemi 图案；运行状态使用空插槽隐藏原生鲸尾，不渲染品牌图标，状态文字、计时与播报不变。本次仅修改皮肤插件，不增加上游改动。运行图案的 8 项组件回归、独立运行状态浏览器场景、限定 lint 与中英配对通过；浏览器场景覆盖空图案插槽、计时推进及 390px／1280px 的明暗布局。全仓 Client 聚合检查的模型接入注册测试类型错误和独立侧栏标签场景的尺寸断言失败仍保留，未作为本改动的通过证据。合并上游时核对这两个公共属性选择器与图案宿主关系，以及运行图案的空占用者不触发回退，避免空白间距、不可见展开按钮或鲸尾重新出现。
+
+## 2026-11-19 · 桌面左下角设置入口
+
+- Hemi 桌面的设置入口是侧栏左下角的独立「设置」按钮，承接 2026-11-05「收起原生账号与模型导航」：`packages/bundle/web-app/cordis.patch.yml`（带 fork 注释）按 profile 关闭 `ui-settings-account` 的 `showSettingsSection` 与 `showLauncher`，账号菜单随之隐藏，由 `ui-settings-general` 的回退设置按钮承担入口；账号操作集中在「模型接入」订阅卡片。
+- 上游 0.2.2-rc.1 恢复了账号菜单内的 Settings 项，因此 Web profile 保持上游默认（菜单入口可见），左下角按钮与账号菜单只在 Web 并存；桌面仅保留左下角按钮。此前的独立齿轮按钮定制已按退役记录移除，不以恢复。
+- Web 脚手架的 hemi 浏览器用例用 overlay 行 `- id: ui-settings-account\n  config:\n    showLauncher: false` 模拟桌面入口：`hemi-branding.overlay.yml` 为先例，`hemi-model-settings`、`hemi-vvcode`、`hemi-model-access`、`hemi-memory-settings`、`hemi-preinstalled-plugins` 已带；`hemi-desktop-startup` 整体停用账号插件，回退按钮自然出现，无需该行。合并上游时核对回退按钮的渲染条件与 `showLauncher` 语义；上游提供等价入口配置时评估移除 overlay 行。
+- 本条验证：补行后 `hemi-memory-settings` 与 `hemi-model-access` 第二条（桌面 New API 引导）通过；`hemi-model-settings`、`hemi-vvcode` 此前一轮已通过。`hemi-model-access` 第一条推进到既存的拉取弹窗主按钮对比度断言失败（单独复现，疑似合并后主题颜色函数与 canvas 取色不兼容）；`hemi-preinstalled-plugins` 的 scaffold 自身 overlay ENOENT 与 `hemi-desktop-startup` 的导航 golden 漂移（内置插件→插件管理、记忆移除）在不含本行改动与产品改动的基线同样失败，均属既存问题，不作为本机制的验证或反证。
+
+## 2026-11-19 · API 接入预设新增 Magpie 本地网关
+
+- `packages/hemi/model-access-ui` 的 API 接入编辑器供应商预设新增 `Magpie`：选中即填名称 `Magpie`、端点 `http://127.0.0.1:3425/v1`、固定网关 key `magpie`，协议保持默认 `openai-completions`；模型仍由「读模型」从网关 `/v1/models` 拉取，预设不注入模型 ID。为此预设元组从三元扩为可选第四元固定 key，并替换原 `preset[0] === 'ollama'` 特判，Ollama 与 Magpie 两个本地网关行为对称。
+- 背景：Magpie（yetone/magpie）本地网关同讲 OpenAI Chat Completions／OpenAI Responses／Anthropic Messages／Gemini 四协议，覆盖 Hemi API 连接的协议白名单（`packages/hemi/model-access/src/key-profiles.ts` 的 `APIS`），订阅额度与多账号轮换在 Magpie 侧完成；预设只预填本机回环地址，不改变 model-access 的校验与保存路径。
+- 验证：`key-editor.client.spec.tsx` 新增预设填充用例（填值断言 + 防抖后触发一次网关读）；`key-editor` 规格 8 项、model-access-ui 全包 135 项测试通过；`verify-client-ui-i18n` 通过（预设标签为产品专名，同既有预设）；`build:artifacts` 与随后 `build:check` 通过。渲染层差异仅为既有供应商下拉新增一个选项行，未单独截图；如需可视验收可在运行中的客户端打开「模型接入 → API 接入 → 新建连接」查看。合并上游时核对预设数组与 onChange 填充逻辑；上游提供等价本地网关预设时评估去重。

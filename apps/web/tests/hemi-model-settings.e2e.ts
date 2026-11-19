@@ -15,6 +15,7 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
   const patch = join(scratch, 'hemi.patch.yml')
   await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
     + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n'
+    + '- id: ui-settings-account\n  config:\n    showLauncher: false\n'
     + '- id: ui-settings-models\n  config:\n    showSettingsSection: false\n')
   const scaffold = await launchWebScaffold({ developerTools: false, extraOverlayPath: patch })
   onTestFinished(() => scaffold.close())
@@ -101,7 +102,11 @@ it('offers a separate Hemi connection entry while hiding the intact stock Models
   await picker.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).waitFor()
   await page.keyboard.press('Escape')
   await picker.waitFor({ state: 'detached' })
-  expect(await custom.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).count()).toBe(0)
+  // The editor reads the provider list once the endpoint and key are present; closing the
+  // dialog leaves those draft candidates listed inline with nothing selected.
+  const draftCandidate = custom.getByRole('checkbox', { name: 'hemi-test-model', exact: true })
+  await draftCandidate.waitFor()
+  expect(await draftCandidate.isChecked()).toBe(false)
   await custom.getByRole('button', { name: '读取模型', exact: true }).click()
   await picker.getByRole('checkbox', { name: 'hemi-test-model', exact: true }).waitFor()
   await picker.getByLabel('搜索模型').fill('missing-model')

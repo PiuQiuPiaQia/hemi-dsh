@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, IconSettingsOutlineRegular, Input, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { KeyDirectory, KeyProfile, KeyProfileInput, ModelOptions } from '@deepseek-ai/dsh-hemi-model-access/types'
@@ -11,15 +11,34 @@ import css from './page.module.css'
 
 type Props = PropsLocale<typeof NS> & { actions: ModelAccessActions; test: ModelTest }
 
-const PRESETS = [
+/**
+ * Provider presets fill the editor's name and endpoint; the optional fourth value is a
+ * fixed key the gateway accepts out of the box (Ollama, Magpie), never a user secret.
+ */
+const PRESETS: readonly (readonly [id: string, label: string, baseUrl: string, key?: string])[] = [
   ['deepseek', 'DeepSeek', 'https://api.deepseek.com/v1'],
   ['qwen', '通义千问', 'https://dashscope.aliyuncs.com/compatible-mode/v1'],
   ['kimi', 'Kimi', 'https://api.moonshot.cn/v1'],
   ['zhipu', '智谱 GLM', 'https://open.bigmodel.cn/api/paas/v4'],
   ['openai', 'OpenAI', 'https://api.openai.com/v1'],
   ['openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1'],
-  ['ollama', 'Ollama', 'http://127.0.0.1:11434/v1'],
+  ['ollama', 'Ollama', 'http://127.0.0.1:11434/v1', 'ollama'],
+  ['magpie', 'Magpie', 'http://127.0.0.1:3425/v1', 'magpie'],
 ]
+
+/** Quiet period after the last draft change before the editor reads the provider model list. */
+const AUTO_READ_DEBOUNCE_MS = 600
+
+/** Whether the endpoint is complete enough for a model read; partially typed values stay inert. */
+function readableEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    // A partially typed endpoint is not a URL yet, so it cannot address a read.
+    return false
+  }
+}
 
 /**
  * Existing connections and an explicit editor; provider presets never inject model IDs.
@@ -121,6 +140,33 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
     setError('')
     try { await action() } catch { setError(t('keyFailed')) } finally { setBusy(false) }
   }
+  const [reading, setReading] = useState<'idle' | 'reading' | 'failed'>('idle')
+  const [readNonce, setReadNonce] = useState(0)
+  const readDrafts = useRef(new Set<string>())
+  const draftRef = useRef(input)
+  useEffect(() => { draftRef.current = input })
+  const readReady = readableEndpoint(baseUrl) && (key !== '' || profile?.hasKey === true)
+  // One read per distinct draft once the endpoint and key are present; a changed draft aborts its predecessor.
+  useEffect(() => {
+    if (!readReady) return
+    const draft = `${api}|${baseUrl}|${key}`
+    if (readDrafts.current.has(draft)) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      readDrafts.current.add(draft)
+      setReading('reading')
+      void actions.discoverKeyModels(draftRef.current, controller.signal).then((found) => {
+        if (controller.signal.aborted) return
+        setCandidates(previous => [...new Set([...previous, ...found])])
+        setReading('idle')
+      }, () => {
+        if (controller.signal.aborted) return
+        readDrafts.current.delete(draft)
+        setReading('failed')
+      })
+    }, AUTO_READ_DEBOUNCE_MS)
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [actions, api, baseUrl, key, readReady, readNonce])
   return (
     <section className={css.section} aria-label={t('keyEditor')}>
       <div className={css.row}><h3>{t(profile ? 'editConnection' : 'addKey')}</h3>
@@ -134,7 +180,7 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
             const preset = PRESETS.find(item => item[0] === event.currentTarget.value)
             setName(preset?.[1] ?? '')
             setBaseUrl(preset?.[2] ?? '')
-            setKey(preset?.[0] === 'ollama' ? 'ollama' : '')
+            setKey(preset?.[3] ?? '')
             setCandidates([])
             setModels([])
             setModelOptions({})
@@ -160,6 +206,11 @@ function KeyEditor({ actions, t, revision, profile, close, saved }: Props & {
             return Promise.resolve()
           }} />
         <div className={css.candidates} aria-label={t('selectModels')}>
+          {reading === 'reading' && <p role="status">{t('loading')}</p>}
+          {reading === 'failed' && <p role="alert">{t('fetchModelsFailed')}
+            <Button variant="ghost" size="sm" disabled={busy}
+              onClick={() => { setReading('idle'); setReadNonce(count => count + 1) }}>{t('retryImport')}</Button>
+          </p>}
           {candidates.map(model => <div className={css.row} role="group" aria-label={model} key={model}><label className={css.modelChoice}>
             <input type="checkbox" checked={models.includes(model)} disabled={busy}
               onChange={(event) => { setModels(event.currentTarget.checked ? [...models, model] : models.filter(id => id !== model)) }} />

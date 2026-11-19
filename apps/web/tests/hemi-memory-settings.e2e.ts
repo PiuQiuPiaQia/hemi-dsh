@@ -29,7 +29,11 @@ it('keeps the removed Hemi memory feature absent while legacy memory store files
     seededBytes.set(store.path, await readFile(store.path))
   }
 
-  const scaffold = await launchWebScaffold({ developerTools: false, harnessHome: home })
+  // The desktop settings entry is the fallback sidebar button, so the overlay
+  // hides the account launcher the web default would otherwise mount.
+  const overlay = join(home, 'hemi.patch.yml')
+  await writeFile(overlay, '- id: ui-settings-account\n  config:\n    showLauncher: false\n')
+  const scaffold = await launchWebScaffold({ developerTools: false, harnessHome: home, extraOverlayPath: overlay })
   onTestFinished(() => scaffold.close())
   const pluginIds = [...scaffold.ctx.loader.entries()].map(entry => entry.options.id)
   expect(pluginIds).not.toContain('hemi-memory')

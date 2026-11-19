@@ -19,7 +19,8 @@ it('loads the original preinstalled bundles and keeps their bundled switches ava
   onTestFinished(() => rm(scratch, { recursive: true, force: true }))
   const overlay = join(scratch, 'desktop.patch.yml')
   // The upstream proxy accepts port 0, so the OS owns allocation rather than a shared CI port.
-  await writeFile(overlay, '- id: dsh-pocket\n  config:\n    port: 0\n- id: hemi-model-settings\n  config:\n    desktopStartup: false\n')
+  await writeFile(overlay, '- id: dsh-pocket\n  config:\n    port: 0\n- id: hemi-model-settings\n  config:\n    desktopStartup: false\n'
+    + '- id: ui-settings-account\n  config:\n    showLauncher: false\n')
   const scaffold = await launchWebScaffold({
     developerTools: false, extraOverlayPath: overlay,
     profile: { name: 'desktop', packages: [], bundles: PACKAGES, hmr: false },

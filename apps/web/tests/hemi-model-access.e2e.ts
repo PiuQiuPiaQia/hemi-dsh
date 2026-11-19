@@ -14,6 +14,7 @@ it('authorizes a subscription, shows its quota, and imports a New API token from
   const patch = join(scratch, 'hemi.patch.yml')
   await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
     + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n'
+    + '- id: ui-settings-account\n  config:\n    showLauncher: false\n'
     + '- id: ui-settings-models\n  config:\n    showSettingsSection: false\n')
   const realFetch = globalThis.fetch
   const bigmodel = createBigModelTestProvider()
@@ -299,7 +300,8 @@ it('guides desktop New API sign-in and token creation in one responsive dialog',
   onTestFinished(() => rm(scratch, { recursive: true, force: true }))
   const patch = join(scratch, 'hemi.patch.yml')
   await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
-    + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n')
+    + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n'
+    + '- id: ui-settings-account\n  config:\n    showLauncher: false\n')
   const scaffold = await launchWebScaffold({ developerTools: false, extraOverlayPath: patch })
   onTestFinished(() => scaffold.close())
   const browser = await chromium.launch()

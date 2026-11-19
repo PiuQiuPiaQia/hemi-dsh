@@ -329,6 +329,7 @@ it('browses VVCode group catalogs read-only and prepares calling keys only on st
   const patch = join(scratch, 'hemi.patch.yml')
   await writeFile(patch, '- id: hemi-model-settings\n  disabled: false\n- id: hemi-model-settings-ui\n  disabled: false\n'
     + '- id: hemi-model-access\n  disabled: false\n- id: hemi-model-access-ui\n  disabled: false\n'
+    + '- id: ui-settings-account\n  config:\n    showLauncher: false\n'
     + '- id: ui-settings-models\n  config:\n    showSettingsSection: false\n')
   const realFetch = globalThis.fetch
   const vvcode = createVvcodePeer()
@@ -437,6 +438,9 @@ it('browses VVCode group catalogs read-only and prepares calling keys only on st
   await editor.getByLabel('接口地址').fill(`${VVCODE_ORIGIN}/v1`)
   await editor.getByLabel('协议', { exact: true }).selectOption('openai-completions')
   await editor.getByLabel('API Key', { exact: true }).fill(MANUAL_MODEL_KEY)
+  // The editor reads the relay model list once the endpoint and key are present; the read must
+  // land before saving so later relay-key-read counts stay deterministic.
+  await editor.getByRole('checkbox', { name: 'manual-kept-model', exact: true }).waitFor()
   await editor.getByLabel('模型 ID', { exact: true }).fill('manual-kept-model')
   await editor.getByRole('button', { name: '添加模型', exact: true }).click()
   await editor.getByRole('button', { name: '保存接入', exact: true }).click()
@@ -615,7 +619,8 @@ it('browses VVCode group catalogs read-only and prepares calling keys only on st
   // Each prepared token is verified through its persisted id (at least one exact-id lookup
   // per group); the relay key and directory reads never consult the ordinary token search.
   await expect.poll(() => [...new Set(vvcode.state.tokenDetails)].sort((a, b) => a - b)).toEqual([8, 9])
-  expect(vvcode.state.relayKeyReads.map(read => read.key).sort()).toEqual([SOLO_MODEL_KEY, TEAM_MODEL_KEY])
+  expect(vvcode.state.relayKeyReads.map(read => read.key).sort())
+    .toEqual([MANUAL_MODEL_KEY, SOLO_MODEL_KEY, TEAM_MODEL_KEY])
 
   // Fresh groups own distinct native provider routes; the wire reports both connections and
   // healthy catalogs, and the raw model id stays prefix-free with one group label per route.
