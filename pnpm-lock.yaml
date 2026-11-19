@@ -984,6 +984,9 @@ importers:
 
   apps/desktop-publisher:
     dependencies:
+      '@deepseek-ai/dsh-hemi-customizations':
+        specifier: workspace:*
+        version: link:../../packages/hemi/customizations
       cos-nodejs-sdk-v5:
         specifier: 3.0.0
         version: 3.0.0

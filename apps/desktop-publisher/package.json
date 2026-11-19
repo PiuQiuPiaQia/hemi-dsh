@@ -9,6 +9,7 @@
     "./*": "./src/*"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-hemi-customizations": "workspace:*",
     "zod": "4.6.6",
     "js-yaml": "^4.3.2",
     "semver": "^7.8.5",
