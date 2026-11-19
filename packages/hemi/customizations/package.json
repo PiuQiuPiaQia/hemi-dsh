@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-hemi-customizations",
   "description": "Electron adapters for Hemi fork customizations",
-  "version": "0.2.2-rc.1",
+  "version": "0.2.2-rc.4",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
