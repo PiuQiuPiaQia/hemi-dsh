@@ -1,8 +1,8 @@
-version: 0.2.2-rc.4
+version: 0.2.2-rc.5
 files:
-  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.4/hemi-dsh-0.2.2-rc.4-mac-arm64.zip
-    sha512: 6e/FhgbHMd6p+ZLUsNIGBHJVbB5h1RuwQpbhI8pMJulDIvMYPkyctGxJvJutIRTT3oPRNgt9HAopocREmW8zhQ==
-    size: 374660958
-path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.4/hemi-dsh-0.2.2-rc.4-mac-arm64.zip
-sha512: 6e/FhgbHMd6p+ZLUsNIGBHJVbB5h1RuwQpbhI8pMJulDIvMYPkyctGxJvJutIRTT3oPRNgt9HAopocREmW8zhQ==
-releaseDate: '2026-11-19T03:17:20.848Z'
+  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.5/hemi-dsh-0.2.2-rc.5-mac-arm64.zip
+    sha512: NliCrCcirOCDo01crIyeHjso4g088/7GVT0SZBQB2DX/adZ/a6+oog1GQUbR+U5NQZ+g4grGK36S9cSMRv2OFQ==
+    size: 374662456
+path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.5/hemi-dsh-0.2.2-rc.5-mac-arm64.zip
+sha512: NliCrCcirOCDo01crIyeHjso4g088/7GVT0SZBQB2DX/adZ/a6+oog1GQUbR+U5NQZ+g4grGK36S9cSMRv2OFQ==
+releaseDate: '2026-11-20T05:39:31.618Z'
