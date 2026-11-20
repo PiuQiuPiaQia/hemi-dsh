@@ -85,8 +85,8 @@ export { Config, resolveProfiles } from './config.ts'
 export { DEFAULT_CONTEXT_WINDOW, DEFAULT_INPUT, DEFAULT_MAX_TOKENS } from './config.ts'
 export { catalogModels } from './catalog.ts'
 // Hemi fork: profile decoration and the catalog resolver share this protocol compatibility
-// classification through the published entrypoint.
-export { effortWireFamily } from './catalog.ts'
+// classification and the route protocol derivation through the published entrypoint.
+export { effortWireFamily, sharedRouteApi } from './catalog.ts'
 export type {
   Options,
   PiAiCompatProfile,

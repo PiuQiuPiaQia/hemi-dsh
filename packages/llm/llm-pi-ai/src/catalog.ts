@@ -88,8 +88,9 @@ export const THINKING_LEVELS = Object.keys(THINKING_LEVEL_GATE) as readonly Mode
 
 /**
  * Hemi fork: the reasoning-effort wire family of each protocol with an evidenced effort value
- * domain. OpenAI Responses and Chat Completions send identical effort spellings through
- * `reasoning.effort` / `reasoning_effort`, so an installed catalog entry's `thinkingLevelMap`
+ * domain. OpenAI Responses, its ChatGPT Codex transport, and Chat Completions send identical
+ * effort spellings through `reasoning.effort` / `reasoning_effort`, so an installed catalog
+ * entry's `thinkingLevelMap`
  * stays dispatchable when a referenced model resolves onto the sibling protocol. Protocols that
  * dispatch thinking through budgets or adaptive modes have no evidenced equivalent and stay
  * outside, so a reference onto them transfers no reasoning fields. Naming a family here
@@ -98,6 +99,7 @@ export const THINKING_LEVELS = Object.keys(THINKING_LEVEL_GATE) as readonly Mode
 const EFFORT_WIRE_FAMILIES: ReadonlyMap<string, string> = new Map([
   ['openai-completions', 'openai-efforts'],
   ['openai-responses', 'openai-efforts'],
+  ['openai-codex-responses', 'openai-efforts'],
 ])
 
 /**
@@ -724,6 +726,19 @@ function sharedCatalogApi(defaults: ReadonlyMap<string, Model<Api>>): string | u
   const apis = new Set<string>()
   for (const model of defaults.values()) apis.add(model.api)
   return apis.size === 1 ? [...apis][0] : undefined
+}
+
+/**
+ * The one wire protocol an installed provider's shipped models agree on, the same
+ * derivation {@link resolveRouteModels} applies to a route without a declared `api`.
+ * Hemi fork: the protocol-reasoning decoration resolves an undeclared subscription
+ * route's fallback protocol through this export instead of restating the rule.
+ * @param provider - provider route key.
+ * @returns the shared protocol, or `undefined` when the route ships no models or
+ *   its shipped models disagree.
+ */
+export function sharedRouteApi(provider: string): string | undefined {
+  return sharedCatalogApi(catalogModels(provider))
 }
 
 /** The reasoning fields one materialized model carries. */

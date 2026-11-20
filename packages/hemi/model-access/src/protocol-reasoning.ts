@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { Config, PiAiModelProfile, PiAiProviderProfile, PiAiReasoningEfforts } from '@deepseek-ai/dsh-llm-pi-ai'
-import { effortWireFamily } from '@deepseek-ai/dsh-llm-pi-ai'
+import { effortWireFamily, sharedRouteApi } from '@deepseek-ai/dsh-llm-pi-ai'
 import { installedCatalogModel, isKnownNonReasoningModel, withCatalogCapabilities } from './model-catalog.ts'
 
 type Profiles = ReturnType<Config['providers']['get']>
@@ -24,6 +24,9 @@ export const PROTOCOL_REASONING_DEFAULTS: Record<string, ProtocolReasoningDefaul
   'openai-responses': {
     efforts: { off: 'none', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }, defaultEffort: 'medium',
   },
+  'openai-codex-responses': {
+    efforts: { off: 'none', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }, defaultEffort: 'medium',
+  },
   'anthropic-messages': { efforts: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }, defaultEffort: 'high' },
 }
 
@@ -32,7 +35,10 @@ export const PROTOCOL_REASONING_DEFAULTS: Record<string, ProtocolReasoningDefaul
  *
  * Explicit offers and disabling settings win. Model levels remain independent of the route's
  * provider; only a matching protocol may reuse its model-specific thinking format and wire
- * values. Cross-protocol offers use the target encoding without importing vendor transport.
+ * values. A route without a declared api follows the protocol its installed catalog's shipped
+ * models agree on — the same derivation the route resolver applies — so a subscription's bare
+ * model list still names its fallback protocol. Cross-protocol offers use the target encoding
+ * without importing vendor transport.
  * @param profiles - validated configured provider profiles.
  * @param defaults - protocol offers chosen by this deployment.
  * @returns detached profiles with catalog capabilities and ephemeral effort defaults for unknown models.
@@ -43,9 +49,10 @@ export function withProtocolReasoning(
   const detached = structuredClone(profiles) as Record<string, PiAiProviderProfile>
   return Object.fromEntries(Object.entries(detached).map(([provider, configured]) => {
     const profile = withCatalogCapabilities(provider, configured)
+    const routeApi = profile.api === undefined ? sharedRouteApi(provider) : undefined
     const models = profile.models?.map((entry): PiAiModelProfile => {
       const base = installedCatalogModel(provider, entry.id)
-      const api = profile.api ?? base?.api
+      const api = profile.api ?? base?.api ?? routeApi
       if (base !== undefined || entry.reasoningEfforts !== undefined
         || (entry.compat?.supportsReasoningEffort ?? profile.compat?.supportsReasoningEffort) === false) return entry
       const fallback = api === undefined ? undefined : defaults[api]

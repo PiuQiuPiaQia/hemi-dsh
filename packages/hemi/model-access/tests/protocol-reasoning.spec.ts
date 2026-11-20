@@ -38,6 +38,27 @@ it('keeps the protocol fallback when catalog providers conflict on the id', () =
   ])
 })
 
+it('fills unknown codex subscription models through the route catalog protocol', () => {
+  // The Codex subscription writes bare ids without a declared route protocol,
+  // and its backend lists models the installed catalog has not caught up with.
+  // Every shipped codex model speaks openai-codex-responses, so the newest
+  // model receives the protocol effort offer and request default while a
+  // catalog-caught-up sibling keeps its exact levels.
+  const filled = withProtocolReasoning({
+    'openai-codex': { models: [{ id: 'gpt-6.1-sol' }, { id: 'gpt-6.2-sol' }] },
+  }, PROTOCOL_REASONING_DEFAULTS)
+  expect(filled['openai-codex']!.models).toEqual([
+    { id: 'gpt-6.1-sol' },
+    { id: 'gpt-6.2-sol', reasoningEfforts: PROTOCOL_REASONING_DEFAULTS['openai-codex-responses']!.efforts,
+      defaultReasoningEffort: 'medium' }])
+  const resolved = PiAi.resolveProfiles(filled).get('openai-codex')
+  const model = resolved?.piProvider?.getModels()[1]
+  expect(model).toMatchObject({ id: 'gpt-6.2-sol', api: 'openai-codex-responses', reasoning: true,
+    baseUrl: 'https://chatgpt.com/backend-api' })
+  expect(getSupportedThinkingLevels(model!)).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+  expect(resolved?.configuredReasoningEfforts.get('gpt-6.2-sol')).toBe('medium')
+})
+
 it('translates an explicitly referenced cross-family model into the target encoding', () => {
   const base = getBuiltinModels('openai').find(model => model.id === 'gpt-5')!
   const filled = withProtocolReasoning({

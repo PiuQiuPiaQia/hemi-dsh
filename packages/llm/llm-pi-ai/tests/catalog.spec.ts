@@ -12,7 +12,7 @@ import { getAllBuiltinModels, getBuiltinModels, getBuiltinProviders } from '@ear
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
-import { catalogModels, catalogProvider } from '../src/catalog.ts'
+import { catalogModels, catalogProvider, effortWireFamily } from '../src/catalog.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { createModels, createProvider, getSupportedThinkingLevels } from '../src/models.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'
@@ -853,6 +853,13 @@ describe('catalog reference reasoning', () => {
     expect(model.thinkingLevelMap).toBeUndefined()
     expect(model.name).toBe(catalog.name)
     expect(model.contextWindow).toBe(catalog.contextWindow)
+  })
+
+  it('classifies the codex responses transport into the OpenAI effort family', () => {
+    // pi-ai's codex transport sends `reasoning.effort` with the same value
+    // domain as the Responses and Chat Completions protocols, so a referenced
+    // entry transfers its levels onto a codex route like the sibling protocols.
+    expect(effortWireFamily('openai-codex-responses')).toBe('openai-efforts')
   })
 
   it('keeps explicit effort declarations ahead of the reference', () => {
