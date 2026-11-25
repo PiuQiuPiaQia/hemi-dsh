@@ -39,7 +39,7 @@ VVCode 使用浏览器 PKCE 授权及本机回环回调。管理 PAT 保存在�
 
 排查 Codex WebSocket 中断时，可在 `$DSH_HOME/logs/codex-websocket.jsonl`（Hemi 桌面默认是 `~/.hemi-dsh/logs/codex-websocket.jsonl`）中按会话 ID 搜索。SDK 首次报告 WebSocket 故障时创建该文件。每行记录路由、时间、是否已开始流式输出、可用的关闭码和 SDK 最终结果，包括是否改用 SSE。本地日志不包含提示词、令牌或原始关闭原因。文件写入失败时，宿主日志会接收脱敏后的诊断。删除文件即可清除旧记录。
 
-推理能力依次采用显式档位、已识别模型支持的档位；没有解析出可用档位时，才采用配置的 `reasoningFallbacks`，未声明协议的路由沿用其安装目录各型号一致的协议。已知非推理模型或显式禁用的设置不会获得兜底档位。协议预置中，OpenAI Chat Completions、Responses 和 Codex Responses 默认 `medium`，Anthropic Messages 默认 `high`。请求协议负责参数编码；兼容的模型专用思考格式同时控制思考的启用和关闭。这些默认值只在运行时生效，由选择器和实际请求共用。Anthropic 的补齐型号默认使用自适应思考，显式配置仍优先。
+推理能力依次采用显式档位、已识别模型支持的档位；没有解析出可用档位时，才采用配置的 `reasoningFallbacks`，未声明协议的路由沿用其安装目录各型号一致的协议。已知非推理模型或显式禁用的设置不会获得兜底档位。协议预置中，OpenAI Chat Completions、Responses 和 Codex Responses 默认 `medium`，Anthropic Messages 默认 `high`。请求协议负责参数编码；兼容的模型专用思考格式同时控制思考的启用和关闭。这些默认值只在运行时生效，由选择器和实际请求共用。Anthropic 的补齐型号默认使用自适应思考，显式配置仍优先。GLM Coding Plan 路由对内置型号目录未收录的所选 ID 同样按 Anthropic Messages 协议兜底；目录已收录的 ID 保留原有档位。
 
 ## 模型体验
 

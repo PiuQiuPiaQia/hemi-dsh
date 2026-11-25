@@ -121,7 +121,7 @@ export default class HemiModelAccess extends TypertRemoteService {
     mountTransportLog(ctx)
     this.vvcode = new VvcodeSubscription(ctx, config)
     this.refreshBigModel = mountBigModel(ctx, () => this.config.subscriptionModels.get().bigmodel,
-      () => this.config.subscriptionModelOptions.get().bigmodel)
+      () => this.config.subscriptionModelOptions.get().bigmodel, config.reasoningFallbacks)
     ctx.effect(() => () => this.active?.controller.abort(), 'cancel model authorization on unload')
   }
 
