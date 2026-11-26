@@ -40,11 +40,12 @@ const CHILD_SPECS = {
 const CHILD_NAMES = Object.keys(CHILD_SPECS) as Array<keyof typeof CHILD_SPECS>
 
 /**
- * Section ids the web-app roster registers, in nav order: this package, then
- * ui-settings-models, ui-plugin-manager, and ui-agent-preset. A plugin
- * adding a section changes this list.
+ * Section ids the web-app roster registers, in nav order by each registration's `order`: general 0
+ * (ui-settings-general), models 10 (ui-settings-models), plugins 15 (ui-plugin-manager), agent-presets 20
+ * (ui-agent-preset), remote-connection 25 (remote-connection), then the Hemi fork sections hemi-skins 59
+ * (ui-hemi-skins) and hemi-backup 70 (hemi-backup-ui). A plugin adding a section changes this list.
  */
-const PRODUCT_SECTIONS: readonly string[] = ['general', 'models', 'plugins', 'agent-presets', 'hemi-skins', 'hemi-memory', 'hemi-backup']
+const PRODUCT_SECTIONS: readonly string[] = ['general', 'models', 'plugins', 'agent-presets', 'remote-connection', 'hemi-skins', 'hemi-backup']
 /** Onboarding steps the web-app roster registers, in coordinator order; both come from ui-settings-models. */
 const PRODUCT_ONBOARDING: readonly { id: string; order: number }[] = [
   { id: 'welcome-notice', order: -100 },

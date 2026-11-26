@@ -11,6 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionWorkspacePathApplication } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { OpenInAppController } from './controller.ts'
+import { selectSessionDirectory } from '@deepseek-ai/dsh-api-session-controller/client/directories'
 import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { OpenInAppPathController } from './open-path.ts'
 import type { OpenInAppKey } from './locales.ts'
@@ -91,11 +92,12 @@ export function registerContextMenus(
   ctx.effect(() => ctx.contextMenus.register({
     id: 'open-in-app.directory', target: 'directory', order: 100,
     resolve: async ({ sessionId, path }, signal) => {
-      const session = ctx.sessions.list.getSnapshot().byId[sessionId]
-      const native = sessionHasNativePaths(ctx.sessions.list.getSnapshot(), sessionId)
-      const remote = session?.executionTarget !== undefined
+      const sessions = ctx.sessions.list.getSnapshot()
+      // Hemi fork: a remote execution directory is not a native application target on the serving Host.
+      const native = sessionHasNativePaths(sessions, sessionId)
+      const remote = sessions.byId[sessionId]?.executionTarget !== undefined
       if (native) await paths.load()
-      const cwd = session?.cwd
+      const cwd = selectSessionDirectory(sessions, sessionId)
       const absolutePath = resolveWorkspacePath(cwd, path)
       signal.throwIfAborted()
       return [
@@ -123,7 +125,7 @@ export function registerContextMenus(
         : apps === undefined ? () => open(sessionId, absolutePath, 'open') : undefined
     // The menu names a host, not the pane it was raised in: a floating pane is never a docked landing place.
     const openIn = (destination: 'sidebar' | 'float') => () => {
-      const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+      const cwd = selectSessionDirectory(ctx.sessions.list.getSnapshot(), sessionId)
       ctx.sidebarRight.openResourceIn(sessionId, fileAddressFor(sessionId, cwd, path), {
         destination, ...(line === undefined ? {} : { params: { line } }),
       })
@@ -140,7 +142,7 @@ export function registerContextMenus(
       ] : [],
       { id: 'copyPath', icon: { key: 'open-in-app.copy' }, failureLabel: t('menu.copyFailed'), label: t(remote ? 'menu.copyRemotePath' : 'menu.copyPath'),
         run: async () => {
-          const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+          const cwd = selectSessionDirectory(ctx.sessions.list.getSnapshot(), sessionId)
           await navigator.clipboard.writeText(absolutePath ?? resolveWorkspacePath(cwd, path))
           ctx.contextMenus.notify(t('menu.copied'), true)
         } },

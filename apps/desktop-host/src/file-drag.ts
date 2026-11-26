@@ -1,10 +1,9 @@
 /** Resolve desktop-only file references through the active Host filesystem and Session. */
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-workspace-files'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
-import type { SessionHeader } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-session-persistence'
-import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 
@@ -16,19 +15,17 @@ export interface LocalDragResource {
 }
 
 /**
- * Authorize one file through its execution filesystem's actual read operations.
- * @param fs - filesystem of the Session's selected execution environment, never a Host substitute.
- * @param path - Session-scoped resource path.
- * @param header - authoritative Session header owning the execution world.
- * @param workspaceRoot - deployment workspace root for headers without a cwd.
- * @param signal - caller cancellation combined with the execution lease lifetime.
+ * Authorize an unmodified local file through one filesystem's actual read operations.
+ * @param fs - filesystem of the Session's execution environment, never a Host substitute for a targeted Session.
+ * @param path - Session-scoped resource path, resolved from the Session's workspace root.
+ * @param cwd - workspace root the workspace file service resolved for the Session.
+ * @param signal - caller cancellation combined with the read deadline and, for a targeted Session, the execution lease lifetime.
  * @returns verified Host-openable path and content identity, or null for nonlocal resources.
  */
 async function authorizeDragFile(
-  fs: FileSystem, path: string, header: SessionHeader, workspaceRoot: string, signal: AbortSignal,
+  fs: FileSystem, path: string, cwd: string, signal: AbortSignal,
 ): Promise<LocalDragResource | null> {
   signal.throwIfAborted()
-  const cwd = header.cwd ?? workspaceRoot
   const entry = await fs.lstat(path, { cwd }, signal)
   if (entry?.type !== 'file') return null
   const target = await fs.resolve(path, { cwd, signal })
@@ -57,44 +54,40 @@ async function authorizeDragFile(
 }
 
 /**
- * Authorize an unmodified local file through the Session header's actual execution filesystem.
- * Headers without an explicit execution target keep the deployment's Host filesystem; a targeted
- * header reads only through its retained execution lease and never falls back to Host files.
+ * Authorize an unmodified local file through the composed filesystem's actual read operations.
+ * Relative paths resolve from the same workspace root the workspace file service uses for the Session.
  * @param ctx - booted Desktop Host.
  * @param address - Session-scoped resource reference.
  * @param cancellation - caller cancellation, combined with the read deadline.
- * @returns verified Host-openable path and content identity, or null for nonlocal resources.
+ * @returns verified Host-local path and content identity, or null for nonlocal resources.
  */
 export async function localDragResource(ctx: Context, address: string, cancellation?: AbortSignal): Promise<LocalDragResource | null> {
   const resource = parseFileAddress(address)
   if (resource?.scope !== 'session') throw new Error('File drag requires a Session resource')
-  const sessions = ctx.get('sessions')
-  const policy = ctx.get('sandboxPolicy')
-  if (sessions === undefined || policy === undefined) throw new Error('File access unavailable')
-  const sessionId = resource.sessionId as SessionId
+  const fs = ctx.get('fs')
+  const workspaceFiles = ctx.get('workspaceFiles')
+  if (fs === undefined || workspaceFiles === undefined) throw new Error('File access unavailable')
   const signal = cancellation === undefined ? AbortSignal.timeout(10_000) : AbortSignal.any([cancellation, AbortSignal.timeout(10_000)])
   signal.throwIfAborted()
-  const header = sessions.get(sessionId)?.header ?? (await ctx.get('sessionPersistence')?.stat(sessionId, { signal }))?.header
-  signal.throwIfAborted()
-  if (header === undefined) throw new Error('File drag Session unavailable')
-  if (header.executionTarget === undefined) {
-    const fs = ctx.get('fs')
-    if (fs === undefined) throw new Error('File access unavailable')
-    return authorizeDragFile(fs, resource.path, header, policy.workspaceRoot, signal)
-  }
-  // Hemi fork: same-spelled Host paths are not mappings; the drag borrows a native file only when the
-  // Session's own execution filesystem resolves, authorizes, and maps the resource. Mirrors
-  // withSessionFileSystem in packages/api/session-controller/src/file-system.ts.
-  const lease = await sessions.acquireExecution(header.executionTarget, signal).catch((cause: unknown) => {
+  const scope = await workspaceFiles.scopeOf(resource.sessionId as SessionId, signal)
+  if (scope === undefined) throw new Error('File drag Session unavailable')
+  const cwd = scope.workspaceRoot
+  // Hemi fork: same-spelled Host paths are not mappings; a Session with an explicit execution target borrows a
+  // native file only when its own execution filesystem resolves, authorizes, and maps the resource. Mirrors the
+  // scoped read binding in packages/api/workspace-files/src/index.ts.
+  if (scope.executionTarget === undefined) return authorizeDragFile(fs, resource.path, cwd, signal)
+  const sessions = ctx.get('sessions')
+  if (sessions === undefined) throw new Error('File access unavailable')
+  const lease = await sessions.acquireExecution(scope.executionTarget, signal).catch((cause: unknown) => {
     signal.throwIfAborted()
     throw new Error('File drag execution environment unavailable; reconnect the Session before dragging its files', { cause })
   })
   try {
     const lifetime = AbortSignal.any([signal, lease.signal])
     lifetime.throwIfAborted()
-    const fs = lease.bind(ctx).get('fs')
-    if (fs === undefined) throw new Error('File drag execution filesystem unavailable')
-    return await authorizeDragFile(fs, resource.path, header, policy.workspaceRoot, lifetime)
+    const executionFs = lease.bind(ctx).get('fs')
+    if (executionFs === undefined) throw new Error('File drag execution filesystem unavailable')
+    return await authorizeDragFile(executionFs, resource.path, cwd, lifetime)
   } catch (cause: unknown) {
     if (lease.signal.aborted && !signal.aborted) {
       throw new Error('File drag execution environment disconnected; reconnect the Session before dragging its files', { cause })

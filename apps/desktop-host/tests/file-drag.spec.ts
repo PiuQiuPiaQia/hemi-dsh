@@ -8,10 +8,23 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import SessionStore, { type SessionExecutionTarget } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { localDragResource } from '../src/file-drag.ts'
+
+// The workspace file service resolves a live Session's header, else a stored Session's; its own tests cover that resolution.
+function provideWorkspaceFileScopes(ctx: Context, root: string): void {
+  ctx.provide('workspaceFiles', {
+    scopeOf: async (sessionId: SessionId, signal?: AbortSignal) => {
+      const stored = ctx.get('sessionPersistence')
+      const header = ctx.sessions.get(sessionId)?.header
+        ?? (await stored?.stat(sessionId, signal === undefined ? undefined : { signal }))?.header
+      return header === undefined ? undefined : { sessionId, workspaceRoot: header.cwd ?? root, executionTarget: header.executionTarget }
+    },
+  } as never)
+}
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'dsh-host-drag-'))
@@ -19,9 +32,9 @@ async function fixture() {
   onTestFinished(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) })
   await ctx.plugin(LocalFileSystem, { cwd: root })
   await ctx.plugin(SessionStore)
-  ctx.provide('sandboxPolicy', { workspaceRoot: root } as never)
   const id = brandString<SessionId>('file-drag-test')
   ctx.sessions.create(id, { meta: { cwd: root, origin: 'subagent' } })
+  provideWorkspaceFileScopes(ctx, root)
   const path = join(root, '报告.pdf')
   const bytes = Buffer.from('%PDF-1.4\n原始内容\n%%EOF')
   await writeFile(path, bytes)
@@ -39,7 +52,7 @@ async function remoteFixture(cold: boolean, mapping: (hostPath: string) => strin
   onTestFinished(async () => { await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }) })
   await ctx.plugin(LocalFileSystem, { cwd: root })
   await ctx.plugin(SessionStore)
-  ctx.provide('sandboxPolicy', { workspaceRoot: root } as never)
+  provideWorkspaceFileScopes(ctx, root)
   const path = join(root, 'share.png')
   await writeFile(path, Buffer.from('host-private-bytes'))
   const remoteBytes = new TextEncoder().encode('remote-authoritative-bytes')

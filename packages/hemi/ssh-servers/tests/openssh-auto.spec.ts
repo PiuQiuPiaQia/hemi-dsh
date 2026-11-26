@@ -82,8 +82,9 @@ async function exercise(agent: Agent, cwd: string, expected: string): Promise<vo
   const policy = agent.ctx.get('sandboxPolicy')!.resolve({ session: agent.session })
   const written = await fs.writeText(await fs.resolve('via-auto-ssh.txt'), `written:${expected}`, undefined, undefined, policy)
   expect(written.after).toBe(`written:${expected}`)
+  // The shipped profile's default execution mode evaluates REPL statements; the completion value is the result.
   const program = await ptc.run(ptc.resolve({
-    program: 'return { value: 42, cwd: process.cwd() }', bindings: [], cwd, sandboxPolicy: policy,
+    program: '({ value: 42, cwd: process.cwd() })', bindings: [], cwd, sandboxPolicy: policy,
   }))
   expect(program.error).toBeUndefined()
   expect(program.value).toEqual({ value: 42, cwd })

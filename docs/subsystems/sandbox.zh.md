@@ -211,14 +211,19 @@ The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mo
 /**
  * Resolve the complete policy for one capability call. An approved explicit
  * mode outranks the session's last `sandbox/mode` event, which outranks the
- * deployment default. A session cwd is its workspace-write boundary; the
- * configured root is the fallback for agentless calls and sessions without a
- * cwd. Configured extra roots and this Session's active registrations are
- * snapshotted together; existing operations and processes keep their policy.
- * @param request - optional session and approved mode override.
+ * deployment default. A session's working directory is its workspace-write
+ * boundary, so a Host move of the Session moves the boundary; the configured
+ * root is the fallback for agentless calls and, without the working-directory
+ * service, sessions without a header directory. An explicit execution target
+ * resolves only in its execution-world root and never inherits the
+ * deployment's extra writable roots. Configured extra roots and this
+ * Session's active registrations are snapshotted together; existing
+ * operations and processes keep their policy.
+ * @param request - optional session, approved mode override, execution target, and verified root.
  * @returns the fully resolved per-call mode and absolute workspace root.
- * @throws `SandboxInvalidRootError` (`SANDBOX_INVALID_ROOT`) when the session's recorded cwd is
+ * @throws `SandboxInvalidRootError` (`SANDBOX_INVALID_ROOT`) when the session's directory is
  *   relative or contains a NUL byte.
+ * @throws `SandboxUnsupportedPolicyError` when an explicit execution target lacks its execution-world root.
  */
 resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy
 

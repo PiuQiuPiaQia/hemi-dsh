@@ -33,6 +33,7 @@ import type { Session, SessionExecutionTarget } from '@deepseek-ai/dsh-session'
 import { SandboxUnsupportedPolicyError } from '@deepseek-ai/dsh-sandbox'
 import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-working-directory'
 
 export { SANDBOX_MODES, setSandboxMode } from './session-mode.ts'
 
@@ -97,8 +98,10 @@ export interface Config {
   /** File-sandbox mode a session starts from (default: `read-only`). */
   mode?: SandboxMode
   /**
-   * Absolute deployment-default fallback for agentless calls and sessions without a cwd
-   * (default: `process.cwd()`). Explicit targets must supply an execution-world root.
+   * Absolute fallback root for agentless calls and, without the working-directory
+   * service, sessions without a header directory (default: `process.cwd()`).
+   * Normal agent calls use their session's working directory instead; explicit
+   * execution targets must supply an execution-world root.
    */
   workspaceRoot?: string
   /**
@@ -202,21 +205,26 @@ export class SandboxPolicyService extends Service {
   /**
    * Resolve the complete policy for one capability call. An approved explicit
    * mode outranks the session's last `sandbox/mode` event, which outranks the
-   * deployment default. A session cwd is its workspace-write boundary; the
-   * configured root is the fallback for agentless calls and sessions without a
-   * cwd. Configured extra roots and this Session's active registrations are
-   * snapshotted together; existing operations and processes keep their policy.
-   * @param request - optional session and approved mode override.
+   * deployment default. A session's working directory is its workspace-write
+   * boundary, so a Host move of the Session moves the boundary; the configured
+   * root is the fallback for agentless calls and, without the working-directory
+   * service, sessions without a header directory. An explicit execution target
+   * resolves only in its execution-world root and never inherits the
+   * deployment's extra writable roots. Configured extra roots and this
+   * Session's active registrations are snapshotted together; existing
+   * operations and processes keep their policy.
+   * @param request - optional session, approved mode override, execution target, and verified root.
    * @returns the fully resolved per-call mode and absolute workspace root.
-   * @throws `SandboxInvalidRootError` (`SANDBOX_INVALID_ROOT`) when the session's recorded cwd is
+   * @throws `SandboxInvalidRootError` (`SANDBOX_INVALID_ROOT`) when the session's directory is
    *   relative or contains a NUL byte.
+   * @throws `SandboxUnsupportedPolicyError` when an explicit execution target lacks its execution-world root.
    */
   resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy {
     const { session } = request
     // Hemi fork: policy grants do not transfer between the deployment default and an explicit execution target;
     // agentless explicit-target calls resolve in the provider-verified workspace, never the deployment root.
     const target = request.executionTarget ?? session?.header.executionTarget
-    const root = session?.header.cwd ?? request.workspaceRoot
+    const root = (session === undefined ? undefined : this.ctx.get('workingDirectory')?.get(session)) ?? session?.header.cwd ?? request.workspaceRoot
     if (target !== undefined && root === undefined) {
       throw new SandboxUnsupportedPolicyError('An explicit execution target requires its execution-world workspace root; refusing the deployment fallback')
     }
@@ -233,7 +241,11 @@ export class SandboxPolicyService extends Service {
     }
   }
 
-  /** The session's recorded cwd, the request's verified root, or the configured root, as the workspace-write boundary. */
+  /**
+   * The workspace-write boundary: the caller-resolved root — the session's
+   * directory from the working-directory service, its header directory, or the
+   * request's verified root — else the configured root.
+   */
   private sessionWorkspaceRoot(root: string | undefined): string {
     if (root === undefined) return this.workspaceRoot
     if (!isExecutionWorldPath(root)) {

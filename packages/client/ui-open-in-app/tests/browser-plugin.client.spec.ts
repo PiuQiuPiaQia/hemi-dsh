@@ -355,13 +355,18 @@ describe('open-in-app browser half', () => {
 
   it('lets a file-menu association refresh outlive the menu and cancels it with the plugin', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ apps: [] }), { status: 200 })))
-    const { ctx, fiber } = await bench()
+    const { ctx, fiber, list } = await bench()
+    const id = 'files' as SessionId
+    // Native rows need a known default-environment Session.
+    list.set({ ...list.getSnapshot(), ids: [id], byId: {
+      [id]: { id, displayTitle: 'Files', cwd: '/w', running: false, blank: false, updatedAt: 0, retainedBy: {} },
+    } })
     let refresh: AbortSignal | undefined
     remote.session.workspacePathApplications.mockImplementationOnce((_request, signal) => {
       refresh = signal
       return new Promise<never>(() => {})
     })
-    const menu = ctx.contextMenus.resolve({ kind: 'file', value: { sessionId: 'files' as SessionId, path: 'notes.txt' } })
+    const menu = ctx.contextMenus.resolve({ kind: 'file', value: { sessionId: id, path: 'notes.txt' } })
     await menu.ready
     expect(remote.workspaceFiles.stat).toHaveBeenCalledWith('files', 'notes.txt', expect.any(AbortSignal))
     expect(remote.session.workspacePathApplications).toHaveBeenCalledWith({ path: '/w/notes.txt' }, refresh)

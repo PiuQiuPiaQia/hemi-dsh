@@ -2,6 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ContextMenuTargetMap, MenuAction } from '@deepseek-ai/dsh-client-ui-context-menu/client'
+import { selectSessionDirectory } from '@deepseek-ai/dsh-api-session-controller/client/directories'
 import { OPEN_IN_APP_ICON_PREFIX_ROUTE } from '@deepseek-ai/dsh-host-open-in-app/shared'
 import { APP_LABEL_KEY } from './applications.ts'
 import type { OpenInAppController } from './controller.ts'
@@ -25,7 +26,8 @@ export function registerSessionOpenWith(
     const sessions = ctx.sessions.list.getSnapshot()
     // Hemi fork: an execution-environment directory is not a native application target on the serving Host.
     if (!sessionHasNativePaths(sessions, sessionId)) return []
-    const directory = sessions.byId[sessionId]?.cwd
+    // The Session menu opens the checkout the Session works in, not the directory it was created in.
+    const directory = selectSessionDirectory(sessions, sessionId)
     const applications = (controller.apps.getSnapshot() ?? []).flatMap((id) => {
       const key = APP_LABEL_KEY[id]
       return key === undefined ? [] : [{ id, name: t(key) }]

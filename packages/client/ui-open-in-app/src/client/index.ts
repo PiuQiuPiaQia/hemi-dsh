@@ -19,6 +19,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-files/client'
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import { selectSessionDirectory } from '@deepseek-ai/dsh-api-session-controller/client/directories'
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote'
 import { OPEN_IN_APP_ICON_PREFIX_ROUTE } from '@deepseek-ai/dsh-host-open-in-app/shared'
 import { OpenInAppController } from './controller.ts'
@@ -78,11 +79,13 @@ export function apply(ctx: ClientContext): void {
   }, OpenInAppToast))
   const target = () => {
     if (ctx.layout.panelInfo.getSnapshot().activePanelId !== null) return undefined
-    const session = Object.values(ctx.sessions.list.getSnapshot().byId)
-      .find(row => (row.retainedBy.mainView ?? 0) > 0)
+    const list = ctx.sessions.list.getSnapshot()
+    const session = Object.values(list.byId).find(row => (row.retainedBy.mainView ?? 0) > 0)
+    const root = session === undefined ? undefined : selectSessionDirectory(list, session.id)
     const appId = controller.currentApp()
-    return session?.cwd && appId !== undefined && sessionHasNativePaths(ctx.sessions.list.getSnapshot(), session.id)
-      ? { appId, path: session.cwd, sessionId: session.id } : undefined
+    // Hemi fork: the shortcut opens only a default-environment Session's directory on this Host.
+    return session !== undefined && root && appId !== undefined && sessionHasNativePaths(list, session.id)
+      ? { appId, path: root, sessionId: session.id } : undefined
   }
   ctx.effect(() => ctx.shortcuts.register({
     id: 'workspace.openLocal' as ShortcutCommandId, label: () => t('open.tooltip'), aliases: ['open workspace locally', 'open in app'],

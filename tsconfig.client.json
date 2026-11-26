@@ -56,9 +56,9 @@
     "packages/client/*/tests/**/*.host.ts"
   ],
   "references": [
-    { "path": "./packages/experimental/client-ui-action-cards" },
-    { "path": "./packages/experimental/client-ui-creation-recommendations" },
-    { "path": "./packages/experimental/client-ui-plugin-recommendations" },
+    { "path": "./packages/client/ui-action-cards" },
+    { "path": "./packages/client/ui-creation-recommendations" },
+    { "path": "./packages/client/ui-plugin-recommendations" },
     { "path": "./packages/client/ui-file-drag" },
     // Hemi fork: compile the independently owned fork client plugins.
     { "path": "./packages/client/ui-hemi-skins" },
@@ -107,6 +107,7 @@
     { "path": "./packages/client/hmr/tsconfig.client.json" },
     { "path": "./packages/client/connection/tsconfig.client.json" },
     { "path": "./packages/client/file-upload/tsconfig.client.json" },
+    { "path": "./packages/client/remote-connection/tsconfig.client.json" },
     { "path": "./packages/typert/registry" },
     { "path": "./packages/api/gateway/tsconfig.client.json" },
     { "path": "./packages/api/session-controller/tsconfig.client.json" },

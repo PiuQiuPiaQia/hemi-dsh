@@ -8,6 +8,8 @@
  */
 import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SyncedConfig } from '@deepseek-ai/dsh-client-config/types'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 // Type-only: pulls the shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -29,7 +31,7 @@ import { createModelsOperations } from './operations.ts'
 import { createSettingsSchemaOperations } from './schema-operations.ts'
 import { en, ja, es, fr, de, ru, pt, zh, MODELS_SECTION_NS as NS, type ModelsKey } from './locales.ts'
 import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../onboarding-copy.ts'
-import { Config, ONBOARDING_CONFIG_GLOBAL } from '../onboarding-config.ts'
+import type { HemiModelsNavigationConfig, ModelsConfig } from '../types.ts'
 
 export type { ModelsSectionInjected, ModelsSectionProps } from './ModelsSection.tsx'
 export type { ModelsFooterOwnerProps, ProviderCardExtrasOwnerProps } from './slot-contract.ts'
@@ -61,6 +63,12 @@ function DefaultModelsPage({ renderFactorySlot }: PropsRenderFactories) {
   return renderFactorySlot('settings.models.editor', {})
 }
 
+/** Credential-onboarding choice while the Host sends none; the Host schema default. */
+const ABSENT_CREDENTIAL_ONBOARDING = true
+
+/** Navigation-entry choice while the Host sends none; the Host schema default. */
+const ABSENT_SHOW_SETTINGS_SECTION = true
+
 export type {
   ModelsSettingsState, ProviderDirectoryEntry, ProviderRow,
 } from './store.ts'
@@ -91,12 +99,21 @@ export const inject = [
  * the ledger, wire its store to the connection, and keep it fresh on every
  * pushed invalidation (settings, credentials, or provider topology).
  * @param ctx - client root context.
+ * @param config - Host-synced choices: `credentialOnboarding` is followed live until the official-DeepSeek step
+ * mounts, and `showSettingsSection` gates the built-in navigation entry at registration. A Host build without the
+ * Hemi navigation field leaves it absent.
  */
-export function apply(ctx: ClientContext): void {
-  const page = globalThis as Partial<Record<typeof ONBOARDING_CONFIG_GLOBAL, unknown>>
-  const payload = page[ONBOARDING_CONFIG_GLOBAL]
-  const configured = Config(payload === undefined ? {} : payload)
-  const credentialOnboarding = configured.credentialOnboarding && !('dshDesktop' in globalThis)
+export function apply(
+  // Hemi fork: the navigation choice rides the same synced object as `credentialOnboarding`; absent reads take the
+  // Host schema default.
+  ctx: ClientContext, config: SyncedConfig<ModelsConfig & HemiModelsNavigationConfig>,
+): void {
+  const nativeShell = 'dshDesktop' in globalThis
+  // Whether the official-DeepSeek step opens on its own; the native shell owns its own onboarding.
+  const automatic: ObservableSnapshot<boolean> = {
+    getSnapshot: () => !nativeShell && (config.credentialOnboarding.get() ?? ABSENT_CREDENTIAL_ONBOARDING),
+    subscribe: listener => config.credentialOnboarding.subscribe(listener),
+  }
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-models: copy dictionaries')
 
   const schema = createSettingsSchemaOperations(ctx.settingsSchema)
@@ -115,10 +132,9 @@ export function apply(ctx: ClientContext): void {
     t,
   })
   const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
-    automatic: credentialOnboarding,
     track: (name, attributes) => ctx.get('productAnalytics')?.track(name, attributes),
     controller,
-    hooks: { models: controller.store },
+    hooks: { models: controller.store, automatic },
     operations,
     schema,
     t,
@@ -150,7 +166,8 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-settings-models: pushed invalidations')
 
-  // Hemi fork: custom settings pages reuse the native provider editor; see hemi-fork-changes.md#hemi-customization-isolation.
+  // Hemi fork: the reusable native provider editor stays registered when a composition hides the built-in Models
+  // navigation entry through `showSettingsSection`; see hemi-fork-changes.md#hemi-customization-isolation.
   ctx.slots.registerFactory({
     name: 'settings.models.editor',
     scope: 'root',
@@ -160,13 +177,13 @@ export function apply(ctx: ClientContext): void {
       'settings.models.footer': { kind: 'list', scope: 'root' },
     },
   }, ModelsSection)
-  if (configured.showSettingsSection) ctx.slots.inject('settings.section', () => ctx.slots.register({
+  if (config.showSettingsSection?.get() ?? ABSENT_SHOW_SETTINGS_SECTION) ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'models',
     order: 10,
     label: () => t('nav'),
   }, DefaultModelsPage))
-  if (!('dshDesktop' in globalThis)) ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
+  if (!nativeShell) ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
     name: 'settings.onboarding',
     id: 'welcome-notice',
     order: -100,

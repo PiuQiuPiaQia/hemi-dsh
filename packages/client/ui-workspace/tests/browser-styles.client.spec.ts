@@ -35,7 +35,8 @@ const rowDeclarations = (selector: string): Map<string, string> | undefined => d
 
 describe('WorkspaceBrowser.module.css list', () => {
   it('hides touch timestamps without hiding pending-interaction labels', () => {
-    const touch = /@media \(hover: none\) \{([\s\S]*?)\n\}/.exec(rowsCss)?.[1]
+    // Hemi fork: Rows.module.css carries a hoverless block for remote Workspaces ahead of the timestamp rule.
+    const touch = [...rowsCss.matchAll(/@media \(hover: none\) \{([\s\S]*?)\n\}/g)].map(match => match[1] ?? '').join('\n')
     expect(touch).toContain('.sessionRow .timestamp')
     expect(touch).not.toMatch(/\.sessionRow(?:\.selected)? \.time[\s,{]/)
     expect(rowDeclarations('.sessionRow .pinnedAction')?.get('order')).toBe('-1')
@@ -178,7 +179,7 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(declarations('.searchExpanded')?.get('width')).toBe('100%')
     expect(declarations('.searchExpanded')?.get('margin-inline')).toBe('0')
     expect(declarations('.searchExpanded .searchButton')?.get('height')).toBe('32px')
-    expect(declarations('.sectionHeader:has(.searchExpanded) .sectionLabelHidden')?.get('margin-right')).toBe('0')
+    expect(declarations('.sectionHeader .wide.sectionLabelHidden')?.get('margin-right')).toBe('0')
     expect(declarations('.list')?.get('overflow')).toBe('visible')
     expect(declarations('.listArea')?.get('min-height')).toBe('0')
   })

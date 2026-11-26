@@ -199,14 +199,18 @@ interface SessionActivity {
 
 ## Session file scope
 
-The file lookup preserves the same header's execution target and root. In-process callers retain both; the wire names only the Session id. An explicit target cannot use the deployment-default filesystem.
+The file lookup preserves the same Session's execution target and workspace root: a live Session's root comes from the sandbox policy, a stored one from the projection cache or header. In-process callers retain both; the wire names only the Session id. An explicit target cannot use the deployment-default filesystem.
 
 ```ts type-equiv
 /** Header-derived file resolution context for one Session identity. */
 interface WorkspaceFileScope {
   /** Session identity received on the wire. */
   readonly sessionId: SessionId
-  /** Session workspace root, or the deployment fallback when its header has no cwd. */
+  /**
+   * Session workspace root: for a live Session the root the sandbox policy
+   * bounds it by; for a stored one its directory in the projection cache, else
+   * its header directory, else the deployment fallback.
+   */
   readonly workspaceRoot: string
   /** Immutable execution environment from the same authoritative Session header. */
   readonly executionTarget: SessionExecutionTarget | undefined
@@ -498,6 +502,15 @@ Host Remote file reads and workspace directory observations over the composed fi
 
 ```ts cordis-catalog
 /**
+ * Resolve the scope other Host services use to open the same `session/<id>/<path>` addresses:
+ * a live Session's sandbox workspace root, else a stored Session's cached directory, else its header directory.
+ * @param sessionId - Session identity received on the wire.
+ * @param signal - cancellation for the persistence read of a stored Session.
+ * @returns the scope, or undefined when no live or stored Session has that identity.
+ */
+scopeOf(sessionId: SessionId, signal?: AbortSignal): Promise<WorkspaceFileScope | undefined>
+
+/**
  * Read one page of lines from a UTF-8 file readable by the filesystem backend.
  * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
  * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
@@ -562,6 +575,8 @@ Host Remote file reads and workspace directory observations over the composed fi
  */
 @Remote({ mode: 'stream' }) async *changes(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame>
 ```
+
+Types: [SessionId](core.md)
 
 Source: [`packages/api/workspace-files/src/index.ts`](../../packages/api/workspace-files/src/index.ts)
 

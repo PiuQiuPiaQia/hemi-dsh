@@ -1,8 +1,7 @@
 - navigation:
   - button "通用设置"
   - button "模型接入"
-  - button "内置插件"
+  - button "插件管理"
   - button "Agent 预设"
   - button "皮肤"
-  - button "记忆"
   - button "备份"

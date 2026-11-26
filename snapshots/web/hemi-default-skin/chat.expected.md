@@ -1,5 +1,6 @@
 - banner:
   - navigation "会话层级": Use the read tool twice
+  - button "会话面板"
   - button "更多操作"
   - button "打开右侧边栏"
   - tablist:

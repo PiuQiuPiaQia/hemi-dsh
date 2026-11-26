@@ -199,14 +199,18 @@ interface SessionActivity {
 
 ## Session 文件作用域
 
-文件查找保留同一 header 的执行目标与根目录。进程内调用方必须保留二者；线路只传 Session id。显式目标不能使用部署默认文件系统。
+文件查找保留同一 Session 的执行目标与工作区根：live Session 的根目录来自沙箱策略，存储 Session 的来自 projection cache 或 header。进程内调用方必须保留二者；线路只传 Session id。显式目标不能使用部署默认文件系统。
 
 ```ts type-equiv
 /** Header-derived file resolution context for one Session identity. */
 interface WorkspaceFileScope {
   /** Session identity received on the wire. */
   readonly sessionId: SessionId
-  /** Session workspace root, or the deployment fallback when its header has no cwd. */
+  /**
+   * Session workspace root: for a live Session the root the sandbox policy
+   * bounds it by; for a stored one its directory in the projection cache, else
+   * its header directory, else the deployment fallback.
+   */
   readonly workspaceRoot: string
   /** Immutable execution environment from the same authoritative Session header. */
   readonly executionTarget: SessionExecutionTarget | undefined
@@ -498,6 +502,15 @@ Host Remote file reads and workspace directory observations over the composed fi
 
 ```ts cordis-catalog
 /**
+ * Resolve the scope other Host services use to open the same `session/<id>/<path>` addresses:
+ * a live Session's sandbox workspace root, else a stored Session's cached directory, else its header directory.
+ * @param sessionId - Session identity received on the wire.
+ * @param signal - cancellation for the persistence read of a stored Session.
+ * @returns the scope, or undefined when no live or stored Session has that identity.
+ */
+scopeOf(sessionId: SessionId, signal?: AbortSignal): Promise<WorkspaceFileScope | undefined>
+
+/**
  * Read one page of lines from a UTF-8 file readable by the filesystem backend.
  * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
  * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
@@ -562,6 +575,8 @@ Host Remote file reads and workspace directory observations over the composed fi
  */
 @Remote({ mode: 'stream' }) async *changes(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame>
 ```
+
+Types: [SessionId](core.zh.md)
 
 Source: [`packages/api/workspace-files/src/index.ts`](../../packages/api/workspace-files/src/index.ts)
 

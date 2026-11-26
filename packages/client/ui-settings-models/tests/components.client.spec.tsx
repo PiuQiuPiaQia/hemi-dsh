@@ -2382,7 +2382,8 @@ it.each(['cancel', 'replace'])('keeps authentication unchanged after refused del
     credential={{ configured: true, source: 'file', writable: true, masked: '••••••••' }} />)
   fireEvent.keyDown(screen.getByLabelText(en.keyInput), { key: 'Delete' })
   fireEvent.click(screen.getByRole('button', { name: en.apply }))
-  await screen.findByText('credential store locked')
+  // Hemi fork: refusals surface the shared safe summary; the scripted diagnostic never renders.
+  await screen.findByText(commonEn['uiError.unknown'])
   expect(mutate).not.toHaveBeenCalled()
   expect(screen.getByText(en.keyRemovePendingEnvironment.replace('{hint}', 'GEMINI_API_KEY'))).toBeTruthy()
   if (action === 'cancel') {
@@ -2390,7 +2391,7 @@ it.each(['cancel', 'replace'])('keeps authentication unchanged after refused del
     expect(closed).toHaveBeenCalledWith(false)
   } else {
     fireEvent.change(screen.getByLabelText(en.keyInput), { target: { value: 'new-key' } })
-    expect(screen.queryByText('credential store locked')).toBeNull()
+    expect(screen.queryByText(commonEn['uiError.unknown'])).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.apply }))
     await waitFor(() => { expect(closed).toHaveBeenCalledWith(true) })
     expect(set).toHaveBeenCalledExactlyOnceWith('GOOGLE_API_KEY', 'new-key')
@@ -2412,7 +2413,7 @@ it.each(['retry', 'close'])('reports a completed deletion when settings fail, th
     credential={{ configured: true, source: 'file', writable: true, masked: '••••••••' }} />)
   fireEvent.keyDown(screen.getByLabelText(en.keyInput), { key: 'Delete' })
   fireEvent.click(screen.getByRole('button', { name: en.apply }))
-  await screen.findByText('settings locked')
+  await screen.findByText(commonEn['uiError.unknown'])
   expect(screen.getByText(en.keyRemoveApplied)).toBeTruthy()
   expect(screen.getByLabelText<HTMLInputElement>(en.keyInput).disabled).toBe(true)
   if (action === 'retry') {

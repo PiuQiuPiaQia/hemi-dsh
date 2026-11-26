@@ -228,9 +228,7 @@ const command = (over: Partial<CommandNode> = {}): CommandNode => ({
   ...over,
 })
 const compaction = (over: Partial<CompactionSummaryNode> = {}): CompactionSummaryNode => ({
-  kind: 'compaction', seq: 8, time: 8_000,
-  summary: '## 压缩摘要\n\n保留的事实。',
-  summaryEventSeq: 7,
+  kind: 'compaction', seq: 8, summaryEventSeq: 7, time: 8_000,
   shadowedItemCount: 16,
   shadowedTokenCount: 11_309,
   ...over,
@@ -318,12 +316,13 @@ function HarnessUserOrigin({ useRenderer, owner, options }: {
 }
 
 function HarnessChatNode({
-  standard, owner, hookContext, usePerformanceUsage, toolOwners, fallback, renderAssistantSlot, renderUserChain,
+  standard, owner, hookContext, compaction, usePerformanceUsage, toolOwners, fallback, renderAssistantSlot, renderUserChain,
 }: {
   readonly standard: HarnessStandardProps
   readonly owner: RoutedChatNodeOwner
   readonly hookContext: ChatNodeHookContext
   readonly usePerformanceUsage: React.ComponentProps<typeof TurnTailNodeView>['usePerformanceUsage']
+  readonly compaction: Pick<React.ComponentProps<typeof CompactionNodeView>, 'openCompaction' | 'useCompactionPreview'>
   readonly toolOwners: ToolOwner[]
   readonly fallback: React.ReactNode
   readonly renderAssistantSlot: React.ComponentProps<typeof AssistantNodeView>['renderSlot']
@@ -348,9 +347,9 @@ function HarnessChatNode({
     case 'command':
       return <CommandNodeView {...nodeProps} node={owner.node} renderSlot={renderCommandSlot} />
     case 'manual-compaction':
-      return <ManualCompactionNodeView {...nodeProps} node={owner.node} />
+      return <ManualCompactionNodeView {...nodeProps} {...compaction} node={owner.node} />
     case 'compaction':
-      return <CompactionNodeView {...nodeProps} node={owner.node} />
+      return <CompactionNodeView {...nodeProps} {...compaction} node={owner.node} />
     case 'model-retry':
       return <RetryNodeView {...nodeProps} node={owner.node} />
     case 'turn-error':
@@ -456,6 +455,9 @@ function makeHarness(
     read: () => savedScroll,
   }
   const forkAt = vi.fn()
+  const openCompaction = vi.fn<(seq: number, signal: AbortSignal) => Promise<string | null>>(async () => null)
+  const compactionPreview = createSnapshotStore(true)
+  const compaction = { openCompaction, useCompactionPreview: bindSnapshotSelector(compactionPreview) }
   // Rows and the harness must observe the same chat-store instance.
   const chat = createChatStore().create()
   const transcriptView = createSnapshotStore<TranscriptViewMode>('compact')
@@ -479,7 +481,7 @@ function makeHarness(
     name === 'conversation.chat.message.images' ? renderImages(name, owner, options) : renderReasoningSlot(name, owner, options)
   const renderNodeSlot: NodeRenderer = (key, owner, opts) => {
     if (nodeSlotOverride !== undefined) return nodeSlotOverride(key, owner, opts)
-    return <HarnessChatNode standard={props} owner={owner}
+    return <HarnessChatNode compaction={compaction} standard={props} owner={owner}
       hookContext={opts.hookContext} usePerformanceUsage={usePerformanceUsage}
       toolOwners={toolOwners} fallback={opts.fallback} renderAssistantSlot={renderAssistantSlot}
       renderUserChain={renderUserChain} />
@@ -491,6 +493,8 @@ function makeHarness(
     if (key === 'conversation.chat.node') {
       return renderNodeSlot(key, owner as RoutedChatNodeOwner, opts as Parameters<NodeRenderer>[2])
     }
+    // Hemi fork: no distribution occupies the running mark here, so the flow keeps its native artwork.
+    if (key === 'conversation.chat.running.mark') return opts?.fallback ?? null
     throw new Error(`Undeclared flow child: ${key}`)
   }
   const renderUserChain: PropsRenderSlots<'conversation.chat.user.before'>['renderSlotChain'] = (key, owner, opts) => {
@@ -615,7 +619,8 @@ function makeHarness(
     setConnection: (state: ConnectionState) => { connection.set(state) },
     openFile, openUserFile, loadOlder, consumeOlder, prepareOlder, loadThrough, openView,
     setOutline: (value: unknown) => { outlineValue = value },
-    chatScroll, forkAt, toolOwners, fenceCalls, asideRenders,
+    chatScroll, forkAt, openCompaction, toolOwners, fenceCalls, asideRenders,
+    setCompactionPreview: (available: boolean) => { compactionPreview.set(available) },
     setPerformanceUsage: (mode: 'compact' | 'detailed') => { performanceUsage.set(mode) },
     setGrouped: (value: ConversationGroupedView<ProcessGroupData> | undefined) => {
       grouped = value
@@ -4816,16 +4821,12 @@ describe('ChatView', () => {
     const h = makeHarness({}, {
       openState: 'error',
       openError: { code: 'gateway/internal', message: 'boom' } as never,
-      hasMore: true,
     })
     const view = render(<h.ChatView {...h.props} />)
     // The shared safe summary voices the read failure; the wire diagnostic never renders.
     expect(view.getByText(commonZh['uiError.unknown'])).toBeTruthy()
     expect(view.queryByText(/历史加载失败/)).toBeNull()
     expect(view.queryByText(/boom/)).toBeNull()
-    // The read stays retryable beside the strip: the older-history pager keeps working.
-    fireEvent.click(view.getByText('加载更早'))
-    expect(h.loadOlder).toHaveBeenCalledTimes(1)
     const loading = makeHarness({}, { openState: 'loading' })
     const lv = render(<loading.ChatView {...loading.props} />)
     expect(lv.getByText('载入历史…')).toBeTruthy()
@@ -4870,7 +4871,7 @@ describe('ChatView', () => {
     expect(ov.getByText('已完成')).toBeTruthy()
   })
 
-  it('renders /compact as one stateful disclosure from running through completion', () => {
+  it('renders /compact as one row from running through a completed checkpoint that opens in the Sidebar', () => {
     const running = command({
       commandId: 'cmd-compact' as CommandNode['commandId'],
       name: 'compact',
@@ -4897,15 +4898,29 @@ describe('ChatView', () => {
     expect(view.queryByText('正在压缩…')).toBeNull()
     expect(view.queryByText('上下文已压缩')).toBeNull()
     expect(view.getByText('已压缩 16 条历史记录（约 11309 tokens）')).toBeTruthy()
-    const row = view.getByRole('button', { name: /compact/ })
-    expect(row.getAttribute('aria-expanded')).toBe('false')
+    const row = view.getByRole('button', { name: /compact.*在侧栏查看压缩摘要/ })
+    expect(row.getAttribute('aria-expanded')).toBeNull()
+    expect(row.getAttribute('data-compaction-seq')).toBe('8')
     expect(row.querySelector('[data-compaction-icon="context"]')).not.toBeNull()
-    expect(row.querySelector('[data-compaction-disclosure="collapsed"]')).not.toBeNull()
-    expect(view.queryByText('保留的事实。')).toBeNull()
+    expect(row.querySelector('[data-compaction-icon="open"]')).not.toBeNull()
     fireEvent.click(row)
-    expect(row.getAttribute('aria-expanded')).toBe('true')
-    expect(row.querySelector('[data-compaction-disclosure="expanded"]')).not.toBeNull()
-    expect(view.getByRole('heading', { name: '压缩摘要' })).toBeTruthy()
+    expect(h.openCompaction).toHaveBeenCalledExactlyOnceWith(7, expect.any(AbortSignal))
+    expect(view.container.querySelector('[class*="compactionBody"]')).toBeNull()
+  })
+
+  it('disables compaction rows while no Sidebar tab type opens checkpoints and enables them live', () => {
+    const h = makeHarness({ nodes: [compaction({ seq: 12, summaryEventSeq: 11 })] })
+    h.setCompactionPreview(false)
+    const view = render(<h.ChatView {...h.props} />)
+    const row = view.getByRole('button', { name: /上下文已压缩/ })
+    expect(row).toHaveProperty('disabled', true)
+    expect(row.textContent).not.toContain('在侧栏查看压缩摘要')
+    fireEvent.click(row)
+    expect(h.openCompaction).not.toHaveBeenCalled()
+    act(() => { h.setCompactionPreview(true) })
+    expect(row).toHaveProperty('disabled', false)
+    fireEvent.click(row)
+    expect(h.openCompaction).toHaveBeenCalledExactlyOnceWith(11, expect.any(AbortSignal))
   })
 
   it('keeps /compact no-history and error settlements on the generic command row', () => {

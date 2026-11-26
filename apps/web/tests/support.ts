@@ -213,12 +213,32 @@ export async function pinBrowserClock(page: Page): Promise<void> {
  * scenarios asserting the Chinese surface advertise
  * {@link ZH_BROWSER_LOCALE} instead. The context uses Asia/Shanghai to preserve
  * the recorded Web user-source timezone independently of the host timezone.
+ * The page {@link startWithSessionPanelHidden | starts with the Session panel hidden}.
  * @param browser - Playwright browser owning the page.
  * @param height - Viewport height; width is fixed to the lane baseline.
  * @returns the initialized page.
  */
 export async function newEnglishPage(browser: Browser, height = 1000): Promise<Page> {
-  return await browser.newPage({ viewport: { width: 1680, height }, locale: 'en-US', timezoneId: 'Asia/Shanghai' })
+  const page = await browser.newPage({ viewport: { width: 1680, height }, locale: 'en-US', timezoneId: 'Asia/Shanghai' })
+  await startWithSessionPanelHidden(page)
+  return page
+}
+
+/**
+ * Have a page start with the Session panel's docking turned off, as a reader
+ * who hid the panel has it, unless the origin already stores a choice. At the
+ * lane's baseline width the panel otherwise docks and moves the transcript
+ * aside, which a scenario about the conversation alone does not expect.
+ * @param page - a page that has not navigated yet.
+ */
+export async function startWithSessionPanelHidden(page: Page): Promise<void> {
+  await page.addInitScript((key) => {
+    try {
+      if (localStorage.getItem(key) === null) localStorage.setItem(key, 'false')
+    } catch (_storageUnavailable) {
+      // Documents without storage access, such as about:blank, have no panel to keep hidden.
+    }
+  }, SESSION_PANEL_DOCKING_KEY)
 }
 
 /**
@@ -462,22 +482,29 @@ export function conversationContextKey(kind: string, id: string): string {
   return `${kind.length}:${kind}${id}`
 }
 
-/** Open Settings through the sidebar settings button.
+/** Open Settings through the sidebar settings button, or through the account menu when a launcher replaces that button.
  * @param page - browser page with the mounted sidebar.
  * @param locale - current UI language.
  */
 export async function openSettings(page: Page, locale: 'en' | 'zh' | 'ja'): Promise<void> {
-  const labels = { en: 'Settings', zh: '设置', ja: '設定' } as const
-  const trigger = page.getByRole('button', {
-    name: labels[locale], exact: true, includeHidden: true,
-  })
-  await trigger.waitFor({ state: 'attached' })
+  const settings = { en: 'Settings', zh: '设置', ja: '設定' } as const
+  const account = { en: 'Account menu', zh: '账号菜单', ja: 'アカウントメニュー' } as const
+  const button = page.getByRole('button', { name: settings[locale], exact: true, includeHidden: true })
+  const launcher = page.getByRole('button', { name: account[locale], exact: true, includeHidden: true })
+  // Hemi fork: a composition that hides the account launcher shows the settings button instead.
+  await page.getByRole('button', { name: new RegExp(`^(?:${settings[locale]}|${account[locale]})$`), includeHidden: true })
+    .first().waitFor({ state: 'attached' })
+  const trigger = (await button.count()) > 0 ? button : launcher
   await revealNavigationDrawer(page, locale)
   if (!await trigger.isVisible()) {
     await page.getByRole('button', { name: { en: 'Open sidebar', zh: '打开侧边栏', ja: 'サイドバーを開く' }[locale], exact: true }).click()
   }
   await trigger.click()
+  if (trigger === launcher) await page.getByRole('menuitem', { name: settings[locale], exact: true }).click()
 }
+
+/** localStorage key of the Session panel's docking preference, which the header toggle flips. */
+export const SESSION_PANEL_DOCKING_KEY = 'dsh.sessionPanel.pinned'
 
 /** The Session panel toggle in the Session header. */
 export function sessionPanelToggle(page: Page): Locator {
@@ -502,7 +529,8 @@ export async function showSessionPanel(page: Page): Promise<Locator> {
   const deadline = Date.now() + 20_000
   while (true) {
     if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click()
-    if (await panel.isVisible()) break
+    // A panel playing its exit is still in the page; it does not count as shown.
+    if (await panel.and(page.locator(':not([data-session-panel-motion="exit"])')).isVisible()) break
     if (Date.now() >= deadline) throw new Error('the Session panel did not show')
     await page.waitForTimeout(250)
   }
@@ -513,12 +541,17 @@ export async function showSessionPanel(page: Page): Promise<Locator> {
 }
 
 /**
- * Close the Session panel shown over the conversation with Escape.
+ * Hide the Session panel: with Escape when it shows over the conversation,
+ * and from its toggle when it is docked beside it, which turns docking off
+ * until the toggle shows the panel again.
  * @param page - the page under test.
  */
 export async function dismissSessionPanel(page: Page): Promise<void> {
-  await page.keyboard.press('Escape')
-  await page.locator('[data-session-panel]').waitFor({ state: 'detached' })
+  const panel = page.locator('[data-session-panel]')
+  const presentation = await panel.evaluateAll(elements => elements[0]?.getAttribute('data-session-panel') ?? null)
+  if (presentation === 'docked') await sessionPanelToggle(page).click()
+  else await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
 }
 
 /**

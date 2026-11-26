@@ -82,8 +82,9 @@ async function exercise(agent: Agent, cwd: string, expected: string): Promise<vo
   const written = await fs.writeText(await fs.resolve('via-ssh.txt'), `written:${expected}`, undefined, undefined, policy)
   expect(written.after).toBe(`written:${expected}`)
   expect(await fs.readText(await fs.resolve('via-ssh.txt'))).toBe(`written:${expected}`)
+  // The shipped profile's default execution mode evaluates REPL statements; the completion value is the result.
   const program = await ptc.run(ptc.resolve({
-    program: "return { value: 42, cwd: process.cwd(), leaked: ['DSH_HOME', 'DSH_PROFILE_DIR'].filter(key => process.env[key] !== undefined) }",
+    program: "({ value: 42, cwd: process.cwd(), leaked: ['DSH_HOME', 'DSH_PROFILE_DIR'].filter(key => process.env[key] !== undefined) })",
     bindings: [], cwd, sandboxPolicy: policy,
   }))
   expect(program.error).toBeUndefined()

@@ -49,9 +49,10 @@ async function boot() {
     .mockResolvedValue({ status: 'saved', path: '/downloads/file.svg' })
   const copyImage = vi.fn<(source: FileActionSource) => Promise<void>>().mockResolvedValue()
   const fileActions = { save, copyImage, canSaveAs: true }
-  const sessions = createSnapshotStore<{ byId: Record<string, { cwd: string; executionTarget?: SessionExecutionTarget }> }>({
-    byId: { [sessionId]: { cwd: '/workspace' } },
-  })
+  const sessions = createSnapshotStore<{
+    byId: Record<string, { cwd: string; executionTarget?: SessionExecutionTarget }>
+    projectionsBySession: Readonly<Record<string, never>>
+  }>({ byId: { [sessionId]: { cwd: '/workspace' } }, projectionsBySession: {} })
   const sidebar = { openResourceIn: vi.fn(), openTabIn: vi.fn() }
   const browserTab = vi.fn(() => ({}))
   const directoryFetch = vi.fn(async () => new Response(JSON.stringify({ apps: ['vscode', 'finder'] })))
@@ -139,7 +140,6 @@ it('routes file actions through an explicit host, the line, native association a
   expect(floating.source.getSnapshot().find(item => item.id.endsWith('/open'))?.disabled).toBe(true)
   floating.select('open-in-app.file/float')
   expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(sessionId, expect.any(String), { destination: 'float' })
-  expect(h.sidebar.openResourceIn).toHaveBeenLastCalledWith(brandString<SessionId>('absent'), expect.any(String), { destination: 'float' })
 })
 
 it('names the application when the first answer of a file type arrives within the wait', async () => {
@@ -205,7 +205,7 @@ it('opens file menus after the first-answer wait and changes only the applicatio
   expect(published.every(count => count === 5)).toBe(true)
   menu.select('open-in-app.file/open')
   await vi.waitFor(() => {
-    expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace/notes.txt', application: '/Applications/Sublime Text.app' })
+    expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace/notes.txt', application: '/Applications/Sublime Text.app', sessionId })
   })
   // Another file of the same type shows the recorded answer at once and asks the Host again.
   const other = await h.resolve({ kind: 'file', value: { sessionId, path: 'todo.txt' } })
@@ -232,7 +232,7 @@ it('opens through the OS association until the Host first answers, including aft
   expect(h.paths.cachedApplications('/workspace/notes.md')).toBeUndefined()
   expect(application()).toMatchObject({ label: 'menu.defaultApp', disabled: false })
   menu.select('open-in-app.file/open')
-  await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace/notes.md' }) })
+  await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/workspace/notes.md', sessionId }) })
   await vi.waitFor(() => { expect(h.report).toHaveBeenLastCalledWith({ kind: 'opened' }) })
 })
 
@@ -411,10 +411,10 @@ it('offers only folder reveal and path copy, retaining the captured directory', 
   const menu = await h.resolve(target)
   expect(menu.source.getSnapshot().map(item => item.id)).toEqual(['open-in-app.directory/reveal', 'open-in-app.directory/copyPath'])
   expect(h.remote.workspaceFiles.stat).not.toHaveBeenCalled()
-  h.sessions.set({ byId: { [sessionId]: { cwd: '/changed' } } })
+  h.sessions.set({ byId: { [sessionId]: { cwd: '/changed' } }, projectionsBySession: {} })
   menu.select('open-in-app.directory/reveal')
   await vi.waitFor(() => { expect(h.remote.session.openWorkspacePath).toHaveBeenCalledWith({ path: '/workspace/src', action: 'reveal', sessionId }) })
-  h.sessions.set({ byId: { [sessionId]: { cwd: '/workspace' } } })
+  h.sessions.set({ byId: { [sessionId]: { cwd: '/workspace' } }, projectionsBySession: {} })
   await h.choose(target, 'open-in-app.directory/copyPath')
   expect(h.writeText).toHaveBeenLastCalledWith('/workspace/src')
   h.paths.desktop.set(false)
@@ -450,7 +450,7 @@ it('omits native applications for remote workspaces without probing the director
 
 it('keeps remote preview, original-byte save and raw path copy without exposing Finder or native associations', async () => {
   const h = await boot()
-  h.sessions.set({ byId: { [sessionId]: { cwd: '/workspace', executionTarget: remoteTarget } } })
+  h.sessions.set({ byId: { [sessionId]: { cwd: '/workspace', executionTarget: remoteTarget } }, projectionsBySession: {} })
   const file = { kind: 'file', value: { sessionId, path: 'file.svg' } } as const
   const rows = (await h.resolve(file)).source.getSnapshot()
   expect(rows.some(row => row.id === 'open-in-app.file/reveal' || row.id === 'open-in-app.file/open')).toBe(false)

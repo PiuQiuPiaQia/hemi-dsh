@@ -20,7 +20,8 @@ async function fixture(route: 'present' | 'changes', cold: boolean) {
   await writeFile(file, 'Host-private-content')
   await ctx.plugin(SessionStore)
   await ctx.plugin(LocalFileSystem, { cwd: root })
-  ctx.provide('sandboxPolicy', { workspaceRoot: root } as never)
+  // A live Session's scope root comes from the sandbox policy, as for the workspace file service's own callers.
+  ctx.provide('sandboxPolicy', { workspaceRoot: root, resolve: () => ({ workspaceRoot: root }) } as never)
   const id = SessionId('viewed')
   const target: SessionExecutionTarget = { provider: 'delivery-target' as SessionExecutionTarget['provider'], id: 'remote' as SessionExecutionTarget['id'] }
   const options = { meta: { cwd: root, executionTarget: target } }
