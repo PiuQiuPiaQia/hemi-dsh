@@ -1,8 +1,8 @@
-version: 0.2.2-rc.5
+version: 0.2.2-rc.5.20261125.1
 files:
-  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.5/hemi-dsh-0.2.2-rc.5-win-x64.exe
-    sha512: ytTEHUNFvu/ru0/86vdZno2khoJCi63OJoDG0vJj+KuAnCxFa4qs9HAF3eCzoFmW6QotkEmXiEniI8meb6BmcA==
-    size: 331264655
-path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.5/hemi-dsh-0.2.2-rc.5-win-x64.exe
-sha512: ytTEHUNFvu/ru0/86vdZno2khoJCi63OJoDG0vJj+KuAnCxFa4qs9HAF3eCzoFmW6QotkEmXiEniI8meb6BmcA==
-releaseDate: '2026-11-20T05:23:37.778Z'
+  - url: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.5.20261125.1/hemi-dsh-0.2.2-rc.5.20261125.1-win-x64.exe
+    sha512: qbzkhUvaAkKhYOmuRZvdqaw/C5jFYcUJBFTbzoQIZVGCjuocYffGKerCCh13ylV2i32Pn4ZWZbScJh2uRrOtFA==
+    size: 331268261
+path: https://github.com/PiuQiuPiaQia/hemi-dsh/releases/download/hemi-desktop-nightly-v0.2.2-rc.5.20261125.1/hemi-dsh-0.2.2-rc.5.20261125.1-win-x64.exe
+sha512: qbzkhUvaAkKhYOmuRZvdqaw/C5jFYcUJBFTbzoQIZVGCjuocYffGKerCCh13ylV2i32Pn4ZWZbScJh2uRrOtFA==
+releaseDate: '2026-11-25T15:22:51.628Z'
