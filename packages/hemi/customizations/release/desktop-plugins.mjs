@@ -1,9 +1,9 @@
 /**
- * Hemi Desktop adapter for the preinstalled plugin bundles (`dsh-pocket`, `dsh-mnemon`).
+ * Hemi Desktop adapter for preinstalled plugin bundles.
  *
- * The bundled dsh CLI installation declares both packages as direct dependencies, so the
- * native profile layer resolves them from the installation. This adapter selects them into
- * `dsh.profile.bundles` exactly once per profile: the same atomic manifest write records the
+ * The bundled dsh CLI declares the packages as direct dependencies so the native profile
+ * layer resolves them from the installation. This adapter selects each bundle into
+ * `dsh.profile.bundles` once per profile: the same atomic manifest write records the
  * Hemi-owned `hemiDesktop.preinstalledBundles` marker, so a restart, a user disable, or a
  * removal never re-adds them. Recovery marking keeps that promise when the recovery runs
  * before the first launch preparation. The staging helper copies each pinned third-party
@@ -20,7 +20,7 @@ import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { assertBundlePlatform, bundlePatchFiles, readProfileManifest } from '@deepseek-ai/dsh-app-boot'
 
 /** Package names this Hemi release preinstalls as profile bundles, in seeding order. */
-export const hemiDesktopPreinstalledBundles = Object.freeze(['dsh-pocket', 'dsh-mnemon'])
+export const hemiDesktopPreinstalledBundles = Object.freeze(['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'])
 
 /** Whether `value` is a JSON object record rather than an array or null. */
 function isRecord(value) {
@@ -180,7 +180,7 @@ export async function seedHemiDesktopBundles(location) {
  * to automatic re-seeding. A directory without a profile manifest stays without one.
  * @param {{ profileDir: string }} location Profile package directory.
  * @returns {Promise<void>} Resolves after the single atomic marker write, or immediately
- * when the profile is absent or already records both names.
+ * when the profile is absent or already records all names.
  */
 export async function markHemiDesktopBundlesSeeded(location) {
   const manifestPath = join(location.profileDir, 'package.json')

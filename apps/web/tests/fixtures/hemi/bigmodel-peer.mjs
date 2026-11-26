@@ -5,7 +5,10 @@ import { createHash, createHmac, hkdfSync, createCipheriv, generateKeyPairSync, 
 const jwt = (payload, signature) => `${Buffer.from(JSON.stringify({ alg: 'HS256', sign_type: 'SIGN' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.${signature}`;
 export function createBigModelTestProvider() {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
-  const state = { polls: 0, pending: 0, issued: 0, projectTokenTtlSeconds: 18000, handshakes: 0, handshakeStatus: 200, modelCalls: 0, rejectSignatures: 0, keys: [{ name: 'hemi-coding-plan', apiKey: 'hemi-test-key' }], mapping: undefined, pollStatus: 'ready', authorizeUrl: 'https://bigmodel.cn/login?appId=zcode&state=synthetic', rawFailure: false };
+  const authorizeUrl = `https://zchat.z.ai/api/oauth/authorize?${new URLSearchParams({
+    client_id: 'synthetic-client', state: 'synthetic', redirect_uri: 'https://zcode.z.ai/api/v1/oauth/cli/callback/zai_cn',
+  })}`;
+  const state = { polls: 0, pending: 0, issued: 0, projectTokenTtlSeconds: 18000, handshakes: 0, handshakeStatus: 200, modelCalls: 0, rejectSignatures: 0, keys: [{ name: 'hemi-coding-plan', apiKey: 'hemi-test-key' }], mapping: undefined, pollStatus: 'ready', authorizeUrl, rawFailure: false };
   const zcodeToken = jwt({ exp: Math.floor(Date.now() / 1000) + 86400 }, 'synthetic-zcode');
   let projectToken;
   const restoreProjectToken = candidate => {
@@ -20,13 +23,18 @@ export function createBigModelTestProvider() {
     const headers = new Headers(init.headers), body = JSON.parse(init.body || '{}');
     const envelope = data => Response.json({ code: 0, data });
     if (url.pathname === '/api/v1/oauth/cli/init') {
-      assert.equal(body.provider, 'bigmodel'); assert.match(headers.get('authorization'), /^Bearer [a-f0-9]{64}$/);
-      return envelope({ flow_id: 'synthetic-flow', authorize_url: state.authorizeUrl, expires_at: Math.floor(Date.now() / 1000) + 300, poll_interval_sec: 1 });
+      assert.equal(body.provider, 'zai_cn'); assert.match(headers.get('authorization'), /^Bearer [a-f0-9]{64}$/);
+      const now = Math.floor(Date.now() / 1000);
+      return envelope({ flow_id: 'synthetic-flow', authorize_url: state.authorizeUrl, expires_at: now + 300, server_time: now, poll_interval_sec: 1 });
     }
     if (url.pathname === '/api/v1/oauth/cli/poll/synthetic-flow') {
       state.polls++;
       if (state.polls <= state.pending) return envelope({ status: 'pending' });
-      return envelope(state.pollStatus === 'ready' ? { status: 'ready', token: zcodeToken, bigmodel: { access_token: 'synthetic-bigmodel-login' }, user: { user_id: 'synthetic-user' } } : { status: state.pollStatus });
+      return envelope(state.pollStatus === 'ready' ? {
+        status: 'ready', token: zcodeToken, user: { user_id: 'synthetic-user' },
+        zai: { user_id: 'synthetic-cn', access_token: 'synthetic-cn-login' },
+        bigmodel: { customer_id: 'synthetic-customer', access_token: 'synthetic-bigmodel-login' },
+      } : { status: state.pollStatus });
     }
     if (url.pathname === '/api/biz/customer/getCustomerInfo') {
       assert.equal(headers.get('authorization'), 'synthetic-bigmodel-login');

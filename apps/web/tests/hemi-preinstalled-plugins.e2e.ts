@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { FiberState } from '@deepseek-ai/cordis'
 import { chromium } from 'playwright'
 import { expect, it, onTestFinished } from 'vitest'
 import {
@@ -83,4 +84,52 @@ it('loads the original preinstalled bundles and keeps their bundled switches ava
   await page.screenshot({ path: join(screenshots, 'plugins-390.png'), animations: 'disabled' })
   expect(tripwire.pageErrors).toEqual([])
   expect(await readFile(HISTORY, 'utf8')).toBe(originalHistory)
+})
+
+it('loads the preinstalled Browser bundle without setup', async () => {
+  const bundleName = 'dsh-native-browser'
+  const scratch = await mkdtemp(join(tmpdir(), 'hemi-preinstalled-browser-'))
+  onTestFinished(() => rm(scratch, { recursive: true, force: true }))
+  const harnessHome = join(scratch, 'home')
+  // The scaffold stores its process overlay under profiles/scaffold even for the Desktop profile.
+  await mkdir(join(harnessHome, 'profiles', 'scaffold'), { recursive: true })
+  const overlay = join(scratch, 'desktop.patch.yml')
+  await writeFile(overlay, [
+    '- id: hemi-model-settings',
+    '  config:',
+    '    desktopStartup: false',
+    '- id: native-browser',
+    '  config:',
+    `    runtimeDirectory: ${JSON.stringify(join(scratch, 'browser'))}`,
+    '',
+  ].join('\n'))
+  const scaffold = await launchWebScaffold({
+    developerTools: false, extraOverlayPath: overlay, harnessHome,
+    profile: { name: 'desktop', packages: [], bundles: [bundleName], hmr: false },
+  })
+  onTestFinished(() => scaffold.close())
+  const bundle = (await scaffold.ctx.pluginManager.listBundles()).find(candidate => candidate.name === bundleName)
+  expect(bundle).toMatchObject({
+    availability: 'installation', installed: false, official: false, enabled: true, removable: false,
+  })
+  expect(bundle).not.toHaveProperty('update')
+  const host = [...scaffold.ctx.loader.entries()].find(entry => entry.options.id === 'native-browser')
+  expect(host?.fiber?.state).toBe(FiberState.ACTIVE)
+
+  const browser = await chromium.launch()
+  onTestFinished(() => browser.close())
+  const page = await browser.newPage({ locale: ZH_BROWSER_LOCALE, viewport: { width: 1280, height: 820 }, reducedMotion: 'reduce' })
+  const tripwire = watchConsole(page)
+  await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
+  const sidebar = page.getByRole('navigation', { name: '全局面板' })
+  // Opening Browser would read Chrome's native-host manifest outside the test runtime directory.
+  await sidebar.getByRole('button', { name: '浏览器', exact: true }).waitFor()
+  await sidebar.getByRole('button', { name: '插件', exact: true }).click()
+  const selector = `[data-plugin-package="${bundleName}"]`
+  const card = page.locator('[data-plugin-panel]').locator(selector)
+  await card.waitFor()
+  expect(await card.getByRole('switch').isEnabled()).toBe(true)
+  await compareOrRefreshGolden(join(EXPECTED, `${bundleName}.expected.md`),
+    await captureStableAria(page, selector, scaffold.workspaceCwd), webSnapshotMode())
+  expect(tripwire.pageErrors).toEqual([])
 })

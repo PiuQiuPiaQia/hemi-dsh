@@ -151,7 +151,9 @@ Welcome 加载共享 Toast 的配色和阴影变量，挂载在 body 下的通�
 
 Electron 拥有 `$DSH_HOME/profiles/desktop`。其 `dependencies` 包含 pnpm 安装的包；`dsh.profile.bundles` 包含内置 bundle，后接已启用插件。签名应用从 `resources/app.asar/dsh` 提供 dsh、私有 Desktop Host 及其生产依赖。打包应用选择 runtime profile 解析，不创建包链接；开发 profile 使用文件系统链接。宿主与插件在同一个 Electron Node 模式进程中执行；Desktop 不启用 `--preserve-symlinks`。CLI 不能启动此 profile。Desktop 内置命令可在应用退出后管理其插件；npm 安装的 dsh 不能修改它。
 
-Hemi Desktop 预装原版 `dsh-pocket` 与 `dsh-mnemon`，启动时不运行包管理器。首次准备仅选择一次；已有的停用状态、用户覆盖和插件数据保持不变。可在插件页关闭或重新开启，预装文件与版本随 Hemi 发版更新，恢复流程会让它们保持关闭。[Hemi 适配器](../../packages/hemi/customizations/README.zh.md#preinstalled-plugins)负责 profile 初始化和 [Pocket 源码分发](../cli/third-party/dsh-pocket/README.zh.md)。
+Hemi Desktop 预装原版 `dsh-pocket`、`dsh-mnemon` 和 `dsh-native-browser`，启动时不运行包管理器。首次准备仅选择每个 bundle 一次，已有的停用状态、用户覆盖和插件数据保持不变。可在插件页关闭或重新开启。即使 profile 中另有一份副本，预装文件和版本仍随 Hemi 发版更新。恢复流程会让它们保持关闭。[Hemi 适配器](../../packages/hemi/customizations/README.zh.md#preinstalled-plugins)负责 profile 初始化和 [Pocket 源码分发](../cli/third-party/dsh-pocket/README.zh.md)。
+
+在 macOS 上，从侧栏打开「浏览器」，按提示连接 Chrome。Hemi 不会在启动时配置浏览器服务或安装 Chrome 扩展。插件的 Chrome 配置引导仅支持 macOS。
 
 应用 preload 只向 `dsh-app://app` 文档暴露启动就绪、致命启动失败上报、原生目录选择、用于 composer 路径引用的 `__DSH_HOST_PATHS__` 桥接和租约范围内的 Browser 桥接。同一个 preload 通过 `dshDesktop.deviceInfo()` 转发主进程采集的机器描述，按 `name=value` 字段以 `; ` 分隔：`platform`、`os`、`app_arch`（应用二进制实际运行的架构，模拟运行时与硬件架构不同）、`cpu` 和 `memory_gib`（物理内存总量，GiB，保留一位小数）。取值不可用时省略对应字段。该描述不包含主机名、用户名或序列号。产品页面还获得 Desktop 标记、更新展示数据和打开原生确认的操作，不能选择安装产物或授权安装。插件管理使用 Web 应用经过认证的 HTTP API；Electron 在 `dsh-app://shell/` 本地提供更新弹窗文档和资源，不依赖 Host 就绪。Electron 不提供插件管理 IPC 或独立管理页面。任何渲染进程都不会获得文件系统访问、原始 Electron IPC、shell 或任意 pnpm 参数。
 

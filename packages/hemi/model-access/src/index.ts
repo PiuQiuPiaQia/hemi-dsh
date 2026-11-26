@@ -34,7 +34,7 @@ import type { LoginState, NewApiBrowserCommit, NewApiBrowserCommitResult, NewApi
 
 const SUBSCRIPTIONS = [
   { id: 'vvcode', name: 'VVCode', hosts: [] },
-  { id: BIGMODEL_PROVIDER, name: 'GLM Coding Plan', hosts: ['bigmodel.cn', 'www.bigmodel.cn'] },
+  { id: BIGMODEL_PROVIDER, name: 'GLM Coding Plan', hosts: ['zchat.z.ai'] },
   { id: 'openai-codex', name: 'ChatGPT Codex', hosts: ['auth.openai.com'] },
   { id: 'anthropic', name: 'Claude', hosts: ['claude.ai', 'console.anthropic.com', 'platform.claude.com'] },
   { id: 'github-copilot', name: 'GitHub Copilot', hosts: ['github.com'] },

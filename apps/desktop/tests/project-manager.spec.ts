@@ -351,8 +351,9 @@ describe('desktop link-backend projections', () => {
   })
 })
 
-/** Preinstalled package names a Hemi runtime declares, in seeding order. */
-const PREINSTALLED = ['dsh-pocket', 'dsh-mnemon'] as const
+/** Preinstalled packages and versions the test runtime declares, in seeding order. */
+const PREINSTALLED = { 'dsh-pocket': '2.13.0', 'dsh-mnemon': '0.5.45', 'dsh-native-browser': '0.2.4' } as const
+const PREINSTALLED_NAMES = Object.keys(PREINSTALLED)
 
 interface DesktopManifest {
   dependencies: Record<string, string>
@@ -371,12 +372,12 @@ function installationAnchor(manager: DesktopProjectManager): string {
   return join(manager.runtime.dsh, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
 }
 /** Declare the preinstalled packages in the CLI manifest and install them into the runtime. */
-function seedPreinstalledRuntime(dsh: string, versions: readonly string[] = ['2.13.0', '0.5.45']): void {
+function seedPreinstalledRuntime(dsh: string): void {
   const manifestPath = join(dsh, 'node_modules', '@deepseek-ai/dsh', 'package.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { dependencies: Record<string, string> }
-  for (const [index, name] of PREINSTALLED.entries()) {
-    manifest.dependencies[name] = versions[index]!
-    const directory = writePackage(join(dsh, 'node_modules'), name, { version: versions[index], dsh: { bundle: { patch: './bundle.yml' } } })
+  for (const [name, version] of Object.entries(PREINSTALLED)) {
+    manifest.dependencies[name] = version
+    const directory = writePackage(join(dsh, 'node_modules'), name, { version, dsh: { bundle: { patch: './bundle.yml' } } })
     writeFileSync(join(directory, 'bundle.yml'), '[]\n')
   }
   writeFileSync(manifestPath, JSON.stringify(manifest))
@@ -392,11 +393,11 @@ describe('desktop preinstalled plugin seeding', () => {
     const { manager } = hemiSetup()
     await manager.applyRelease()
     const manifest = readDesktopManifest(manager)
-    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PREINSTALLED])
-    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PREINSTALLED_NAMES])
+    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED_NAMES])
     expect(manifest.dependencies).toEqual({})
     const loaded = loadProfileDirectory('dsh', manager.paths.profile, installationAnchor(manager))
-    expect(loaded.layers.map(layer => layer.packageName)).toEqual(expect.arrayContaining([...PREINSTALLED]))
+    expect(loaded.layers.map(layer => layer.packageName)).toEqual(expect.arrayContaining([...PREINSTALLED_NAMES]))
     expect(loaded.skippedBundles).toEqual([])
 
     const before = readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')
@@ -405,33 +406,45 @@ describe('desktop preinstalled plugin seeding', () => {
     expect(readDesktopManifest(manager).dsh.profile.bundles.filter(name => name === 'dsh-pocket')).toHaveLength(1)
   })
 
-  it('upgrades a legacy profile without duplicating a user-selected preinstalled bundle', async () => {
-    const { manager } = setup()
+  it('adds the browser bundle to an upgraded profile without re-enabling Pocket', async () => {
+    const { manager } = hemiSetup()
     await manager.applyRelease()
     const manifest = readDesktopManifest(manager)
-    manifest.dsh.profile.bundles.push('dsh-pocket')
+    manifest.dsh.profile.bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-mnemon']
+    manifest.hemiDesktop = { preinstalledBundles: ['dsh-pocket', 'dsh-mnemon'] }
     writeDesktopManifest(manager, manifest)
-    seedPreinstalledRuntime(manager.runtime.dsh)
 
     await manager.applyRelease()
 
-    expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-pocket', 'dsh-mnemon'])
+    const upgraded = readDesktopManifest(manager)
+    expect(upgraded.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-mnemon', 'dsh-native-browser'])
+    expect(upgraded.hemiDesktop?.preinstalledBundles).toEqual(PREINSTALLED_NAMES)
   })
 
-  it('leaves a user-installed disabled preinstalled package disabled', async () => {
+  it.each([true, false])('preserves the profile dependency and selection of a user-installed browser bundle (enabled: %s)', async (enabled) => {
     const { manager } = setup()
     await manager.applyRelease()
     const manifest = readDesktopManifest(manager)
-    manifest.dependencies['dsh-pocket'] = '2.13.0'
+    manifest.dependencies['dsh-native-browser'] = '0.2.3'
+    if (enabled) manifest.dsh.profile.bundles.push('dsh-native-browser')
     writeDesktopManifest(manager, manifest)
+    const localPackage = writePackage(join(manager.paths.profile, 'node_modules'), 'dsh-native-browser', {
+      version: '0.2.3', dsh: { bundle: { patch: './bundle.yml' } },
+    })
+    const localPatch = join(localPackage, 'bundle.yml')
+    writeFileSync(localPatch, '[]\n')
     seedPreinstalledRuntime(manager.runtime.dsh)
 
     await manager.applyRelease()
 
     const seeded = readDesktopManifest(manager)
-    expect(seeded.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-mnemon'])
-    expect(seeded.dependencies).toEqual({ 'dsh-pocket': '2.13.0' })
-    expect(seeded.hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(readFileSync(localPatch, 'utf8')).toBe('[]\n')
+    expect(seeded.dsh.profile.bundles).toEqual([...manifest.dsh.profile.bundles, 'dsh-pocket', 'dsh-mnemon'])
+    expect(seeded.dependencies).toEqual({ 'dsh-native-browser': '0.2.3' })
+    expect(seeded.hemiDesktop?.preinstalledBundles).toEqual(PREINSTALLED_NAMES)
+    const loaded = loadProfileDirectory('dsh', manager.paths.profile, installationAnchor(manager))
+    expect(loaded.layers.find(layer => layer.packageName === 'dsh-native-browser')?.packageDir)
+      .toBe(enabled ? join(manager.runtime.dsh, 'node_modules', 'dsh-native-browser') : undefined)
   })
 
   it('preserves user configuration, dependency versions, patches, and lockfiles while seeding', async () => {
@@ -451,7 +464,7 @@ describe('desktop preinstalled plugin seeding', () => {
     const seeded = readDesktopManifest(manager)
     expect(seeded.dependencies).toEqual({ 'my-plugin': '3.2.1' })
     expect(seeded.userTuning).toEqual({ keep: true })
-    expect(seeded.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PREINSTALLED])
+    expect(seeded.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...PREINSTALLED_NAMES])
     expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).toBe('# my patch\n[]\n')
     expect(readFileSync(join(profile, 'pnpm-lock.yaml'), 'utf8')).toBe('lockfileVersion: 9.0\n')
   })
@@ -461,7 +474,7 @@ describe('desktop preinstalled plugin seeding', () => {
     await manager.applyRelease()
     await manager.disableAllPlugins()
     expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
-    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED_NAMES])
 
     await manager.applyRelease()
 
@@ -473,7 +486,7 @@ describe('desktop preinstalled plugin seeding', () => {
     await manager.applyRelease()
     seedPreinstalledRuntime(manager.runtime.dsh)
     await manager.disableAllPlugins()
-    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED_NAMES])
 
     await manager.applyRelease()
 
@@ -489,7 +502,7 @@ describe('desktop preinstalled plugin seeding', () => {
 
     expect(backupPath).toBeTruthy()
     expect(sanitizeCheckpoints.markedAtEntry).toEqual([true])
-    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED])
+    expect(readDesktopManifest(manager).hemiDesktop?.preinstalledBundles).toEqual([...PREINSTALLED_NAMES])
     expect(readDesktopManifest(manager).dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'])
 
     seedPreinstalledRuntime(manager.runtime.dsh)

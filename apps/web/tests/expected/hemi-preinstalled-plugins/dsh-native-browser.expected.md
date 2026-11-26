@@ -1,0 +1,5 @@
+- listitem:
+  - button "查看 dsh-native-browser": dsh-native-browser
+  - text: DSH 浏览器插件（Browser）：以 Codex 浏览器操作为体验参考，直接使用你已登录的 Chrome 浏览器，平滑虚拟鼠标、页面读取、填表与截图。安装后点侧栏「浏览器」连接 Chrome。欢迎 Star 与参与共创。
+  - status
+  - switch "启用 dsh-native-browser" [checked]

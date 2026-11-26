@@ -8,6 +8,40 @@ import { createBigModelTestProvider } from './fixtures/hemi/bigmodel-peer.mjs'
 import { captureStableAria, compareOrRefreshGolden, launchWebScaffold, webSnapshotMode } from './scaffold.ts'
 import { ZH_BROWSER_LOCALE } from './support.ts'
 
+it('publishes the Z.ai China authorization link before saving a GLM grant', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'hemi-glm-login-test-'))
+  onTestFinished(() => rm(scratch, { recursive: true, force: true }))
+  const patch = join(scratch, 'hemi.patch.yml')
+  await writeFile(patch, '- id: hemi-model-access\n  disabled: false\n')
+  const peer = createBigModelTestProvider()
+  const finishPoll = Promise.withResolvers<undefined>()
+  const realFetch = globalThis.fetch
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const request = new Request(input, init)
+    const url = new URL(request.url)
+    if (url.origin !== 'https://zcode.z.ai' && url.origin !== 'https://bigmodel.cn') return realFetch(input, init)
+    if (url.pathname === '/api/v1/oauth/cli/poll/synthetic-flow') await finishPoll.promise
+    const response = peer.reply(url.href, { headers: request.headers, body: await request.text(), method: request.method })
+    if (response === null) throw new Error('Unexpected GLM authorization endpoint')
+    return response
+  })
+  onTestFinished(() => { fetch.mockRestore() })
+  const scaffold = await launchWebScaffold({ developerTools: false, extraOverlayPath: patch })
+  onTestFinished(() => scaffold.close())
+  const access = scaffold.ctx.hemiModelAccess
+  await access.start('bigmodel')
+  try {
+    await expect.poll(() => access.state()?.url).toMatch(/^https:\/\/zchat\.z\.ai\/api\/oauth\/authorize\?/u)
+    expect(new URL(access.state()?.url ?? '').searchParams.get('redirect_uri')).toBe('https://zcode.z.ai/api/v1/oauth/cli/callback/zai_cn')
+    expect(peer.state.issued).toBe(0)
+  } finally {
+    finishPoll.resolve(undefined)
+  }
+  await expect.poll(() => access.state()?.phase).toBe('connected')
+  expect((await scaffold.ctx.credentials.describeRecord(credentialKey('llm-pi-ai', 'bigmodel'))).kind).toBe('grant')
+  expect(peer.state.issued).toBe(1)
+})
+
 it('authorizes a subscription, shows its quota, and imports a New API token from the API dialog', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'hemi-model-access-test-'))
   onTestFinished(() => rm(scratch, { recursive: true, force: true }))
@@ -207,8 +241,9 @@ it('authorizes a subscription, shows its quota, and imports a New API token from
 
   const glm = panel.getByRole('region', { name: 'GLM Coding Plan', exact: true })
   await glm.getByRole('button', { name: '登录授权' }).click()
-  const glmLink = await glm.getByRole('link', { name: '打开授权页面' }).getAttribute('href')
-  expect(new URL(glmLink ?? '').hostname).toBe('bigmodel.cn')
+  const glmLink = new URL(await glm.getByRole('link', { name: '打开授权页面' }).getAttribute('href') ?? '')
+  expect(`${glmLink.origin}${glmLink.pathname}`).toBe('https://zchat.z.ai/api/oauth/authorize')
+  expect(glmLink.searchParams.get('redirect_uri')).toBe('https://zcode.z.ai/api/v1/oauth/cli/callback/zai_cn')
   await glm.getByText('剩余 72%', { exact: true }).waitFor()
   const refreshQuota = glm.getByRole('button', { name: '刷新额度', exact: true })
   expect(await refreshQuota.innerText()).toBe('')

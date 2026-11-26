@@ -34,7 +34,7 @@ kind: "package-library"
 
 ## 预装插件
 
-纯 Node 入口 `/desktop-plugins` 为 CLI 安装声明了两个包的 Desktop profile 一次性选择原版 `dsh-pocket` 和 `dsh-mnemon` bundle。适配器在 Desktop profile 锁内，将选择结果和 `hemiDesktop.preinstalledBundles` 标记原子写入同一个 manifest。已有选择不重复添加；profile 中已安装但未选择的版本保持关闭。用户补丁、依赖版本、锁文件和插件数据不会重写，后续启动及恢复流程不重新启用用户已关闭的 bundle。
+当 CLI 安装声明了完整的[预装 bundle](../../../apps/desktop/README.zh.md#installation-ownership) 清单时，纯 Node 入口 `/desktop-plugins` 为 Desktop profile 仅选择每个 bundle 一次。适配器在 Desktop profile 锁内，将选择结果和 `hemiDesktop.preinstalledBundles` 标记原子写入同一个 manifest。已有选择不重复添加；profile 中已安装但未选择的版本保持关闭。用户补丁、依赖版本、锁文件和插件数据不会重写，后续启动及恢复流程不重新启用用户已关闭的 bundle。
 
 CLI manifest 固定随包版本。其他 profile 携带包，但不自动选择其 bundle。插件管理器沿用现有安装归属：预装包可关闭或开启，不能从签名运行时卸载，随 Hemi 发版更新。Pocket 保留原有局域网与密码行为及已保存的隧道偏好；全新安装不会启动公网隧道。Mnemon 使用自己的工具、设置和存储，不导入 Hemi 记忆或手机配对数据。
 

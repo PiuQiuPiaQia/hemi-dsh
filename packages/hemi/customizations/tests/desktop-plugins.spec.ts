@@ -115,7 +115,7 @@ function expectSeedFailureWithoutNodePath(profileDir: string, installAnchor: str
 }
 
 describe('seedHemiDesktopBundles', () => {
-  it('selects both packages once, records the marker in the same write, and keeps them across restarts', async () => {
+  it('selects the preinstalled packages once, records the marker in the same write, and keeps them across restarts', async () => {
     const root = temporaryRoot()
     const profileDir = join(root, 'profile')
     mkdirSync(profileDir)
@@ -124,8 +124,8 @@ describe('seedHemiDesktopBundles', () => {
 
     await seedHemiDesktopBundles({ profileDir, installAnchor: anchor })
     const manifest = readManifest(profileDir)
-    expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-pocket', 'dsh-mnemon'])
-    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon'])
+    expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'])
+    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'])
     expect(manifest.userNote).toBe('retain')
 
     const before = readManifestText(profileDir)
@@ -150,8 +150,8 @@ describe('seedHemiDesktopBundles', () => {
     writeManifest(profileDir, profileFixture({ dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'dsh-pocket', '@deepseek-ai/dsh-web-app'] } } }))
     await seedHemiDesktopBundles({ profileDir, installAnchor: runtimeFixture(join(root, 'runtime')) })
     expect(readManifest(profileDir).dsh?.profile?.bundles)
-      .toEqual(['@deepseek-ai/dsh-base', 'dsh-pocket', '@deepseek-ai/dsh-web-app', 'dsh-mnemon'])
-    expect(readManifest(profileDir).hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon'])
+      .toEqual(['@deepseek-ai/dsh-base', 'dsh-pocket', '@deepseek-ai/dsh-web-app', 'dsh-mnemon', 'dsh-native-browser'])
+    expect(readManifest(profileDir).hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'])
   })
 
   it('records an installed but unselected dependency as the user disable decision it is', async () => {
@@ -161,9 +161,9 @@ describe('seedHemiDesktopBundles', () => {
     writeManifest(profileDir, profileFixture({ dependencies: { 'dsh-pocket': '2.13.0' } }))
     await seedHemiDesktopBundles({ profileDir, installAnchor: runtimeFixture(join(root, 'runtime')) })
     const manifest = readManifest(profileDir)
-    expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-mnemon'])
+    expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-mnemon', 'dsh-native-browser'])
     expect(manifest.dependencies).toEqual({ 'dsh-pocket': '2.13.0' })
-    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon'])
+    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'])
 
     const before = readManifestText(profileDir)
     await seedHemiDesktopBundles({ profileDir, installAnchor: join(root, 'runtime', 'node_modules', '@deepseek-ai', 'dsh', 'package.json') })
@@ -247,7 +247,7 @@ describe('seedHemiDesktopBundles', () => {
     mkdirSync(profileDir)
     writeManifest(profileDir, profileFixture({ hemiDesktop: { note: 'keep-me' } }))
     await seedHemiDesktopBundles({ profileDir, installAnchor: runtimeFixture(join(root, 'runtime')) })
-    expect(readManifest(profileDir).hemiDesktop).toEqual({ note: 'keep-me', preinstalledBundles: ['dsh-pocket', 'dsh-mnemon'] })
+    expect(readManifest(profileDir).hemiDesktop).toEqual({ note: 'keep-me', preinstalledBundles: ['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'] })
   })
 })
 
@@ -266,7 +266,7 @@ describe('markHemiDesktopBundlesSeeded', () => {
     const before = readManifestText(profileDir)
     await markHemiDesktopBundlesSeeded({ profileDir })
     const manifest = readManifest(profileDir)
-    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon'])
+    expect(manifest.hemiDesktop?.preinstalledBundles).toEqual(['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'])
     expect(manifest.dsh?.profile?.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'plugin'])
 
     await seedHemiDesktopBundles({ profileDir, installAnchor: runtimeFixture(join(root, 'runtime')) })
@@ -278,7 +278,7 @@ describe('markHemiDesktopBundlesSeeded', () => {
     const root = temporaryRoot()
     const profileDir = join(root, 'profile')
     mkdirSync(profileDir)
-    writeManifest(profileDir, profileFixture({ hemiDesktop: { preinstalledBundles: ['dsh-pocket', 'dsh-mnemon'] } }))
+    writeManifest(profileDir, profileFixture({ hemiDesktop: { preinstalledBundles: ['dsh-pocket', 'dsh-mnemon', 'dsh-native-browser'] } }))
     const before = readManifestText(profileDir)
     await markHemiDesktopBundlesSeeded({ profileDir })
     expect(readManifestText(profileDir)).toBe(before)
@@ -321,7 +321,7 @@ function runtimePackageFixture(runtimeDir: string, version = '1.0.0'): void {
 }
 
 describe('stageHemiDesktopPluginSources', () => {
-  it('includes corresponding source in the shared CLI publication and pins both original packages', () => {
+  it('includes corresponding source in the shared CLI publication and pins every preinstalled package', () => {
     const cli = JSON.parse(readFileSync(new URL('../../../../apps/cli/package.json', import.meta.url), 'utf8')) as {
       files: string[]
       dependencies: Record<string, string>
@@ -329,7 +329,7 @@ describe('stageHemiDesktopPluginSources', () => {
     const upstream = JSON.parse(readFileSync(join(canonicalDistribution, 'upstream.json'), 'utf8')) as { version: string }
     expect(cli.files).toContain('third-party')
     expect(cli.dependencies['dsh-pocket']).toBe(upstream.version)
-    expect(cli.dependencies['dsh-mnemon']).toMatch(/^\d+\.\d+\.\d+$/)
+    for (const name of hemiDesktopPreinstalledBundles) expect(cli.dependencies[name]).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
   it('stages the CLI-carried dsh-pocket distribution through the default sources root with a verified archive', () => {

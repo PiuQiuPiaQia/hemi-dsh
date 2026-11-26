@@ -99,6 +99,7 @@ External packages installed for runtime use or embedded in distributed Host or b
 | [`diff`](https://github.com/kpdecker/jsdiff) | BSD-3-Clause |
 | [`dompurify`](https://github.com/cure53/DOMPurify) | (MPL-2.0 OR Apache-2.0) |
 | [`dsh-mnemon`](https://github.com/omdsh-dev/dsh-mnemon) | MIT |
+| [`dsh-native-browser`](https://github.com/longmiaoo/dsh-native-browser) | MIT |
 | [`dsh-pocket`](https://github.com/shaobeichen/dsh-pocket) | GPL-2.0 |
 | [`electron-updater`](https://github.com/electron-userland/electron-builder) | MIT |
 | [`eslint-scope`](https://github.com/eslint/js) | BSD-2-Clause |

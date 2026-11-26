@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { LlmError } from '@deepseek-ai/dsh-llm';
 import { MODEL_PREFLIGHT, modelConnectionError } from './model-transport.mjs';
 
 // Protocol references: Z.ai's published CLI OAuth and project access token APIs.
@@ -135,18 +136,31 @@ export function bigModelCodingAuth({ fetchImpl = (...args) => globalThis.fetch(.
       const signal = interaction.signal;
       const pollToken = randomBytes(32).toString('hex');
       const headers = { Authorization: `Bearer ${pollToken}`, 'Content-Type': 'application/json' };
-      const flow = await codingJson(fetchImpl, `${ZCODE_ORIGIN}/api/v1/oauth/cli/init`, { method: 'POST', headers, signal, body: JSON.stringify({ provider: 'bigmodel' }) });
-      if (!validText(flow?.flow_id) || !validText(flow?.authorize_url) || !Number.isFinite(flow?.expires_at) || !Number.isFinite(flow?.poll_interval_sec) || flow.poll_interval_sec < 1) throw new Error('GLM 编程套餐授权信息无效，请重新登录。');
-      const url = new URL(flow.authorize_url);
-      if (url.protocol !== 'https:' || url.username || url.password || !['bigmodel.cn', 'www.bigmodel.cn'].includes(url.hostname)) throw new Error('GLM 编程套餐授权地址无效。');
-      const redirect = new URL('/app/oauth/login', ZCODE_ORIGIN);
-      redirect.search = new URLSearchParams({ redirect: 'zcode://oauth/callback', app_version: ZCODE_VERSION });
-      url.searchParams.set('redirect', redirect.href);
-      interaction.notify({ type: 'auth_url', url: url.href });
-      const deadline = Math.min(flow.expires_at * 1000, Date.now() + 300000);
-      for (;;) {
+      const flow = await codingJson(fetchImpl, `${ZCODE_ORIGIN}/api/v1/oauth/cli/init`, {
+        method: 'POST', headers, signal, body: JSON.stringify({ provider: 'zai_cn' }),
+      });
+      if (!validText(flow?.flow_id) || !validText(flow?.authorize_url) || !Number.isFinite(flow?.expires_at)
+        || !Number.isFinite(flow?.poll_interval_sec) || flow.poll_interval_sec < 1) {
+        throw new LlmError('GLM 编程套餐授权信息无效，请重新登录。', 'AUTH');
+      }
+      const url = URL.parse(flow.authorize_url);
+      const callbacks = url?.searchParams.getAll('redirect_uri');
+      if (!url || url.origin !== 'https://zchat.z.ai' || url.pathname !== '/api/oauth/authorize'
+        || url.username || url.password || !validText(url.searchParams.get('state'))
+        || callbacks?.length !== 1 || callbacks[0] !== `${ZCODE_ORIGIN}/api/v1/oauth/cli/callback/zai_cn`) {
+        throw new LlmError('GLM 编程套餐授权地址无效，请重新登录。', 'AUTH');
+      }
+      // The provider redeems the code at its HTTPS callback; Hemi only polls this flow.
+      const serverNow = Number.isFinite(flow.server_time) ? flow.server_time : Date.now() / 1000;
+      const deadline = performance.now() + Math.min((flow.expires_at - serverNow) * 1000, 300000);
+      const checkFlow = () => {
         signal.throwIfAborted();
-        if (Date.now() >= deadline) throw new Error('GLM 编程套餐授权已超时，请重新登录。');
+        if (performance.now() >= deadline) throw new LlmError('GLM 编程套餐授权已超时，请重新登录。', 'AUTH');
+      };
+      checkFlow();
+      interaction.notify({ type: 'auth_url', url: flow.authorize_url });
+      for (;;) {
+        checkFlow();
         let result;
         try {
           const response = await fetchImpl(`${ZCODE_ORIGIN}/api/v1/oauth/cli/poll/${encodeURIComponent(flow.flow_id)}`, { headers, redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]) });
@@ -163,9 +177,18 @@ export function bigModelCodingAuth({ fetchImpl = (...args) => globalThis.fetch(.
           signal.throwIfAborted();
           if (/^GLM 编程套餐/.test(error?.message)) throw error;
         }
+        checkFlow();
         if (result?.status === 'ready') {
-          const loginToken = result.bigmodel?.access_token;
-          if (!validText(loginToken) || !validText(result.token)) throw new Error('GLM 编程套餐授权凭据无效，请重新登录。');
+          if (!validText(result.token) || !validText(result.user?.user_id) || !validText(result.zai?.access_token)) {
+            throw new LlmError('GLM 编程套餐授权凭据无效，请重新登录。', 'AUTH');
+          }
+          if (result.bigmodel == null) {
+            throw new LlmError('当前账号未关联 BigModel，请完成关联后重新授权 GLM 编程套餐。', 'AUTH');
+          }
+          const loginToken = result.bigmodel.access_token;
+          if (!validText(loginToken) || !validText(result.bigmodel.customer_id)) {
+            throw new LlmError('GLM 编程套餐的 BigModel 关联凭据无效，请重新授权。', 'AUTH');
+          }
           interaction.notify({ type: 'progress', message: '正在获取编程套餐模型' });
           const location = await locateProject(fetchImpl, loginToken, signal);
           // Pi's refresh field holds the account authorization used to renew the
@@ -173,7 +196,7 @@ export function bigModelCodingAuth({ fetchImpl = (...args) => globalThis.fetch(.
           return projectCredential(fetchImpl, { type: 'oauth', authSessionId: randomUUID(), refresh: loginToken, zcodeToken: result.token,
             deviceId: await options.getDeviceId(), ...location }, signal);
         }
-        await delay(Math.min(flow.poll_interval_sec * 1000, Math.max(1, deadline - Date.now())), undefined, { signal });
+        await delay(Math.min(flow.poll_interval_sec * 1000, Math.max(1, deadline - performance.now())), undefined, { signal });
       }
     },
     async refresh(credential, signal) { return projectCredential(fetchImpl, credential, signal); },

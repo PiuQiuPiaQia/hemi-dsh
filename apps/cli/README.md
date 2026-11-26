@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 The `dsh` command is the sole supported Node application launcher: profiles are ordered stacks of plugin-bundle patch layers under the user's own overrides. SDK and ACP are profiles, not separate public bins. The Python runtime wheel packages this same command; the SDK defaults to `sdk`, and the minimal example selects `sdk-minimal`. [`src/args.ts`](src/args.ts) owns the command grammar, and [`src/bin.ts`](src/bin.ts) loads only the selected runner. Invalid commands, options from another mode, and fatal configuration or boot failures exit nonzero.
 
-This Hemi distribution carries the original `dsh-pocket` and `dsh-mnemon` packages as pinned dependencies; only [Desktop profile preparation](../desktop/README.md#installation-ownership) selects them automatically. The npm package includes [Pocket's original license and complete matching source](third-party/dsh-pocket/README.md), so Desktop and SDK distributions retain the same source material.
+This Hemi distribution carries the original `dsh-pocket`, `dsh-mnemon`, and `dsh-native-browser` packages as pinned dependencies. Only [Desktop profile preparation](../desktop/README.md#installation-ownership) selects them automatically. The npm package includes [Pocket's original license and complete matching source](third-party/dsh-pocket/README.md), so Desktop and SDK distributions retain the same source material.
 
 ## Entry modes
 

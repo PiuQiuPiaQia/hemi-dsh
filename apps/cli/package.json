@@ -31,6 +31,7 @@
   "dependencies": {
     "dsh-pocket": "2.13.0",
     "dsh-mnemon": "0.5.45",
+    "dsh-native-browser": "0.2.4",
     "@deepseek-ai/cordis": "workspace:~",
     "@deepseek-ai/dsh-hmr": "workspace:*",
     "@deepseek-ai/cordis-plugin-include": "workspace:~",

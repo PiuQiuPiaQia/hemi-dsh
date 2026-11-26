@@ -597,6 +597,9 @@ importers:
       dsh-mnemon:
         specifier: 0.5.45
         version: 0.5.45(@deepseek-ai/cordis@vendor+cordis)(@deepseek-ai/dsh-app-boot@packages+boot+app-boot)(@deepseek-ai/dsh-typert-protocol@0.2.3-alpha.2(@deepseek-ai/cordis@vendor+cordis)(@deepseek-ai/dsh-error@0.2.3-alpha.2(@deepseek-ai/cordis@vendor+cordis)))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      dsh-native-browser:
+        specifier: 0.2.4
+        version: 0.2.4
       dsh-pocket:
         specifier: 2.13.0
         version: 2.13.0(@deepseek-ai/cordis@vendor+cordis)
@@ -26488,6 +26491,11 @@ packages:
       '@deepseek-ai/dsh-app-boot':
         optional: true
 
+  dsh-native-browser@0.2.4:
+    resolution: {integrity: sha512-Ll+xhk3SJT4Gz9D72oedvC/l8OBU0Q7eYGKJgCiaVVgk+mhBkPhX61FrDERT5c3scQBHB4qq9gdTc9FfNMJmTA==}
+    engines: {dsh: '>=0.1.5-rc.1 <0.3.0', node: '>=22.19'}
+    hasBin: true
+
   dsh-pocket@2.13.0:
     resolution: {integrity: sha512-eHdAB4+QkJFfyBVFPUYUTx7Bpt0KzR7Qf7IHyRHAxjFX/mTFhUnEsMw9GVBHTjtlVQmqX2BeFM3VD493iVAWhg==}
     engines: {node: '>=22'}
@@ -34372,6 +34380,8 @@ snapshots:
       zod: 4.6.6
     optionalDependencies:
       '@deepseek-ai/dsh-app-boot': link:packages/boot/app-boot
+
+  dsh-native-browser@0.2.4: {}
 
   dsh-pocket@2.13.0(@deepseek-ai/cordis@vendor+cordis):
     dependencies:
